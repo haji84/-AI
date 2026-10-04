@@ -1,0 +1,41 @@
+# secrets
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+
+# runtime / database
+*.db
+*.sqlite
+*.sqlite3
+postgres-data/
+backups/
+runtime/
+
+# operational source data - never commit
+*.xlsm
+*.xlsx
+*.xls
+*.pdf
+*.jpg
+*.jpeg
+*.png
+*.heic
+*.wav
+*.mp3
+*.m4a
+/data/
+/uploads/
+/originals/
+
+# build / tooling
+node_modules/
+.next/
+dist/
+build/
+__pycache__/
+*.pyc
+.pytest_cache/
+.DS_Store
+Thumbs.db
