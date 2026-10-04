@@ -586,11 +586,15 @@ class EquipmentInspectionReport(Base):
     __tablename__ = "equipment_inspection_reports"
     report_id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True, default=uuid_str)
     building_id: Mapped[str] = mapped_column(ForeignKey("facilities.building_id", ondelete="CASCADE"), nullable=False, index=True)
-    submission_id: Mapped[str] = mapped_column(ForeignKey("submissions.submission_id", ondelete="CASCADE"), unique=True, nullable=False)
+    submission_id: Mapped[str | None] = mapped_column(ForeignKey("submissions.submission_id", ondelete="CASCADE"), unique=True)
+    equipment_label: Mapped[str | None] = mapped_column(Text)
     submitted_at: Mapped[date | None] = mapped_column(Date)
     inspection_date: Mapped[date | None] = mapped_column(Date)
     result_summary: Mapped[str | None] = mapped_column(Text)
     next_due_at: Mapped[date | None] = mapped_column(Date)
+    source_kind: Mapped[str] = mapped_column(String(30), nullable=False, default="submission", index=True)
+    raw_result_text: Mapped[str | None] = mapped_column(Text)
+    raw_report_text: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
 
 
@@ -598,11 +602,15 @@ class FireManagementAssignment(Base):
     __tablename__ = "fire_management_assignments"
     assignment_id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True, default=uuid_str)
     building_id: Mapped[str] = mapped_column(ForeignKey("facilities.building_id", ondelete="CASCADE"), nullable=False, index=True)
-    submission_id: Mapped[str] = mapped_column(ForeignKey("submissions.submission_id", ondelete="CASCADE"), unique=True, nullable=False)
+    submission_id: Mapped[str | None] = mapped_column(ForeignKey("submissions.submission_id", ondelete="CASCADE"), unique=True)
     manager_name: Mapped[str | None] = mapped_column(Text)
     manager_title: Mapped[str | None] = mapped_column(Text)
     appointed_at: Mapped[date | None] = mapped_column(Date)
+    appointment_submitted_at: Mapped[date | None] = mapped_column(Date)
     status: Mapped[str] = mapped_column(String(30), nullable=False, default="active")
+    source_kind: Mapped[str] = mapped_column(String(30), nullable=False, default="submission", index=True)
+    legacy_slot: Mapped[int | None] = mapped_column(Integer)
+    raw_submission_text: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
 
 
@@ -610,8 +618,34 @@ class FirePlan(Base):
     __tablename__ = "fire_plans"
     fire_plan_id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True, default=uuid_str)
     building_id: Mapped[str] = mapped_column(ForeignKey("facilities.building_id", ondelete="CASCADE"), nullable=False, index=True)
-    submission_id: Mapped[str] = mapped_column(ForeignKey("submissions.submission_id", ondelete="CASCADE"), unique=True, nullable=False)
+    submission_id: Mapped[str | None] = mapped_column(ForeignKey("submissions.submission_id", ondelete="CASCADE"), unique=True)
     submitted_at: Mapped[date | None] = mapped_column(Date)
     plan_version_label: Mapped[str | None] = mapped_column(String(120))
     status: Mapped[str] = mapped_column(String(30), nullable=False, default="submitted")
+    source_kind: Mapped[str] = mapped_column(String(30), nullable=False, default="submission", index=True)
+    legacy_slot: Mapped[int | None] = mapped_column(Integer)
+    raw_submission_text: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
+class InspectionReportingProfile(Base):
+    __tablename__ = "inspection_reporting_profiles"
+    building_id: Mapped[str] = mapped_column(ForeignKey("facilities.building_id", ondelete="CASCADE"), primary_key=True)
+    report_cycle_years: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
+    next_due_date: Mapped[date | None] = mapped_column(Date)
+    raw_cycle_text: Mapped[str | None] = mapped_column(Text)
+    raw_next_due_text: Mapped[str | None] = mapped_column(Text)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
+class GuidanceRecord(Base):
+    __tablename__ = "guidance_records"
+    guidance_id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True, default=uuid_str)
+    building_id: Mapped[str] = mapped_column(ForeignKey("facilities.building_id", ondelete="CASCADE"), nullable=False, index=True)
+    subject: Mapped[str | None] = mapped_column(Text)
+    issued_at: Mapped[date | None] = mapped_column(Date)
+    content: Mapped[str | None] = mapped_column(Text)
+    legacy_slot: Mapped[int | None] = mapped_column(Integer)
+    source_kind: Mapped[str] = mapped_column(String(30), nullable=False, default="legacy", index=True)
+    raw_issued_text: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
