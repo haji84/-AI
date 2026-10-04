@@ -9,15 +9,19 @@ from sqlalchemy.orm import Session
 from ..audit import write_audit
 from ..authz import require_permission
 from ..db import get_db
+from ..legal_rule_candidate_generation import candidate_fingerprint
 from ..models import (
     LegalProvision,
     LegalProvisionReviewCandidate,
+    LegalRuleDraftCandidate,
+    LegalRuleDraftCitation,
     LegalSourceDocument,
     LegalSourceDocumentVersion,
     User,
 )
 from ..schemas import (
     LegalProvisionOut,
+    LegalProvisionReviewCandidateDraft,
     LegalProvisionReviewCandidateOut,
     LegalProvisionReviewCandidatePatch,
 )
@@ -124,6 +128,106 @@ def patch_review_candidate(
             "category": row.category,
             "relevance_score": row.relevance_score,
             "version": row.version,
+        },
+    )
+    db.commit()
+    return _out(db, row)
+
+
+@router.post("/{candidate_id}/draft", response_model=LegalProvisionReviewCandidateOut)
+def create_rule_draft_from_review_candidate(
+    candidate_id: str,
+    payload: LegalProvisionReviewCandidateDraft,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("legal_rule.manage")),
+):
+    row = db.get(LegalProvisionReviewCandidate, candidate_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="legal review candidate not found")
+    if row.version != payload.expected_version:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="review candidate was updated")
+    if row.status != "reviewed":
+        raise HTTPException(status_code=409, detail="review candidate must be reviewed before Rule draft creation")
+    if row.legal_rule_draft_candidate_id:
+        raise HTTPException(status_code=409, detail="Rule draft already created from this review candidate")
+    if row.category not in {"equipment_requirement", "submission_requirement"}:
+        raise HTTPException(
+            status_code=409,
+            detail="review category is not directly promotable to the current requirement Rule engine",
+        )
+
+    provision = db.get(LegalProvision, row.legal_provision_id)
+    if not provision or not provision.present_in_source:
+        raise HTTPException(status_code=409, detail="source provision is no longer present")
+
+    fingerprint = candidate_fingerprint(
+        source_version_id=provision.legal_source_document_version_id,
+        provision_id=provision.legal_provision_id,
+        domain=row.category,
+        generator_version="review-queue-handoff-v1",
+    )
+    duplicate = db.scalar(
+        select(LegalRuleDraftCandidate).where(
+            LegalRuleDraftCandidate.candidate_fingerprint == fingerprint
+        )
+    )
+    if duplicate:
+        row.status = "drafted"
+        row.legal_rule_draft_candidate_id = duplicate.legal_rule_draft_candidate_id
+        row.version += 1
+        row.updated_at = datetime.now(timezone.utc)
+        db.commit()
+        return _out(db, row)
+
+    draft = LegalRuleDraftCandidate(
+        source_legal_document_version_id=provision.legal_source_document_version_id,
+        domain=row.category,
+        proposed_rule_code=None,
+        proposed_name=payload.proposed_name
+        or f"要レビュー: {provision.display_label or provision.provision_key}",
+        proposed_conditions={},
+        proposed_outcome={},
+        extraction_method="deterministic",
+        model_version=row.model_version,
+        confidence=min(0.75, max(0.0, row.relevance_score / 10.0)),
+        rationale=(
+            "Created from a Human-reviewed legal relevance candidate. "
+            "Conditions and outcome intentionally left blank for Human interpretation."
+        ),
+        candidate_fingerprint=fingerprint,
+        generation_context={
+            "source_review_candidate_id": row.legal_provision_review_candidate_id,
+            "relevance_category": row.category,
+            "relevance_score": row.relevance_score,
+            "reasons": row.reasons,
+            "interpretation_status": "required",
+        },
+        created_by=user.user_id,
+    )
+    db.add(draft)
+    db.flush()
+    db.add(
+        LegalRuleDraftCitation(
+            legal_rule_draft_candidate_id=draft.legal_rule_draft_candidate_id,
+            legal_provision_id=provision.legal_provision_id,
+            citation_role="primary",
+        )
+    )
+    row.status = "drafted"
+    row.legal_rule_draft_candidate_id = draft.legal_rule_draft_candidate_id
+    row.version += 1
+    row.updated_at = datetime.now(timezone.utc)
+    write_audit(
+        db,
+        user_id=user.user_id,
+        action="legal_review_candidate.create_rule_draft",
+        entity_type="legal_provision_review_candidate",
+        entity_id=row.legal_provision_review_candidate_id,
+        after={
+            "legal_rule_draft_candidate_id": draft.legal_rule_draft_candidate_id,
+            "domain": draft.domain,
+            "conditions_completed": False,
+            "outcome_completed": False,
         },
     )
     db.commit()
