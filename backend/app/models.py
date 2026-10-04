@@ -714,6 +714,7 @@ class LegalRuleVersion(Base):
     outcome: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     source_document_id: Mapped[str | None] = mapped_column(ForeignKey("documents.document_id"))
     source_reference: Mapped[str | None] = mapped_column(Text)
+    source_legal_document_version_id: Mapped[str | None] = mapped_column(ForeignKey("legal_source_document_versions.legal_source_document_version_id"))
     status: Mapped[str] = mapped_column(String(30), nullable=False, default="draft")
     approved_by: Mapped[str | None] = mapped_column(ForeignKey("app_users.user_id"))
     approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -841,6 +842,10 @@ class LegalSourceDocumentVersion(Base):
     previous_version_id: Mapped[str | None] = mapped_column(ForeignKey("legal_source_document_versions.legal_source_document_version_id"))
     change_summary: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     parse_status: Mapped[str] = mapped_column(String(30), nullable=False, default="stored")
+    structure_status: Mapped[str] = mapped_column(String(30), nullable=False, default="unparsed")
+    structure_parser_version: Mapped[str | None] = mapped_column(String(80))
+    provision_count: Mapped[int | None] = mapped_column(Integer)
+    structured_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
     __table_args__ = (UniqueConstraint("legal_source_document_id", "sha256", name="uq_legal_source_document_hash"),)
 
@@ -875,3 +880,51 @@ class LegalUpdateCandidate(Base):
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
 
+
+
+class LegalProvision(Base):
+    __tablename__ = "legal_provisions"
+    legal_provision_id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True, default=uuid_str)
+    legal_source_document_version_id: Mapped[str] = mapped_column(
+        ForeignKey("legal_source_document_versions.legal_source_document_version_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    parent_provision_id: Mapped[str | None] = mapped_column(
+        ForeignKey("legal_provisions.legal_provision_id", ondelete="CASCADE"),
+        index=True,
+    )
+    provision_type: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    provision_key: Mapped[str] = mapped_column(Text, nullable=False)
+    sequence_no: Mapped[int] = mapped_column(Integer, nullable=False)
+    display_label: Mapped[str | None] = mapped_column(Text)
+    heading_text: Mapped[str | None] = mapped_column(Text)
+    body_text: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    source_anchor: Mapped[str | None] = mapped_column(Text)
+    source_path: Mapped[str | None] = mapped_column(Text)
+    source_meta: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    content_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    __table_args__ = (
+        UniqueConstraint(
+            "legal_source_document_version_id",
+            "provision_key",
+            name="uq_legal_provision_key",
+        ),
+    )
+
+
+class LegalRuleCitation(Base):
+    __tablename__ = "legal_rule_citations"
+    legal_rule_version_id: Mapped[str] = mapped_column(
+        ForeignKey("legal_rule_versions.legal_rule_version_id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    legal_provision_id: Mapped[str] = mapped_column(
+        ForeignKey("legal_provisions.legal_provision_id", ondelete="RESTRICT"),
+        primary_key=True,
+    )
+    citation_role: Mapped[str] = mapped_column(String(40), primary_key=True, default="primary")
+    cited_text_snapshot: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    created_by: Mapped[str | None] = mapped_column(ForeignKey("app_users.user_id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
