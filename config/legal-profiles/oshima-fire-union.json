@@ -1,0 +1,18 @@
+{
+  "profile_code": "oshima-fire-union",
+  "profile_name": "大島地区消防組合",
+  "fire_department_name": "大島地区消防組合",
+  "official_regulation_root": "https://fd-ohshima.jp/reiki_2026/",
+  "official_index_url": "https://fd-ohshima.jp/reiki_2026/reiki_taikei/taikei_default.html",
+  "content_current_date_display": "令和7年4月1日",
+  "content_current_date": "2025-04-01",
+  "allowed_host": "fd-ohshima.jp",
+  "adapter_type": "official_html_crawl",
+  "include_regex": "/reiki_2026/reiki_honbun/",
+  "crawl_regex": "/reiki_2026/reiki_taikei/",
+  "expected_body_document_count": 119,
+  "content_scope": "all",
+  "trust_level": "official",
+  "update_mode": "online",
+  "sync_frequency": "daily"
+}
