@@ -51,7 +51,7 @@ jobs:
           from pathlib import Path
           from app.legal_structure import parse_egov_xml, parse_regulation_html, extract_egov_law_metadata
           from app.legal_relevance import SCANNER_VERSION, score_fire_service_relevance
-          from app.legal_priority import classify_source_priority
+          from app.legal_priority import classify_provision_context, classify_source_priority
 
           ALLOWED_TYPES={
               "article","paragraph","item","subitem1","subitem2","subitem3",
@@ -67,6 +67,7 @@ jobs:
                   "matched_provisions":0,
                   "category_counts":Counter(),
                   "priority_lane_counts":Counter(),
+                  "provision_context_counts":Counter(),
                   "document_counts":Counter(),
                   "top":defaultdict(list),
               }
@@ -76,6 +77,7 @@ jobs:
                   return
               stats["scored_provisions"]+=1
               priority=classify_source_priority(title)
+              context=classify_provision_context(row.provision_key,row.provision_type)
               hits=score_fire_service_relevance(
                   title=title,
                   label=row.display_label,
@@ -89,13 +91,16 @@ jobs:
               stats["matched_provisions"]+=1
               stats["document_counts"][title]+=1
               stats["priority_lane_counts"][priority.lane]+=1
+              stats["provision_context_counts"][context.context]+=1
               for h in hits:
                   stats["category_counts"][h.category]+=1
                   item=(
-                      h.score + priority.score,
+                      h.score + priority.score + context.score,
                       h.score,
                       priority.score,
+                      context.score,
                       priority.lane,
+                      context.context,
                       title or "",
                       row.display_label or row.provision_key,
                       row.heading_text or "",
@@ -143,6 +148,7 @@ jobs:
                   "matched_provisions":stats["matched_provisions"],
                   "category_counts":dict(stats["category_counts"]),
                   "priority_lane_counts":dict(stats["priority_lane_counts"]),
+                  "provision_context_counts":dict(stats["provision_context_counts"]),
                   "top_documents":stats["document_counts"].most_common(50),
                   "top_by_category":{
                       cat:[
@@ -150,12 +156,14 @@ jobs:
                               "review_priority_score":x[0],
                               "relevance_score":x[1],
                               "source_priority_score":x[2],
-                              "priority_lane":x[3],
-                              "document":x[4],
-                              "label":x[5],
-                              "heading":x[6],
-                              "body_excerpt":x[7],
-                              "reasons":x[8],
+                              "context_priority_score":x[3],
+                              "priority_lane":x[4],
+                              "provision_context":x[5],
+                              "document":x[6],
+                              "label":x[7],
+                              "heading":x[8],
+                              "body_excerpt":x[9],
+                              "reasons":x[10],
                           }
                           for x in sorted(heap,reverse=True)
                       ]
@@ -181,9 +189,11 @@ jobs:
               "egov_matched":result["egov"]["matched_provisions"],
               "egov_categories":result["egov"]["category_counts"],
               "egov_priority_lanes":result["egov"]["priority_lane_counts"],
+              "egov_contexts":result["egov"]["provision_context_counts"],
               "oshima_matched":result["oshima_fire_union"]["matched_provisions"],
               "oshima_categories":result["oshima_fire_union"]["category_counts"],
               "oshima_priority_lanes":result["oshima_fire_union"]["priority_lane_counts"],
+              "oshima_contexts":result["oshima_fire_union"]["provision_context_counts"],
           },ensure_ascii=False))
           PY
 
