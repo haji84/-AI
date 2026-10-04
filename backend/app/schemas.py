@@ -648,6 +648,11 @@ class LegalRuleDraftCandidatePromote(BaseModel):
     effective_from: str
     effective_to: str | None = None
 
+class LegalRuleDraftCitationOut(BaseModel):
+    legal_provision_id: str
+    citation_role: str
+    provision: LegalProvisionOut
+
 class LegalRuleDraftCandidateOut(BaseModel):
     legal_rule_draft_candidate_id: str
     source_legal_document_version_id: str | None = None
@@ -664,4 +669,4 @@ class LegalRuleDraftCandidateOut(BaseModel):
     version: int
     promoted_rule_id: str | None = None
     promoted_rule_version_id: str | None = None
-    citations: list[LegalRuleCitationOut] = Field(default_factory=list)
+    citations: list[LegalRuleDraftCitationOut] = Field(default_factory=list)
