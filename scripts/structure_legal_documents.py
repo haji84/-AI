@@ -12,6 +12,9 @@ from app.legal_structure import PARSER_VERSION, parse_legal_document
 from app.models import (
     Document,
     LegalProvision,
+    LegalRule,
+    LegalRuleCitation,
+    LegalRuleVersion,
     LegalSourceDocumentVersion,
     LegalUpdateCandidate,
 )
@@ -128,12 +131,35 @@ def _structure_version(db, version: LegalSourceDocumentVersion) -> dict:
             else:
                 diff["unchanged"].append(key)
 
+        impacted_rule_ids: set[str] = set()
+        impacted_rule_version_ids: set[str] = set()
+        impacted_keys = set(diff["removed"]) | set(diff["changed"])
+        if impacted_keys:
+            previous_by_key = {x.provision_key: x for x in prev_rows.values()}
+            impacted_provision_ids = [
+                previous_by_key[key].legal_provision_id
+                for key in impacted_keys
+                if key in previous_by_key
+            ]
+            if impacted_provision_ids:
+                citations = db.scalars(
+                    select(LegalRuleCitation).where(
+                        LegalRuleCitation.legal_provision_id.in_(impacted_provision_ids)
+                    )
+                ).all()
+                for citation in citations:
+                    impacted_rule_version_ids.add(citation.legal_rule_version_id)
+                    rv = db.get(LegalRuleVersion, citation.legal_rule_version_id)
+                    if rv:
+                        impacted_rule_ids.add(rv.rule_id)
+
         candidate = db.scalar(
             select(LegalUpdateCandidate).where(
                 LegalUpdateCandidate.legal_source_document_version_id == version.legal_source_document_version_id
             )
         )
         if candidate:
+            candidate.impacted_rule_ids = sorted(impacted_rule_ids)
             candidate.diff_payload = {
                 **(candidate.diff_payload or {}),
                 "provision_diff": {
@@ -142,6 +168,8 @@ def _structure_version(db, version: LegalSourceDocumentVersion) -> dict:
                     "changed": diff["changed"],
                     "unchanged_count": len(diff["unchanged"]),
                     "parser_version": PARSER_VERSION,
+                    "impacted_rule_ids": sorted(impacted_rule_ids),
+                    "impacted_rule_version_ids": sorted(impacted_rule_version_ids),
                 },
             }
 
