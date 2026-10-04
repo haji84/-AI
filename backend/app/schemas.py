@@ -698,3 +698,7 @@ class LegalProvisionReviewCandidateOut(BaseModel):
 class LegalProvisionReviewCandidatePatch(BaseModel):
     expected_version: int = Field(ge=1)
     status: Literal["reviewed","ignored"]
+
+class LegalProvisionReviewCandidateDraft(BaseModel):
+    expected_version: int = Field(ge=1)
+    proposed_name: str | None = Field(default=None, min_length=1, max_length=300)
