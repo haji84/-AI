@@ -429,6 +429,37 @@ def parse_regulation_html(data: bytes, content_type: str | None = None) -> list[
                 )
             )
 
+    if not records:
+        # Notices, designations, agreements, and similar official documents may
+        # contain no numbered Article structure at all. Preserve the full visible
+        # body as one citable Provision instead of reporting a false parse gap.
+        meaningful: list[str] = []
+        seen: set[str] = set()
+        for _anchor, text in parser.blocks:
+            value = _norm(text)
+            if not value or value in seen:
+                continue
+            if value.startswith(("selectTab(", "iPadLoadStyle(", "e000000")):
+                continue
+            seen.add(value)
+            meaningful.append(value)
+        body = "\n".join(meaningful)
+        if body:
+            records.append(
+                ProvisionRecord(
+                    provision_key="document_body:1",
+                    parent_key=None,
+                    provision_type="document_body",
+                    sequence_no=1,
+                    display_label=None,
+                    heading_text=None,
+                    body_text=body,
+                    source_anchor=None,
+                    source_path="document_body:1",
+                    source_meta={"fallback": True, "reason": "no_numbered_provisions"},
+                )
+            )
+
     return records
 
 
