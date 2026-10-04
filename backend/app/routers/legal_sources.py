@@ -65,6 +65,10 @@ def _source_out(row: LegalSource) -> LegalSourceOut:
         sync_frequency=row.sync_frequency,
         trust_level=row.trust_level,
         enabled=row.enabled,
+        coverage_status=row.coverage_status,
+        expected_document_count=row.expected_document_count,
+        captured_document_count=row.captured_document_count,
+        stale_after_hours=row.stale_after_hours,
     )
 
 
