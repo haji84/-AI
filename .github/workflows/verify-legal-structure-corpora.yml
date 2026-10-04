@@ -1,0 +1,127 @@
+name: verify-legal-structure-corpora
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/verify-legal-structure-corpora.yml"
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Download e-Gov full corpus artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: egov-national-laws-all-xml
+          path: _verify/egov
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: haji84/-AI
+          run-id: 37240404083
+
+      - name: Download 大島地区消防組合 corpus artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: oshima-fire-union-reiki-full-2025-04-01
+          path: _verify/oshima
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: haji84/-AI
+          run-id: 37240040293
+
+      - name: Parse all acquired legal originals
+        env:
+          PYTHONPATH: backend
+        run: |
+          python - <<'PY'
+          import json, zipfile
+          from collections import Counter
+          from pathlib import Path
+          from app.legal_structure import parse_egov_xml, parse_regulation_html
+
+          out=Path("_verify/results")
+          out.mkdir(parents=True,exist_ok=True)
+
+          # e-Gov full XML
+          archives=[p for p in Path("_verify/egov").glob("*.zip") if not p.name.endswith(".manifest.json")]
+          assert archives, "e-Gov source archive not found"
+          archive=max(archives,key=lambda p:p.stat().st_size)
+          egov_counts=Counter()
+          egov_failures=[]
+          egov_zero=[]
+          with zipfile.ZipFile(archive) as z:
+              names=[n for n in z.namelist() if n.lower().endswith(".xml") and not n.endswith("/")]
+              assert len(names)==10414, f"expected 10414 XML laws, got {len(names)}"
+              for name in names:
+                  try:
+                      rows=parse_egov_xml(z.read(name))
+                      egov_counts["documents"]+=1
+                      egov_counts["provisions"]+=len(rows)
+                      if not rows:
+                          egov_zero.append(name)
+                      for row in rows:
+                          egov_counts[row.provision_type]+=1
+                  except Exception as exc:
+                      egov_failures.append({"member":name,"error":type(exc).__name__,"message":str(exc)[:300]})
+          assert not egov_failures, f"e-Gov parse failures: {egov_failures[:3]}"
+
+          # 大島地区消防組合 119件
+          manifest_path=Path("_verify/oshima/manifest.json")
+          assert manifest_path.exists(), "oshima manifest missing"
+          manifest=json.loads(manifest_path.read_text(encoding="utf-8"))
+          docs=manifest["documents"]
+          assert len(docs)==119, f"expected 119 oshima documents, got {len(docs)}"
+          oshima_counts=Counter()
+          oshima_failures=[]
+          oshima_zero=[]
+          for item in docs:
+              try:
+                  p=Path("_verify/oshima")/item["file"]
+                  rows=parse_regulation_html(p.read_bytes(),item.get("content_type"))
+                  oshima_counts["documents"]+=1
+                  oshima_counts["provisions"]+=len(rows)
+                  if not rows:
+                      oshima_zero.append(item["url"])
+                  for row in rows:
+                      oshima_counts[row.provision_type]+=1
+              except Exception as exc:
+                  oshima_failures.append({"url":item.get("url"),"error":type(exc).__name__,"message":str(exc)[:300]})
+          assert not oshima_failures, f"oshima parse failures: {oshima_failures[:3]}"
+
+          result={
+              "parser":"legal-structure-v1",
+              "egov":{
+                  "counts":dict(egov_counts),
+                  "parse_failure_count":len(egov_failures),
+                  "zero_provision_count":len(egov_zero),
+                  "zero_provision_examples":egov_zero[:20],
+              },
+              "oshima_fire_union":{
+                  "counts":dict(oshima_counts),
+                  "parse_failure_count":len(oshima_failures),
+                  "zero_provision_count":len(oshima_zero),
+                  "zero_provision_examples":oshima_zero[:20],
+              },
+          }
+          (out/"legal-structure-verification.json").write_text(
+              json.dumps(result,ensure_ascii=False,indent=2),encoding="utf-8"
+          )
+          print(json.dumps(result,ensure_ascii=False))
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: legal-structure-verification
+          path: _verify/results/
+          retention-days: 90
+          if-no-files-found: error
