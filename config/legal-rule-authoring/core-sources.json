@@ -27,5 +27,33 @@
     "auto_approve": false,
     "rule_conditions_auto_generated": false,
     "rule_outcomes_auto_generated": false
+  },
+  "authoring_lanes": {
+    "requirement_rules": {
+      "categories": [
+        "equipment_requirement",
+        "submission_requirement"
+      ],
+      "purpose": "current Phase 5 deterministic requirement Rule authoring"
+    },
+    "management_review": {
+      "categories": [
+        "fire_management",
+        "inspection_enforcement"
+      ],
+      "purpose": "future fire management and inspection rule modules"
+    },
+    "hazardous_materials": {
+      "categories": [
+        "hazardous_materials"
+      ],
+      "purpose": "dedicated hazardous-materials rule module"
+    },
+    "local_fire_prevention": {
+      "categories": [
+        "fire_prevention_local"
+      ],
+      "purpose": "local ordinance-specific review"
+    }
   }
 }
