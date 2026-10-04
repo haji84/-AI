@@ -472,6 +472,7 @@ class LegalRuleVersionCreate(BaseModel):
     outcome: dict
     source_document_id: str | None = None
     source_reference: str | None = None
+    source_legal_document_version_id: str | None = None
 
 class LegalRuleVersionApprove(BaseModel):
     expected_version: int = Field(ge=1)
@@ -486,6 +487,7 @@ class LegalRuleVersionOut(BaseModel):
     outcome: dict
     source_document_id: str | None = None
     source_reference: str | None = None
+    source_legal_document_version_id: str | None = None
     status: str
     version: int
 
@@ -572,3 +574,29 @@ class LegalSourceOut(BaseModel):
     captured_document_count: int | None = None
     stale_after_hours: int = 168
 
+
+
+class LegalProvisionOut(BaseModel):
+    legal_provision_id: str
+    legal_source_document_version_id: str
+    parent_provision_id: str | None = None
+    provision_type: str
+    provision_key: str
+    sequence_no: int
+    display_label: str | None = None
+    heading_text: str | None = None
+    body_text: str
+    source_anchor: str | None = None
+    source_path: str | None = None
+    present_in_source: bool
+
+class LegalRuleCitationCreate(BaseModel):
+    legal_provision_id: str
+    citation_role: Literal["primary","definition","exception","reference","supplementary"] = "primary"
+
+class LegalRuleCitationOut(BaseModel):
+    legal_rule_version_id: str
+    legal_provision_id: str
+    citation_role: str
+    cited_text_snapshot: str
+    provision: LegalProvisionOut
