@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 
-SCANNER_VERSION = "fire-legal-relevance-v1"
+SCANNER_VERSION = "fire-legal-relevance-v2"
 
 CATEGORY_KEYWORDS: dict[str, dict[str, float]] = {
     "equipment_requirement": {
@@ -71,6 +71,24 @@ CATEGORY_KEYWORDS: dict[str, dict[str, float]] = {
     },
 }
 
+FIRE_SERVICE_ANCHORS = (
+    "消防",
+    "火災",
+    "防火",
+    "防災管理",
+    "自衛消防",
+    "危険物",
+    "消火",
+    "避難",
+    "火気",
+    "裸火",
+    "喫煙",
+    "防炎",
+    "防火対象物",
+    "消防用設備",
+    "火災予防",
+)
+
 PREFILTER_TERMS = tuple(sorted({
     keyword
     for weighted in CATEGORY_KEYWORDS.values()
@@ -101,6 +119,8 @@ def score_fire_service_relevance(
     title_text = title or ""
     hits: list[RelevanceHit] = []
     if not any(term in text for term in PREFILTER_TERMS):
+        return []
+    if not any(anchor in text for anchor in FIRE_SERVICE_ANCHORS):
         return []
 
     negative_penalty = 1.5 if any(x in title_text for x in NEGATIVE_HINTS) else 0.0
