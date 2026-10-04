@@ -897,7 +897,7 @@ def test_phase5_1_rejects_source_for_unknown_jurisdiction():
 
 def test_phase5_2_egov_structure_parser():
     from app.legal_structure import parse_egov_xml
-    xml=b"""<?xml version="1.0" encoding="UTF-8"?>
+    xml="""<?xml version="1.0" encoding="UTF-8"?>
     <Law>
       <LawBody>
         <MainProvision>
@@ -919,7 +919,7 @@ def test_phase5_2_egov_structure_parser():
           </AppdxTable>
         </MainProvision>
       </LawBody>
-    </Law>"""
+    </Law>""".encode("utf-8")
     rows=parse_egov_xml(xml)
     assert any(x.provision_type=="article" and x.display_label=="第二十三条" for x in rows)
     article=next(x for x in rows if x.provision_type=="article")
