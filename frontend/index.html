@@ -25,7 +25,7 @@ table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid #e4e8ec;
 </style>
 </head>
 <body>
-<header><strong>消防業務 Local AI</strong><span class="pill active">Phase 5</span><span class="muted">対象物・査察・届出・文書解析・法令判定支援</span><span class="grow"></span><button id="logoutBtn" class="btn hidden" onclick="logout()">ログアウト</button></header>
+<header><strong>消防業務 Local AI</strong><span class="pill active">Phase 5</span><span class="muted">対象物・査察・届出・文書解析・法令判定支援</span><span class="grow"></span><button id="legalReviewBtn" class="btn hidden" onclick="openLegalReview()">法令レビュー</button><button id="logoutBtn" class="btn hidden" onclick="logout()">ログアウト</button></header>
 
 <section id="loginView" class="loginBox card">
 <h1>ログイン</h1>
@@ -55,6 +55,43 @@ table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid #e4e8ec;
 </div>
 </div>
 
+<div id="legalReviewModal" class="modalWrap hidden">
+<div class="modal">
+<div class="modalHead"><b>法令レビュー</b><span class="grow"></span><button class="btn" onclick="closeLegalReview()">閉じる</button></div>
+<div class="modalBody">
+<div class="notice">自動抽出は関連候補の優先順位付けだけです。Rule条件・結論は職員確認後に作成し、正式承認は別Gateです。</div>
+<div class="row" style="margin-bottom:10px">
+<select id="legalReviewStatus" onchange="loadLegalReview()">
+<option value="pending">未確認</option>
+<option value="reviewed">レビュー済み</option>
+<option value="drafted">Rule草案化済み</option>
+<option value="ignored">対象外</option>
+<option value="">すべて</option>
+</select>
+<select id="legalReviewCategory" onchange="loadLegalReview()">
+<option value="">全カテゴリ</option>
+<option value="equipment_requirement">必要設備</option>
+<option value="submission_requirement">必要届出</option>
+<option value="fire_management">防火・防災管理</option>
+<option value="inspection_enforcement">査察・違反是正</option>
+<option value="hazardous_materials">危険物</option>
+<option value="fire_prevention_local">火災予防条例系</option>
+</select>
+<select id="legalReviewLane" onchange="loadLegalReview()">
+<option value="">全優先レーン</option>
+<option value="national_core">国法コア</option>
+<option value="local_core">ローカルコア</option>
+<option value="normal">通常</option>
+</select>
+<input id="legalReviewMinScore" type="number" min="0" step="0.5" value="2" style="max-width:110px" onchange="loadLegalReview()" title="最低関連度">
+<button class="btn" onclick="loadLegalReview()">更新</button>
+</div>
+<div id="legalReviewSummary" class="muted" style="margin-bottom:10px"></div>
+<div id="legalReviewList"></div>
+</div>
+</div>
+</div>
+
 <script>
 const $=id=>document.getElementById(id);
 const state={offset:0,limit:50,total:0,selected:null,detail:null,mode:null,draft:null};
@@ -62,7 +99,7 @@ const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&
 const val=v=>(v===null||v===undefined||v==='')?'－':esc(v);
 
 async function api(url,opt={}){const r=await fetch(url,opt);let body=null;try{body=await r.json()}catch{}if(!r.ok){const e=new Error(body?.detail?.message||body?.detail||`HTTP ${r.status}`);e.status=r.status;e.body=body;throw e}return body}
-async function login(){try{await api('/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:$('loginUser').value,password:$('loginPass').value})});$('loginView').classList.add('hidden');$('appView').classList.remove('hidden');$('logoutBtn').classList.remove('hidden');await loadFacilities(0)}catch(e){$('loginMsg').textContent='ログインできません。ユーザー名・パスワードを確認してください。'}}
+async function login(){try{await api('/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:$('loginUser').value,password:$('loginPass').value})});$('loginView').classList.add('hidden');$('appView').classList.remove('hidden');$('logoutBtn').classList.remove('hidden');$('legalReviewBtn').classList.remove('hidden');await loadFacilities(0)}catch(e){$('loginMsg').textContent='ログインできません。ユーザー名・パスワードを確認してください。'}}
 async function logout(){try{await fetch('/auth/logout',{method:'POST'})}catch{}location.reload()}
 
 async function loadFacilities(offset=state.offset){state.offset=Math.max(0,offset);const p=new URLSearchParams({offset:state.offset,limit:state.limit,sort_by:$('sortBy').value,sort_dir:$('sortDir').value});if($('searchQ').value.trim())p.set('q',$('searchQ').value.trim());if($('statusFilter').value)p.set('status_filter',$('statusFilter').value);try{const d=await api('/facilities?'+p);state.total=d.total;renderList(d.items)}catch(e){if(e.status===401){location.reload();return}$('facilityList').innerHTML='<div class="empty">一覧を取得できません</div>'}}
@@ -103,6 +140,93 @@ async function completeFinding(id,version){try{await api(`/inspections/findings/
 async function quickReceiveSubmission(){if(!state.detail)return;let types;try{types=await api('/submissions/types')}catch(e){alert('届出種別を取得できません: '+e.message);return}const menu=types.map((x,i)=>`${i+1}: ${x.name}`).join('\n');const choice=Number(prompt(`届出種別を番号で選択してください\n${menu}`,'1'));if(!choice||!types[choice-1])return;const type=types[choice-1];const official_number=prompt('正式届出番号（数字のみ。未取得なら空欄）','')||null;if(official_number&&!/^\d+$/.test(official_number)){alert('正式届出番号は数字のみです。');return}const submitted_at=prompt('提出日 YYYY-MM-DD',new Date().toISOString().slice(0,10));if(!submitted_at)return;const fileInput=document.createElement('input');fileInput.type='file';fileInput.accept='.pdf,.jpg,.jpeg,.png,.webp,.tif,.tiff,.xlsx,.xlsm,.docx,.txt,.csv,.tsv';fileInput.onchange=async()=>{const file=fileInput.files?.[0];if(!file)return;try{const fd=new FormData();fd.append('file',file);fd.append('document_type','submission_source');fd.append('building_id',state.detail.facility.building_id);const doc=await api('/documents/upload',{method:'POST',body:fd});const payload={building_id:state.detail.facility.building_id,submission_type_code:type.code,official_number,submitted_at,document_ids:[doc.document_id],payload_data:{}};if(type.code==='fire_manager_appointment'){payload.payload_data.manager_name=prompt('防火管理者氏名（任意）','')||null}await api('/submissions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});await selectFacility(state.detail.facility.building_id)}catch(e){alert('届出を受付できません: '+e.message)}};fileInput.click()}
 
 async function smartReceiveSubmission(){if(!state.detail)return;const input=document.createElement('input');input.type='file';input.accept='.pdf,.jpg,.jpeg,.png,.webp,.tif,.tiff,.xlsx,.xlsm,.docx,.txt,.csv,.tsv';input.onchange=async()=>{const file=input.files?.[0];if(!file)return;try{const fd=new FormData();fd.append('file',file);fd.append('document_type','submission_source');const doc=await api('/documents/upload',{method:'POST',body:fd});const analysis=await api('/document-analyses',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({document_id:doc.document_id})});const method=analysis.extraction_method||'unknown',conf=analysis.confidence==null?'－':Math.round(analysis.confidence*100)+'%';alert(`文書解析完了\n抽出方式: ${method}\n書類種別候補: ${analysis.detected_submission_type_code||'判定できず'}\n信頼度: ${conf}\n\n正式登録はまだ行っていません。`);const candidates=analysis.facility_candidates||[];let buildingId=state.detail.facility.building_id;if(candidates.length){const menu=candidates.map((x,i)=>`${i+1}: ${x.name} / ${x.address||'所在地未登録'} / ${Math.round((x.score||0)*100)}%`).join('\n');const currentIndex=candidates.findIndex(x=>x.building_id===buildingId);const choice=Number(prompt(`対象物候補を確認してください\n${menu}\n\n0: 現在開いている対象物 ${state.detail.facility.name}`,currentIndex>=0?String(currentIndex+1):'0'));if(Number.isNaN(choice))return;if(choice>0&&candidates[choice-1])buildingId=candidates[choice-1].building_id}else if(!confirm(`対象物候補を自動特定できませんでした。\n現在開いている「${state.detail.facility.name}」としてレビューしますか？`)){return}const types=await api('/submissions/types');const detected=analysis.detected_submission_type_code;const defaultIndex=Math.max(0,types.findIndex(x=>x.code===detected));const typeMenu=types.map((x,i)=>`${i+1}: ${x.name}${x.code===detected?' [解析候補]':''}`).join('\n');const typeChoice=Number(prompt(`書類種別を確認してください\n${typeMenu}`,String(defaultIndex+1)));if(!typeChoice||!types[typeChoice-1])return;const type=types[typeChoice-1];const reviewed=await api(`/document-analyses/${analysis.document_analysis_id}/review`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:analysis.version,building_id:buildingId,submission_type_code:type.code})});const diffs=reviewed.difference_candidates||{};if(Object.keys(diffs).length){const diffText=Object.entries(diffs).map(([k,v])=>`${k}\n 現在: ${v.current??'－'}\n 読取: ${v.proposed??'－'}`).join('\n\n');alert(`台帳との差分候補があります。\nこの時点では台帳を変更しません。\n\n${diffText}`)}const official=prompt('正式届出番号（既存の番号取得システムで取得した数字のみ。未取得なら空欄）','')||null;if(official&&!/^\d+$/.test(official)){alert('正式届出番号は数字のみです。');return}const submitted=prompt('提出日 YYYY-MM-DD',new Date().toISOString().slice(0,10));if(!submitted)return;const payloadData={};if(type.code==='fire_manager_appointment'&&reviewed.detected_fields?.manager_name)payloadData.manager_name=reviewed.detected_fields.manager_name;if(!confirm(`受付を確定します。\n対象物ID: ${buildingId}\n種別: ${type.name}\n届出番号: ${official||'未登録'}\n提出日: ${submitted}\n\nよろしいですか？`))return;await api(`/document-analyses/${analysis.document_analysis_id}/confirm-receipt`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:reviewed.version,official_number:official,submitted_at:submitted,payload_data:payloadData})});const proposals=await api(`/document-analyses/${analysis.document_analysis_id}/change-proposals`);const pending=proposals.find(x=>x.status==='pending');if(pending){const accepted=[];for(const [path,diff] of Object.entries(pending.changes||{})){if(confirm(`台帳変更候補\n${path}\n現在: ${diff.current??'－'}\n読取: ${diff.proposed??'－'}\n\nこの項目を台帳へ反映しますか？`))accepted.push(path)}if(accepted.length){try{await api(`/facility-change-proposals/${pending.facility_change_proposal_id}/apply`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:pending.version,expected_facility_version:pending.expected_facility_version,accepted_paths:accepted})})}catch(e){alert('台帳差分は反映されませんでした。対象物が他の職員に更新された可能性があります: '+e.message)}}}await loadFacilities(state.offset);await selectFacility(buildingId);alert('受付を登録しました。')}catch(e){alert('文書解析受付を完了できません: '+e.message)}};input.click()}
+
+
+const legalCategoryLabels={
+  equipment_requirement:'必要設備',
+  submission_requirement:'必要届出',
+  fire_management:'防火・防災管理',
+  inspection_enforcement:'査察・違反是正',
+  hazardous_materials:'危険物',
+  fire_prevention_local:'火災予防条例系'
+};
+const legalLaneLabels={national_core:'国法コア',local_core:'ローカルコア',normal:'通常'};
+
+async function openLegalReview(){
+  $('legalReviewModal').classList.remove('hidden');
+  await loadLegalReview();
+}
+function closeLegalReview(){$('legalReviewModal').classList.add('hidden')}
+
+function legalReasonText(reasons){
+  return (reasons||[]).map(x=>{
+    if(typeof x==='string')return x;
+    return x.match||x.source_priority||JSON.stringify(x);
+  }).join(' / ');
+}
+
+async function loadLegalReview(){
+  const box=$('legalReviewList');
+  box.innerHTML='<div class="muted">読み込み中…</div>';
+  const p=new URLSearchParams({limit:'100'});
+  const status=$('legalReviewStatus').value;
+  const category=$('legalReviewCategory').value;
+  const lane=$('legalReviewLane').value;
+  const minScore=$('legalReviewMinScore').value;
+  if(status)p.set('queue_status',status);
+  else p.set('queue_status','');
+  if(category)p.set('category',category);
+  if(lane)p.set('priority_lane',lane);
+  if(minScore)p.set('min_score',minScore);
+  try{
+    const rows=await api('/legal-review-queue?'+p);
+    $('legalReviewSummary').textContent='表示 '+rows.length+'件（最大100件）';
+    box.innerHTML=rows.map(x=>{
+      const p=x.provision||{};
+      const label=[p.display_label,p.heading_text].filter(Boolean).join(' ')||p.provision_key||'条文';
+      const laneLabel=legalLaneLabels[x.priority_lane]||x.priority_lane;
+      const catLabel=legalCategoryLabels[x.category]||x.category;
+      const body=(p.body_text||'').length>1200?(p.body_text||'').slice(0,1200)+'…':(p.body_text||'');
+      let actions='';
+      if(x.status==='pending'){
+        actions='<button class="btn primary" onclick="updateLegalReview(\''+x.legal_provision_review_candidate_id+'\','+x.version+',\'reviewed\')">レビュー済み</button> '+
+          '<button class="btn" onclick="updateLegalReview(\''+x.legal_provision_review_candidate_id+'\','+x.version+',\'ignored\')">対象外</button>';
+      }else if(x.status==='reviewed' && (x.category==='equipment_requirement'||x.category==='submission_requirement')){
+        actions='<button class="btn primary" onclick="draftLegalRuleFromReview(\''+x.legal_provision_review_candidate_id+'\','+x.version+',\''+esc(label).replace(/'/g,"&#039;")+'\')">Rule草案へ</button>';
+      }else if(x.status==='drafted'){
+        actions='<span class="pill active">Rule草案 '+esc(x.legal_rule_draft_candidate_id||'作成済み')+'</span>';
+      }
+      return '<div class="card">'+
+        '<div class="row"><b class="grow">'+esc(x.document_title)+'</b>'+
+        '<span class="pill">'+esc(laneLabel)+'</span><span class="pill">'+esc(catLabel)+'</span></div>'+
+        '<div class="muted">'+esc(label)+' ・ 関連度 '+esc(x.relevance_score)+' ・ Source優先 '+esc(x.source_priority_score)+' ・ 総合 '+esc(x.review_priority_score)+'</div>'+
+        '<div class="value">'+esc(body||'本文なし')+'</div>'+
+        '<div class="muted">抽出根拠: '+esc(legalReasonText(x.reasons))+'</div>'+
+        '<div class="row" style="margin-top:10px">'+actions+'</div>'+
+        '</div>';
+    }).join('')||'<div class="empty">該当候補はありません。</div>';
+  }catch(e){
+    $('legalReviewSummary').textContent='';
+    box.innerHTML='<div class="conflict">法令レビュー候補を取得できません: '+esc(e.message)+'</div>';
+  }
+}
+
+async function updateLegalReview(id,version,nextStatus){
+  try{
+    await api('/legal-review-queue/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:version,status:nextStatus})});
+    await loadLegalReview();
+  }catch(e){alert('更新できません: '+e.message)}
+}
+
+async function draftLegalRuleFromReview(id,version,defaultName){
+  const name=prompt('Rule草案名',defaultName||'法令Rule草案');
+  if(name===null)return;
+  try{
+    await api('/legal-review-queue/'+id+'/draft',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:version,proposed_name:name||null})});
+    await loadLegalReview();
+    alert('未解釈のRule草案を作成しました。条件・結論の職員入力後にReviewできます。');
+  }catch(e){alert('Rule草案を作成できません: '+e.message)}
+}
 
 $('searchQ').addEventListener('keydown',e=>{if(e.key==='Enter')loadFacilities(0)});$('loginPass').addEventListener('keydown',e=>{if(e.key==='Enter')login()});
 
