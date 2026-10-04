@@ -1060,3 +1060,98 @@ def test_phase5_2_articleless_notice_fallback():
     assert len(rows)==1
     assert rows[0].provision_type=="document_body"
     assert "指定金融機関" in rows[0].body_text
+
+
+def test_phase5_3_rule_draft_requires_review_and_promotes_only_to_draft_rule():
+    from app.models import (
+        LegalJurisdiction, LegalSource, LegalSourceDocument,
+        LegalSourceDocumentVersion, LegalProvision, LegalRuleVersion
+    )
+    login()
+    with SessionLocal() as db:
+        j=LegalJurisdiction(code="TEST-JUR-53",name="Test 5.3",jurisdiction_type="national")
+        db.add(j); db.flush()
+        s=LegalSource(
+            jurisdiction_id=j.jurisdiction_id,
+            source_code="test-source-53",
+            name="Test source 5.3",
+            source_type="test",
+            adapter_type="manual",
+            base_url="https://example.invalid/",
+        )
+        db.add(s); db.flush()
+        d=LegalSourceDocument(
+            legal_source_id=s.legal_source_id,
+            external_id="LAW-53",
+            document_type="law",
+            title="テスト法令5.3",
+        )
+        db.add(d); db.flush()
+        v=LegalSourceDocumentVersion(
+            legal_source_document_id=d.legal_source_document_id,
+            normalized_text="第十七条 テスト",
+            structured_content={},
+            sha256="c"*64,
+            structure_status="structured",
+            provision_count=1,
+        )
+        db.add(v); db.flush()
+        p=LegalProvision(
+            legal_source_document_version_id=v.legal_source_document_version_id,
+            provision_type="article",
+            provision_key="article:17",
+            sequence_no=1,
+            display_label="第十七条",
+            body_text="テスト法令の正式原文",
+            content_sha256="d"*64,
+        )
+        db.add(p); db.commit()
+        source_version_id=v.legal_source_document_version_id
+        provision_id=p.legal_provision_id
+
+    created=client.post("/legal-rule-drafts",json={
+        "source_legal_document_version_id":source_version_id,
+        "domain":"equipment_requirement",
+        "proposed_rule_code":"TEST-DRAFT-53",
+        "proposed_name":"AI抽出候補",
+        "proposed_conditions":{"all":[{"field":"status","op":"eq","value":"active"}]},
+        "proposed_outcome":{"requirement_code":"TEST-EQ-53","decision":"candidate_required"},
+        "extraction_method":"ai",
+        "model_version":"test-model",
+        "confidence":0.8,
+        "rationale":"テスト用候補",
+        "citations":[{"legal_provision_id":provision_id,"citation_role":"primary"}]
+    })
+    assert created.status_code==201
+    draft=created.json()
+    did=draft["legal_rule_draft_candidate_id"]
+    assert draft["status"]=="pending"
+
+    blocked=client.post(f"/legal-rule-drafts/{did}/promote",json={
+        "expected_version":1,
+        "effective_from":"2026-01-01"
+    })
+    assert blocked.status_code==409
+
+    reviewed=client.post(f"/legal-rule-drafts/{did}/review",json={
+        "expected_version":1,
+        "status":"reviewed"
+    })
+    assert reviewed.status_code==200
+    assert reviewed.json()["status"]=="reviewed"
+    assert reviewed.json()["version"]==2
+
+    promoted=client.post(f"/legal-rule-drafts/{did}/promote",json={
+        "expected_version":2,
+        "effective_from":"2026-01-01"
+    })
+    assert promoted.status_code==200
+    body=promoted.json()
+    assert body["status"]=="promoted"
+    assert body["promoted_rule_version_id"]
+
+    with SessionLocal() as db:
+        rv=db.get(LegalRuleVersion,body["promoted_rule_version_id"])
+        assert rv is not None
+        assert rv.status=="draft"
+        assert rv.source_legal_document_version_id==source_version_id
