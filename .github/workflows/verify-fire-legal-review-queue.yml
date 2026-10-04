@@ -45,7 +45,7 @@ jobs:
           import heapq, json, zipfile
           from collections import Counter, defaultdict
           from pathlib import Path
-          from app.legal_structure import parse_egov_xml, parse_regulation_html
+          from app.legal_structure import parse_egov_xml, parse_regulation_html, extract_egov_law_metadata
           from app.legal_relevance import SCANNER_VERSION, score_fire_service_relevance
 
           ALLOWED_TYPES={
@@ -105,11 +105,11 @@ jobs:
               names=[n for n in z.namelist() if n.lower().endswith(".xml") and not n.endswith("/")]
               assert len(names)==10414
               for name in names:
-                  rows=parse_egov_xml(z.read(name))
-                  title=name
+                  body=z.read(name)
+                  rows=parse_egov_xml(body)
+                  meta=extract_egov_law_metadata(body)
+                  title=meta.get("title") or name
                   for row in rows:
-                      # The XML parser does not currently expose LawTitle on each provision.
-                      # Archive member is stable and keeps this scan non-authoritative.
                       add(egov,title,row)
                   egov["documents"]+=1
 
