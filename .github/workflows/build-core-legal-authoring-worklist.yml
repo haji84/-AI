@@ -55,7 +55,7 @@ jobs:
               parse_regulation_html,
           )
           from app.legal_relevance import score_fire_service_relevance
-          from app.legal_priority import classify_source_priority
+          from app.legal_priority import classify_provision_context, classify_source_priority
 
           cfg=json.loads(Path("config/legal-rule-authoring/core-sources.json").read_text(encoding="utf-8"))
           national=set(cfg["national_exact_titles"])
@@ -76,6 +76,7 @@ jobs:
               for row in rows:
                   if row.provision_type not in allowed_types:
                       continue
+                  context=classify_provision_context(row.provision_key,row.provision_type)
                   hits=score_fire_service_relevance(
                       title=title,
                       label=row.display_label,
@@ -94,6 +95,8 @@ jobs:
                       "source_ref":source_ref,
                       "priority_lane":priority.lane,
                       "source_priority_score":priority.score,
+                      "provision_context":context.context,
+                      "context_priority_score":context.score,
                       "provision_key":row.provision_key,
                       "provision_type":row.provision_type,
                       "display_label":row.display_label,
@@ -104,7 +107,7 @@ jobs:
                               "category":h.category,
                               "score":h.score,
                               "reasons":h.reasons,
-                              "review_priority_score":h.score+priority.score,
+                              "review_priority_score":h.score+priority.score+context.score,
                           }
                           for h in hits
                       ],
