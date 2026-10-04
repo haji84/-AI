@@ -449,3 +449,58 @@ class FacilityChangeProposalApply(BaseModel):
     expected_version: int = Field(ge=1)
     expected_facility_version: int = Field(ge=1)
     accepted_paths: list[str] = Field(default_factory=list)
+
+class LegalRuleCreate(BaseModel):
+    rule_code: str = Field(min_length=1, max_length=150)
+    name: str = Field(min_length=1, max_length=300)
+    domain: Literal["submission_requirement", "equipment_requirement"]
+    description: str | None = None
+
+class LegalRuleOut(BaseModel):
+    rule_id: str
+    rule_code: str
+    name: str
+    domain: str
+    description: str | None = None
+    active: bool
+
+class LegalRuleVersionCreate(BaseModel):
+    version_no: int = Field(ge=1)
+    effective_from: str
+    effective_to: str | None = None
+    conditions: dict
+    outcome: dict
+    source_document_id: str | None = None
+    source_reference: str | None = None
+
+class LegalRuleVersionApprove(BaseModel):
+    expected_version: int = Field(ge=1)
+
+class LegalRuleVersionOut(BaseModel):
+    legal_rule_version_id: str
+    rule_id: str
+    version_no: int
+    effective_from: str
+    effective_to: str | None = None
+    conditions: dict
+    outcome: dict
+    source_document_id: str | None = None
+    source_reference: str | None = None
+    status: str
+    version: int
+
+class RequirementEvaluationCreate(BaseModel):
+    domain: Literal["submission_requirement", "equipment_requirement"]
+    evaluation_date: str | None = None
+
+class RequirementEvaluationOut(BaseModel):
+    evaluation_id: str
+    building_id: str
+    domain: str
+    evaluation_date: str
+    facility_version: int
+    engine_version: str
+    input_snapshot: dict
+    results: list
+    status: str
+
