@@ -893,3 +893,140 @@ def test_phase5_1_rejects_source_for_unknown_jurisdiction():
         "base_url":"https://example.invalid/"
     })
     assert r.status_code==422
+
+
+def test_phase5_2_egov_structure_parser():
+    from app.legal_structure import parse_egov_xml
+    xml=b"""<?xml version="1.0" encoding="UTF-8"?>
+    <Law>
+      <LawBody>
+        <MainProvision>
+          <Article Num="23">
+            <ArticleCaption>（テスト条文）</ArticleCaption>
+            <ArticleTitle>第二十三条</ArticleTitle>
+            <Paragraph Num="1">
+              <ParagraphNum>１</ParagraphNum>
+              <ParagraphSentence><Sentence>対象物は必要な措置を講ずる。</Sentence></ParagraphSentence>
+              <Item Num="1">
+                <ItemTitle>一</ItemTitle>
+                <ItemSentence><Sentence>第一の条件</Sentence></ItemSentence>
+              </Item>
+            </Paragraph>
+          </Article>
+          <AppdxTable Num="1">
+            <AppdxTableTitle>別表第一</AppdxTableTitle>
+            <TableStruct><Table><TableRow><TableColumn>表内容</TableColumn></TableRow></Table></TableStruct>
+          </AppdxTable>
+        </MainProvision>
+      </LawBody>
+    </Law>"""
+    rows=parse_egov_xml(xml)
+    assert any(x.provision_type=="article" and x.display_label=="第二十三条" for x in rows)
+    article=next(x for x in rows if x.provision_type=="article")
+    paragraph=next(x for x in rows if x.provision_type=="paragraph")
+    item=next(x for x in rows if x.provision_type=="item")
+    appendix=next(x for x in rows if x.provision_type=="appendix_table")
+    assert paragraph.parent_key==article.provision_key
+    assert item.parent_key==paragraph.provision_key
+    assert "対象物は必要な措置を講ずる" in paragraph.body_text
+    assert appendix.display_label=="別表第一"
+
+
+def test_phase5_2_local_regulation_structure_parser():
+    from app.legal_structure import parse_regulation_html
+    html="""<html><body>
+    <div id="a1">第一条　目的を定める。</div>
+    <div>２　第二項の本文。</div>
+    <div>一　第一号の本文。</div>
+    <div id="a2">第二条　別の条文。</div>
+    <div>附則</div>
+    <div>様式第1号</div>
+    </body></html>""".encode("utf-8")
+    rows=parse_regulation_html(html,"text/html; charset=utf-8")
+    assert any(x.provision_type=="article" and x.display_label.startswith("第一条") for x in rows)
+    assert any(x.provision_type=="paragraph" and "第二項" in x.body_text for x in rows)
+    assert any(x.provision_type=="item" and "第一号" in x.body_text for x in rows)
+    assert any(x.provision_type=="supplementary" for x in rows)
+    assert any(x.provision_type=="form" for x in rows)
+
+
+def test_phase5_2_structured_rule_requires_exact_citation_before_approval():
+    from app.models import (
+        LegalJurisdiction, LegalSource, LegalSourceDocument,
+        LegalSourceDocumentVersion, LegalProvision
+    )
+    login()
+    with SessionLocal() as db:
+        j=LegalJurisdiction(code="TEST-JUR-52",name="Test",jurisdiction_type="national")
+        db.add(j); db.flush()
+        s=LegalSource(
+            jurisdiction_id=j.jurisdiction_id,
+            source_code="test-source-52",
+            name="Test source",
+            source_type="test",
+            adapter_type="manual",
+            base_url="https://example.invalid/",
+        )
+        db.add(s); db.flush()
+        d=LegalSourceDocument(
+            legal_source_id=s.legal_source_id,
+            external_id="LAW-52",
+            document_type="law",
+            title="テスト法令",
+        )
+        db.add(d); db.flush()
+        v=LegalSourceDocumentVersion(
+            legal_source_document_id=d.legal_source_document_id,
+            normalized_text="第二十三条 テスト",
+            structured_content={},
+            sha256="a"*64,
+            structure_status="structured",
+            provision_count=1,
+        )
+        db.add(v); db.flush()
+        p=LegalProvision(
+            legal_source_document_version_id=v.legal_source_document_version_id,
+            provision_type="article",
+            provision_key="article:23",
+            sequence_no=1,
+            display_label="第二十三条",
+            body_text="テスト条文",
+            content_sha256="b"*64,
+        )
+        db.add(p); db.commit()
+        source_version_id=v.legal_source_document_version_id
+        provision_id=p.legal_provision_id
+
+    rule=client.post("/legal-rules",json={
+        "rule_code":"TEST-RULE-STRUCTURED-52",
+        "name":"構造化根拠テスト",
+        "domain":"equipment_requirement"
+    })
+    assert rule.status_code==201
+    rid=rule.json()["rule_id"]
+    rv=client.post(f"/legal-rules/{rid}/versions",json={
+        "version_no":1,
+        "effective_from":"2026-01-01",
+        "conditions":{"all":[{"field":"status","op":"eq","value":"active"}]},
+        "outcome":{"requirement_code":"TEST"},
+        "source_legal_document_version_id":source_version_id
+    })
+    assert rv.status_code==201
+    rvid=rv.json()["legal_rule_version_id"]
+
+    blocked=client.post(f"/legal-rules/versions/{rvid}/approve",json={"expected_version":1})
+    assert blocked.status_code==409
+
+    citation=client.post(f"/legal-rules/versions/{rvid}/citations",json={
+        "legal_provision_id":provision_id,
+        "citation_role":"primary"
+    })
+    assert citation.status_code==201
+    assert citation.json()["provision"]["display_label"]=="第二十三条"
+
+    approved=client.post(f"/legal-rules/versions/{rvid}/approve",json={"expected_version":1})
+    assert approved.status_code==200
+    assert approved.json()["status"]=="approved"
+
+    citations=client.get(f"/legal-rules/versions/{rvid}/citations")
+    assert citations.status_code==200 and len(citations.json())==1
