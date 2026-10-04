@@ -1031,6 +1031,22 @@ def test_phase5_2_structured_rule_requires_exact_citation_before_approval():
     citations=client.get(f"/legal-rules/versions/{rvid}/citations")
     assert citations.status_code==200 and len(citations.json())==1
 
+    docs=client.get("/legal-sources/documents",params={"q":"テスト法令"})
+    assert docs.status_code==200
+    assert any(x["legal_source_document_id"]==source_document_id for x in docs.json())
+
+    versions=client.get(f"/legal-sources/documents/{source_document_id}/versions")
+    assert versions.status_code==200
+    assert versions.json()[0]["legal_source_document_version_id"]==source_version_id
+
+    provisions=client.get(
+        f"/legal-rules/source-versions/{source_version_id}/provisions",
+        params={"q":"第二十三条"},
+    )
+    assert provisions.status_code==200
+    assert len(provisions.json())==1
+    assert provisions.json()[0]["legal_provision_id"]==provision_id
+
 
 def test_phase5_2_articleless_notice_fallback():
     from app.legal_structure import parse_regulation_html
