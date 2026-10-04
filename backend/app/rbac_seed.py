@@ -46,6 +46,9 @@ PERMISSIONS: dict[str, str] = {
     "legal_rule.manage": "法令ルール草案・Version管理",
     "legal_rule.approve": "法令ルールVersion正式承認",
     "legal_rule.evaluate": "対象物の必要書類・設備候補判定",
+    "legal_source.read": "法令・例規Source/消防本部プロファイル参照",
+    "legal_source.manage": "法令・例規Source/消防本部プロファイル管理",
+    "legal_source.sync": "法令・例規更新同期実行",
 }
 
 ROLE_POLICY: dict[str, dict] = {
@@ -64,7 +67,7 @@ ROLE_POLICY: dict[str, dict] = {
             "inspection.read", "inspection.create", "inspection.update",
             "submission.read", "submission.create", "submission.update",
             "intake.read", "intake.analyze", "intake.review", "intake.apply",
-            "legal_rule.read", "legal_rule.evaluate",
+            "legal_rule.read", "legal_rule.evaluate", "legal_source.read",
         },
     },
     "emergency_reporter": {
@@ -109,7 +112,7 @@ ROLE_POLICY: dict[str, dict] = {
         "name": "法令ルール管理担当",
         "system_role": True,
         "permissions": {
-            "system.health.read", "legal_rule.read", "legal_rule.manage", "legal_rule.evaluate",
+            "system.health.read", "legal_rule.read", "legal_rule.manage", "legal_rule.evaluate", "legal_source.read", "legal_source.manage", "legal_source.sync",
             "document.read",
         },
     },
@@ -117,7 +120,7 @@ ROLE_POLICY: dict[str, dict] = {
         "name": "法令ルール承認者",
         "system_role": True,
         "permissions": {
-            "system.health.read", "legal_rule.read", "legal_rule.approve", "legal_rule.evaluate",
+            "system.health.read", "legal_rule.read", "legal_rule.approve", "legal_rule.evaluate", "legal_source.read",
             "document.read",
         },
     },
