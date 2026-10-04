@@ -1,1 +1,17 @@
-The requested file reference is not currently visible. Use files.search or files.list to rediscover the file, then retry with a returned ref_id or file_id.
+# Phase 2 - 防火対象物台帳
+
+Phase 2の対象物台帳コア実装はコード上完成。
+
+実装済み:
+1. 611件対応ページング/ソート/検索
+2. 対象物詳細画面
+3. 新規登録画面
+4. 編集画面
+5. record_version競合検出と差分UI
+6. 廃止/復元UI
+7. 変更履歴表示
+8. confirmed旧項目の正規化
+9. 41 review項目の原値・閲覧専用表示
+10. 査察/届出/設備の次モジュール接続口
+
+次のbounded sliceはPhase 3「査察・届出基盤」。
