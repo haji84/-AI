@@ -56,3 +56,28 @@ def classify_source_priority(title: str | None) -> SourcePriority:
         )
 
     return SourcePriority(lane="normal", score=0.0, reasons=())
+
+
+@dataclass(frozen=True)
+class ProvisionContextPriority:
+    context: str
+    score: float
+    reason: str | None = None
+
+
+def classify_provision_context(provision_key: str | None, provision_type: str | None) -> ProvisionContextPriority:
+    key=(provision_key or "").lower()
+    ptype=(provision_type or "").lower()
+    if "supplementary" in key or ptype == "supplementary":
+        return ProvisionContextPriority(
+            context="supplementary_transition",
+            score=-10.0,
+            reason="supplementary or transitional provision",
+        )
+    if ptype in {"document_body"}:
+        return ProvisionContextPriority(
+            context="document_body",
+            score=-1.0,
+            reason="article-less official document body",
+        )
+    return ProvisionContextPriority(context="main",score=0.0,reason=None)
