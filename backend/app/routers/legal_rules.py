@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date, datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from ..audit import write_audit
@@ -14,12 +14,18 @@ from ..models import (
     Facility,
     FacilityDetail,
     FacilityFloor,
+    LegalProvision,
     LegalRule,
+    LegalRuleCitation,
     LegalRuleVersion,
+    LegalSourceDocumentVersion,
     RequirementEvaluation,
     User,
 )
 from ..schemas import (
+    LegalProvisionOut,
+    LegalRuleCitationCreate,
+    LegalRuleCitationOut,
     LegalRuleCreate,
     LegalRuleOut,
     LegalRuleVersionApprove,
@@ -79,8 +85,38 @@ def _version_out(row: LegalRuleVersion) -> LegalRuleVersionOut:
         outcome=row.outcome,
         source_document_id=row.source_document_id,
         source_reference=row.source_reference,
+        source_legal_document_version_id=row.source_legal_document_version_id,
         status=row.status,
         version=row.version,
+    )
+
+
+
+def _provision_out(row: LegalProvision) -> LegalProvisionOut:
+    return LegalProvisionOut(
+        legal_provision_id=row.legal_provision_id,
+        legal_source_document_version_id=row.legal_source_document_version_id,
+        parent_provision_id=row.parent_provision_id,
+        provision_type=row.provision_type,
+        provision_key=row.provision_key,
+        sequence_no=row.sequence_no,
+        display_label=row.display_label,
+        heading_text=row.heading_text,
+        body_text=row.body_text,
+        source_anchor=row.source_anchor,
+        source_path=row.source_path,
+        present_in_source=row.present_in_source,
+    )
+
+
+def _citation_out(db: Session, row: LegalRuleCitation) -> LegalRuleCitationOut:
+    provision = db.get(LegalProvision, row.legal_provision_id)
+    return LegalRuleCitationOut(
+        legal_rule_version_id=row.legal_rule_version_id,
+        legal_provision_id=row.legal_provision_id,
+        citation_role=row.citation_role,
+        cited_text_snapshot=row.cited_text_snapshot,
+        provision=_provision_out(provision),
     )
 
 
@@ -272,6 +308,10 @@ def create_version(
         raise HTTPException(status_code=422, detail="effective_to must not be before effective_from")
     if payload.source_document_id and not db.get(Document, payload.source_document_id):
         raise HTTPException(status_code=422, detail="source_document_id not found")
+    if payload.source_legal_document_version_id and not db.get(
+        LegalSourceDocumentVersion, payload.source_legal_document_version_id
+    ):
+        raise HTTPException(status_code=422, detail="source_legal_document_version_id not found")
     if db.scalar(
         select(LegalRuleVersion).where(
             LegalRuleVersion.rule_id == rule_id,
@@ -288,6 +328,7 @@ def create_version(
         outcome=payload.outcome,
         source_document_id=payload.source_document_id,
         source_reference=payload.source_reference,
+        source_legal_document_version_id=payload.source_legal_document_version_id,
         created_by=user.user_id,
     )
     db.add(row)
@@ -318,8 +359,31 @@ def approve_version(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="rule version was updated")
     if row.status != "draft":
         raise HTTPException(status_code=409, detail="only draft rule versions can be approved")
-    if not row.source_document_id and not (row.source_reference or "").strip():
+    if (
+        not row.source_document_id
+        and not row.source_legal_document_version_id
+        and not (row.source_reference or "").strip()
+    ):
         raise HTTPException(status_code=409, detail="verified source reference is required before approval")
+    if row.source_legal_document_version_id:
+        citations = db.scalars(
+            select(LegalRuleCitation).where(
+                LegalRuleCitation.legal_rule_version_id == row.legal_rule_version_id
+            )
+        ).all()
+        if not citations:
+            raise HTTPException(
+                status_code=409,
+                detail="at least one structured provision citation is required for a structured legal source",
+            )
+        for citation in citations:
+            provision = db.get(LegalProvision, citation.legal_provision_id)
+            if (
+                provision is None
+                or not provision.present_in_source
+                or provision.legal_source_document_version_id != row.source_legal_document_version_id
+            ):
+                raise HTTPException(status_code=409, detail="citation does not belong to the active source version")
     others = db.scalars(
         select(LegalRuleVersion).where(
             LegalRuleVersion.rule_id == row.rule_id,
@@ -348,6 +412,112 @@ def approve_version(
     )
     db.commit()
     return _version_out(row)
+
+
+
+
+@router.get("/source-versions/{source_version_id}/provisions", response_model=list[LegalProvisionOut])
+def list_source_provisions(
+    source_version_id: str,
+    q: str | None = None,
+    provision_type: str | None = None,
+    offset: int = 0,
+    limit: int = 200,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("legal_rule.read")),
+):
+    if not db.get(LegalSourceDocumentVersion, source_version_id):
+        raise HTTPException(status_code=404, detail="legal source document version not found")
+    stmt = select(LegalProvision).where(
+        LegalProvision.legal_source_document_version_id == source_version_id,
+        LegalProvision.present_in_source.is_(True),
+    )
+    if provision_type:
+        stmt = stmt.where(LegalProvision.provision_type == provision_type)
+    if q:
+        needle = f"%{q}%"
+        stmt = stmt.where(
+            or_(
+                LegalProvision.display_label.ilike(needle),
+                LegalProvision.heading_text.ilike(needle),
+                LegalProvision.body_text.ilike(needle),
+                LegalProvision.provision_key.ilike(needle),
+            )
+        )
+    rows = db.scalars(
+        stmt.order_by(LegalProvision.sequence_no)
+        .offset(max(0, offset))
+        .limit(max(1, min(limit, 1000)))
+    ).all()
+    return [_provision_out(x) for x in rows]
+
+
+@router.get("/versions/{version_id}/citations", response_model=list[LegalRuleCitationOut])
+def list_rule_citations(
+    version_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("legal_rule.read")),
+):
+    if not db.get(LegalRuleVersion, version_id):
+        raise HTTPException(status_code=404, detail="legal rule version not found")
+    rows = db.scalars(
+        select(LegalRuleCitation)
+        .where(LegalRuleCitation.legal_rule_version_id == version_id)
+        .order_by(LegalRuleCitation.citation_role, LegalRuleCitation.legal_provision_id)
+    ).all()
+    return [_citation_out(db, x) for x in rows]
+
+
+@router.post("/versions/{version_id}/citations", response_model=LegalRuleCitationOut, status_code=201)
+def add_rule_citation(
+    version_id: str,
+    payload: LegalRuleCitationCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("legal_rule.manage")),
+):
+    version = db.get(LegalRuleVersion, version_id)
+    if not version:
+        raise HTTPException(status_code=404, detail="legal rule version not found")
+    if version.status != "draft":
+        raise HTTPException(status_code=409, detail="citations can only be changed while Rule Version is draft")
+    provision = db.get(LegalProvision, payload.legal_provision_id)
+    if not provision or not provision.present_in_source:
+        raise HTTPException(status_code=422, detail="legal provision not found in current source")
+    if (
+        version.source_legal_document_version_id
+        and provision.legal_source_document_version_id != version.source_legal_document_version_id
+    ):
+        raise HTTPException(status_code=422, detail="legal provision belongs to a different source version")
+    existing = db.get(
+        LegalRuleCitation,
+        (version_id, payload.legal_provision_id, payload.citation_role),
+    )
+    if existing:
+        raise HTTPException(status_code=409, detail="citation already exists")
+    snapshot = "\n".join(
+        x for x in [provision.display_label, provision.heading_text, provision.body_text] if x
+    )
+    row = LegalRuleCitation(
+        legal_rule_version_id=version_id,
+        legal_provision_id=payload.legal_provision_id,
+        citation_role=payload.citation_role,
+        cited_text_snapshot=snapshot,
+        created_by=user.user_id,
+    )
+    db.add(row)
+    write_audit(
+        db,
+        user_id=user.user_id,
+        action="legal_rule_citation.create",
+        entity_type="legal_rule_version",
+        entity_id=version_id,
+        after={
+            "legal_provision_id": payload.legal_provision_id,
+            "citation_role": payload.citation_role,
+        },
+    )
+    db.commit()
+    return _citation_out(db, row)
 
 
 @router.post("/evaluate/{building_id}", response_model=RequirementEvaluationOut, status_code=201)
@@ -385,6 +555,23 @@ def evaluate_requirements(
         matched, evidence = _match_conditions(version.conditions, snapshot)
         if not matched:
             continue
+        citations = db.scalars(
+            select(LegalRuleCitation).where(
+                LegalRuleCitation.legal_rule_version_id == version.legal_rule_version_id
+            )
+        ).all()
+        citation_payload = []
+        for citation in citations:
+            provision = db.get(LegalProvision, citation.legal_provision_id)
+            if provision:
+                citation_payload.append({
+                    "role": citation.citation_role,
+                    "legal_provision_id": provision.legal_provision_id,
+                    "provision_key": provision.provision_key,
+                    "display_label": provision.display_label,
+                    "heading_text": provision.heading_text,
+                    "body_text": provision.body_text,
+                })
         results.append(
             {
                 "rule_id": rule.rule_id,
@@ -394,6 +581,8 @@ def evaluate_requirements(
                 "version_no": version.version_no,
                 "source_document_id": version.source_document_id,
                 "source_reference": version.source_reference,
+                "source_legal_document_version_id": version.source_legal_document_version_id,
+                "citations": citation_payload,
                 "outcome": version.outcome,
                 "evidence": evidence,
                 "decision_status": "candidate",
