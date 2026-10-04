@@ -985,6 +985,8 @@ class LegalProvisionReviewCandidate(Base):
     )
     category: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
     relevance_score: Mapped[float] = mapped_column(Float, nullable=False)
+    priority_lane: Mapped[str] = mapped_column(String(30), nullable=False, default="normal", index=True)
+    source_priority_score: Mapped[float] = mapped_column(Float, nullable=False, default=0)
     reasons: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     extraction_method: Mapped[str] = mapped_column(String(30), nullable=False, default="deterministic")
     model_version: Mapped[str | None] = mapped_column(String(200))
