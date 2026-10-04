@@ -4,9 +4,10 @@
 
 ## Current Phase
 
-Phase 5 managed legal-rule / requirement-evaluation core is code-complete and CI-verified.
+Phase 5 core legal-rule engine is code-complete and CI-verified.
+Phase 5.1 legal-source / fire-department profile registry core is code-complete and CI-verified.
+Live national/local legal-source collectors are the current implementation slice.
 Formal approved-host PostgreSQL/TLS/two-client gate remains unexecuted.
-Actual official legal content has not been populated and must not be treated as completed.
 
 ## Phase 0-4 retained
 
@@ -17,70 +18,78 @@ Actual official legal content has not been populated and must not be treated as 
 - inspection / findings
 - submission type / receipt / original document linkage
 - PDF/image/DOCX/XLSX/text document intake
-- OCR fallback path and deterministic document classification
-- human review before receipt/facility change
+- OCR fallback and deterministic document classification
+- Human Review before receipt/facility change
 - contract/form-template/extensibility foundation
-- operational legacy values preserved as evidence without falsely promoting them to modern filings
 
-## Phase 5 completed in code
+## Phase 5 completed
 
 - legal rule registry
-- immutable numbered rule versions
-- effective date ranges
-- source document/reference requirement before approval
-- draft / approved separation
-- non-overlapping approved effective periods per rule
-- deterministic condition engine
-- submission-requirement / equipment-requirement domains
-- requirement evaluation history
-- candidate-only decisions
-- evidence per matched condition
-- rule management/approval/evaluation RBAC separation
-- facility-detail UI for candidate required documents/equipment
-- no automatic facility/submission/equipment mutation from evaluation
+- numbered/effective-dated rule versions
+- source requirement before approval
+- Draft / Approved separation
+- deterministic requirement evaluation
+- submission/equipment requirement domains
+- evidence and candidate-only decisions
+- management/approval/evaluation RBAC
+- facility UI for candidate document/equipment requirements
 
-## Phase 5 verification
+## Phase 5.1 source registry completed
 
-- backend tests: 39 passed
-- Migration 008 parser: PASS (8 statements)
-- frontend JavaScript syntax: PASS
-- GitHub Actions project-checks: SUCCESS
-- Phase 0-4 automated regression included
+- national/prefecture/municipality/fire-union/fire-department jurisdiction model
+- fire-department legal profiles
+- multiple applicable jurisdictions per profile
+- multiple official sources per profile/jurisdiction
+- online/bundle/manual update modes
+- all-content source scope metadata
+- sync frequency metadata
+- legal source document/version model
+- raw original-document linkage
+- hashes and previous-Version chain
+- sync-run tracking
+- legal-update review candidates
+- Rule Version -> legal source Version provenance link
+- legal source/profile RBAC
+- API for jurisdictions/profiles/profile-jurisdiction/source registration
 
-## Last verified real legacy dataset state
+## Verification
 
-From the preceding real-workbook regression:
-- facilities: 611
-- facility details: 611
-- facility contacts: 611
-- facility floors: 1,434
-- emergency cases: 2,958
-- emergency patients: 2,950
-- emergency crew: 8,981
-- unresolved crew identity: 66 retained
+- Phase 5 backend tests previously: 39 passed
+- Phase 5.1 source/profile registry GitHub Actions: SUCCESS
+- Migration 009 included in project migration parser smoke
+- frontend JavaScript regression: PASS through project-checks
 
-Phase 5 did not rerun the supplied operational workbooks because production data is intentionally excluded from GitHub.
-Do not report a Phase 5 real-workbook regression as newly executed.
+## External-source facts driving the design
 
-## Not yet reported as PASS
+- e-Gov Law API Version 2 is the national source target.
+- e-Gov supports law lists, revision history, law text, attachments, and bulk XML.
+- e-Gov offers latest-updated-law bulk data by date.
+- local regulation systems do not have one universal API or uniform refresh cadence.
 
-- actual official legal-rule population from verified primary sources
-- complete Japanese fire-law/ordinance requirement acceptance testing
-- complex mixed-use/floor/windowless/underground conditions
-- actual Japanese scanned-form OCR quality E2E
-- HEIC decode
-- Local LLM ambiguous-classification fallback
-- approved LAN PostgreSQL migrations 001-008
-- PostgreSQL backup/restore after Migration 008
-- HTTPS browser test from production LAN clients
-- two physical client concurrent edit/receipt/rule E2E
+## Current Phase 5.1 implementation slice
 
-## Next Phase 5 Slice / Phase 6 preparation
+1. e-Gov Version2 live adapter
+2. initial national-law bootstrap
+3. daily national-law delta sync
+4. local official-regulation generic adapter contract
+5. official promulgation/update-page adapter
+6. per-fire-department full-corpus source discovery
+7. full ordinance/regulation text/version import
+8. amendment diff + impacted Rule candidates
+9. signed Update Bundle for closed networks
+10. Update Folder automatic verification/import
 
-1. register official source documents with provenance/version
-2. expand rule-condition model for floor/use/windowless/underground conditions
-3. compare required-document candidates against actual submission status
-4. compare required-equipment candidates against installed-equipment records
-5. add Human Review confirmation state for evaluation results
-6. prepare Phase 6 drawing-analysis data model
-7. keep AI explanatory only; formal rules remain deterministic and approved
+## Hard safety rule
+
+Legal text acquisition may be automatic.
+Formal Rule interpretation/activation after a legal amendment remains Human Gate protected.
+
+## Formal Host Gate remaining
+
+- approved LAN PostgreSQL migrations 001-009
+- backup/restore after Migration 009
+- HTTPS production LAN client access
+- two-client concurrent E2E
+- closed-network Update Bundle transfer E2E
+
+Do not report these as PASS until actually executed.
