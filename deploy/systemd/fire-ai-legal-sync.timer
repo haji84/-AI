@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily Fire AI legal source update check
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+Persistent=true
+RandomizedDelaySec=900
+
+[Install]
+WantedBy=timers.target
