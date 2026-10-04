@@ -947,6 +947,8 @@ class LegalRuleDraftCandidate(Base):
     model_version: Mapped[str | None] = mapped_column(String(200))
     confidence: Mapped[float | None] = mapped_column(Float)
     rationale: Mapped[str | None] = mapped_column(Text)
+    candidate_fingerprint: Mapped[str | None] = mapped_column(String(64), unique=True)
+    generation_context: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     status: Mapped[str] = mapped_column(String(30), nullable=False, default="pending", index=True)
     version: Mapped[int] = mapped_column(BigInteger, nullable=False, default=1)
     reviewed_by: Mapped[str | None] = mapped_column(ForeignKey("app_users.user_id"))
