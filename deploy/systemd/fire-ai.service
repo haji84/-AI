@@ -1,0 +1,24 @@
+[Unit]
+Description=Fire AI Local Web API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=fire-ai
+Group=fire-ai
+WorkingDirectory=/opt/fire-ai/backend
+EnvironmentFile=/etc/fire-ai/fire-ai.env
+ExecStart=/opt/fire-ai/venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8080 --workers 2 --proxy-headers --forwarded-allow-ips=127.0.0.1
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/fire-ai /var/lib/fire-ai
+UMask=0027
+
+[Install]
+WantedBy=multi-user.target
