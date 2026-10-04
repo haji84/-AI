@@ -18,7 +18,7 @@ def seed():
         u=User(employee_id=emp.employee_id,username="tester",password_hash=hash_password("long-test-password")); db.add(u)
         r=Role(code="tester",name="Tester"); db.add(r); db.flush()
         db.add(UserRole(user_id=u.user_id,role_id=r.role_id))
-        for code in ["facility.read","facility.create","facility.update","facility.restore","document.create","document.read", "inspection.read","inspection.create","inspection.update", "submission.read","submission.create","submission.update","submission.manage", "intake.read","intake.analyze","intake.review","intake.apply", "extension.read","extension.create","extension.review","extension.apply","template.read","template.manage","contract.read","contract.create","contract.update","contract.approve"]:
+        for code in ["facility.read","facility.create","facility.update","facility.restore","document.create","document.read", "inspection.read","inspection.create","inspection.update", "submission.read","submission.create","submission.update","submission.manage", "intake.read","intake.analyze","intake.review","intake.apply", "extension.read","extension.create","extension.review","extension.apply","template.read","template.manage","contract.read","contract.create","contract.update","contract.approve","legal_rule.read","legal_rule.manage","legal_rule.approve","legal_rule.evaluate"]:
             p=Permission(code=code,description=code); db.add(p); db.flush(); db.add(RolePermission(role_id=r.role_id,permission_id=p.permission_id))
         db.commit()
 
@@ -742,3 +742,81 @@ def test_phase4_analysis_rejects_unmanaged_storage_path(tmp_path):
             extract_document(doc, False)
     finally:
         settings.storage_root = old_root
+
+def test_phase5_approved_rules_only_drive_candidate_evaluation():
+    login()
+    facility=client.post("/facilities",json={
+        "name":"Phase5対象",
+        "detail":{"classification_code":"X-TEST","total_floor_area":500,"above_ground_floors":2}
+    })
+    assert facility.status_code==201
+    bid=facility.json()["building_id"]
+
+    rule=client.post("/legal-rules",json={
+        "rule_code":"TEST-RULE-001",
+        "name":"テスト用設備候補ルール",
+        "domain":"equipment_requirement",
+        "description":"自動テスト専用。実法令ではない。"
+    })
+    assert rule.status_code==201
+    rid=rule.json()["rule_id"]
+
+    draft=client.post(f"/legal-rules/{rid}/versions",json={
+        "version_no":1,
+        "effective_from":"2026-01-01",
+        "conditions":{"all":[{"field":"total_floor_area","op":"gte","value":300}]},
+        "outcome":{"requirement_code":"TEST-EQ","requirement_name":"テスト設備","decision":"candidate_required"}
+    })
+    assert draft.status_code==201
+    vid=draft.json()["legal_rule_version_id"]
+
+    # Draft rules never participate in evaluation.
+    pre=client.post(f"/legal-rules/evaluate/{bid}",json={"domain":"equipment_requirement","evaluation_date":"2026-10-05"})
+    assert pre.status_code==201
+    assert pre.json()["results"]==[]
+
+    # A verified source is mandatory before approval.
+    blocked=client.post(f"/legal-rules/versions/{vid}/approve",json={"expected_version":1})
+    assert blocked.status_code==409
+
+    # Create a new sourced version rather than mutating the draft.
+    sourced=client.post(f"/legal-rules/{rid}/versions",json={
+        "version_no":2,
+        "effective_from":"2026-01-01",
+        "conditions":{"all":[{"field":"total_floor_area","op":"gte","value":300}]},
+        "outcome":{"requirement_code":"TEST-EQ","requirement_name":"テスト設備","decision":"candidate_required"},
+        "source_reference":"TEST SOURCE ONLY - NOT A REAL LEGAL CITATION"
+    })
+    assert sourced.status_code==201
+    approved=client.post(
+        f"/legal-rules/versions/{sourced.json()['legal_rule_version_id']}/approve",
+        json={"expected_version":1},
+    )
+    assert approved.status_code==200
+    assert approved.json()["status"]=="approved"
+
+    evaluated=client.post(f"/legal-rules/evaluate/{bid}",json={"domain":"equipment_requirement","evaluation_date":"2026-10-05"})
+    assert evaluated.status_code==201
+    body=evaluated.json()
+    assert body["status"]=="candidate"
+    assert len(body["results"])==1
+    assert body["results"][0]["rule_code"]=="TEST-RULE-001"
+    assert body["results"][0]["decision_status"]=="candidate"
+    assert body["facility_version"]==1
+
+
+def test_phase5_rejects_unsupported_rule_field():
+    login()
+    rule=client.post("/legal-rules",json={
+        "rule_code":"TEST-RULE-BAD-FIELD",
+        "name":"不正フィールド検証",
+        "domain":"submission_requirement"
+    })
+    rid=rule.json()["rule_id"]
+    bad=client.post(f"/legal-rules/{rid}/versions",json={
+        "version_no":1,
+        "effective_from":"2026-01-01",
+        "conditions":{"all":[{"field":"secret_unknown_field","op":"eq","value":"x"}]},
+        "outcome":{"requirement_code":"X"}
+    })
+    assert bad.status_code==422
