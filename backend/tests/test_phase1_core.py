@@ -1455,3 +1455,18 @@ def test_phase5_4_reviewed_provision_handoff_creates_incomplete_rule_draft():
     })
     assert draft_reviewed.status_code==200
     assert draft_reviewed.json()["status"]=="reviewed"
+
+
+def test_phase5_4_source_priority_lanes():
+    from app.legal_priority import classify_source_priority
+    national=classify_source_priority("消防法")
+    assert national.lane=="national_core"
+    assert national.score>=20
+
+    local=classify_source_priority("大島地区消防組合火災予防条例施行規則")
+    assert local.lane=="local_core"
+    assert local.score>=15
+
+    normal=classify_source_priority("大島地区消防組合職員旅費規則")
+    assert normal.lane=="normal"
+    assert normal.score==0
