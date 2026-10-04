@@ -12,7 +12,7 @@ permissions:
   contents: read
 
 env:
-  LEGAL_STRUCTURE_VERIFICATION_VERSION: v2
+  LEGAL_STRUCTURE_VERIFICATION_VERSION: v4
 
 jobs:
   verify:
