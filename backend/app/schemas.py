@@ -688,6 +688,8 @@ class LegalProvisionReviewCandidateOut(BaseModel):
     relevance_score: float
     priority_lane: str = "normal"
     source_priority_score: float = 0
+    provision_context: str = "main"
+    context_priority_score: float = 0
     review_priority_score: float = 0
     reasons: list
     extraction_method: str
