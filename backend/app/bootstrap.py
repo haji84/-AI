@@ -6,6 +6,7 @@ from .db import Base, engine, SessionLocal
 from .models import User, Employee, UserRole
 from .rbac_seed import seed_rbac
 from .module_seed import seed_modules
+from .submission_seed import seed_submission_types
 from .security import hash_password
 
 
@@ -23,6 +24,7 @@ def main():
             raise SystemExit("username already exists")
         roles = seed_rbac(db)
         seed_modules(db)
+        seed_submission_types(db)
         emp = Employee(display_name=args.display_name)
         db.add(emp)
         db.flush()
