@@ -42,6 +42,10 @@ PERMISSIONS: dict[str, str] = {
     "contract.create": "契約案件作成",
     "contract.update": "契約案件更新",
     "contract.approve": "契約案件正式承認",
+    "legal_rule.read": "法令ルール・判定履歴参照",
+    "legal_rule.manage": "法令ルール草案・Version管理",
+    "legal_rule.approve": "法令ルールVersion正式承認",
+    "legal_rule.evaluate": "対象物の必要書類・設備候補判定",
 }
 
 ROLE_POLICY: dict[str, dict] = {
@@ -60,6 +64,7 @@ ROLE_POLICY: dict[str, dict] = {
             "inspection.read", "inspection.create", "inspection.update",
             "submission.read", "submission.create", "submission.update",
             "intake.read", "intake.analyze", "intake.review", "intake.apply",
+            "legal_rule.read", "legal_rule.evaluate",
         },
     },
     "emergency_reporter": {
@@ -98,6 +103,22 @@ ROLE_POLICY: dict[str, dict] = {
         "system_role": True,
         "permissions": {
             "system.health.read", "contract.read", "contract.approve", "template.read",
+        },
+    },
+    "legal_rule_manager": {
+        "name": "法令ルール管理担当",
+        "system_role": True,
+        "permissions": {
+            "system.health.read", "legal_rule.read", "legal_rule.manage", "legal_rule.evaluate",
+            "document.read",
+        },
+    },
+    "legal_rule_approver": {
+        "name": "法令ルール承認者",
+        "system_role": True,
+        "permissions": {
+            "system.health.read", "legal_rule.read", "legal_rule.approve", "legal_rule.evaluate",
+            "document.read",
         },
     },
     "auditor": {
