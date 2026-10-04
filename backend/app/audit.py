@@ -13,6 +13,9 @@ def write_audit(
     after=None,
     success: bool = True,
     request_id: str | None = None,
+    ai_used: bool = False,
+    ai_model_version: str | None = None,
+    client_info: dict | None = None,
 ) -> None:
     db.add(
         AuditLog(
@@ -24,5 +27,8 @@ def write_audit(
             after_data=after,
             success=success,
             request_id=request_id,
+            ai_used=ai_used,
+            ai_model_version=ai_model_version,
+            client_info=client_info,
         )
     )
