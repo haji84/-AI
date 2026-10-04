@@ -56,8 +56,8 @@ def main() -> None:
                 LegalSourceDocument.legal_source_document_id == args.document_id
             )
 
-        rows = db.execute(stmt).all()
-        for provision, source_version, document in rows:
+        result = db.execute(stmt.execution_options(yield_per=1000))
+        for provision, source_version, document in result:
             if scanned >= max(1, args.limit):
                 break
             if provision.provision_type not in {
