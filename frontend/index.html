@@ -118,7 +118,12 @@ async function runRequirementEvaluation(domain){
       const label=o.requirement_name||o.label||o.requirement_code||x.rule_name;
       const source=x.source_reference||'登録済み原本参照';
       const evidence=[...(x.evidence?.all||[]),...(x.evidence?.any||[])].filter(e=>e.matched).map(e=>esc(e.field)+'='+esc(e.actual)).join(' / ');
-      return '<div class="history"><b>候補: '+esc(label)+'</b><div class="muted">Rule '+esc(x.rule_code)+' v'+esc(x.version_no)+' ・ '+esc(source)+'</div><div class="muted">一致根拠: '+(evidence||'－')+'</div><span class="pill">職員確認待ち</span></div>';
+      const citations=(x.citations||[]).map(c=>{
+        const label=[c.display_label,c.heading_text].filter(Boolean).join(' ');
+        return '<div class="muted">法的根拠 ['+esc(c.role)+'] '+esc(label||c.provision_key)+'</div>'+
+          (c.body_text?'<details><summary>条文本文を確認</summary><div class="value">'+esc(c.body_text)+'</div></details>':'');
+      }).join('');
+      return '<div class="history"><b>候補: '+esc(label)+'</b><div class="muted">Rule '+esc(x.rule_code)+' v'+esc(x.version_no)+' ・ '+esc(source)+'</div>'+citations+'<div class="muted">一致根拠: '+(evidence||'－')+'</div><span class="pill">職員確認待ち</span></div>';
     }).join('');
   }catch(e){box.innerHTML='<span class="dangerText">判定できません: '+esc(e.message)+'</span>'}
 }
