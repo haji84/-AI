@@ -8,7 +8,12 @@ from sqlalchemy import select
 
 from app.db import SessionLocal
 from app.legal_relevance import SCANNER_VERSION, score_fire_service_relevance
-from app.legal_priority import classify_source_priority
+from app.legal_priority import classify_provision_context, classify_source_priority
+REVIEWABLE_TYPES = {
+    "article","paragraph","item","subitem1","subitem2","subitem3",
+    "subitem4","subitem5","subitem6","document_body"
+}
+
 from app.models import (
     LegalProvision,
     LegalProvisionReviewCandidate,
@@ -59,8 +64,11 @@ def main() -> None:
         matched_provisions = 0
 
         for provision, title in db.execute(stmt.execution_options(yield_per=1000)):
+            if provision.provision_type not in REVIEWABLE_TYPES:
+                continue
             scanned += 1
             source_priority = classify_source_priority(title)
+            context_priority = classify_provision_context(provision.provision_key, provision.provision_type)
             hits = [
                 x
                 for x in score_fire_service_relevance(
@@ -98,12 +106,18 @@ def main() -> None:
                             relevance_score=hit.score,
                             priority_lane=source_priority.lane,
                             source_priority_score=source_priority.score,
+                            provision_context=context_priority.context,
+                            context_priority_score=context_priority.score,
                             reasons=[
                                 *reasons,
                                 *[
                                     {"priority_lane": source_priority.lane, "source_priority": reason}
                                     for reason in source_priority.reasons
                                 ],
+                                *(
+                                    [{"provision_context": context_priority.context, "context_priority": context_priority.reason}]
+                                    if context_priority.reason else []
+                                ),
                             ],
                             extraction_method="deterministic",
                             model_version=SCANNER_VERSION,
@@ -114,12 +128,18 @@ def main() -> None:
                     existing.relevance_score = hit.score
                     existing.priority_lane = source_priority.lane
                     existing.source_priority_score = source_priority.score
+                    existing.provision_context = context_priority.context
+                    existing.context_priority_score = context_priority.score
                     existing.reasons = [
                         *reasons,
                         *[
                             {"priority_lane": source_priority.lane, "source_priority": reason}
                             for reason in source_priority.reasons
                         ],
+                        *(
+                            [{"provision_context": context_priority.context, "context_priority": context_priority.reason}]
+                            if context_priority.reason else []
+                        ),
                     ]
                     existing.model_version = SCANNER_VERSION
                     existing.updated_at = datetime.now(timezone.utc)
