@@ -130,3 +130,23 @@ Formal approved-host PostgreSQL/TLS/two-client gate also remains unexecuted.
 10. then proceed to Phase 6 drawing analysis
 
 Do not report external-source gates as PASS until actually executed.
+
+## Verified fire-department corpus
+
+### 大島地区消防組合
+
+- legal profile: `oshima-fire-union`
+- official source: `https://fd-ohshima.jp/reiki_2026/`
+- content current: 2025-04-01
+- expected body documents: 119
+- discovered: 119
+- captured: 119
+- failures: 0
+- coverage status: complete
+- acquisition run: 37240040293
+- artifact ID: 11317595248
+- artifact SHA-256: `2426f76c7a50609d63f231943f3058b8c196cd8563be54033dba9cbf6defc941`
+
+This is the first real fire-department full-corpus acquisition E2E PASS.
+The external approved-LAN database import remains separate from corpus acquisition.
+
