@@ -6,6 +6,10 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/verify-fire-legal-review-queue.yml"
+      - "backend/app/legal_relevance.py"
+      - "backend/app/legal_priority.py"
+      - "backend/app/legal_structure.py"
+      - "config/legal-rule-authoring/core-sources.json"
 
 permissions:
   actions: read
