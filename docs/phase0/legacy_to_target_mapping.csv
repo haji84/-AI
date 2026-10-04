@@ -1,0 +1,575 @@
+index,excel_col,physical_col_no,legacy_field_no,legacy_header,nonempty_rows,formula_rows,target_table,target_field,migration_rule,mapping_note,mapping_status
+0,A,1,列番号,区分,611,0,facilities,legacy_category_key,preserve,旧複合キー。移行後の主キーには使用しない,confirmed
+1,B,2,,,611,0,facilities,search_initial,preserve,ヘッダーなし。値は先頭かな等に見えるため用途確認,review
+2,C,3,1,名称1,611,0,facilities,name,preserve,型正規化して移行,confirmed
+3,D,4,2,電話番号,398,0,facilities,phone,preserve,型正規化して移行,confirmed
+4,E,5,3,区分,533,0,facilities,legacy_book_type,preserve,型正規化して移行,confirmed
+5,F,6,4,内容現在,593,0,facility_versions,content_as_of,preserve,型正規化して移行,confirmed
+6,G,7,,整理番号,611,0,facilities,legacy_serial_no,preserve,型正規化して移行,confirmed
+7,H,8,6,令別表　　　　区分,611,0,facility_classifications,classification_code,preserve,型正規化して移行,confirmed
+8,I,9,7,所在地,607,0,facilities,address,preserve,型正規化して移行,confirmed
+9,J,10,8,代表者住所,557,0,facility_contacts,representative_address,preserve,型正規化して移行,confirmed
+10,K,11,9,代表者役職,246,0,facility_contacts,representative_title,preserve,型正規化して移行,confirmed
+11,L,12,10,代表者氏名,561,0,facility_contacts,representative_name,preserve,型正規化して移行,confirmed
+12,M,13,11,電話番号,533,0,facility_contacts,representative_phone,preserve,型正規化して移行,confirmed
+13,N,14,12,建築　　同意,277,0,construction_records,consent_year_or_date,preserve,型正規化して移行,confirmed
+14,O,15,13,号,195,0,construction_records,consent_number,preserve,型正規化して移行,confirmed
+15,P,16,14,完成予定,268,0,construction_records,planned_completion_date,preserve,型正規化して移行,confirmed
+16,Q,17,15,完成,206,0,construction_records,completion_date,preserve,型正規化して移行,confirmed
+17,R,18,16,用途地域,579,0,facilities,zoning,preserve,型正規化して移行,confirmed
+18,S,19,17,令8条区画,513,0,facilities,article8_partition,preserve,型正規化して移行,confirmed
+19,T,20,18,構,586,0,facilities,structure,preserve,型正規化して移行,confirmed
+20,U,21,19,地上,598,0,facilities,above_ground_floors,preserve,型正規化して移行,confirmed
+21,V,22,20,地下,7,0,facilities,basement_floors,preserve,型正規化して移行,confirmed
+22,W,23,21,建築面積,419,0,facilities,building_area,preserve,型正規化して移行,confirmed
+23,X,24,22,延面積,688,620,facilities,total_floor_area,preserve,型正規化して移行,confirmed
+24,Y,25,23,階別23,595,0,facility_floors,floor_no,derive from slot,階番号。列位置から正規化可能,confirmed
+25,Z,26,24,階別24,396,0,facility_floors,floor_no,derive from slot,階番号。列位置から正規化可能,confirmed
+26,AA,27,25,階別25,226,0,facility_floors,floor_no,derive from slot,階番号。列位置から正規化可能,confirmed
+27,AB,28,26,階別26,115,0,facility_floors,floor_no,derive from slot,階番号。列位置から正規化可能,confirmed
+28,AC,29,27,階別27,55,0,facility_floors,floor_no,derive from slot,階番号。列位置から正規化可能,confirmed
+29,AD,30,28,階別28,19,0,facility_floors,floor_no,derive from slot,階番号。列位置から正規化可能,confirmed
+30,AE,31,29,階別29,3,0,facility_floors,floor_no,derive from slot,階番号。列位置から正規化可能,confirmed
+31,AF,32,30,床面積30　　　　１階,566,1,facility_floors,floor_area,unpivot,1～7階の横持ちを行へ,confirmed
+32,AG,33,31,床面積31　　　　２階,367,0,facility_floors,floor_area,unpivot,1～7階の横持ちを行へ,confirmed
+33,AH,34,32,床面積32　　　　３階,212,0,facility_floors,floor_area,unpivot,1～7階の横持ちを行へ,confirmed
+34,AI,35,33,床面積33　　　　４階,104,0,facility_floors,floor_area,unpivot,1～7階の横持ちを行へ,confirmed
+35,AJ,36,34,床面積34　　　　５階,51,0,facility_floors,floor_area,unpivot,1～7階の横持ちを行へ,confirmed
+36,AK,37,35,床面積35　　　　６階,21,0,facility_floors,floor_area,unpivot,1～7階の横持ちを行へ,confirmed
+37,AL,38,36,床面積36　　　　７階,3,0,facility_floors,floor_area,unpivot,1～7階の横持ちを行へ,confirmed
+38,AM,39,37,合計床37　　面積,644,594,legacy_unmapped,value,preserve,意味確認,review
+39,AN,40,38,用途38　　　　　１階,588,0,facility_floors,use_name,unpivot,1～7階の横持ちを行へ,confirmed
+40,AO,41,39,用途39　　　　　２階,383,0,facility_floors,use_name,unpivot,1～7階の横持ちを行へ,confirmed
+41,AP,42,40,用途40　　　　　３階,222,0,facility_floors,use_name,unpivot,1～7階の横持ちを行へ,confirmed
+42,AQ,43,41,用途41　　　　　４階,105,0,facility_floors,use_name,unpivot,1～7階の横持ちを行へ,confirmed
+43,AR,44,42,用途42　　　　　５階,50,0,facility_floors,use_name,unpivot,1～7階の横持ちを行へ,confirmed
+44,AS,45,43,用途43　　　　　６階,19,0,facility_floors,use_name,unpivot,1～7階の横持ちを行へ,confirmed
+45,AT,46,44,用途44　　　　　７階,2,0,facility_floors,use_name,unpivot,1～7階の横持ちを行へ,confirmed
+46,AU,47,45,45収容   人員１階,440,0,facility_floors,occupancy_count,unpivot+clean numeric,「名」等を除去し数値化、異常値は要確認,confirmed
+47,AV,48,46,46収容   人員２階,271,0,facility_floors,occupancy_count,unpivot+clean numeric,「名」等を除去し数値化、異常値は要確認,confirmed
+48,AW,49,47,47収容   人員３階,155,0,facility_floors,occupancy_count,unpivot+clean numeric,「名」等を除去し数値化、異常値は要確認,confirmed
+49,AX,50,48,48収容   人員４階,68,0,facility_floors,occupancy_count,unpivot+clean numeric,「名」等を除去し数値化、異常値は要確認,confirmed
+50,AY,51,49,49収容   人員５階,36,0,facility_floors,occupancy_count,unpivot+clean numeric,「名」等を除去し数値化、異常値は要確認,confirmed
+51,AZ,52,50,50収容   人員６階,7,0,facility_floors,occupancy_count,unpivot+clean numeric,「名」等を除去し数値化、異常値は要確認,confirmed
+52,BA,53,51,51収容   人員７階,1,0,facility_floors,occupancy_count,unpivot+clean numeric,「名」等を除去し数値化、異常値は要確認,confirmed
+53,BB,54,52,52収容　　　人員合計,609,570,facilities,occupancy_total_legacy,recalculate,階別から再計算し旧値と突合,confirmed
+54,BC,55,53,53従業員　　　1階,267,0,facility_floors,employee_count,unpivot+clean numeric,「名」等を除去し数値化,confirmed
+55,BD,56,54,54従業員　　　2階,49,0,facility_floors,employee_count,unpivot+clean numeric,「名」等を除去し数値化,confirmed
+56,BE,57,55,55従業員　　　3階,8,0,facility_floors,employee_count,unpivot+clean numeric,「名」等を除去し数値化,confirmed
+57,BF,58,56,56従業員　　　4階,4,0,facility_floors,employee_count,unpivot+clean numeric,「名」等を除去し数値化,confirmed
+58,BG,59,57,57従業員　　　5階,1,0,facility_floors,employee_count,unpivot+clean numeric,「名」等を除去し数値化,confirmed
+59,BH,60,58,58従業員　　　6階,0,0,facility_floors,employee_count,unpivot+clean numeric,「名」等を除去し数値化,confirmed
+60,BI,61,59,59従業員　　　7階,0,0,facility_floors,employee_count,unpivot+clean numeric,「名」等を除去し数値化,confirmed
+61,BJ,62,60,従業員計,572,543,facilities,employee_total_legacy,recalculate,階別から再計算し旧値と突合,confirmed
+62,BK,63,61,無・普　　　　判定１,536,0,facility_floors,windowless_status,unpivot,無窓/普通等をマスタ化,confirmed
+63,BL,64,62,無・普　　　　判定２,333,0,facility_floors,windowless_status,unpivot,無窓/普通等をマスタ化,confirmed
+64,BM,65,63,無・普　　　　判定３,174,0,facility_floors,windowless_status,unpivot,無窓/普通等をマスタ化,confirmed
+65,BN,66,64,無・普　　　　判定４,77,0,facility_floors,windowless_status,unpivot,無窓/普通等をマスタ化,confirmed
+66,BO,67,65,無・普　　　　判定５,38,0,facility_floors,windowless_status,unpivot,無窓/普通等をマスタ化,confirmed
+67,BP,68,66,無・普　　　　判定６,13,0,facility_floors,windowless_status,unpivot,無窓/普通等をマスタ化,confirmed
+68,BQ,69,67,無・普　　　　判定７,0,0,facility_floors,windowless_status,unpivot,無窓/普通等をマスタ化,confirmed
+69,BR,70,68,ｶｰﾃﾝ　　　１,298,0,facility_floor_materials,curtain_status,unpivot,階別防炎等,confirmed
+70,BS,71,69,ｶｰﾃﾝ　　　２,124,0,facility_floor_materials,curtain_status,unpivot,階別防炎等,confirmed
+71,BT,72,70,ｶｰﾃﾝ　　　３,51,0,facility_floor_materials,curtain_status,unpivot,階別防炎等,confirmed
+72,BU,73,71,ｶｰﾃﾝ　　　４,28,0,facility_floor_materials,curtain_status,unpivot,階別防炎等,confirmed
+73,BV,74,72,ｶｰﾃﾝ　　　５,17,0,facility_floor_materials,curtain_status,unpivot,階別防炎等,confirmed
+74,BW,75,73,ｶｰﾃﾝ　　　６,5,0,facility_floor_materials,curtain_status,unpivot,階別防炎等,confirmed
+75,BX,76,74,ｶｰﾃﾝ　　　７,0,0,facility_floor_materials,curtain_status,unpivot,階別防炎等,confirmed
+76,BY,77,75,絨毯　　　　１,294,0,facility_floor_materials,carpet_status,unpivot,階別防炎等,confirmed
+77,BZ,78,76,絨毯　　　　２,121,0,facility_floor_materials,carpet_status,unpivot,階別防炎等,confirmed
+78,CA,79,77,絨毯　　　　３,53,0,facility_floor_materials,carpet_status,unpivot,階別防炎等,confirmed
+79,CB,80,78,絨毯　　　　４,29,0,facility_floor_materials,carpet_status,unpivot,階別防炎等,confirmed
+80,CC,81,79,絨毯　　　　５,17,0,facility_floor_materials,carpet_status,unpivot,階別防炎等,confirmed
+81,CD,82,80,絨毯　　　　６,6,0,facility_floor_materials,carpet_status,unpivot,階別防炎等,confirmed
+82,CE,83,81,絨毯　　　　７,0,0,facility_floor_materials,carpet_status,unpivot,階別防炎等,confirmed
+83,CF,84,82,合板　　　　　１,290,0,facility_floor_materials,plywood_status,unpivot,階別不燃等,confirmed
+84,CG,85,83,合板　　　　　２,119,0,facility_floor_materials,plywood_status,unpivot,階別不燃等,confirmed
+85,CH,86,84,合板　　　　　３,52,0,facility_floor_materials,plywood_status,unpivot,階別不燃等,confirmed
+86,CI,87,85,合板　　　　　４,29,0,facility_floor_materials,plywood_status,unpivot,階別不燃等,confirmed
+87,CJ,88,86,合板　　　　　５,17,0,facility_floor_materials,plywood_status,unpivot,階別不燃等,confirmed
+88,CK,89,87,合板　　　　　６,6,0,facility_floor_materials,plywood_status,unpivot,階別不燃等,confirmed
+89,CL,90,88,合板　　　　　７,0,0,facility_floor_materials,plywood_status,unpivot,階別不燃等,confirmed
+90,CM,91,89,収容人員　　　　合計,608,549,facilities,total_occupancy_legacy,preserve,型正規化して移行,confirmed
+91,CN,92,90,設備１,553,0,facility_equipment,equipment_type_name,unpivot,設備スロット1を設備行へ,confirmed
+92,CO,93,91,検査年月,350,0,facility_equipment,legacy_inspection_date,unpivot+date normalize,設備スロット1の検査年月,confirmed
+93,CP,94,92,1,476,0,facility_equipment_floors,status,unpivot,設備スロット1・階1の設置/状態,confirmed
+94,CQ,95,93,2,249,0,facility_equipment_floors,status,unpivot,設備スロット1・階2の設置/状態,confirmed
+95,CR,96,94,3,131,0,facility_equipment_floors,status,unpivot,設備スロット1・階3の設置/状態,confirmed
+96,CS,97,95,4,67,0,facility_equipment_floors,status,unpivot,設備スロット1・階4の設置/状態,confirmed
+97,CT,98,96,5,27,0,facility_equipment_floors,status,unpivot,設備スロット1・階5の設置/状態,confirmed
+98,CU,99,97,6,13,0,facility_equipment_floors,status,unpivot,設備スロット1・階6の設置/状態,confirmed
+99,CV,100,98,7,0,0,facility_equipment_floors,status,unpivot,設備スロット1・階7の設置/状態,confirmed
+100,CW,101,99,設備２,374,0,facility_equipment,equipment_type_name,unpivot,設備スロット2を設備行へ,confirmed
+101,CX,102,100,検査年月,277,0,facility_equipment,legacy_inspection_date,unpivot+date normalize,設備スロット2の検査年月,confirmed
+102,CY,103,101,1,324,0,facility_equipment_floors,status,unpivot,設備スロット2・階1の設置/状態,confirmed
+103,CZ,104,102,2,192,0,facility_equipment_floors,status,unpivot,設備スロット2・階2の設置/状態,confirmed
+104,DA,105,103,3,90,0,facility_equipment_floors,status,unpivot,設備スロット2・階3の設置/状態,confirmed
+105,DB,106,104,4,59,0,facility_equipment_floors,status,unpivot,設備スロット2・階4の設置/状態,confirmed
+106,DC,107,105,5,32,0,facility_equipment_floors,status,unpivot,設備スロット2・階5の設置/状態,confirmed
+107,DD,108,106,6,8,0,facility_equipment_floors,status,unpivot,設備スロット2・階6の設置/状態,confirmed
+108,DE,109,107,7,0,0,facility_equipment_floors,status,unpivot,設備スロット2・階7の設置/状態,confirmed
+109,DF,110,108,設備３,209,0,facility_equipment,equipment_type_name,unpivot,設備スロット3を設備行へ,confirmed
+110,DG,111,109,検査年月,155,0,facility_equipment,legacy_inspection_date,unpivot+date normalize,設備スロット3の検査年月,confirmed
+111,DH,112,110,1,174,0,facility_equipment_floors,status,unpivot,設備スロット3・階1の設置/状態,confirmed
+112,DI,113,111,2,123,0,facility_equipment_floors,status,unpivot,設備スロット3・階2の設置/状態,confirmed
+113,DJ,114,112,3,56,0,facility_equipment_floors,status,unpivot,設備スロット3・階3の設置/状態,confirmed
+114,DK,115,113,4,39,0,facility_equipment_floors,status,unpivot,設備スロット3・階4の設置/状態,confirmed
+115,DL,116,114,5,21,0,facility_equipment_floors,status,unpivot,設備スロット3・階5の設置/状態,confirmed
+116,DM,117,115,6,8,0,facility_equipment_floors,status,unpivot,設備スロット3・階6の設置/状態,confirmed
+117,DN,118,116,7,1,0,facility_equipment_floors,status,unpivot,設備スロット3・階7の設置/状態,confirmed
+118,DO,119,117,設備４,76,0,facility_equipment,equipment_type_name,unpivot,設備スロット4を設備行へ,confirmed
+119,DP,120,118,検査年月,49,0,facility_equipment,legacy_inspection_date,unpivot+date normalize,設備スロット4の検査年月,confirmed
+120,DQ,121,119,1,50,0,facility_equipment_floors,status,unpivot,設備スロット4・階1の設置/状態,confirmed
+121,DR,122,120,2,45,0,facility_equipment_floors,status,unpivot,設備スロット4・階2の設置/状態,confirmed
+122,DS,123,121,3,30,0,facility_equipment_floors,status,unpivot,設備スロット4・階3の設置/状態,confirmed
+123,DT,124,122,4,20,0,facility_equipment_floors,status,unpivot,設備スロット4・階4の設置/状態,confirmed
+124,DU,125,123,5,12,0,facility_equipment_floors,status,unpivot,設備スロット4・階5の設置/状態,confirmed
+125,DV,126,124,6,7,0,facility_equipment_floors,status,unpivot,設備スロット4・階6の設置/状態,confirmed
+126,DW,127,125,7,1,0,facility_equipment_floors,status,unpivot,設備スロット4・階7の設置/状態,confirmed
+127,DX,128,126,設備５,32,0,facility_equipment,equipment_type_name,unpivot,設備スロット5を設備行へ,confirmed
+128,DY,129,127,検査年月,21,0,facility_equipment,legacy_inspection_date,unpivot+date normalize,設備スロット5の検査年月,confirmed
+129,DZ,130,128,1,23,0,facility_equipment_floors,status,unpivot,設備スロット5・階1の設置/状態,confirmed
+130,EA,131,129,2,15,0,facility_equipment_floors,status,unpivot,設備スロット5・階2の設置/状態,confirmed
+131,EB,132,130,3,5,0,facility_equipment_floors,status,unpivot,設備スロット5・階3の設置/状態,confirmed
+132,EC,133,131,4,4,0,facility_equipment_floors,status,unpivot,設備スロット5・階4の設置/状態,confirmed
+133,ED,134,132,5,3,0,facility_equipment_floors,status,unpivot,設備スロット5・階5の設置/状態,confirmed
+134,EE,135,133,6,1,0,facility_equipment_floors,status,unpivot,設備スロット5・階6の設置/状態,confirmed
+135,EF,136,134,7,0,0,facility_equipment_floors,status,unpivot,設備スロット5・階7の設置/状態,confirmed
+136,EG,137,135,設備６,14,0,facility_equipment,equipment_type_name,unpivot,設備スロット6を設備行へ,confirmed
+137,EH,138,136,検査年月,11,0,facility_equipment,legacy_inspection_date,unpivot+date normalize,設備スロット6の検査年月,confirmed
+138,EI,139,137,1,11,0,facility_equipment_floors,status,unpivot,設備スロット6・階1の設置/状態,confirmed
+139,EJ,140,138,2,7,0,facility_equipment_floors,status,unpivot,設備スロット6・階2の設置/状態,confirmed
+140,EK,141,139,3,6,0,facility_equipment_floors,status,unpivot,設備スロット6・階3の設置/状態,confirmed
+141,EL,142,140,4,3,0,facility_equipment_floors,status,unpivot,設備スロット6・階4の設置/状態,confirmed
+142,EM,143,141,5,2,0,facility_equipment_floors,status,unpivot,設備スロット6・階5の設置/状態,confirmed
+143,EN,144,142,6,1,0,facility_equipment_floors,status,unpivot,設備スロット6・階6の設置/状態,confirmed
+144,EO,145,143,7,0,0,facility_equipment_floors,status,unpivot,設備スロット6・階7の設置/状態,confirmed
+145,EP,146,144,設備７,6,0,facility_equipment,equipment_type_name,unpivot,設備スロット7を設備行へ,confirmed
+146,EQ,147,145,検査年月,6,0,facility_equipment,legacy_inspection_date,unpivot+date normalize,設備スロット7の検査年月,confirmed
+147,ER,148,146,1,6,0,facility_equipment_floors,status,unpivot,設備スロット7・階1の設置/状態,confirmed
+148,ES,149,147,2,3,0,facility_equipment_floors,status,unpivot,設備スロット7・階2の設置/状態,confirmed
+149,ET,150,148,3,2,0,facility_equipment_floors,status,unpivot,設備スロット7・階3の設置/状態,confirmed
+150,EU,151,149,4,1,0,facility_equipment_floors,status,unpivot,設備スロット7・階4の設置/状態,confirmed
+151,EV,152,150,5,0,0,facility_equipment_floors,status,unpivot,設備スロット7・階5の設置/状態,confirmed
+152,EW,153,151,6,0,0,facility_equipment_floors,status,unpivot,設備スロット7・階6の設置/状態,confirmed
+153,EX,154,152,7,0,0,facility_equipment_floors,status,unpivot,設備スロット7・階7の設置/状態,confirmed
+154,EY,155,153,自家発,15,0,facility_power_systems,generator_description,preserve/date normalize,電源設備として正規化,confirmed
+155,EZ,156,154,検査年月,10,0,facility_power_systems,generator_inspection_date,preserve/date normalize,電源設備として正規化,confirmed
+156,FA,157,155,蓄電池,4,0,facility_power_systems,battery_description,preserve/date normalize,電源設備として正規化,confirmed
+157,FB,158,156,検査年月,0,0,facility_power_systems,battery_inspection_date,preserve/date normalize,電源設備として正規化,confirmed
+158,FC,159,157,専用受電,1,0,facility_power_systems,dedicated_receiving_description,preserve/date normalize,電源設備として正規化,confirmed
+159,FD,160,158,検査年月,0,0,facility_power_systems,dedicated_receiving_inspection_date,preserve/date normalize,電源設備として正規化,confirmed
+160,FE,161,159,①建築年月日,12,0,construction_events,event_date_1,date normalize,第1建築年月日,review
+161,FF,162,160,既存　　１階,14,1,construction_event_floor_areas,existing_or_extension_area,unpivot,第1建築イベントの既存/増築・階別。列位置から種別/階を復元,review
+162,FG,163,161,増築１階,8,0,construction_event_floor_areas,existing_or_extension_area,unpivot,第1建築イベントの既存/増築・階別。列位置から種別/階を復元,review
+163,FH,164,162,既存２階,5,0,construction_event_floor_areas,existing_or_extension_area,unpivot,第1建築イベントの既存/増築・階別。列位置から種別/階を復元,review
+164,FI,165,163,増築　　２階,5,0,construction_event_floor_areas,existing_or_extension_area,unpivot,第1建築イベントの既存/増築・階別。列位置から種別/階を復元,review
+165,FJ,166,164,既存　３階,0,0,construction_event_floor_areas,existing_or_extension_area,unpivot,第1建築イベントの既存/増築・階別。列位置から種別/階を復元,review
+166,FK,167,165,増築　３階,1,0,construction_event_floor_areas,existing_or_extension_area,unpivot,第1建築イベントの既存/増築・階別。列位置から種別/階を復元,review
+167,FL,168,166,既存　４階,0,0,construction_event_floor_areas,existing_or_extension_area,unpivot,第1建築イベントの既存/増築・階別。列位置から種別/階を復元,review
+168,FM,169,167,増築　　４階,0,0,construction_event_floor_areas,existing_or_extension_area,unpivot,第1建築イベントの既存/増築・階別。列位置から種別/階を復元,review
+169,FN,170,168,既存　　５階,0,0,construction_event_floor_areas,existing_or_extension_area,unpivot,第1建築イベントの既存/増築・階別。列位置から種別/階を復元,review
+170,FO,171,169,増築　　５階,0,0,construction_event_floor_areas,existing_or_extension_area,unpivot,第1建築イベントの既存/増築・階別。列位置から種別/階を復元,review
+171,FP,172,170,既存　　６階,0,0,construction_event_floor_areas,existing_or_extension_area,unpivot,第1建築イベントの既存/増築・階別。列位置から種別/階を復元,review
+172,FQ,173,171,増築　　　６階,0,0,construction_event_floor_areas,existing_or_extension_area,unpivot,第1建築イベントの既存/増築・階別。列位置から種別/階を復元,review
+173,FR,174,172,②建築年月日,1,0,construction_events,event_date_2,date normalize,第2建築年月日,review
+174,FS,175,173,既存　　１階,1,0,construction_event_floor_areas,existing_or_extension_area,unpivot,第2建築イベントの既存/増築・階別。列位置から種別/階を復元,review
+175,FT,176,174,増築　１階,1,0,construction_event_floor_areas,existing_or_extension_area,unpivot,第2建築イベントの既存/増築・階別。列位置から種別/階を復元,review
+176,FU,177,175,既存　２階,1,0,construction_event_floor_areas,existing_or_extension_area,unpivot,第2建築イベントの既存/増築・階別。列位置から種別/階を復元,review
+177,FV,178,176,増築　　２階,0,0,construction_event_floor_areas,existing_or_extension_area,unpivot,第2建築イベントの既存/増築・階別。列位置から種別/階を復元,review
+178,FW,179,177,既存　３階,0,0,construction_event_floor_areas,existing_or_extension_area,unpivot,第2建築イベントの既存/増築・階別。列位置から種別/階を復元,review
+179,FX,180,178,増築　３階,0,0,construction_event_floor_areas,existing_or_extension_area,unpivot,第2建築イベントの既存/増築・階別。列位置から種別/階を復元,review
+180,FY,181,179,既存　４階,0,0,construction_event_floor_areas,existing_or_extension_area,unpivot,第2建築イベントの既存/増築・階別。列位置から種別/階を復元,review
+181,FZ,182,180,増築　　４階,0,0,construction_event_floor_areas,existing_or_extension_area,unpivot,第2建築イベントの既存/増築・階別。列位置から種別/階を復元,review
+182,GA,183,181,既存　　５階,0,0,construction_event_floor_areas,existing_or_extension_area,unpivot,第2建築イベントの既存/増築・階別。列位置から種別/階を復元,review
+183,GB,184,182,増築　　５階,0,0,construction_event_floor_areas,existing_or_extension_area,unpivot,第2建築イベントの既存/増築・階別。列位置から種別/階を復元,review
+184,GC,185,183,既存　　６階,0,0,construction_event_floor_areas,existing_or_extension_area,unpivot,第2建築イベントの既存/増築・階別。列位置から種別/階を復元,review
+185,GD,186,184,増築　　　６階,0,0,construction_event_floor_areas,existing_or_extension_area,unpivot,第2建築イベントの既存/増築・階別。列位置から種別/階を復元,review
+186,GE,187,185,1F,19,0,facility_floor_legacy_details,detail_value,unpivot,1F～6Fの別系統項目。現行画面/VBAで意味確認が必要,review
+187,GF,188,186,2F,7,0,facility_floor_legacy_details,detail_value,unpivot,1F～6Fの別系統項目。現行画面/VBAで意味確認が必要,review
+188,GG,189,187,3F,3,0,facility_floor_legacy_details,detail_value,unpivot,1F～6Fの別系統項目。現行画面/VBAで意味確認が必要,review
+189,GH,190,188,4F,0,0,facility_floor_legacy_details,detail_value,unpivot,1F～6Fの別系統項目。現行画面/VBAで意味確認が必要,review
+190,GI,191,189,5F,0,0,facility_floor_legacy_details,detail_value,unpivot,1F～6Fの別系統項目。現行画面/VBAで意味確認が必要,review
+191,GJ,192,190,6F,0,0,facility_floor_legacy_details,detail_value,unpivot,1F～6Fの別系統項目。現行画面/VBAで意味確認が必要,review
+192,GK,193,191,条例１,163,0,facility_regulated_items,item_name,unpivot+date normalize,条例等スロット1を1件1行へ,confirmed
+193,GL,194,192,届出,154,0,facility_regulated_items,submitted_at,unpivot+date normalize,条例等スロット1を1件1行へ,confirmed
+194,GM,195,193,検査,156,0,facility_regulated_items,inspected_at,unpivot+date normalize,条例等スロット1を1件1行へ,confirmed
+195,GN,196,194,条例２,44,0,facility_regulated_items,item_name,unpivot+date normalize,条例等スロット2を1件1行へ,confirmed
+196,GO,197,195,届出,40,0,facility_regulated_items,submitted_at,unpivot+date normalize,条例等スロット2を1件1行へ,confirmed
+197,GP,198,196,検査,40,0,facility_regulated_items,inspected_at,unpivot+date normalize,条例等スロット2を1件1行へ,confirmed
+198,GQ,199,197,条例３,12,0,facility_regulated_items,item_name,unpivot+date normalize,条例等スロット3を1件1行へ,confirmed
+199,GR,200,198,届出,11,0,facility_regulated_items,submitted_at,unpivot+date normalize,条例等スロット3を1件1行へ,confirmed
+200,GS,201,199,検査,11,0,facility_regulated_items,inspected_at,unpivot+date normalize,条例等スロット3を1件1行へ,confirmed
+201,GT,202,200,条例４,3,0,facility_regulated_items,item_name,unpivot+date normalize,条例等スロット4を1件1行へ,confirmed
+202,GU,203,201,届出,2,0,facility_regulated_items,submitted_at,unpivot+date normalize,条例等スロット4を1件1行へ,confirmed
+203,GV,204,202,検査,2,0,facility_regulated_items,inspected_at,unpivot+date normalize,条例等スロット4を1件1行へ,confirmed
+204,GW,205,203,条例５,0,0,facility_regulated_items,item_name,unpivot+date normalize,条例等スロット5を1件1行へ,confirmed
+205,GX,206,204,届出,0,0,facility_regulated_items,submitted_at,unpivot+date normalize,条例等スロット5を1件1行へ,confirmed
+206,GY,207,205,検査,0,0,facility_regulated_items,inspected_at,unpivot+date normalize,条例等スロット5を1件1行へ,confirmed
+207,GZ,208,206,条例６,0,0,facility_regulated_items,item_name,unpivot+date normalize,条例等スロット6を1件1行へ,confirmed
+208,HA,209,207,届出,0,0,facility_regulated_items,submitted_at,unpivot+date normalize,条例等スロット6を1件1行へ,confirmed
+209,HB,210,208,検査,0,0,facility_regulated_items,inspected_at,unpivot+date normalize,条例等スロット6を1件1行へ,confirmed
+210,HC,211,209,１１氏名,61,0,fire_management_assignments,manager_name,unpivot+date normalize,防火管理関係スロット1,confirmed
+211,HD,212,210,役職名,45,0,fire_management_assignments,manager_title,unpivot+date normalize,防火管理関係スロット1,confirmed
+212,HE,213,211,選任届,57,0,fire_management_assignments,appointment_submission_date,unpivot+date normalize,防火管理関係スロット1,confirmed
+213,HF,214,212,消防計画書,46,0,fire_management_assignments,fire_plan_submission_date,unpivot+date normalize,防火管理関係スロット1,confirmed
+214,HG,215,213,２氏名,9,0,fire_management_assignments,manager_name,unpivot+date normalize,防火管理関係スロット2,confirmed
+215,HH,216,214,役職名,7,0,fire_management_assignments,manager_title,unpivot+date normalize,防火管理関係スロット2,confirmed
+216,HI,217,215,選任届,8,0,fire_management_assignments,appointment_submission_date,unpivot+date normalize,防火管理関係スロット2,confirmed
+217,HJ,218,216,消防計画書,8,0,fire_management_assignments,fire_plan_submission_date,unpivot+date normalize,防火管理関係スロット2,confirmed
+218,HK,219,217,３氏名,0,0,fire_management_assignments,manager_name,unpivot+date normalize,防火管理関係スロット3,confirmed
+219,HL,220,218,役職名,0,0,fire_management_assignments,manager_title,unpivot+date normalize,防火管理関係スロット3,confirmed
+220,HM,221,219,選任届,0,0,fire_management_assignments,appointment_submission_date,unpivot+date normalize,防火管理関係スロット3,confirmed
+221,HN,222,220,消防計画書,0,0,fire_management_assignments,fire_plan_submission_date,unpivot+date normalize,防火管理関係スロット3,confirmed
+222,HO,223,221,1行目,13,0,fire_case_legacy_notes,note_text,unpivot,過去火災履歴らしき4行。火災案件へ移行候補,review
+223,HP,224,222,2行目,2,0,fire_case_legacy_notes,note_text,unpivot,過去火災履歴らしき4行。火災案件へ移行候補,review
+224,HQ,225,223,3行目,1,0,fire_case_legacy_notes,note_text,unpivot,過去火災履歴らしき4行。火災案件へ移行候補,review
+225,HR,226,224,4行目,0,0,fire_case_legacy_notes,note_text,unpivot,過去火災履歴らしき4行。火災案件へ移行候補,review
+226,HS,227,225,危険物施設,11,0,facility_hazardous_materials,description,preserve,型正規化して移行,confirmed
+227,HT,228,226,液化石油ガス,9,0,facility_lpg,description,preserve,型正規化して移行,confirmed
+228,HU,229,227,1,3,0,facility_lpg,legacy_detail,preserve,液化石油ガス関連の補助3項目と推定。意味確認,review
+229,HV,230,228,2,1,0,facility_lpg,legacy_detail,preserve,液化石油ガス関連の補助3項目と推定。意味確認,review
+230,HW,231,229,3,0,0,facility_lpg,legacy_detail,preserve,液化石油ガス関連の補助3項目と推定。意味確認,review
+231,HX,232,230,項別,26,0,facility_classifications,detail_1,preserve,型正規化して移行,confirmed
+232,HY,233,231,項別,23,0,facility_classifications,detail_2,preserve,型正規化して移行,confirmed
+233,HZ,234,232,整理番号,567,0,facilities,legacy_global_serial,preserve,型正規化して移行,confirmed
+234,IA,235,233,備考1行,103,0,facility_notes,note_text,unpivot,備考1～15を1件1行へ,confirmed
+235,IB,236,234,備考2行,32,0,facility_notes,note_text,unpivot,備考1～15を1件1行へ,confirmed
+236,IC,237,235,備考3行,15,0,facility_notes,note_text,unpivot,備考1～15を1件1行へ,confirmed
+237,ID,238,236,備考4行,6,0,facility_notes,note_text,unpivot,備考1～15を1件1行へ,confirmed
+238,IE,239,237,備考5行,0,0,facility_notes,note_text,unpivot,備考1～15を1件1行へ,confirmed
+239,IF,240,238,備考6行,0,0,facility_notes,note_text,unpivot,備考1～15を1件1行へ,confirmed
+240,IG,241,239,備考7行,0,0,facility_notes,note_text,unpivot,備考1～15を1件1行へ,confirmed
+241,IH,242,240,備考8行,0,0,facility_notes,note_text,unpivot,備考1～15を1件1行へ,confirmed
+242,II,243,241,備考9行,0,0,facility_notes,note_text,unpivot,備考1～15を1件1行へ,confirmed
+243,IJ,244,242,備考10行,2,0,facility_notes,note_text,unpivot,備考1～15を1件1行へ,confirmed
+244,IK,245,243,備考11行,2,0,facility_notes,note_text,unpivot,備考1～15を1件1行へ,confirmed
+245,IL,246,244,備考12行,0,0,facility_notes,note_text,unpivot,備考1～15を1件1行へ,confirmed
+246,IM,247,245,備考13行,0,0,facility_notes,note_text,unpivot,備考1～15を1件1行へ,confirmed
+247,IN,248,246,備考14行,0,0,facility_notes,note_text,unpivot,備考1～15を1件1行へ,confirmed
+248,IO,249,247,備考15行,0,0,facility_notes,note_text,unpivot,備考1～15を1件1行へ,confirmed
+249,IP,250,248,内部キー,611,0,facilities,legacy_internal_key,preserve,型正規化して移行,confirmed
+250,IQ,251,249,登録日時,3,0,facilities,legacy_created_at,preserve,型正規化して移行,confirmed
+251,IR,252,250,更新日時,237,0,facilities,legacy_updated_at,preserve,型正規化して移行,confirmed
+252,IS,253,251,点検報告周期（年）,0,0,inspection_reporting_profiles,report_cycle_years,preserve,点検報告周期,confirmed
+253,IT,254,252,次回報告期限,0,0,inspection_reporting_profiles,next_due_date,date normalize,次回報告期限,confirmed
+254,IU,255,253,設備1_点検結果,0,0,equipment_inspection_reports,result_or_report_date,unpivot,設備別点検結果/報告日の拡張領域。現状ほぼ未使用,confirmed
+255,IV,256,254,設備1_報告日,0,0,equipment_inspection_reports,result_or_report_date,unpivot,設備別点検結果/報告日の拡張領域。現状ほぼ未使用,confirmed
+256,IW,257,255,設備2_点検結果,0,0,equipment_inspection_reports,result_or_report_date,unpivot,設備別点検結果/報告日の拡張領域。現状ほぼ未使用,confirmed
+257,IX,258,256,設備2_報告日,0,0,equipment_inspection_reports,result_or_report_date,unpivot,設備別点検結果/報告日の拡張領域。現状ほぼ未使用,confirmed
+258,IY,259,257,設備3_点検結果,0,0,equipment_inspection_reports,result_or_report_date,unpivot,設備別点検結果/報告日の拡張領域。現状ほぼ未使用,confirmed
+259,IZ,260,258,設備3_報告日,0,0,equipment_inspection_reports,result_or_report_date,unpivot,設備別点検結果/報告日の拡張領域。現状ほぼ未使用,confirmed
+260,JA,261,259,設備4_点検結果,0,0,equipment_inspection_reports,result_or_report_date,unpivot,設備別点検結果/報告日の拡張領域。現状ほぼ未使用,confirmed
+261,JB,262,260,設備4_報告日,0,0,equipment_inspection_reports,result_or_report_date,unpivot,設備別点検結果/報告日の拡張領域。現状ほぼ未使用,confirmed
+262,JC,263,261,設備5_点検結果,0,0,equipment_inspection_reports,result_or_report_date,unpivot,設備別点検結果/報告日の拡張領域。現状ほぼ未使用,confirmed
+263,JD,264,262,設備5_報告日,0,0,equipment_inspection_reports,result_or_report_date,unpivot,設備別点検結果/報告日の拡張領域。現状ほぼ未使用,confirmed
+264,JE,265,263,設備6_点検結果,0,0,equipment_inspection_reports,result_or_report_date,unpivot,設備別点検結果/報告日の拡張領域。現状ほぼ未使用,confirmed
+265,JF,266,264,設備6_報告日,0,0,equipment_inspection_reports,result_or_report_date,unpivot,設備別点検結果/報告日の拡張領域。現状ほぼ未使用,confirmed
+266,JG,267,265,設備7_点検結果,0,0,equipment_inspection_reports,result_or_report_date,unpivot,設備別点検結果/報告日の拡張領域。現状ほぼ未使用,confirmed
+267,JH,268,266,設備7_報告日,0,0,equipment_inspection_reports,result_or_report_date,unpivot,設備別点検結果/報告日の拡張領域。現状ほぼ未使用,confirmed
+268,JI,269,267,自家発_点検結果,0,0,equipment_inspection_reports,result_or_report_date,unpivot,設備別点検結果/報告日の拡張領域。現状ほぼ未使用,confirmed
+269,JJ,270,268,自家発_報告日,1,0,equipment_inspection_reports,result_or_report_date,unpivot,設備別点検結果/報告日の拡張領域。現状ほぼ未使用,confirmed
+270,JK,271,269,蓄電池_点検結果,0,0,equipment_inspection_reports,result_or_report_date,unpivot,設備別点検結果/報告日の拡張領域。現状ほぼ未使用,confirmed
+271,JL,272,270,蓄電池_報告日,0,0,equipment_inspection_reports,result_or_report_date,unpivot,設備別点検結果/報告日の拡張領域。現状ほぼ未使用,confirmed
+272,JM,273,271,専用受電_点検結果,0,0,equipment_inspection_reports,result_or_report_date,unpivot,設備別点検結果/報告日の拡張領域。現状ほぼ未使用,confirmed
+273,JN,274,272,専用受電_報告日,0,0,equipment_inspection_reports,result_or_report_date,unpivot,設備別点検結果/報告日の拡張領域。現状ほぼ未使用,confirmed
+274,JO,275,273,指導書1_件名,33,0,guidance_records,subject,unpivot+date normalize,指導書1を履歴行へ。76件上限を撤廃,confirmed
+275,JP,276,274,指導書1_交付日,232,0,guidance_records,issued_at,unpivot+date normalize,指導書1を履歴行へ。76件上限を撤廃,confirmed
+276,JQ,277,275,指導書1_内容,228,0,guidance_records,content,unpivot+date normalize,指導書1を履歴行へ。76件上限を撤廃,confirmed
+277,JR,278,276,指導書2_件名,22,0,guidance_records,subject,unpivot+date normalize,指導書2を履歴行へ。76件上限を撤廃,confirmed
+278,JS,279,277,指導書2_交付日,96,0,guidance_records,issued_at,unpivot+date normalize,指導書2を履歴行へ。76件上限を撤廃,confirmed
+279,JT,280,278,指導書2_内容,101,0,guidance_records,content,unpivot+date normalize,指導書2を履歴行へ。76件上限を撤廃,confirmed
+280,JU,281,279,指導書3_件名,16,0,guidance_records,subject,unpivot+date normalize,指導書3を履歴行へ。76件上限を撤廃,confirmed
+281,JV,282,280,指導書3_交付日,58,0,guidance_records,issued_at,unpivot+date normalize,指導書3を履歴行へ。76件上限を撤廃,confirmed
+282,JW,283,281,指導書3_内容,59,0,guidance_records,content,unpivot+date normalize,指導書3を履歴行へ。76件上限を撤廃,confirmed
+283,JX,284,282,指導書4_件名,6,0,guidance_records,subject,unpivot+date normalize,指導書4を履歴行へ。76件上限を撤廃,confirmed
+284,JY,285,283,指導書4_交付日,34,0,guidance_records,issued_at,unpivot+date normalize,指導書4を履歴行へ。76件上限を撤廃,confirmed
+285,JZ,286,284,指導書4_内容,30,0,guidance_records,content,unpivot+date normalize,指導書4を履歴行へ。76件上限を撤廃,confirmed
+286,KA,287,285,指導書5_件名,2,0,guidance_records,subject,unpivot+date normalize,指導書5を履歴行へ。76件上限を撤廃,confirmed
+287,KB,288,286,指導書5_交付日,23,0,guidance_records,issued_at,unpivot+date normalize,指導書5を履歴行へ。76件上限を撤廃,confirmed
+288,KC,289,287,指導書5_内容,25,0,guidance_records,content,unpivot+date normalize,指導書5を履歴行へ。76件上限を撤廃,confirmed
+289,KD,290,288,指導書6_件名,2,0,guidance_records,subject,unpivot+date normalize,指導書6を履歴行へ。76件上限を撤廃,confirmed
+290,KE,291,289,指導書6_交付日,15,0,guidance_records,issued_at,unpivot+date normalize,指導書6を履歴行へ。76件上限を撤廃,confirmed
+291,KF,292,290,指導書6_内容,16,0,guidance_records,content,unpivot+date normalize,指導書6を履歴行へ。76件上限を撤廃,confirmed
+292,KG,293,291,指導書7_件名,0,0,guidance_records,subject,unpivot+date normalize,指導書7を履歴行へ。76件上限を撤廃,confirmed
+293,KH,294,292,指導書7_交付日,14,0,guidance_records,issued_at,unpivot+date normalize,指導書7を履歴行へ。76件上限を撤廃,confirmed
+294,KI,295,293,指導書7_内容,15,0,guidance_records,content,unpivot+date normalize,指導書7を履歴行へ。76件上限を撤廃,confirmed
+295,KJ,296,294,指導書8_件名,2,0,guidance_records,subject,unpivot+date normalize,指導書8を履歴行へ。76件上限を撤廃,confirmed
+296,KK,297,295,指導書8_交付日,10,0,guidance_records,issued_at,unpivot+date normalize,指導書8を履歴行へ。76件上限を撤廃,confirmed
+297,KL,298,296,指導書8_内容,9,0,guidance_records,content,unpivot+date normalize,指導書8を履歴行へ。76件上限を撤廃,confirmed
+298,KM,299,297,指導書9_件名,1,0,guidance_records,subject,unpivot+date normalize,指導書9を履歴行へ。76件上限を撤廃,confirmed
+299,KN,300,298,指導書9_交付日,9,0,guidance_records,issued_at,unpivot+date normalize,指導書9を履歴行へ。76件上限を撤廃,confirmed
+300,KO,301,299,指導書9_内容,11,0,guidance_records,content,unpivot+date normalize,指導書9を履歴行へ。76件上限を撤廃,confirmed
+301,KP,302,300,指導書10_件名,2,0,guidance_records,subject,unpivot+date normalize,指導書10を履歴行へ。76件上限を撤廃,confirmed
+302,KQ,303,301,指導書10_交付日,7,0,guidance_records,issued_at,unpivot+date normalize,指導書10を履歴行へ。76件上限を撤廃,confirmed
+303,KR,304,302,指導書10_内容,7,0,guidance_records,content,unpivot+date normalize,指導書10を履歴行へ。76件上限を撤廃,confirmed
+304,KS,305,303,指導書11_件名,3,0,guidance_records,subject,unpivot+date normalize,指導書11を履歴行へ。76件上限を撤廃,confirmed
+305,KT,306,304,指導書11_交付日,7,0,guidance_records,issued_at,unpivot+date normalize,指導書11を履歴行へ。76件上限を撤廃,confirmed
+306,KU,307,305,指導書11_内容,8,0,guidance_records,content,unpivot+date normalize,指導書11を履歴行へ。76件上限を撤廃,confirmed
+307,KV,308,306,指導書12_件名,1,0,guidance_records,subject,unpivot+date normalize,指導書12を履歴行へ。76件上限を撤廃,confirmed
+308,KW,309,307,指導書12_交付日,4,0,guidance_records,issued_at,unpivot+date normalize,指導書12を履歴行へ。76件上限を撤廃,confirmed
+309,KX,310,308,指導書12_内容,7,0,guidance_records,content,unpivot+date normalize,指導書12を履歴行へ。76件上限を撤廃,confirmed
+310,KY,311,309,指導書13_件名,0,0,guidance_records,subject,unpivot+date normalize,指導書13を履歴行へ。76件上限を撤廃,confirmed
+311,KZ,312,310,指導書13_交付日,4,0,guidance_records,issued_at,unpivot+date normalize,指導書13を履歴行へ。76件上限を撤廃,confirmed
+312,LA,313,311,指導書13_内容,6,0,guidance_records,content,unpivot+date normalize,指導書13を履歴行へ。76件上限を撤廃,confirmed
+313,LB,314,312,指導書14_件名,1,0,guidance_records,subject,unpivot+date normalize,指導書14を履歴行へ。76件上限を撤廃,confirmed
+314,LC,315,313,指導書14_交付日,5,0,guidance_records,issued_at,unpivot+date normalize,指導書14を履歴行へ。76件上限を撤廃,confirmed
+315,LD,316,314,指導書14_内容,5,0,guidance_records,content,unpivot+date normalize,指導書14を履歴行へ。76件上限を撤廃,confirmed
+316,LE,317,315,指導書15_件名,0,0,guidance_records,subject,unpivot+date normalize,指導書15を履歴行へ。76件上限を撤廃,confirmed
+317,LF,318,316,指導書15_交付日,2,0,guidance_records,issued_at,unpivot+date normalize,指導書15を履歴行へ。76件上限を撤廃,confirmed
+318,LG,319,317,指導書15_内容,3,0,guidance_records,content,unpivot+date normalize,指導書15を履歴行へ。76件上限を撤廃,confirmed
+319,LH,320,318,指導書16_件名,1,0,guidance_records,subject,unpivot+date normalize,指導書16を履歴行へ。76件上限を撤廃,confirmed
+320,LI,321,319,指導書16_交付日,2,0,guidance_records,issued_at,unpivot+date normalize,指導書16を履歴行へ。76件上限を撤廃,confirmed
+321,LJ,322,320,指導書16_内容,2,0,guidance_records,content,unpivot+date normalize,指導書16を履歴行へ。76件上限を撤廃,confirmed
+322,LK,323,321,指導書17_件名,1,0,guidance_records,subject,unpivot+date normalize,指導書17を履歴行へ。76件上限を撤廃,confirmed
+323,LL,324,322,指導書17_交付日,2,0,guidance_records,issued_at,unpivot+date normalize,指導書17を履歴行へ。76件上限を撤廃,confirmed
+324,LM,325,323,指導書17_内容,2,0,guidance_records,content,unpivot+date normalize,指導書17を履歴行へ。76件上限を撤廃,confirmed
+325,LN,326,324,指導書18_件名,0,0,guidance_records,subject,unpivot+date normalize,指導書18を履歴行へ。76件上限を撤廃,confirmed
+326,LO,327,325,指導書18_交付日,2,0,guidance_records,issued_at,unpivot+date normalize,指導書18を履歴行へ。76件上限を撤廃,confirmed
+327,LP,328,326,指導書18_内容,2,0,guidance_records,content,unpivot+date normalize,指導書18を履歴行へ。76件上限を撤廃,confirmed
+328,LQ,329,327,指導書19_件名,1,0,guidance_records,subject,unpivot+date normalize,指導書19を履歴行へ。76件上限を撤廃,confirmed
+329,LR,330,328,指導書19_交付日,1,0,guidance_records,issued_at,unpivot+date normalize,指導書19を履歴行へ。76件上限を撤廃,confirmed
+330,LS,331,329,指導書19_内容,1,0,guidance_records,content,unpivot+date normalize,指導書19を履歴行へ。76件上限を撤廃,confirmed
+331,LT,332,330,指導書20_件名,1,0,guidance_records,subject,unpivot+date normalize,指導書20を履歴行へ。76件上限を撤廃,confirmed
+332,LU,333,331,指導書20_交付日,1,0,guidance_records,issued_at,unpivot+date normalize,指導書20を履歴行へ。76件上限を撤廃,confirmed
+333,LV,334,332,指導書20_内容,1,0,guidance_records,content,unpivot+date normalize,指導書20を履歴行へ。76件上限を撤廃,confirmed
+334,LW,335,333,指導書21_件名,0,0,guidance_records,subject,unpivot+date normalize,指導書21を履歴行へ。76件上限を撤廃,confirmed
+335,LX,336,334,指導書21_交付日,1,0,guidance_records,issued_at,unpivot+date normalize,指導書21を履歴行へ。76件上限を撤廃,confirmed
+336,LY,337,335,指導書21_内容,1,0,guidance_records,content,unpivot+date normalize,指導書21を履歴行へ。76件上限を撤廃,confirmed
+337,LZ,338,336,指導書22_件名,0,0,guidance_records,subject,unpivot+date normalize,指導書22を履歴行へ。76件上限を撤廃,confirmed
+338,MA,339,337,指導書22_交付日,0,0,guidance_records,issued_at,unpivot+date normalize,指導書22を履歴行へ。76件上限を撤廃,confirmed
+339,MB,340,338,指導書22_内容,1,0,guidance_records,content,unpivot+date normalize,指導書22を履歴行へ。76件上限を撤廃,confirmed
+340,MC,341,339,指導書23_件名,1,0,guidance_records,subject,unpivot+date normalize,指導書23を履歴行へ。76件上限を撤廃,confirmed
+341,MD,342,340,指導書23_交付日,1,0,guidance_records,issued_at,unpivot+date normalize,指導書23を履歴行へ。76件上限を撤廃,confirmed
+342,ME,343,341,指導書23_内容,1,0,guidance_records,content,unpivot+date normalize,指導書23を履歴行へ。76件上限を撤廃,confirmed
+343,MF,344,342,指導書24_件名,0,0,guidance_records,subject,unpivot+date normalize,指導書24を履歴行へ。76件上限を撤廃,confirmed
+344,MG,345,343,指導書24_交付日,1,0,guidance_records,issued_at,unpivot+date normalize,指導書24を履歴行へ。76件上限を撤廃,confirmed
+345,MH,346,344,指導書24_内容,1,0,guidance_records,content,unpivot+date normalize,指導書24を履歴行へ。76件上限を撤廃,confirmed
+346,MI,347,345,指導書25_件名,0,0,guidance_records,subject,unpivot+date normalize,指導書25を履歴行へ。76件上限を撤廃,confirmed
+347,MJ,348,346,指導書25_交付日,0,0,guidance_records,issued_at,unpivot+date normalize,指導書25を履歴行へ。76件上限を撤廃,confirmed
+348,MK,349,347,指導書25_内容,1,0,guidance_records,content,unpivot+date normalize,指導書25を履歴行へ。76件上限を撤廃,confirmed
+349,ML,350,348,指導書26_件名,1,0,guidance_records,subject,unpivot+date normalize,指導書26を履歴行へ。76件上限を撤廃,confirmed
+350,MM,351,349,指導書26_交付日,1,0,guidance_records,issued_at,unpivot+date normalize,指導書26を履歴行へ。76件上限を撤廃,confirmed
+351,MN,352,350,指導書26_内容,1,0,guidance_records,content,unpivot+date normalize,指導書26を履歴行へ。76件上限を撤廃,confirmed
+352,MO,353,351,指導書27_件名,0,0,guidance_records,subject,unpivot+date normalize,指導書27を履歴行へ。76件上限を撤廃,confirmed
+353,MP,354,352,指導書27_交付日,1,0,guidance_records,issued_at,unpivot+date normalize,指導書27を履歴行へ。76件上限を撤廃,confirmed
+354,MQ,355,353,指導書27_内容,1,0,guidance_records,content,unpivot+date normalize,指導書27を履歴行へ。76件上限を撤廃,confirmed
+355,MR,356,354,指導書28_件名,0,0,guidance_records,subject,unpivot+date normalize,指導書28を履歴行へ。76件上限を撤廃,confirmed
+356,MS,357,355,指導書28_交付日,1,0,guidance_records,issued_at,unpivot+date normalize,指導書28を履歴行へ。76件上限を撤廃,confirmed
+357,MT,358,356,指導書28_内容,1,0,guidance_records,content,unpivot+date normalize,指導書28を履歴行へ。76件上限を撤廃,confirmed
+358,MU,359,357,指導書29_件名,0,0,guidance_records,subject,unpivot+date normalize,指導書29を履歴行へ。76件上限を撤廃,confirmed
+359,MV,360,358,指導書29_交付日,0,0,guidance_records,issued_at,unpivot+date normalize,指導書29を履歴行へ。76件上限を撤廃,confirmed
+360,MW,361,359,指導書29_内容,0,0,guidance_records,content,unpivot+date normalize,指導書29を履歴行へ。76件上限を撤廃,confirmed
+361,MX,362,360,指導書30_件名,0,0,guidance_records,subject,unpivot+date normalize,指導書30を履歴行へ。76件上限を撤廃,confirmed
+362,MY,363,361,指導書30_交付日,0,0,guidance_records,issued_at,unpivot+date normalize,指導書30を履歴行へ。76件上限を撤廃,confirmed
+363,MZ,364,362,指導書30_内容,0,0,guidance_records,content,unpivot+date normalize,指導書30を履歴行へ。76件上限を撤廃,confirmed
+364,,365,363,指導書31_件名,0,0,guidance_records,subject,unpivot+date normalize,指導書31を履歴行へ。76件上限を撤廃,confirmed
+365,NB,366,364,指導書31_交付日,0,0,guidance_records,issued_at,unpivot+date normalize,指導書31を履歴行へ。76件上限を撤廃,confirmed
+366,NC,367,365,指導書31_内容,0,0,guidance_records,content,unpivot+date normalize,指導書31を履歴行へ。76件上限を撤廃,confirmed
+367,ND,368,366,指導書32_件名,0,0,guidance_records,subject,unpivot+date normalize,指導書32を履歴行へ。76件上限を撤廃,confirmed
+368,NE,369,367,指導書32_交付日,0,0,guidance_records,issued_at,unpivot+date normalize,指導書32を履歴行へ。76件上限を撤廃,confirmed
+369,NF,370,368,指導書32_内容,0,0,guidance_records,content,unpivot+date normalize,指導書32を履歴行へ。76件上限を撤廃,confirmed
+370,NG,371,369,指導書33_件名,0,0,guidance_records,subject,unpivot+date normalize,指導書33を履歴行へ。76件上限を撤廃,confirmed
+371,NH,372,370,指導書33_交付日,0,0,guidance_records,issued_at,unpivot+date normalize,指導書33を履歴行へ。76件上限を撤廃,confirmed
+372,NI,373,371,指導書33_内容,0,0,guidance_records,content,unpivot+date normalize,指導書33を履歴行へ。76件上限を撤廃,confirmed
+373,NJ,374,372,指導書34_件名,0,0,guidance_records,subject,unpivot+date normalize,指導書34を履歴行へ。76件上限を撤廃,confirmed
+374,NK,375,373,指導書34_交付日,0,0,guidance_records,issued_at,unpivot+date normalize,指導書34を履歴行へ。76件上限を撤廃,confirmed
+375,NL,376,374,指導書34_内容,0,0,guidance_records,content,unpivot+date normalize,指導書34を履歴行へ。76件上限を撤廃,confirmed
+376,NM,377,375,指導書35_件名,0,0,guidance_records,subject,unpivot+date normalize,指導書35を履歴行へ。76件上限を撤廃,confirmed
+377,NN,378,376,指導書35_交付日,0,0,guidance_records,issued_at,unpivot+date normalize,指導書35を履歴行へ。76件上限を撤廃,confirmed
+378,NO,379,377,指導書35_内容,0,0,guidance_records,content,unpivot+date normalize,指導書35を履歴行へ。76件上限を撤廃,confirmed
+379,NP,380,378,指導書36_件名,0,0,guidance_records,subject,unpivot+date normalize,指導書36を履歴行へ。76件上限を撤廃,confirmed
+380,NQ,381,379,指導書36_交付日,0,0,guidance_records,issued_at,unpivot+date normalize,指導書36を履歴行へ。76件上限を撤廃,confirmed
+381,NR,382,380,指導書36_内容,0,0,guidance_records,content,unpivot+date normalize,指導書36を履歴行へ。76件上限を撤廃,confirmed
+382,NS,383,381,指導書37_件名,0,0,guidance_records,subject,unpivot+date normalize,指導書37を履歴行へ。76件上限を撤廃,confirmed
+383,NT,384,382,指導書37_交付日,0,0,guidance_records,issued_at,unpivot+date normalize,指導書37を履歴行へ。76件上限を撤廃,confirmed
+384,NU,385,383,指導書37_内容,0,0,guidance_records,content,unpivot+date normalize,指導書37を履歴行へ。76件上限を撤廃,confirmed
+385,NV,386,384,指導書38_件名,0,0,guidance_records,subject,unpivot+date normalize,指導書38を履歴行へ。76件上限を撤廃,confirmed
+386,NW,387,385,指導書38_交付日,0,0,guidance_records,issued_at,unpivot+date normalize,指導書38を履歴行へ。76件上限を撤廃,confirmed
+387,NX,388,386,指導書38_内容,0,0,guidance_records,content,unpivot+date normalize,指導書38を履歴行へ。76件上限を撤廃,confirmed
+388,NY,389,387,指導書39_件名,0,0,guidance_records,subject,unpivot+date normalize,指導書39を履歴行へ。76件上限を撤廃,confirmed
+389,NZ,390,388,指導書39_交付日,0,0,guidance_records,issued_at,unpivot+date normalize,指導書39を履歴行へ。76件上限を撤廃,confirmed
+390,OA,391,389,指導書39_内容,0,0,guidance_records,content,unpivot+date normalize,指導書39を履歴行へ。76件上限を撤廃,confirmed
+391,OB,392,390,指導書40_件名,0,0,guidance_records,subject,unpivot+date normalize,指導書40を履歴行へ。76件上限を撤廃,confirmed
+392,OC,393,391,指導書40_交付日,0,0,guidance_records,issued_at,unpivot+date normalize,指導書40を履歴行へ。76件上限を撤廃,confirmed
+393,OD,394,392,指導書40_内容,0,0,guidance_records,content,unpivot+date normalize,指導書40を履歴行へ。76件上限を撤廃,confirmed
+394,OE,395,393,指導書41_件名,0,0,guidance_records,subject,unpivot+date normalize,指導書41を履歴行へ。76件上限を撤廃,confirmed
+395,OF,396,394,指導書41_交付日,0,0,guidance_records,issued_at,unpivot+date normalize,指導書41を履歴行へ。76件上限を撤廃,confirmed
+396,OG,397,395,指導書41_内容,0,0,guidance_records,content,unpivot+date normalize,指導書41を履歴行へ。76件上限を撤廃,confirmed
+397,OH,398,396,指導書42_件名,0,0,guidance_records,subject,unpivot+date normalize,指導書42を履歴行へ。76件上限を撤廃,confirmed
+398,OI,399,397,指導書42_交付日,0,0,guidance_records,issued_at,unpivot+date normalize,指導書42を履歴行へ。76件上限を撤廃,confirmed
+399,OJ,400,398,指導書42_内容,0,0,guidance_records,content,unpivot+date normalize,指導書42を履歴行へ。76件上限を撤廃,confirmed
+400,OK,401,399,指導書43_件名,0,0,guidance_records,subject,unpivot+date normalize,指導書43を履歴行へ。76件上限を撤廃,confirmed
+401,OL,402,400,指導書43_交付日,0,0,guidance_records,issued_at,unpivot+date normalize,指導書43を履歴行へ。76件上限を撤廃,confirmed
+402,OM,403,401,指導書43_内容,0,0,guidance_records,content,unpivot+date normalize,指導書43を履歴行へ。76件上限を撤廃,confirmed
+403,ON,404,402,指導書44_件名,0,0,guidance_records,subject,unpivot+date normalize,指導書44を履歴行へ。76件上限を撤廃,confirmed
+404,OO,405,403,指導書44_交付日,0,0,guidance_records,issued_at,unpivot+date normalize,指導書44を履歴行へ。76件上限を撤廃,confirmed
+405,OP,406,404,指導書44_内容,0,0,guidance_records,content,unpivot+date normalize,指導書44を履歴行へ。76件上限を撤廃,confirmed
+406,OQ,407,405,指導書45_件名,0,0,guidance_records,subject,unpivot+date normalize,指導書45を履歴行へ。76件上限を撤廃,confirmed
+407,OR,408,406,指導書45_交付日,0,0,guidance_records,issued_at,unpivot+date normalize,指導書45を履歴行へ。76件上限を撤廃,confirmed
+408,OS,409,407,指導書45_内容,0,0,guidance_records,content,unpivot+date normalize,指導書45を履歴行へ。76件上限を撤廃,confirmed
+409,OT,410,408,指導書46_件名,0,0,guidance_records,subject,unpivot+date normalize,指導書46を履歴行へ。76件上限を撤廃,confirmed
+410,OU,411,409,指導書46_交付日,0,0,guidance_records,issued_at,unpivot+date normalize,指導書46を履歴行へ。76件上限を撤廃,confirmed
+411,OV,412,410,指導書46_内容,0,0,guidance_records,content,unpivot+date normalize,指導書46を履歴行へ。76件上限を撤廃,confirmed
+412,OW,413,411,指導書47_件名,0,0,guidance_records,subject,unpivot+date normalize,指導書47を履歴行へ。76件上限を撤廃,confirmed
+413,OX,414,412,指導書47_交付日,0,0,guidance_records,issued_at,unpivot+date normalize,指導書47を履歴行へ。76件上限を撤廃,confirmed
+414,OY,415,413,指導書47_内容,0,0,guidance_records,content,unpivot+date normalize,指導書47を履歴行へ。76件上限を撤廃,confirmed
+415,OZ,416,414,指導書48_件名,0,0,guidance_records,subject,unpivot+date normalize,指導書48を履歴行へ。76件上限を撤廃,confirmed
+416,PA,417,415,指導書48_交付日,0,0,guidance_records,issued_at,unpivot+date normalize,指導書48を履歴行へ。76件上限を撤廃,confirmed
+417,PB,418,416,指導書48_内容,0,0,guidance_records,content,unpivot+date normalize,指導書48を履歴行へ。76件上限を撤廃,confirmed
+418,PC,419,417,指導書49_件名,0,0,guidance_records,subject,unpivot+date normalize,指導書49を履歴行へ。76件上限を撤廃,confirmed
+419,PD,420,418,指導書49_交付日,0,0,guidance_records,issued_at,unpivot+date normalize,指導書49を履歴行へ。76件上限を撤廃,confirmed
+420,PE,421,419,指導書49_内容,0,0,guidance_records,content,unpivot+date normalize,指導書49を履歴行へ。76件上限を撤廃,confirmed
+421,PF,422,420,指導書50_件名,0,0,guidance_records,subject,unpivot+date normalize,指導書50を履歴行へ。76件上限を撤廃,confirmed
+422,PG,423,421,指導書50_交付日,0,0,guidance_records,issued_at,unpivot+date normalize,指導書50を履歴行へ。76件上限を撤廃,confirmed
+423,PH,424,422,指導書50_内容,0,0,guidance_records,content,unpivot+date normalize,指導書50を履歴行へ。76件上限を撤廃,confirmed
+424,PI,425,423,指導書51_件名,0,0,guidance_records,subject,unpivot+date normalize,指導書51を履歴行へ。76件上限を撤廃,confirmed
+425,PJ,426,424,指導書51_交付日,0,0,guidance_records,issued_at,unpivot+date normalize,指導書51を履歴行へ。76件上限を撤廃,confirmed
+426,PK,427,425,指導書51_内容,0,0,guidance_records,content,unpivot+date normalize,指導書51を履歴行へ。76件上限を撤廃,confirmed
+427,PL,428,426,指導書52_件名,0,0,guidance_records,subject,unpivot+date normalize,指導書52を履歴行へ。76件上限を撤廃,confirmed
+428,PM,429,427,指導書52_交付日,0,0,guidance_records,issued_at,unpivot+date normalize,指導書52を履歴行へ。76件上限を撤廃,confirmed
+429,PN,430,428,指導書52_内容,0,0,guidance_records,content,unpivot+date normalize,指導書52を履歴行へ。76件上限を撤廃,confirmed
+430,PO,431,429,指導書53_件名,0,0,guidance_records,subject,unpivot+date normalize,指導書53を履歴行へ。76件上限を撤廃,confirmed
+431,PP,432,430,指導書53_交付日,0,0,guidance_records,issued_at,unpivot+date normalize,指導書53を履歴行へ。76件上限を撤廃,confirmed
+432,PQ,433,431,指導書53_内容,0,0,guidance_records,content,unpivot+date normalize,指導書53を履歴行へ。76件上限を撤廃,confirmed
+433,PR,434,432,指導書54_件名,0,0,guidance_records,subject,unpivot+date normalize,指導書54を履歴行へ。76件上限を撤廃,confirmed
+434,PS,435,433,指導書54_交付日,0,0,guidance_records,issued_at,unpivot+date normalize,指導書54を履歴行へ。76件上限を撤廃,confirmed
+435,PT,436,434,指導書54_内容,0,0,guidance_records,content,unpivot+date normalize,指導書54を履歴行へ。76件上限を撤廃,confirmed
+436,PU,437,435,指導書55_件名,0,0,guidance_records,subject,unpivot+date normalize,指導書55を履歴行へ。76件上限を撤廃,confirmed
+437,PV,438,436,指導書55_交付日,0,0,guidance_records,issued_at,unpivot+date normalize,指導書55を履歴行へ。76件上限を撤廃,confirmed
+438,PW,439,437,指導書55_内容,0,0,guidance_records,content,unpivot+date normalize,指導書55を履歴行へ。76件上限を撤廃,confirmed
+439,PX,440,438,指導書56_件名,0,0,guidance_records,subject,unpivot+date normalize,指導書56を履歴行へ。76件上限を撤廃,confirmed
+440,PY,441,439,指導書56_交付日,0,0,guidance_records,issued_at,unpivot+date normalize,指導書56を履歴行へ。76件上限を撤廃,confirmed
+441,PZ,442,440,指導書56_内容,0,0,guidance_records,content,unpivot+date normalize,指導書56を履歴行へ。76件上限を撤廃,confirmed
+442,QA,443,441,指導書57_件名,0,0,guidance_records,subject,unpivot+date normalize,指導書57を履歴行へ。76件上限を撤廃,confirmed
+443,QB,444,442,指導書57_交付日,0,0,guidance_records,issued_at,unpivot+date normalize,指導書57を履歴行へ。76件上限を撤廃,confirmed
+444,QC,445,443,指導書57_内容,0,0,guidance_records,content,unpivot+date normalize,指導書57を履歴行へ。76件上限を撤廃,confirmed
+445,QD,446,444,指導書58_件名,0,0,guidance_records,subject,unpivot+date normalize,指導書58を履歴行へ。76件上限を撤廃,confirmed
+446,QE,447,445,指導書58_交付日,0,0,guidance_records,issued_at,unpivot+date normalize,指導書58を履歴行へ。76件上限を撤廃,confirmed
+447,QF,448,446,指導書58_内容,0,0,guidance_records,content,unpivot+date normalize,指導書58を履歴行へ。76件上限を撤廃,confirmed
+448,QG,449,447,指導書59_件名,0,0,guidance_records,subject,unpivot+date normalize,指導書59を履歴行へ。76件上限を撤廃,confirmed
+449,QH,450,448,指導書59_交付日,0,0,guidance_records,issued_at,unpivot+date normalize,指導書59を履歴行へ。76件上限を撤廃,confirmed
+450,QI,451,449,指導書59_内容,0,0,guidance_records,content,unpivot+date normalize,指導書59を履歴行へ。76件上限を撤廃,confirmed
+451,QJ,452,450,指導書60_件名,0,0,guidance_records,subject,unpivot+date normalize,指導書60を履歴行へ。76件上限を撤廃,confirmed
+452,QK,453,451,指導書60_交付日,0,0,guidance_records,issued_at,unpivot+date normalize,指導書60を履歴行へ。76件上限を撤廃,confirmed
+453,QL,454,452,指導書60_内容,0,0,guidance_records,content,unpivot+date normalize,指導書60を履歴行へ。76件上限を撤廃,confirmed
+454,QM,455,453,指導書61_件名,0,0,guidance_records,subject,unpivot+date normalize,指導書61を履歴行へ。76件上限を撤廃,confirmed
+455,QN,456,454,指導書61_交付日,0,0,guidance_records,issued_at,unpivot+date normalize,指導書61を履歴行へ。76件上限を撤廃,confirmed
+456,QO,457,455,指導書61_内容,0,0,guidance_records,content,unpivot+date normalize,指導書61を履歴行へ。76件上限を撤廃,confirmed
+457,QP,458,456,指導書62_件名,0,0,guidance_records,subject,unpivot+date normalize,指導書62を履歴行へ。76件上限を撤廃,confirmed
+458,QQ,459,457,指導書62_交付日,0,0,guidance_records,issued_at,unpivot+date normalize,指導書62を履歴行へ。76件上限を撤廃,confirmed
+459,QR,460,458,指導書62_内容,0,0,guidance_records,content,unpivot+date normalize,指導書62を履歴行へ。76件上限を撤廃,confirmed
+460,QS,461,459,指導書63_件名,0,0,guidance_records,subject,unpivot+date normalize,指導書63を履歴行へ。76件上限を撤廃,confirmed
+461,QT,462,460,指導書63_交付日,0,0,guidance_records,issued_at,unpivot+date normalize,指導書63を履歴行へ。76件上限を撤廃,confirmed
+462,QU,463,461,指導書63_内容,0,0,guidance_records,content,unpivot+date normalize,指導書63を履歴行へ。76件上限を撤廃,confirmed
+463,QV,464,462,指導書64_件名,0,0,guidance_records,subject,unpivot+date normalize,指導書64を履歴行へ。76件上限を撤廃,confirmed
+464,QW,465,463,指導書64_交付日,0,0,guidance_records,issued_at,unpivot+date normalize,指導書64を履歴行へ。76件上限を撤廃,confirmed
+465,QX,466,464,指導書64_内容,0,0,guidance_records,content,unpivot+date normalize,指導書64を履歴行へ。76件上限を撤廃,confirmed
+466,QY,467,465,指導書65_件名,0,0,guidance_records,subject,unpivot+date normalize,指導書65を履歴行へ。76件上限を撤廃,confirmed
+467,QZ,468,466,指導書65_交付日,0,0,guidance_records,issued_at,unpivot+date normalize,指導書65を履歴行へ。76件上限を撤廃,confirmed
+468,RA,469,467,指導書65_内容,0,0,guidance_records,content,unpivot+date normalize,指導書65を履歴行へ。76件上限を撤廃,confirmed
+469,RB,470,468,指導書66_件名,0,0,guidance_records,subject,unpivot+date normalize,指導書66を履歴行へ。76件上限を撤廃,confirmed
+470,RC,471,469,指導書66_交付日,0,0,guidance_records,issued_at,unpivot+date normalize,指導書66を履歴行へ。76件上限を撤廃,confirmed
+471,RD,472,470,指導書66_内容,0,0,guidance_records,content,unpivot+date normalize,指導書66を履歴行へ。76件上限を撤廃,confirmed
+472,RE,473,471,指導書67_件名,0,0,guidance_records,subject,unpivot+date normalize,指導書67を履歴行へ。76件上限を撤廃,confirmed
+473,RF,474,472,指導書67_交付日,0,0,guidance_records,issued_at,unpivot+date normalize,指導書67を履歴行へ。76件上限を撤廃,confirmed
+474,RG,475,473,指導書67_内容,0,0,guidance_records,content,unpivot+date normalize,指導書67を履歴行へ。76件上限を撤廃,confirmed
+475,RH,476,474,指導書68_件名,0,0,guidance_records,subject,unpivot+date normalize,指導書68を履歴行へ。76件上限を撤廃,confirmed
+476,RI,477,475,指導書68_交付日,0,0,guidance_records,issued_at,unpivot+date normalize,指導書68を履歴行へ。76件上限を撤廃,confirmed
+477,RJ,478,476,指導書68_内容,0,0,guidance_records,content,unpivot+date normalize,指導書68を履歴行へ。76件上限を撤廃,confirmed
+478,RK,479,477,指導書69_件名,0,0,guidance_records,subject,unpivot+date normalize,指導書69を履歴行へ。76件上限を撤廃,confirmed
+479,RL,480,478,指導書69_交付日,0,0,guidance_records,issued_at,unpivot+date normalize,指導書69を履歴行へ。76件上限を撤廃,confirmed
+480,RM,481,479,指導書69_内容,0,0,guidance_records,content,unpivot+date normalize,指導書69を履歴行へ。76件上限を撤廃,confirmed
+481,RN,482,480,指導書70_件名,0,0,guidance_records,subject,unpivot+date normalize,指導書70を履歴行へ。76件上限を撤廃,confirmed
+482,RO,483,481,指導書70_交付日,0,0,guidance_records,issued_at,unpivot+date normalize,指導書70を履歴行へ。76件上限を撤廃,confirmed
+483,RP,484,482,指導書70_内容,0,0,guidance_records,content,unpivot+date normalize,指導書70を履歴行へ。76件上限を撤廃,confirmed
+484,RQ,485,483,指導書71_件名,0,0,guidance_records,subject,unpivot+date normalize,指導書71を履歴行へ。76件上限を撤廃,confirmed
+485,RR,486,484,指導書71_交付日,0,0,guidance_records,issued_at,unpivot+date normalize,指導書71を履歴行へ。76件上限を撤廃,confirmed
+486,RS,487,485,指導書71_内容,0,0,guidance_records,content,unpivot+date normalize,指導書71を履歴行へ。76件上限を撤廃,confirmed
+487,RT,488,486,指導書72_件名,0,0,guidance_records,subject,unpivot+date normalize,指導書72を履歴行へ。76件上限を撤廃,confirmed
+488,RU,489,487,指導書72_交付日,0,0,guidance_records,issued_at,unpivot+date normalize,指導書72を履歴行へ。76件上限を撤廃,confirmed
+489,RV,490,488,指導書72_内容,0,0,guidance_records,content,unpivot+date normalize,指導書72を履歴行へ。76件上限を撤廃,confirmed
+490,RW,491,489,指導書73_件名,0,0,guidance_records,subject,unpivot+date normalize,指導書73を履歴行へ。76件上限を撤廃,confirmed
+491,RX,492,490,指導書73_交付日,0,0,guidance_records,issued_at,unpivot+date normalize,指導書73を履歴行へ。76件上限を撤廃,confirmed
+492,RY,493,491,指導書73_内容,0,0,guidance_records,content,unpivot+date normalize,指導書73を履歴行へ。76件上限を撤廃,confirmed
+493,RZ,494,492,指導書74_件名,0,0,guidance_records,subject,unpivot+date normalize,指導書74を履歴行へ。76件上限を撤廃,confirmed
+494,SA,495,493,指導書74_交付日,0,0,guidance_records,issued_at,unpivot+date normalize,指導書74を履歴行へ。76件上限を撤廃,confirmed
+495,SB,496,494,指導書74_内容,0,0,guidance_records,content,unpivot+date normalize,指導書74を履歴行へ。76件上限を撤廃,confirmed
+496,SC,497,495,指導書75_件名,0,0,guidance_records,subject,unpivot+date normalize,指導書75を履歴行へ。76件上限を撤廃,confirmed
+497,SD,498,496,指導書75_交付日,0,0,guidance_records,issued_at,unpivot+date normalize,指導書75を履歴行へ。76件上限を撤廃,confirmed
+498,SE,499,497,指導書75_内容,0,0,guidance_records,content,unpivot+date normalize,指導書75を履歴行へ。76件上限を撤廃,confirmed
+499,SF,500,498,指導書76_件名,0,0,guidance_records,subject,unpivot+date normalize,指導書76を履歴行へ。76件上限を撤廃,confirmed
+500,SG,501,499,指導書76_交付日,0,0,guidance_records,issued_at,unpivot+date normalize,指導書76を履歴行へ。76件上限を撤廃,confirmed
+501,SH,502,500,指導書76_内容,0,0,guidance_records,content,unpivot+date normalize,指導書76を履歴行へ。76件上限を撤廃,confirmed
+502,SI,503,501,,0,0,,,drop/reserved,旧予約フィールド501～562。ヘッダー・実データなし,confirmed
+503,SJ,504,502,,0,0,,,drop/reserved,旧予約フィールド501～562。ヘッダー・実データなし,confirmed
+504,SK,505,503,,0,0,,,drop/reserved,旧予約フィールド501～562。ヘッダー・実データなし,confirmed
+505,SL,506,504,,0,0,,,drop/reserved,旧予約フィールド501～562。ヘッダー・実データなし,confirmed
+506,SM,507,505,,0,0,,,drop/reserved,旧予約フィールド501～562。ヘッダー・実データなし,confirmed
+507,SN,508,506,,0,0,,,drop/reserved,旧予約フィールド501～562。ヘッダー・実データなし,confirmed
+508,SO,509,507,,0,0,,,drop/reserved,旧予約フィールド501～562。ヘッダー・実データなし,confirmed
+509,SP,510,508,,0,0,,,drop/reserved,旧予約フィールド501～562。ヘッダー・実データなし,confirmed
+510,SQ,511,509,,0,0,,,drop/reserved,旧予約フィールド501～562。ヘッダー・実データなし,confirmed
+511,SR,512,510,,0,0,,,drop/reserved,旧予約フィールド501～562。ヘッダー・実データなし,confirmed
+512,SS,513,511,,0,0,,,drop/reserved,旧予約フィールド501～562。ヘッダー・実データなし,confirmed
+513,ST,514,512,,0,0,,,drop/reserved,旧予約フィールド501～562。ヘッダー・実データなし,confirmed
+514,SU,515,513,,0,0,,,drop/reserved,旧予約フィールド501～562。ヘッダー・実データなし,confirmed
+515,SV,516,514,,0,0,,,drop/reserved,旧予約フィールド501～562。ヘッダー・実データなし,confirmed
+516,SW,517,515,,0,0,,,drop/reserved,旧予約フィールド501～562。ヘッダー・実データなし,confirmed
+517,SX,518,516,,0,0,,,drop/reserved,旧予約フィールド501～562。ヘッダー・実データなし,confirmed
+518,SY,519,517,,0,0,,,drop/reserved,旧予約フィールド501～562。ヘッダー・実データなし,confirmed
+519,SZ,520,518,,0,0,,,drop/reserved,旧予約フィールド501～562。ヘッダー・実データなし,confirmed
+520,TA,521,519,,0,0,,,drop/reserved,旧予約フィールド501～562。ヘッダー・実データなし,confirmed
+521,TB,522,520,,0,0,,,drop/reserved,旧予約フィールド501～562。ヘッダー・実データなし,confirmed
+522,TC,523,521,,0,0,,,drop/reserved,旧予約フィールド501～562。ヘッダー・実データなし,confirmed
+523,TD,524,522,,0,0,,,drop/reserved,旧予約フィールド501～562。ヘッダー・実データなし,confirmed
+524,TE,525,523,,0,0,,,drop/reserved,旧予約フィールド501～562。ヘッダー・実データなし,confirmed
+525,TF,526,524,,0,0,,,drop/reserved,旧予約フィールド501～562。ヘッダー・実データなし,confirmed
+526,TG,527,525,,0,0,,,drop/reserved,旧予約フィールド501～562。ヘッダー・実データなし,confirmed
+527,TH,528,526,,0,0,,,drop/reserved,旧予約フィールド501～562。ヘッダー・実データなし,confirmed
+528,TI,529,527,,0,0,,,drop/reserved,旧予約フィールド501～562。ヘッダー・実データなし,confirmed
+529,TJ,530,528,,0,0,,,drop/reserved,旧予約フィールド501～562。ヘッダー・実データなし,confirmed
+530,TK,531,529,,0,0,,,drop/reserved,旧予約フィールド501～562。ヘッダー・実データなし,confirmed
+531,TL,532,530,,0,0,,,drop/reserved,旧予約フィールド501～562。ヘッダー・実データなし,confirmed
+532,TM,533,531,,0,0,,,drop/reserved,旧予約フィールド501～562。ヘッダー・実データなし,confirmed
+533,TN,534,532,,0,0,,,drop/reserved,旧予約フィールド501～562。ヘッダー・実データなし,confirmed
+534,TO,535,533,,0,0,,,drop/reserved,旧予約フィールド501～562。ヘッダー・実データなし,confirmed
+535,TP,536,534,,0,0,,,drop/reserved,旧予約フィールド501～562。ヘッダー・実データなし,confirmed
+536,TQ,537,535,,0,0,,,drop/reserved,旧予約フィールド501～562。ヘッダー・実データなし,confirmed
+537,TR,538,536,,0,0,,,drop/reserved,旧予約フィールド501～562。ヘッダー・実データなし,confirmed
+538,TS,539,537,,0,0,,,drop/reserved,旧予約フィールド501～562。ヘッダー・実データなし,confirmed
+539,TT,540,538,,0,0,,,drop/reserved,旧予約フィールド501～562。ヘッダー・実データなし,confirmed
+540,TU,541,539,,0,0,,,drop/reserved,旧予約フィールド501～562。ヘッダー・実データなし,confirmed
+541,TV,542,540,,0,0,,,drop/reserved,旧予約フィールド501～562。ヘッダー・実データなし,confirmed
+542,TW,543,541,,0,0,,,drop/reserved,旧予約フィールド501～562。ヘッダー・実データなし,confirmed
+543,TX,544,542,,0,0,,,drop/reserved,旧予約フィールド501～562。ヘッダー・実データなし,confirmed
+544,TY,545,543,,0,0,,,drop/reserved,旧予約フィールド501～562。ヘッダー・実データなし,confirmed
+545,TZ,546,544,,0,0,,,drop/reserved,旧予約フィールド501～562。ヘッダー・実データなし,confirmed
+546,UA,547,545,,0,0,,,drop/reserved,旧予約フィールド501～562。ヘッダー・実データなし,confirmed
+547,UB,548,546,,0,0,,,drop/reserved,旧予約フィールド501～562。ヘッダー・実データなし,confirmed
+548,UC,549,547,,0,0,,,drop/reserved,旧予約フィールド501～562。ヘッダー・実データなし,confirmed
+549,UD,550,548,,0,0,,,drop/reserved,旧予約フィールド501～562。ヘッダー・実データなし,confirmed
+550,UE,551,549,,0,0,,,drop/reserved,旧予約フィールド501～562。ヘッダー・実データなし,confirmed
+551,UF,552,550,,0,0,,,drop/reserved,旧予約フィールド501～562。ヘッダー・実データなし,confirmed
+552,UG,553,551,,0,0,,,drop/reserved,旧予約フィールド501～562。ヘッダー・実データなし,confirmed
+553,UH,554,552,,0,0,,,drop/reserved,旧予約フィールド501～562。ヘッダー・実データなし,confirmed
+554,UI,555,553,,0,0,,,drop/reserved,旧予約フィールド501～562。ヘッダー・実データなし,confirmed
+555,UJ,556,554,,0,0,,,drop/reserved,旧予約フィールド501～562。ヘッダー・実データなし,confirmed
+556,UK,557,555,,0,0,,,drop/reserved,旧予約フィールド501～562。ヘッダー・実データなし,confirmed
+557,UL,558,556,,0,0,,,drop/reserved,旧予約フィールド501～562。ヘッダー・実データなし,confirmed
+558,UM,559,557,,0,0,,,drop/reserved,旧予約フィールド501～562。ヘッダー・実データなし,confirmed
+559,UN,560,558,,0,0,,,drop/reserved,旧予約フィールド501～562。ヘッダー・実データなし,confirmed
+560,UO,561,559,,0,0,,,drop/reserved,旧予約フィールド501～562。ヘッダー・実データなし,confirmed
+561,UP,562,560,,0,0,,,drop/reserved,旧予約フィールド501～562。ヘッダー・実データなし,confirmed
+562,UQ,563,561,,0,0,,,drop/reserved,旧予約フィールド501～562。ヘッダー・実データなし,confirmed
+563,UR,564,562,,0,0,,,drop/reserved,旧予約フィールド501～562。ヘッダー・実データなし,confirmed
+564,US,565,,,0,0,,,drop/unused,物理的な末尾空列。実データなし,confirmed
+565,UT,566,,,0,0,,,drop/unused,物理的な末尾空列。実データなし,confirmed
+566,UU,567,,,0,0,,,drop/unused,物理的な末尾空列。実データなし,confirmed
+567,UV,568,,,0,0,,,drop/unused,物理的な末尾空列。実データなし,confirmed
+568,UW,569,,,0,0,,,drop/unused,物理的な末尾空列。実データなし,confirmed
+569,UX,570,,,0,0,,,drop/unused,物理的な末尾空列。実データなし,confirmed
+570,UY,571,,,0,0,,,drop/unused,物理的な末尾空列。実データなし,confirmed
+571,UZ,572,,,0,0,,,drop/unused,物理的な末尾空列。実データなし,confirmed
+572,VA,573,,,0,0,,,drop/unused,物理的な末尾空列。実データなし,confirmed
+573,VB,574,,,0,0,,,drop/unused,物理的な末尾空列。実データなし,confirmed
