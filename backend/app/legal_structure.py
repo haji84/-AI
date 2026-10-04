@@ -180,11 +180,10 @@ def parse_egov_xml(data: bytes) -> list[ProvisionRecord]:
             this_parent = key
             next_ancestry = [*ancestry, key_part]
 
+        # Traverse each XML node exactly once. Non-structural wrapper nodes
+        # (LawBody/MainProvision/etc.) simply pass through the current parent context.
         for child in node:
-            if _lname(child.tag) in STRUCTURAL_XML_TYPES:
-                walk(child, this_parent, next_ancestry)
-            elif any(_lname(desc.tag) in STRUCTURAL_XML_TYPES for desc in child.iter()):
-                walk(child, this_parent, next_ancestry)
+            walk(child, this_parent, next_ancestry)
 
     walk(root, None, [])
     return records
