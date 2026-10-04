@@ -679,3 +679,22 @@ class LegalRuleDraftCandidateOut(BaseModel):
     promoted_rule_id: str | None = None
     promoted_rule_version_id: str | None = None
     citations: list[LegalRuleDraftCitationOut] = Field(default_factory=list)
+
+
+class LegalProvisionReviewCandidateOut(BaseModel):
+    legal_provision_review_candidate_id: str
+    legal_provision_id: str
+    category: str
+    relevance_score: float
+    reasons: list
+    extraction_method: str
+    model_version: str | None = None
+    status: str
+    version: int
+    legal_rule_draft_candidate_id: str | None = None
+    document_title: str
+    provision: LegalProvisionOut
+
+class LegalProvisionReviewCandidatePatch(BaseModel):
+    expected_version: int = Field(ge=1)
+    status: Literal["reviewed","ignored"]
