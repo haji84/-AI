@@ -649,3 +649,43 @@ class GuidanceRecord(Base):
     source_kind: Mapped[str] = mapped_column(String(30), nullable=False, default="legacy", index=True)
     raw_issued_text: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
+class DocumentAnalysis(Base):
+    __tablename__ = "document_analyses"
+    document_analysis_id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True, default=uuid_str)
+    document_id: Mapped[str] = mapped_column(ForeignKey("documents.document_id", ondelete="CASCADE"), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(40), nullable=False, default="analyzed", index=True)
+    extraction_method: Mapped[str] = mapped_column(String(80), nullable=False)
+    extracted_text: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    page_count: Mapped[int | None] = mapped_column(Integer)
+    detected_submission_type_code: Mapped[str | None] = mapped_column(String(120), index=True)
+    detected_fields: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    facility_candidates: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    difference_candidates: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    confidence: Mapped[float | None] = mapped_column(Float)
+    evidence: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    selected_building_id: Mapped[str | None] = mapped_column(ForeignKey("facilities.building_id"), index=True)
+    selected_submission_type_code: Mapped[str | None] = mapped_column(String(120))
+    reviewed_by: Mapped[str | None] = mapped_column(ForeignKey("app_users.user_id"))
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    version: Mapped[int] = mapped_column(BigInteger, nullable=False, default=1)
+    created_by: Mapped[str | None] = mapped_column(ForeignKey("app_users.user_id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
+class FacilityChangeProposal(Base):
+    __tablename__ = "facility_change_proposals"
+    facility_change_proposal_id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True, default=uuid_str)
+    document_analysis_id: Mapped[str] = mapped_column(ForeignKey("document_analyses.document_analysis_id", ondelete="CASCADE"), nullable=False, index=True)
+    building_id: Mapped[str] = mapped_column(ForeignKey("facilities.building_id", ondelete="CASCADE"), nullable=False, index=True)
+    expected_facility_version: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    changes: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="pending", index=True)
+    reviewed_by: Mapped[str | None] = mapped_column(ForeignKey("app_users.user_id"))
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    applied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    version: Mapped[int] = mapped_column(BigInteger, nullable=False, default=1)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)

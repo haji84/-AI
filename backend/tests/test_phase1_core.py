@@ -18,7 +18,7 @@ def seed():
         u=User(employee_id=emp.employee_id,username="tester",password_hash=hash_password("long-test-password")); db.add(u)
         r=Role(code="tester",name="Tester"); db.add(r); db.flush()
         db.add(UserRole(user_id=u.user_id,role_id=r.role_id))
-        for code in ["facility.read","facility.create","facility.update","facility.restore","document.create","document.read", "inspection.read","inspection.create","inspection.update", "submission.read","submission.create","submission.update","submission.manage", "extension.read","extension.create","extension.review","extension.apply","template.read","template.manage","contract.read","contract.create","contract.update","contract.approve"]:
+        for code in ["facility.read","facility.create","facility.update","facility.restore","document.create","document.read", "inspection.read","inspection.create","inspection.update", "submission.read","submission.create","submission.update","submission.manage", "intake.read","intake.analyze","intake.review","intake.apply", "extension.read","extension.create","extension.review","extension.apply","template.read","template.manage","contract.read","contract.create","contract.update","contract.approve"]:
             p=Permission(code=code,description=code); db.add(p); db.flush(); db.add(RolePermission(role_id=r.role_id,permission_id=p.permission_id))
         db.commit()
 
@@ -535,3 +535,210 @@ def test_phase3_legacy_manager_name_does_not_claim_submission_evidence():
     states={x['code']:x for x in client.get(f'/facilities/{bid}/dashboard').json()['submission_statuses']}
     assert states['fire_manager_appointment']['state']=='legacy_manager_only'
     assert states['fire_manager_appointment']['detail']['submission_evidence_recorded'] is False
+
+
+
+def test_phase4_text_document_analysis_review_and_receipt_human_gate():
+    login()
+    facility = client.post("/facilities", json={
+        "name": "Phase4ホテル",
+        "address": "鹿児島県テスト町旧住所1番地",
+        "phone": "0997-11-1111",
+    }).json()
+    bid = facility["building_id"]
+    text = """消防用設備等点検結果報告書
+防火対象物名称: Phase4ホテル
+所在地: 鹿児島県テスト町新住所2番地
+電話番号: 0997-22-2222
+令和8年10月5日
+""".encode("utf-8")
+    uploaded = client.post(
+        "/documents/upload",
+        files={"file": ("scan0001.txt", text, "text/plain")},
+        data={"document_type": "submission_source"},
+    )
+    assert uploaded.status_code == 201
+    doc_id = uploaded.json()["document_id"]
+    analyzed = client.post("/document-analyses", json={"document_id": doc_id})
+    assert analyzed.status_code == 201
+    body = analyzed.json()
+    assert body["detected_submission_type_code"] == "equipment_inspection_report"
+    assert body["facility_candidates"][0]["building_id"] == bid
+    assert body["detected_fields"]["address"] == "鹿児島県テスト町新住所2番地"
+    assert "facility.address" in body["difference_candidates"]
+
+    blocked = client.post(
+        f"/document-analyses/{body['document_analysis_id']}/confirm-receipt",
+        json={"expected_version": body["version"], "official_number": "1001"},
+    )
+    assert blocked.status_code == 409
+
+    reviewed = client.post(
+        f"/document-analyses/{body['document_analysis_id']}/review",
+        json={"expected_version": body["version"], "building_id": bid},
+    )
+    assert reviewed.status_code == 200
+    reviewed_body = reviewed.json()
+    assert reviewed_body["status"] == "reviewed"
+    proposals = client.get(f"/document-analyses/{body['document_analysis_id']}/change-proposals")
+    assert proposals.status_code == 200 and len(proposals.json()) == 1
+
+    invalid_number = client.post(
+        f"/document-analyses/{body['document_analysis_id']}/confirm-receipt",
+        json={"expected_version": reviewed_body["version"], "official_number": "予防1001号"},
+    )
+    assert invalid_number.status_code == 422
+    confirmed = client.post(
+        f"/document-analyses/{body['document_analysis_id']}/confirm-receipt",
+        json={"expected_version": reviewed_body["version"], "official_number": "1001", "submitted_at": "2026-10-05"},
+    )
+    assert confirmed.status_code == 201
+    assert confirmed.json()["building_id"] == bid
+    assert confirmed.json()["document_ids"] == [doc_id]
+
+
+def test_phase4_change_proposal_requires_explicit_paths_and_facility_version():
+    login()
+    facility = client.post("/facilities", json={
+        "name": "Phase4差分対象",
+        "address": "鹿児島県旧住所12345",
+        "phone": "0997-00-0000",
+    }).json()
+    bid = facility["building_id"]
+    source = """防火管理者選任届出書
+防火対象物名称: Phase4差分対象
+所在地: 鹿児島県新住所54321
+電話番号: 0997-99-9999
+防火管理者氏名: 山田太郎
+""".encode("utf-8")
+    doc = client.post("/documents/upload", files={"file": ("random.txt", source, "text/plain")}, data={"document_type":"submission_source"}).json()
+    analysis = client.post("/document-analyses", json={"document_id": doc["document_id"]}).json()
+    reviewed = client.post(
+        f"/document-analyses/{analysis['document_analysis_id']}/review",
+        json={"expected_version": analysis["version"], "building_id": bid},
+    ).json()
+    proposal = client.get(f"/document-analyses/{analysis['document_analysis_id']}/change-proposals").json()[0]
+
+    none = client.post(
+        f"/facility-change-proposals/{proposal['facility_change_proposal_id']}/apply",
+        json={"expected_version": proposal["version"], "expected_facility_version": 1, "accepted_paths": []},
+    )
+    assert none.status_code == 422
+
+    # Another user-facing edit makes the proposal stale.
+    direct = client.patch(f"/facilities/{bid}", json={"expected_version": 1, "name": "Phase4差分対象 更新"})
+    assert direct.status_code == 200
+    stale = client.post(
+        f"/facility-change-proposals/{proposal['facility_change_proposal_id']}/apply",
+        json={"expected_version": proposal["version"], "expected_facility_version": 1, "accepted_paths": ["facility.address"]},
+    )
+    assert stale.status_code == 409
+
+    # Re-review after the facility changed creates/refreshes a proposal with the new version.
+    rereview = client.post(
+        f"/document-analyses/{analysis['document_analysis_id']}/review",
+        json={"expected_version": reviewed["version"], "building_id": bid, "submission_type_code": "fire_manager_appointment"},
+    )
+    assert rereview.status_code == 200
+    proposal2 = client.get(f"/document-analyses/{analysis['document_analysis_id']}/change-proposals").json()[0]
+    applied = client.post(
+        f"/facility-change-proposals/{proposal2['facility_change_proposal_id']}/apply",
+        json={"expected_version": proposal2["version"], "expected_facility_version": 2, "accepted_paths": ["facility.address"]},
+    )
+    assert applied.status_code == 200 and applied.json()["status"] == "applied"
+    detail = client.get(f"/facilities/{bid}/detail").json()
+    assert detail["facility"]["address"] == "鹿児島県新住所54321"
+    assert detail["facility"]["phone"] == "0997-00-0000"  # not explicitly accepted
+
+
+def test_phase4_pdf_direct_text_extraction_without_ocr(tmp_path):
+    import fitz
+    from app.document_intake import extract_document
+    from app.models import Document
+    from app.settings import settings
+    pdf_path = tmp_path / "simple.pdf"
+    pdf = fitz.open()
+    page = pdf.new_page()
+    page.insert_text((72, 72), "Phase4 PDF direct text extraction")
+    pdf.save(pdf_path)
+    old_root = settings.storage_root
+    try:
+        settings.storage_root = str(tmp_path)
+        doc = Document(storage_path="simple.pdf", original_filename="arbitrary.pdf", sha256="x", mime_type="application/pdf")
+        text, method, page_count, evidence = extract_document(doc, False)
+    finally:
+        settings.storage_root = old_root
+    assert method == "pdf_text"
+    assert page_count == 1
+    assert "Phase4 PDF direct text extraction" in text
+    assert evidence["ocr_used"] is False
+
+
+def test_phase4_docx_and_xlsx_text_extraction(tmp_path):
+    from docx import Document as WordDocument
+    from openpyxl import Workbook
+    from app.document_intake import extract_document
+    from app.models import Document
+    from app.settings import settings
+
+    docx_path = tmp_path / "sample.docx"
+    word = WordDocument(); word.add_paragraph("防火管理者選任届出書"); word.save(docx_path)
+    xlsx_path = tmp_path / "sample.xlsx"
+    wb = Workbook(); ws = wb.active; ws["A1"] = "消防計画"; ws["B1"] = "Phase4"; wb.save(xlsx_path)
+    old_root = settings.storage_root
+    try:
+        settings.storage_root = str(tmp_path)
+        d1 = Document(storage_path="sample.docx", original_filename="x.docx", sha256="x", mime_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+        t1, m1, _, _ = extract_document(d1, False)
+        d2 = Document(storage_path="sample.xlsx", original_filename="x.xlsx", sha256="x", mime_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        t2, m2, _, _ = extract_document(d2, False)
+    finally:
+        settings.storage_root = old_root
+    assert m1 == "docx_text" and "防火管理者選任届出書" in t1
+    assert m2 == "excel_cells" and "消防計画" in t2
+
+
+def test_phase4_prevention_role_has_intake_permissions():
+    from app.rbac_seed import seed_rbac
+    with SessionLocal() as db:
+        roles = seed_rbac(db); db.commit()
+        role = roles["prevention_editor"]
+        codes = set(db.scalars(
+            select(Permission.code)
+            .join(RolePermission, RolePermission.permission_id == Permission.permission_id)
+            .where(RolePermission.role_id == role.role_id)
+        ).all())
+        assert {"intake.read","intake.analyze","intake.review","intake.apply"}.issubset(codes)
+
+
+def test_phase4_migration_and_browser_entrypoint_exist():
+    from pathlib import Path
+    from app.migrations import split_sql
+    root = Path(__file__).resolve().parents[2]
+    sql = (root / "db" / "migrations" / "007_phase4_document_intake.sql").read_text(encoding="utf-8")
+    parts = split_sql(sql)
+    assert len(parts) >= 8
+    assert "CREATE TABLE IF NOT EXISTS document_analyses" in sql
+    assert "CREATE TABLE IF NOT EXISTS facility_change_proposals" in sql
+    ui = (root / "frontend" / "index.html").read_text(encoding="utf-8")
+    assert "文書解析して受付" in ui
+    assert "smartReceiveSubmission" in ui
+    assert ".heic" not in ui
+
+
+def test_phase4_analysis_rejects_unmanaged_storage_path(tmp_path):
+    from app.document_intake import extract_document
+    from app.models import Document
+    from app.settings import settings
+    outside = tmp_path / "outside.txt"
+    outside.write_text("消防計画", encoding="utf-8")
+    old_root = settings.storage_root
+    managed = tmp_path / "managed"
+    managed.mkdir()
+    try:
+        settings.storage_root = str(managed)
+        doc = Document(storage_path=str(outside), original_filename="outside.txt", sha256="x", mime_type="text/plain")
+        with pytest.raises(ValueError, match="outside managed storage"):
+            extract_document(doc, False)
+    finally:
+        settings.storage_root = old_root

@@ -401,3 +401,51 @@ class FacilityDashboardOut(BaseModel):
     open_findings: int
     latest_inspection_at: str | None
     submission_statuses: list[FacilityComplianceStatusOut]
+
+class DocumentAnalysisCreate(BaseModel):
+    document_id: str
+    force_ocr: bool = False
+
+class DocumentAnalysisReview(BaseModel):
+    expected_version: int = Field(ge=1)
+    building_id: str
+    submission_type_code: str | None = None
+
+class DocumentAnalysisOut(BaseModel):
+    document_analysis_id: str
+    document_id: str
+    status: str
+    extraction_method: str
+    extracted_text: str
+    page_count: int | None
+    detected_submission_type_code: str | None
+    detected_fields: dict
+    facility_candidates: list
+    difference_candidates: dict
+    confidence: float | None
+    evidence: dict
+    selected_building_id: str | None
+    selected_submission_type_code: str | None
+    version: int
+
+class IntakeConfirmReceipt(BaseModel):
+    expected_version: int = Field(ge=1)
+    official_number: str | None = None
+    submitted_at: str | None = None
+    submitted_by: str | None = None
+    notes: str | None = None
+    payload_data: dict = Field(default_factory=dict)
+
+class FacilityChangeProposalOut(BaseModel):
+    facility_change_proposal_id: str
+    document_analysis_id: str
+    building_id: str
+    expected_facility_version: int
+    changes: dict
+    status: str
+    version: int
+
+class FacilityChangeProposalApply(BaseModel):
+    expected_version: int = Field(ge=1)
+    expected_facility_version: int = Field(ge=1)
+    accepted_paths: list[str] = Field(default_factory=list)
