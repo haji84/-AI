@@ -4,10 +4,10 @@
 
 ## Current Phase
 
-Phase 5 legal-rule engine is code-complete and CI-verified.
-Phase 5.1 national/local legal-source update foundation is implemented in code.
-Live full-corpus acquisition from e-Gov and a real designated fire-department regulation source remains an external-source E2E gate.
-Formal approved-host PostgreSQL/TLS/two-client gate also remains unexecuted.
+Phase 5.2 structured legal corpus + exact Rule citation core is complete and real-corpus E2E verified.
+Phase 5.3 Human-Gated Rule draft candidate core is complete and CI verified.
+The next slice is review-queue generation and actual fire-related Rule authoring from verified provisions.
+Formal approved-host PostgreSQL/TLS/two-client gate remains unexecuted.
 
 ## Phase 0-4 retained
 
@@ -22,149 +22,156 @@ Formal approved-host PostgreSQL/TLS/two-client gate also remains unexecuted.
 - Human Review before receipt/facility change
 - contract/form-template/extensibility foundation
 
-## Phase 5 completed in code
+## Phase 5 legal Rule engine
 
-- legal rule registry
-- numbered/effective-dated rule versions
+Completed:
+- legal Rule registry
+- numbered/effective-dated Rule Versions
 - verified-source requirement before approval
 - Draft / Approved separation
 - deterministic requirement evaluation
 - submission/equipment requirement domains
-- evidence and candidate-only decisions
-- rule management/approval/evaluation RBAC
-- facility UI for candidate required documents/equipment
+- candidate-only operational decisions
+- exact audit trail
+- management/approval/evaluation RBAC
+- facility UI for required-document/equipment candidates
 - no automatic operational DB mutation from legal evaluation
 
-## Phase 5.1 source/profile foundation
+## Phase 5.1 legal source/update foundation
 
+Completed:
 - national/prefecture/municipality/fire-union/fire-department jurisdiction model
 - fire-department legal profiles
-- multiple jurisdictions per profile
-- multiple official sources per jurisdiction/profile
+- multiple jurisdictions and official sources per profile
 - Source Adapter metadata
 - online/bundle/manual update modes
-- all-content scope
-- sync frequency
-- full legal source document/version chain
-- raw-original Document linkage
-- SHA-256 and previous-Version linkage
-- update candidate / impacted Rule placeholder
-- corpus completeness status: unverified/complete/partial/stale/error
-- legal source/profile RBAC
-- source/profile registry API
+- sync frequency and corpus completeness state
+- legal source Document / Version chain
+- raw-original SHA-256 preservation
+- update candidate and sync-run tracking
+- e-Gov full/delta collectors/importers
+- bounded official local-regulation collector/importer
+- daily sync orchestrator and systemd timer
+- corpus completeness: unverified/complete/partial/stale/error
 
-## Phase 5.1 collectors/importers implemented
+## Verified source corpora
 
-### e-Gov
-- full national-law XML collector
-- date-based updated-law delta collector
-- SHA-256 Manifest
-- e-Gov XML Archive importer
-- raw XML preservation
-- normalized text
-- Source Document / Version generation
-- LegalUpdateCandidate generation
-
-### Local official regulation
-- official-host bounded HTML collector
-- configurable include/crawl regex
-- maximum page/depth guards
-- raw HTML/PDF/etc byte preservation
-- manifest with visited/captured/failure/truncated counts
-- DB importer
-- Source Document / Version generation
-- update candidate generation
-- corpus completeness tracking
-
-### Scheduler
-- due-source sync orchestrator
-- online e-Gov adapter
-- online official_html_crawl adapter
-- initial e-Gov bootstrap requires explicit --allow-bootstrap
-- daily delta after bootstrap
-- systemd one-shot service
-- daily 03:30 timer with randomized delay
-
-## Important safety policy
-
-- National/local legal original acquisition may be automatic.
-- Rule interpretation/activation after legal amendment is NOT automatic.
-- Legal update -> Version/Diff -> Impact candidate -> Human Gate -> Approved Rule Version.
-- A local regulation Source is not declared complete unless corpus completeness validation succeeds.
-- JavaScript-heavy or vendor-specific regulation systems may require a dedicated Browser Adapter.
-
-## Verification already completed
-
-- Phase 5 rule engine CI: SUCCESS
-- Phase 5 safety tests: 39 passed at that checkpoint
-- Phase 5.1 Source Registry CI: SUCCESS
-- migrations through 009 included in parser checks
-- operational scripts are now included in Python syntax CI
-
-## Not yet reported as PASS
-
-- live e-Gov full bootstrap
-- live e-Gov daily delta -> DB end-to-end
-- real designated fire-department full regulation corpus capture
-- local regulation table-of-contents count reconciliation
-- browser adapter for JS-only regulation systems
-- official promulgation/update-page adapter
-- signed closed-network Update Bundle verification/import
-- real legal amendment -> Rule impact analysis acceptance test
-- approved LAN PostgreSQL migrations 001-009
-- PostgreSQL backup/restore after Migration 009
-- HTTPS production LAN clients
-- two-client concurrent E2E
-
-## Next Phase 5.1 slice
-
-1. execute live e-Gov bootstrap in an approved internet-connected collector environment
-2. validate daily e-Gov delta
-3. select a real fire department profile
-4. discover and approve all official regulation/promulgation sources for that profile
-5. build any required vendor/browser adapters
-6. full-corpus import and completeness reconciliation
-7. ordinance amendment diff E2E
-8. Rule impact candidate generation
-9. signed Update Bundle for closed networks
-10. then proceed to Phase 6 drawing analysis
-
-Do not report external-source gates as PASS until actually executed.
-
-## Verified fire-department corpus
+### e-Gov national laws
+- official full XML corpus acquired
+- documents: 10,414
+- archive integrity: PASS
+- coverage: complete_official_bulk_archive
+- acquisition run: 37240404083
+- artifact ID: 11317001520
+- source archive SHA-256: `830c24983bee6d9e7db8765b01ed671ee91ca9472324ec5c0d8d0e5a32e660cf`
 
 ### 大島地区消防組合
-
-- legal profile: `oshima-fire-union`
 - official source: `https://fd-ohshima.jp/reiki_2026/`
 - content current: 2025-04-01
-- expected body documents: 119
-- discovered: 119
-- captured: 119
+- expected/discovered/captured: 119 / 119 / 119
 - failures: 0
-- coverage status: complete
+- coverage: complete
 - acquisition run: 37240040293
 - artifact ID: 11317595248
 - artifact SHA-256: `2426f76c7a50609d63f231943f3058b8c196cd8563be54033dba9cbf6defc941`
 
-This is the first real fire-department full-corpus acquisition E2E PASS.
-The external approved-LAN database import remains separate from corpus acquisition.
+## Phase 5.2 structured legal corpus
 
-## Verified national legal corpus
+Migration 010:
+- `legal_provisions`
+- `legal_rule_citations`
+- structure status/parser metadata on legal source Versions
 
-### e-Gov 全国法令
+Supported structured concepts:
+- part/chapter/section/subsection/division
+- article
+- paragraph
+- item/subitem
+- supplementary provisions
+- appendix/tables/forms/figures/notes
+- article-less official notices as `document_body`
 
-- profile: `jp-national-laws`
-- official source: e-Gov 法令検索
-- scope: all national laws XML
-- XML documents: 10,414
-- archive integrity: PASS
-- coverage status: complete_official_bulk_archive
-- acquisition run: 37240404083
-- artifact ID: 11317001520
-- source archive SHA-256: `830c24983bee6d9e7db8765b01ed671ee91ca9472324ec5c0d8d0e5a32e660cf`
-- artifact ZIP SHA-256: `a834626b725f78e91b5682a9f1f891f988d4453819ff826c809d9a72acb81a9d`
+Exact Rule citation:
+- Rule Version -> LegalProvision
+- citation roles: primary/definition/exception/reference/supplementary
+- cited text snapshot preserved
+- structured-source Rule cannot be approved without an exact citation
+- changed/removed cited provisions reverse-map to impacted Rule IDs
 
-This is the first real national full-corpus acquisition E2E PASS.
-Daily delta sync remains the incremental update path after this baseline.
+### Real full-corpus parser E2E
 
+Workflow run: 37241690774
+Result: SUCCESS
+
+e-Gov:
+- documents: 10,414
+- structured provisions: 5,447,878
+- parse failures: 0
+- zero-provision documents: 0
+- article: 1,030,986
+- paragraph: 2,364,763
+- item: 1,274,776
+
+大島地区消防組合:
+- documents: 119
+- structured provisions: 26,898
+- parse failures: 0
+- zero-provision documents: 0
+- article: 3,577
+- paragraph: 4,983
+- item: 404
+- article-less notice fallback: 1
+
+## Phase 5.3 Rule draft candidates
+
+Migration 011:
+- `legal_rule_draft_candidates`
+- `legal_rule_draft_citations`
+
+Implemented flow:
+LegalProvision
+-> manual/deterministic/AI Rule Draft Candidate
+-> Human Review
+-> promoted Draft Rule Version
+-> separate formal Rule approval
+-> Approved Rule Version
+
+Safety:
+- AI candidate cannot directly become Approved
+- promotion before Human Review is rejected
+- structured-source draft requires exact provision citation
+- promotion creates only a Draft Rule Version
+- formal approval stays a separate Human Gate
+
+## Verification
+
+Latest main project-checks at commit `9b0fae6b065b7ce923017d625fc950450590903e`:
+- backend pytest: 46 passed
+- Migration 010: 7 statements PASS
+- Migration 011: 5 statements PASS
+- frontend JavaScript syntax: PASS
+- operational script syntax: PASS
+
+## Not yet reported as PASS
+
+- complete production authoring of all fire-service Rules from 5.4M provisions
+- legal acceptance review of Rule conditions/outcomes
+- live e-Gov daily delta -> production DB
+- official promulgation/update-page adapter for every local source
+- signed closed-network Update Bundle verification/import
+- approved LAN PostgreSQL migrations 001-011
+- PostgreSQL backup/restore after Migration 011
+- HTTPS production LAN clients
+- two-client concurrent E2E
+
+## Next slice
+
+1. build legal-provision review queue for fire-service-relevant provisions
+2. identify national source documents needed for prevention/equipment/submission Rules
+3. identify 大島地区消防組合 local provisions that override/add local requirements
+4. generate non-authoritative Rule Draft Candidates with exact citations
+5. Human Review each candidate
+6. promote reviewed candidates to Draft Rule Versions
+7. legally review and approve only verified Rules
+8. compare required documents/equipment against facility/submission/equipment records
+9. then continue Phase 6 drawing-analysis integration
