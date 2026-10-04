@@ -57,7 +57,7 @@ def main() -> None:
         updated = 0
         matched_provisions = 0
 
-        for provision, title in db.execute(stmt):
+        for provision, title in db.execute(stmt.execution_options(yield_per=1000)):
             scanned += 1
             hits = [
                 x
