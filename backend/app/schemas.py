@@ -600,3 +600,27 @@ class LegalRuleCitationOut(BaseModel):
     citation_role: str
     cited_text_snapshot: str
     provision: LegalProvisionOut
+
+
+class LegalSourceDocumentOut(BaseModel):
+    legal_source_document_id: str
+    legal_source_id: str
+    external_id: str
+    document_type: str
+    title: str
+    document_number: str | None = None
+    current_status: str
+    source_url: str | None = None
+
+class LegalSourceDocumentVersionOut(BaseModel):
+    legal_source_document_version_id: str
+    legal_source_document_id: str
+    version_label: str | None = None
+    effective_from: str | None = None
+    effective_to: str | None = None
+    source_current_date: str | None = None
+    source_url: str | None = None
+    sha256: str
+    structure_status: str
+    structure_parser_version: str | None = None
+    provision_count: int | None = None
