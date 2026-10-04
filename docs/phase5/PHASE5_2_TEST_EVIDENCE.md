@@ -1,32 +1,16 @@
-# Phase 5.2 Test Evidence
+# Phase 5.2 Structured Legal Corpus Verification
 
 更新日: 2026-10-05
 
-## Automated verification
+## GitHub Actions
 
-Latest main project-checks:
-- commit: `9b0fae6b065b7ce923017d625fc950450590903e`
-- backend pytest: 46 passed
-- Migration 010 parser: PASS (7 statements)
-- Migration 011 parser: PASS (5 statements)
-- frontend JavaScript syntax: PASS
-- operational script syntax: PASS
+Full-corpus verification run: `37241690774`
+Conclusion: SUCCESS
 
-## Full real-corpus structural verification
+## e-Gov 全国法令
 
-Workflow:
-- `verify-legal-structure-corpora`
-- final successful run: `37241690774`
-- parser: `legal-structure-v1`
-
-### e-Gov nationwide corpus
-
-Input:
-- official e-Gov full XML acquisition
+Source baseline:
 - documents: 10,414
-
-Result:
-- parsed documents: 10,414
 - parse failures: 0
 - zero-provision documents: 0
 - total structured provisions: 5,447,878
@@ -54,13 +38,10 @@ Provision counts:
 - appendix_figure: 147
 - appendix: 8
 
-### 大島地区消防組合 corpus
+## 大島地区消防組合 例規
 
-Input:
-- official regulation corpus: 119 documents
-
-Result:
-- parsed documents: 119
+Source baseline:
+- documents: 119
 - parse failures: 0
 - zero-provision documents: 0
 - total structured provisions: 26,898
@@ -75,24 +56,15 @@ Provision counts:
 - form: 29
 - document_body: 1
 
-The single `document_body` is an official article-less designation/notice:
-`大島地区消防組合指定金融機関の指定について`.
-It is intentionally preserved as one citable body provision rather than falsely inventing Article numbering.
+The one article-less official designation notice is intentionally retained as a citable `document_body` provision instead of being treated as a parser failure.
 
-## Rule citation safety
+## Safety checks
 
-Verified behavior:
-- structured-source Rule Version cannot be approved without an exact LegalProvision citation
-- citation must belong to the same source document Version
-- citation text snapshot is retained
-- citation changes are allowed only while Rule Version is draft
-- evaluation results expose exact cited provision(s)
-- changed/removed cited provisions can be reverse-mapped to impacted Rule IDs
-- source document -> Version -> Provision -> Citation -> Rule workflow is covered by automated tests
-
-## Important limitation
-
-Structural parsing proves that the legal text can be addressably stored and cited.
-It does NOT mean all 5.4M provisions have been converted into operational fire-service Rules.
-
-Formal Rule conditions/outcomes remain a separate Human-Gated authoring process.
+- structured Rule source requires exact provision citation before approval
+- citation must belong to the Rule Version source document Version
+- changed/removed cited provisions are reverse-mapped to impacted Rule candidates
+- Rule evaluation output includes exact legal citations
+- article-less official documents remain citable
+- existing project regression: 46 tests passed
+- Migration 010 parser: PASS
+- Migration 011 parser: PASS
