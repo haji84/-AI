@@ -41,11 +41,7 @@ PERMISSIONS: dict[str, str] = {
 }
 
 ROLE_POLICY: dict[str, dict] = {
-    "system_admin": {
-        "name": "システム管理者",
-        "system_role": True,
-        "permissions": set(PERMISSIONS),
-    },
+    "system_admin": {"name": "システム管理者", "system_role": True, "permissions": set(PERMISSIONS)},
     "prevention_editor": {
         "name": "予防業務担当",
         "system_role": True,
@@ -57,49 +53,24 @@ ROLE_POLICY: dict[str, dict] = {
             "submission.read", "submission.create", "submission.update",
         },
     },
-    "emergency_reporter": {
-        "name": "救急集計担当",
-        "system_role": True,
-        "permissions": {
-            "system.health.read", "emergency.import", "emergency.report.read",
-        },
-    },
+    "emergency_reporter": {"name": "救急集計担当", "system_role": True, "permissions": {"system.health.read", "emergency.import", "emergency.report.read"}},
     "emergency_detail_viewer": {
         "name": "救急個票閲覧",
         "system_role": True,
-        "permissions": {
-            "system.health.read", "emergency.report.read", "emergency.case.read",
-            "emergency.patient.read", "emergency.crew.read",
-        },
+        "permissions": {"system.health.read", "emergency.report.read", "emergency.case.read", "emergency.patient.read", "emergency.crew.read"},
     },
     "extension_manager": {
         "name": "拡張管理担当",
         "system_role": True,
-        "permissions": {
-            "system.health.read", "extension.read", "extension.create", "extension.review",
-            "template.read", "template.manage",
-        },
+        "permissions": {"system.health.read", "extension.read", "extension.create", "extension.review", "template.read", "template.manage"},
     },
     "contract_editor": {
         "name": "契約事務担当",
         "system_role": True,
-        "permissions": {
-            "system.health.read", "contract.read", "contract.create", "contract.update",
-            "template.read", "document.create", "document.read",
-        },
+        "permissions": {"system.health.read", "contract.read", "contract.create", "contract.update", "template.read", "document.create", "document.read"},
     },
-    "contract_approver": {
-        "name": "契約承認者",
-        "system_role": True,
-        "permissions": {
-            "system.health.read", "contract.read", "contract.approve", "template.read",
-        },
-    },
-    "auditor": {
-        "name": "監査閲覧",
-        "system_role": True,
-        "permissions": {"system.health.read", "audit.read"},
-    },
+    "contract_approver": {"name": "契約承認者", "system_role": True, "permissions": {"system.health.read", "contract.read", "contract.approve", "template.read"}},
+    "auditor": {"name": "監査閲覧", "system_role": True, "permissions": {"system.health.read", "audit.read"}},
 }
 
 
@@ -127,12 +98,8 @@ def seed_rbac(db: Session) -> dict[str, Role]:
             role.system_role = policy["system_role"]
         roles[code] = role
 
-        wanted = policy["permissions"]
-        current = {
-            rp.permission_id: rp
-            for rp in db.scalars(select(RolePermission).where(RolePermission.role_id == role.role_id)).all()
-        }
-        wanted_ids = {permission_objs[p].permission_id for p in wanted}
+        current = {rp.permission_id: rp for rp in db.scalars(select(RolePermission).where(RolePermission.role_id == role.role_id)).all()}
+        wanted_ids = {permission_objs[p].permission_id for p in policy["permissions"]}
         for permission_id in wanted_ids - set(current):
             db.add(RolePermission(role_id=role.role_id, permission_id=permission_id))
         for permission_id, rp in current.items():
