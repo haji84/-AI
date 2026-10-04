@@ -639,6 +639,15 @@ class LegalRuleDraftCandidateCreate(BaseModel):
     rationale: str | None = None
     citations: list[LegalRuleCitationCreate] = Field(default_factory=list)
 
+class LegalRuleDraftCandidatePatch(BaseModel):
+    expected_version: int = Field(ge=1)
+    proposed_rule_code: str | None = None
+    proposed_name: str | None = Field(default=None, min_length=1, max_length=300)
+    proposed_conditions: dict | None = None
+    proposed_outcome: dict | None = None
+    confidence: float | None = Field(default=None, ge=0, le=1)
+    rationale: str | None = None
+
 class LegalRuleDraftCandidateReview(BaseModel):
     expected_version: int = Field(ge=1)
     status: Literal["reviewed","rejected"]
