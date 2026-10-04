@@ -1,0 +1,46 @@
+name: project-checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install
+        run: python -m pip install -e "backend[test]"
+      - name: Test
+        run: python -m pytest backend/tests -q
+      - name: Migration parser smoke
+        run: |
+          PYTHONPATH=backend python - <<'PY'
+          from pathlib import Path
+          from app.migrations import split_sql
+          files = sorted(Path("db/migrations").glob("*.sql"))
+          assert files
+          for path in files:
+              parts = split_sql(path.read_text(encoding="utf-8"))
+              assert parts, path
+              print(path.name, len(parts))
+          PY
+      - name: Frontend JavaScript syntax
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          html = Path("frontend/index.html").read_text(encoding="utf-8")
+          scripts = re.findall(r"<script(?:\s[^>]*)?>(.*?)</script>", html, re.S | re.I)
+          assert scripts
+          Path("/tmp/fire-ai-frontend.js").write_text("\n".join(scripts), encoding="utf-8")
+          PY
+          node --check /tmp/fire-ai-frontend.js
