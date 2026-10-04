@@ -1,0 +1,31 @@
+name: acquire-oshima-reiki-fast
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/acquire-oshima-reiki-fast.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  acquire:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Acquire all official regulation bodies in parallel
+        run: python scripts/acquire_oshima_reiki.py
+      - name: Show verification
+        run: cat _acquired/oshima-reiki-fast/manifest.json | python -c "import json,sys;m=json.load(sys.stdin);print({k:m[k] for k in ['expected_body_document_count','discovered_body_document_count','captured_body_document_count','failure_count','coverage_status']})"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: oshima-fire-union-reiki-full-2025-04-01
+          path: _acquired/oshima-reiki-fast/
+          retention-days: 90
+          if-no-files-found: error
