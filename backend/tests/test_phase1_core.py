@@ -994,6 +994,7 @@ def test_phase5_2_structured_rule_requires_exact_citation_before_approval():
             content_sha256="b"*64,
         )
         db.add(p); db.commit()
+        source_document_id=d.legal_source_document_id
         source_version_id=v.legal_source_document_version_id
         provision_id=p.legal_provision_id
 
