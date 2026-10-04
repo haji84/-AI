@@ -71,6 +71,12 @@ CATEGORY_KEYWORDS: dict[str, dict[str, float]] = {
     },
 }
 
+PREFILTER_TERMS = tuple(sorted({
+    keyword
+    for weighted in CATEGORY_KEYWORDS.values()
+    for keyword in weighted
+}, key=len, reverse=True))
+
 NEGATIVE_HINTS = {
     "給与", "旅費", "退職手当", "人事", "職員定数", "会計年度任用職員",
 }
@@ -94,6 +100,8 @@ def score_fire_service_relevance(
     text = "\n".join(x for x in [title, label, heading, body] if x)
     title_text = title or ""
     hits: list[RelevanceHit] = []
+    if not any(term in text for term in PREFILTER_TERMS):
+        return []
 
     negative_penalty = 1.5 if any(x in title_text for x in NEGATIVE_HINTS) else 0.0
     type_boost = 0.25 if provision_type in {"article", "paragraph", "item", "document_body"} else 0.0
