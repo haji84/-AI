@@ -78,6 +78,7 @@ def _out(db: Session, row: LegalProvisionReviewCandidate) -> LegalProvisionRevie
 def list_review_candidates(
     queue_status: str | None = "pending",
     category: str | None = None,
+    priority_lane: str | None = None,
     min_score: float = 0,
     offset: int = 0,
     limit: int = 100,
@@ -89,6 +90,8 @@ def list_review_candidates(
         stmt = stmt.where(LegalProvisionReviewCandidate.status == queue_status)
     if category:
         stmt = stmt.where(LegalProvisionReviewCandidate.category == category)
+    if priority_lane:
+        stmt = stmt.where(LegalProvisionReviewCandidate.priority_lane == priority_lane)
     stmt = stmt.where(LegalProvisionReviewCandidate.relevance_score >= min_score)
     rows = db.scalars(
         stmt.order_by(
