@@ -15,6 +15,7 @@ from ..models import (
     Facility,
     FireManagementAssignment,
     FirePlan,
+    InspectionReportingProfile,
     Inspection,
     InspectionFinding,
     Submission,
@@ -314,6 +315,49 @@ def facility_dashboard(
             latest_id = None
             latest_date = None
             detail = {"requirement_status": "not_evaluated"}
+            # Old ledger values are useful context, but without the original filing
+            # document they are not promoted to a modern received submission.
+            if st.code == "equipment_inspection_report":
+                legacy = db.scalar(
+                    select(EquipmentInspectionReport)
+                    .where(EquipmentInspectionReport.building_id == building_id, EquipmentInspectionReport.source_kind == "legacy")
+                    .order_by(EquipmentInspectionReport.created_at.desc()).limit(1)
+                )
+                if legacy:
+                    state = "legacy_recorded"
+                    latest_date = legacy.submitted_at.isoformat() if legacy.submitted_at else None
+                    profile = db.get(InspectionReportingProfile, building_id)
+                    detail.update({
+                        "legacy_ledger_record": True,
+                        "equipment_label": legacy.equipment_label,
+                        "raw_report_text": legacy.raw_report_text,
+                        "next_due_at": profile.next_due_date.isoformat() if profile and profile.next_due_date else None,
+                    })
+            elif st.code == "fire_manager_appointment":
+                legacy = db.scalar(
+                    select(FireManagementAssignment)
+                    .where(FireManagementAssignment.building_id == building_id, FireManagementAssignment.source_kind == "legacy")
+                    .order_by(FireManagementAssignment.created_at.desc()).limit(1)
+                )
+                if legacy:
+                    state = "legacy_recorded" if legacy.raw_submission_text else "legacy_manager_only"
+                    latest_date = legacy.appointment_submitted_at.isoformat() if legacy.appointment_submitted_at else None
+                    detail.update({
+                        "legacy_ledger_record": True,
+                        "manager_name_recorded": bool(legacy.manager_name),
+                        "submission_evidence_recorded": bool(legacy.raw_submission_text),
+                        "raw_submission_text": legacy.raw_submission_text,
+                    })
+            elif st.code == "fire_plan":
+                legacy = db.scalar(
+                    select(FirePlan)
+                    .where(FirePlan.building_id == building_id, FirePlan.source_kind == "legacy")
+                    .order_by(FirePlan.created_at.desc()).limit(1)
+                )
+                if legacy:
+                    state = "legacy_recorded"
+                    latest_date = legacy.submitted_at.isoformat() if legacy.submitted_at else None
+                    detail.update({"legacy_ledger_record": True, "raw_submission_text": legacy.raw_submission_text})
         statuses.append(FacilityComplianceStatusOut(code=st.code, name=st.name, state=state, latest_submission_id=latest_id, latest_submitted_at=latest_date, detail=detail))
     return FacilityDashboardOut(
         building_id=building_id,
