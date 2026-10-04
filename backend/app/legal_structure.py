@@ -143,6 +143,30 @@ def _body_without_structural_children(node: ET.Element) -> str:
     return _norm(" ".join(parts))
 
 
+def extract_egov_law_metadata(data: bytes) -> dict:
+    root = ET.fromstring(data)
+    title = None
+    law_num = None
+    for elem in root.iter():
+        name = _lname(elem.tag)
+        if title is None and name == "LawTitle":
+            value = _iter_text(elem)
+            if value:
+                title = value
+        if law_num is None and name == "LawNum":
+            value = _iter_text(elem)
+            if value:
+                law_num = value
+        if title and law_num:
+            break
+    return {
+        "title": title,
+        "law_number": law_num,
+        "law_type": root.attrib.get("LawType"),
+        "lang": root.attrib.get("Lang"),
+    }
+
+
 def parse_egov_xml(data: bytes) -> list[ProvisionRecord]:
     root = ET.fromstring(data)
     records: list[ProvisionRecord] = []
