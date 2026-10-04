@@ -1247,3 +1247,108 @@ def test_phase5_4_review_queue_human_status_transition():
         "status":"ignored"
     })
     assert stale.status_code==409
+
+
+def test_phase5_3_candidate_signal_detection_is_relevance_only():
+    from app.legal_rule_candidate_generation import detect_candidate_signals, candidate_fingerprint
+    signals=detect_candidate_signals("消防用設備等点検結果報告を提出すること。","テスト法令")
+    domains={x.domain for x in signals}
+    assert "equipment_requirement" in domains
+    assert "submission_requirement" in domains
+    assert all(0 < x.confidence <= 0.75 for x in signals)
+    assert detect_candidate_signals("一般的な組織規程","テスト")==[]
+    a=candidate_fingerprint(source_version_id="v",provision_id="p",domain="equipment_requirement")
+    b=candidate_fingerprint(source_version_id="v",provision_id="p",domain="equipment_requirement")
+    assert a==b and len(a)==64
+
+
+def test_phase5_3_generated_candidate_cannot_review_until_human_completes_rule():
+    from app.models import (
+        LegalJurisdiction, LegalSource, LegalSourceDocument,
+        LegalSourceDocumentVersion, LegalProvision,
+        LegalRuleDraftCandidate, LegalRuleDraftCitation,
+    )
+    login()
+    with SessionLocal() as db:
+        j=LegalJurisdiction(code="TEST-JUR-53-INCOMPLETE",name="Test 5.3 incomplete",jurisdiction_type="national")
+        db.add(j); db.flush()
+        s=LegalSource(
+            jurisdiction_id=j.jurisdiction_id,
+            source_code="test-source-53-incomplete",
+            name="Test source 5.3 incomplete",
+            source_type="test",
+            adapter_type="manual",
+            base_url="https://example.invalid/",
+        )
+        db.add(s); db.flush()
+        d=LegalSourceDocument(
+            legal_source_id=s.legal_source_id,
+            external_id="LAW-53-INCOMPLETE",
+            document_type="law",
+            title="テスト法令5.3未解釈",
+        )
+        db.add(d); db.flush()
+        v=LegalSourceDocumentVersion(
+            legal_source_document_id=d.legal_source_document_id,
+            normalized_text="消防用設備等",
+            structured_content={},
+            sha256="e"*64,
+            structure_status="structured",
+            provision_count=1,
+        )
+        db.add(v); db.flush()
+        p=LegalProvision(
+            legal_source_document_version_id=v.legal_source_document_version_id,
+            provision_type="article",
+            provision_key="article:99",
+            sequence_no=1,
+            display_label="第九十九条",
+            body_text="消防用設備等について定める。",
+            content_sha256="f"*64,
+        )
+        db.add(p); db.flush()
+        draft=LegalRuleDraftCandidate(
+            source_legal_document_version_id=v.legal_source_document_version_id,
+            domain="equipment_requirement",
+            proposed_rule_code=None,
+            proposed_name="要レビュー候補",
+            proposed_conditions={},
+            proposed_outcome={},
+            extraction_method="deterministic",
+            confidence=0.4,
+            rationale="keyword only",
+            candidate_fingerprint="1"*64,
+            generation_context={"interpretation_status":"required"},
+        )
+        db.add(draft); db.flush()
+        db.add(LegalRuleDraftCitation(
+            legal_rule_draft_candidate_id=draft.legal_rule_draft_candidate_id,
+            legal_provision_id=p.legal_provision_id,
+            citation_role="primary",
+        ))
+        db.commit()
+        did=draft.legal_rule_draft_candidate_id
+
+    blocked=client.post(f"/legal-rule-drafts/{did}/review",json={
+        "expected_version":1,
+        "status":"reviewed"
+    })
+    assert blocked.status_code==409
+
+    patched=client.patch(f"/legal-rule-drafts/{did}",json={
+        "expected_version":1,
+        "proposed_rule_code":"TEST-GENERATED-53",
+        "proposed_name":"職員確認済みルール案",
+        "proposed_conditions":{"all":[{"field":"status","op":"eq","value":"active"}]},
+        "proposed_outcome":{"requirement_code":"TEST-53","decision":"candidate_required"},
+        "rationale":"職員が条件と結論を確認・補完"
+    })
+    assert patched.status_code==200
+    assert patched.json()["version"]==2
+
+    reviewed=client.post(f"/legal-rule-drafts/{did}/review",json={
+        "expected_version":2,
+        "status":"reviewed"
+    })
+    assert reviewed.status_code==200
+    assert reviewed.json()["status"]=="reviewed"
