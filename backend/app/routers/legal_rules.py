@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from ..audit import write_audit
 from ..authz import require_permission
 from ..db import get_db
+from ..legal_rule_validation import validate_rule_conditions
 from ..models import (
     Document,
     Facility,
@@ -135,25 +136,10 @@ def _evaluation_out(row: RequirementEvaluation) -> RequirementEvaluationOut:
 
 
 def _validate_conditions(payload: dict) -> None:
-    if not isinstance(payload, dict):
-        raise HTTPException(status_code=422, detail="conditions must be an object")
-    unexpected = set(payload) - {"all", "any"}
-    if unexpected:
-        raise HTTPException(status_code=422, detail=f"unsupported condition groups: {sorted(unexpected)}")
-    clauses = list(payload.get("all") or []) + list(payload.get("any") or [])
-    if not clauses:
-        raise HTTPException(status_code=422, detail="at least one condition clause is required")
-    for clause in clauses:
-        if not isinstance(clause, dict):
-            raise HTTPException(status_code=422, detail="condition clause must be an object")
-        field = clause.get("field")
-        op = clause.get("op")
-        if field not in ALLOWED_FIELDS:
-            raise HTTPException(status_code=422, detail=f"unsupported rule field: {field}")
-        if op not in ALLOWED_OPS:
-            raise HTTPException(status_code=422, detail=f"unsupported rule operator: {op}")
-        if op != "exists" and "value" not in clause:
-            raise HTTPException(status_code=422, detail=f"value is required for operator: {op}")
+    try:
+        validate_rule_conditions(payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
 
 
 def _snapshot(db: Session, facility: Facility) -> dict:
