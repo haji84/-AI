@@ -624,3 +624,44 @@ class LegalSourceDocumentVersionOut(BaseModel):
     structure_status: str
     structure_parser_version: str | None = None
     provision_count: int | None = None
+
+
+class LegalRuleDraftCandidateCreate(BaseModel):
+    source_legal_document_version_id: str | None = None
+    domain: Literal["submission_requirement","equipment_requirement"]
+    proposed_rule_code: str | None = None
+    proposed_name: str = Field(min_length=1, max_length=300)
+    proposed_conditions: dict
+    proposed_outcome: dict
+    extraction_method: Literal["manual","deterministic","ai"]
+    model_version: str | None = None
+    confidence: float | None = Field(default=None, ge=0, le=1)
+    rationale: str | None = None
+    citations: list[LegalRuleCitationCreate] = Field(default_factory=list)
+
+class LegalRuleDraftCandidateReview(BaseModel):
+    expected_version: int = Field(ge=1)
+    status: Literal["reviewed","rejected"]
+
+class LegalRuleDraftCandidatePromote(BaseModel):
+    expected_version: int = Field(ge=1)
+    effective_from: str
+    effective_to: str | None = None
+
+class LegalRuleDraftCandidateOut(BaseModel):
+    legal_rule_draft_candidate_id: str
+    source_legal_document_version_id: str | None = None
+    domain: str
+    proposed_rule_code: str | None = None
+    proposed_name: str
+    proposed_conditions: dict
+    proposed_outcome: dict
+    extraction_method: str
+    model_version: str | None = None
+    confidence: float | None = None
+    rationale: str | None = None
+    status: str
+    version: int
+    promoted_rule_id: str | None = None
+    promoted_rule_version_id: str | None = None
+    citations: list[LegalRuleCitationOut] = Field(default_factory=list)
