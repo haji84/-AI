@@ -237,7 +237,7 @@ def normalize_facility_from_raw(db: Session, facility: Facility, raw: dict) -> N
         equipment_label = _text(raw, equipment_name_cols[idx])
         result_date, result_raw = _legacy_date_text(_text(raw, result_cols[idx]))
         report_date, report_raw = _legacy_date_text(_text(raw, report_cols[idx]))
-        if equipment_label or result_raw or report_raw:
+        if result_raw or report_raw:
             db.add(EquipmentInspectionReport(
                 building_id=facility.building_id,
                 equipment_label=equipment_label,
