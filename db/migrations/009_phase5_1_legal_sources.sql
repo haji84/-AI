@@ -53,6 +53,11 @@ CREATE TABLE IF NOT EXISTS legal_sources (
   etag text,
   last_modified text,
   index_hash varchar(64),
+  coverage_status varchar(30) NOT NULL DEFAULT 'unverified' CHECK (coverage_status IN ('unverified','complete','partial','stale','error')),
+  expected_document_count integer,
+  captured_document_count integer,
+  last_full_sync_at timestamptz,
+  stale_after_hours integer NOT NULL DEFAULT 168,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT uq_legal_source_code UNIQUE(jurisdiction_id, source_code)
