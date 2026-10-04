@@ -1352,3 +1352,106 @@ def test_phase5_3_generated_candidate_cannot_review_until_human_completes_rule()
     })
     assert reviewed.status_code==200
     assert reviewed.json()["status"]=="reviewed"
+
+
+def test_phase5_4_reviewed_provision_handoff_creates_incomplete_rule_draft():
+    from app.models import (
+        LegalJurisdiction, LegalSource, LegalSourceDocument,
+        LegalSourceDocumentVersion, LegalProvision,
+        LegalProvisionReviewCandidate, LegalRuleDraftCandidate,
+    )
+    login()
+    with SessionLocal() as db:
+        j=LegalJurisdiction(code="TEST-JUR-54-HANDOFF",name="Test 5.4 handoff",jurisdiction_type="fire_union")
+        db.add(j); db.flush()
+        s=LegalSource(
+            jurisdiction_id=j.jurisdiction_id,
+            source_code="test-source-54-handoff",
+            name="Test source 5.4 handoff",
+            source_type="official_regulation",
+            adapter_type="manual",
+            base_url="https://example.invalid/",
+        )
+        db.add(s); db.flush()
+        d=LegalSourceDocument(
+            legal_source_id=s.legal_source_id,
+            external_id="REG-54-HANDOFF",
+            document_type="regulation",
+            title="テスト消防用設備規程",
+        )
+        db.add(d); db.flush()
+        v=LegalSourceDocumentVersion(
+            legal_source_document_id=d.legal_source_document_id,
+            normalized_text="消防用設備等",
+            structured_content={},
+            sha256="2"*64,
+            structure_status="structured",
+            provision_count=1,
+        )
+        db.add(v); db.flush()
+        p=LegalProvision(
+            legal_source_document_version_id=v.legal_source_document_version_id,
+            provision_type="article",
+            provision_key="article:54-handoff",
+            sequence_no=1,
+            display_label="第五十四条",
+            body_text="消防用設備等に関する規定",
+            content_sha256="3"*64,
+        )
+        db.add(p); db.flush()
+        q=LegalProvisionReviewCandidate(
+            legal_provision_id=p.legal_provision_id,
+            category="equipment_requirement",
+            relevance_score=7.5,
+            reasons=[{"scanner_version":"test","match":"消防用設備×1"}],
+            extraction_method="deterministic",
+            model_version="test",
+        )
+        db.add(q); db.commit()
+        qid=q.legal_provision_review_candidate_id
+
+    reviewed=client.patch(f"/legal-review-queue/{qid}",json={
+        "expected_version":1,
+        "status":"reviewed"
+    })
+    assert reviewed.status_code==200
+    assert reviewed.json()["version"]==2
+
+    handed=client.post(f"/legal-review-queue/{qid}/draft",json={
+        "expected_version":2,
+        "proposed_name":"消防用設備候補のRule草案"
+    })
+    assert handed.status_code==200
+    hb=handed.json()
+    assert hb["status"]=="drafted"
+    did=hb["legal_rule_draft_candidate_id"]
+    assert did
+
+    with SessionLocal() as db:
+        draft=db.get(LegalRuleDraftCandidate,did)
+        assert draft is not None
+        assert draft.proposed_conditions=={}
+        assert draft.proposed_outcome=={}
+        assert draft.status=="pending"
+
+    blocked=client.post(f"/legal-rule-drafts/{did}/review",json={
+        "expected_version":1,
+        "status":"reviewed"
+    })
+    assert blocked.status_code==409
+
+    patched=client.patch(f"/legal-rule-drafts/{did}",json={
+        "expected_version":1,
+        "proposed_rule_code":"TEST-HANDOFF-54",
+        "proposed_conditions":{"all":[{"field":"status","op":"eq","value":"active"}]},
+        "proposed_outcome":{"requirement_code":"TEST-HANDOFF-EQ","decision":"candidate_required"},
+        "rationale":"Human-completed test interpretation"
+    })
+    assert patched.status_code==200
+
+    draft_reviewed=client.post(f"/legal-rule-drafts/{did}/review",json={
+        "expected_version":2,
+        "status":"reviewed"
+    })
+    assert draft_reviewed.status_code==200
+    assert draft_reviewed.json()["status"]=="reviewed"
