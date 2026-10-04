@@ -1,0 +1,192 @@
+name: build-core-legal-authoring-worklist
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/build-core-legal-authoring-worklist.yml"
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: egov-national-laws-all-xml
+          path: _core/egov
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: haji84/-AI
+          run-id: 37240404083
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: oshima-fire-union-reiki-full-2025-04-01
+          path: _core/oshima
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: haji84/-AI
+          run-id: 37240040293
+
+      - name: Build exact-source worklist
+        env:
+          PYTHONPATH: backend
+        run: |
+          python - <<'PY'
+          import json, zipfile
+          from collections import Counter
+          from pathlib import Path
+          from app.legal_structure import (
+              extract_egov_law_metadata,
+              parse_egov_xml,
+              parse_regulation_html,
+          )
+          from app.legal_relevance import score_fire_service_relevance
+          from app.legal_priority import classify_source_priority
+
+          cfg=json.loads(Path("config/legal-rule-authoring/core-sources.json").read_text(encoding="utf-8"))
+          national=set(cfg["national_exact_titles"])
+          oshima=set(cfg["oshima_exact_titles"])
+          allowed_types={
+              "article","paragraph","item","subitem1","subitem2","subitem3",
+              "subitem4","subitem5","subitem6","document_body"
+          }
+
+          work=[]
+          found_national=set()
+          found_oshima=set()
+
+          def collect(scope,title,source_ref,rows):
+              priority=classify_source_priority(title)
+              category_counts=Counter()
+              relevant=0
+              for row in rows:
+                  if row.provision_type not in allowed_types:
+                      continue
+                  hits=score_fire_service_relevance(
+                      title=title,
+                      label=row.display_label,
+                      heading=row.heading_text,
+                      body=row.body_text,
+                      provision_type=row.provision_type,
+                  )
+                  if not hits:
+                      continue
+                  relevant+=1
+                  for hit in hits:
+                      category_counts[hit.category]+=1
+                  work.append({
+                      "scope":scope,
+                      "document_title":title,
+                      "source_ref":source_ref,
+                      "priority_lane":priority.lane,
+                      "source_priority_score":priority.score,
+                      "provision_key":row.provision_key,
+                      "provision_type":row.provision_type,
+                      "display_label":row.display_label,
+                      "heading_text":row.heading_text,
+                      "body_text":row.body_text,
+                      "hits":[
+                          {
+                              "category":h.category,
+                              "score":h.score,
+                              "reasons":h.reasons,
+                              "review_priority_score":h.score+priority.score,
+                          }
+                          for h in hits
+                      ],
+                  })
+              return {
+                  "title":title,
+                  "scope":scope,
+                  "source_ref":source_ref,
+                  "priority_lane":priority.lane,
+                  "relevant_provisions":relevant,
+                  "category_counts":dict(category_counts),
+              }
+
+          inventory=[]
+
+          archives=list(Path("_core/egov").glob("*.zip"))
+          assert archives
+          archive=max(archives,key=lambda p:p.stat().st_size)
+          with zipfile.ZipFile(archive) as z:
+              for name in z.namelist():
+                  if not name.lower().endswith(".xml") or name.endswith("/"):
+                      continue
+                  body=z.read(name)
+                  meta=extract_egov_law_metadata(body)
+                  title=meta.get("title")
+                  if title not in national:
+                      continue
+                  found_national.add(title)
+                  inventory.append(collect("national",title,name,parse_egov_xml(body)))
+
+          manifest=json.loads(Path("_core/oshima/manifest.json").read_text(encoding="utf-8"))
+          for item in manifest["documents"]:
+              title=item.get("title")
+              if title not in oshima:
+                  continue
+              found_oshima.add(title)
+              p=Path("_core/oshima")/item["file"]
+              inventory.append(
+                  collect(
+                      "oshima_fire_union",
+                      title,
+                      item["url"],
+                      parse_regulation_html(p.read_bytes(),item.get("content_type")),
+                  )
+              )
+
+          missing_national=sorted(national-found_national)
+          missing_oshima=sorted(oshima-found_oshima)
+          assert not missing_national, f"missing national core sources: {missing_national}"
+          assert not missing_oshima, f"missing oshima core sources: {missing_oshima}"
+
+          work.sort(
+              key=lambda x:(
+                  -max((h["review_priority_score"] for h in x["hits"]),default=0),
+                  x["document_title"],
+                  x["provision_key"],
+              )
+          )
+          summary={
+              "config_version":cfg["version"],
+              "national_expected":len(national),
+              "national_found":len(found_national),
+              "oshima_expected":len(oshima),
+              "oshima_found":len(found_oshima),
+              "worklist_items":len(work),
+              "inventory":sorted(inventory,key=lambda x:(x["scope"],x["title"])),
+              "policy":cfg["policy"],
+          }
+          out=Path("_core/results")
+          out.mkdir(parents=True,exist_ok=True)
+          (out/"core-source-inventory.json").write_text(json.dumps(summary,ensure_ascii=False,indent=2),encoding="utf-8")
+          (out/"core-rule-authoring-worklist.json").write_text(json.dumps(work,ensure_ascii=False,indent=2),encoding="utf-8")
+          print(json.dumps({
+              "national_found":len(found_national),
+              "oshima_found":len(found_oshima),
+              "worklist_items":len(work),
+              "top_documents":[
+                  [x["title"],x["relevant_provisions"],x["category_counts"]]
+                  for x in sorted(inventory,key=lambda x:-x["relevant_provisions"])[:10]
+              ],
+          },ensure_ascii=False))
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: core-legal-authoring-worklist
+          path: _core/results/
+          retention-days: 90
+          if-no-files-found: error
