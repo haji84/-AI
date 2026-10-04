@@ -3,6 +3,7 @@
 更新日: 2026-10-05
 
 ## Current Phase
+
 Phase 3 inspection + submission core is code-complete and verified in the development environment.
 The formal approved-host PostgreSQL/TLS/two-client gate remains unexecuted.
 
