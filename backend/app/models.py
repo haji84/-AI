@@ -904,6 +904,7 @@ class LegalProvision(Base):
     source_path: Mapped[str | None] = mapped_column(Text)
     source_meta: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     content_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    present_in_source: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
     __table_args__ = (
         UniqueConstraint(
