@@ -253,10 +253,6 @@ class FeatureFlagOut(BaseModel):
     key: str
     module_code: str | None
     enabled: bool
-    coverage_status: str = "unverified"
-    expected_document_count: int | None = None
-    captured_document_count: int | None = None
-    stale_after_hours: int = 168
     config: dict
     version: int
 
@@ -571,4 +567,8 @@ class LegalSourceOut(BaseModel):
     sync_frequency: str
     trust_level: str
     enabled: bool
+    coverage_status: str = "unverified"
+    expected_document_count: int | None = None
+    captured_document_count: int | None = None
+    stale_after_hours: int = 168
 
