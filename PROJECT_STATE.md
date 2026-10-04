@@ -150,3 +150,21 @@ Do not report external-source gates as PASS until actually executed.
 This is the first real fire-department full-corpus acquisition E2E PASS.
 The external approved-LAN database import remains separate from corpus acquisition.
 
+## Verified national legal corpus
+
+### e-Gov 全国法令
+
+- profile: `jp-national-laws`
+- official source: e-Gov 法令検索
+- scope: all national laws XML
+- XML documents: 10,414
+- archive integrity: PASS
+- coverage status: complete_official_bulk_archive
+- acquisition run: 37240404083
+- artifact ID: 11317001520
+- source archive SHA-256: `830c24983bee6d9e7db8765b01ed671ee91ca9472324ec5c0d8d0e5a32e660cf`
+- artifact ZIP SHA-256: `a834626b725f78e91b5682a9f1f891f988d4453819ff826c809d9a72acb81a9d`
+
+This is the first real national full-corpus acquisition E2E PASS.
+Daily delta sync remains the incremental update path after this baseline.
+
