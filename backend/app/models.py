@@ -969,3 +969,36 @@ class LegalRuleDraftCitation(Base):
         primary_key=True,
     )
     citation_role: Mapped[str] = mapped_column(String(40), primary_key=True, default="primary")
+
+
+class LegalProvisionReviewCandidate(Base):
+    __tablename__ = "legal_provision_review_candidates"
+    legal_provision_review_candidate_id: Mapped[str] = mapped_column(
+        Uuid(as_uuid=False), primary_key=True, default=uuid_str
+    )
+    legal_provision_id: Mapped[str] = mapped_column(
+        ForeignKey("legal_provisions.legal_provision_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    category: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    relevance_score: Mapped[float] = mapped_column(Float, nullable=False)
+    reasons: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    extraction_method: Mapped[str] = mapped_column(String(30), nullable=False, default="deterministic")
+    model_version: Mapped[str | None] = mapped_column(String(200))
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="pending", index=True)
+    version: Mapped[int] = mapped_column(BigInteger, nullable=False, default=1)
+    reviewed_by: Mapped[str | None] = mapped_column(ForeignKey("app_users.user_id"))
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    legal_rule_draft_candidate_id: Mapped[str | None] = mapped_column(
+        ForeignKey("legal_rule_draft_candidates.legal_rule_draft_candidate_id")
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    __table_args__ = (
+        UniqueConstraint(
+            "legal_provision_id",
+            "category",
+            name="uq_legal_provision_review_category",
+        ),
+    )
