@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from ..audit import write_audit
@@ -12,6 +12,8 @@ from ..models import (
     LegalProfile,
     LegalProfileJurisdiction,
     LegalSource,
+    LegalSourceDocument,
+    LegalSourceDocumentVersion,
     User,
 )
 from ..schemas import (
@@ -21,10 +23,41 @@ from ..schemas import (
     LegalProfileJurisdictionCreate,
     LegalProfileOut,
     LegalSourceCreate,
+    LegalSourceDocumentOut,
+    LegalSourceDocumentVersionOut,
     LegalSourceOut,
 )
 
 router = APIRouter(prefix="/legal-sources", tags=["legal-sources"])
+
+
+def _document_out(row: LegalSourceDocument) -> LegalSourceDocumentOut:
+    return LegalSourceDocumentOut(
+        legal_source_document_id=row.legal_source_document_id,
+        legal_source_id=row.legal_source_id,
+        external_id=row.external_id,
+        document_type=row.document_type,
+        title=row.title,
+        document_number=row.document_number,
+        current_status=row.current_status,
+        source_url=row.source_url,
+    )
+
+
+def _document_version_out(row: LegalSourceDocumentVersion) -> LegalSourceDocumentVersionOut:
+    return LegalSourceDocumentVersionOut(
+        legal_source_document_version_id=row.legal_source_document_version_id,
+        legal_source_document_id=row.legal_source_document_id,
+        version_label=row.version_label,
+        effective_from=row.effective_from.isoformat() if row.effective_from else None,
+        effective_to=row.effective_to.isoformat() if row.effective_to else None,
+        source_current_date=row.source_current_date.isoformat() if row.source_current_date else None,
+        source_url=row.source_url,
+        sha256=row.sha256,
+        structure_status=row.structure_status,
+        structure_parser_version=row.structure_parser_version,
+        provision_count=row.provision_count,
+    )
 
 
 def _jurisdiction_out(row: LegalJurisdiction) -> LegalJurisdictionOut:
@@ -218,3 +251,51 @@ def create_source(
     )
     db.commit()
     return _source_out(row)
+
+
+@router.get("/documents", response_model=list[LegalSourceDocumentOut])
+def list_legal_documents(
+    source_id: str | None = None,
+    q: str | None = None,
+    document_type: str | None = None,
+    offset: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("legal_source.read")),
+):
+    stmt = select(LegalSourceDocument)
+    if source_id:
+        stmt = stmt.where(LegalSourceDocument.legal_source_id == source_id)
+    if document_type:
+        stmt = stmt.where(LegalSourceDocument.document_type == document_type)
+    if q:
+        needle = f"%{q}%"
+        stmt = stmt.where(
+            or_(
+                LegalSourceDocument.title.ilike(needle),
+                LegalSourceDocument.document_number.ilike(needle),
+                LegalSourceDocument.external_id.ilike(needle),
+            )
+        )
+    rows = db.scalars(
+        stmt.order_by(LegalSourceDocument.title)
+        .offset(max(0, offset))
+        .limit(max(1, min(limit, 500)))
+    ).all()
+    return [_document_out(x) for x in rows]
+
+
+@router.get("/documents/{document_id}/versions", response_model=list[LegalSourceDocumentVersionOut])
+def list_legal_document_versions(
+    document_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("legal_source.read")),
+):
+    if not db.get(LegalSourceDocument, document_id):
+        raise HTTPException(status_code=404, detail="legal source document not found")
+    rows = db.scalars(
+        select(LegalSourceDocumentVersion)
+        .where(LegalSourceDocumentVersion.legal_source_document_id == document_id)
+        .order_by(LegalSourceDocumentVersion.retrieved_at.desc())
+    ).all()
+    return [_document_version_out(x) for x in rows]
