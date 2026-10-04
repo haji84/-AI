@@ -1481,3 +1481,27 @@ def test_phase5_4_browser_legal_review_entrypoint_exists():
     assert "/legal-review-queue" in ui
     assert "national_core" in ui
     assert "local_core" in ui
+
+
+def test_phase5_4_relevance_scanner_rejects_generic_reporting_noise():
+    from app.legal_relevance import score_fire_service_relevance, SCANNER_VERSION
+    assert SCANNER_VERSION=="fire-legal-relevance-v2"
+    noise=score_fire_service_relevance(
+        title="地方税法",
+        label="第百条",
+        heading="報告",
+        body="申告書を提出し、その結果を報告しなければならない。",
+        provision_type="article",
+    )
+    assert noise==[]
+
+    fire=score_fire_service_relevance(
+        title="消防法施行規則",
+        label="第三条",
+        heading="消防計画",
+        body="防火管理者は消防計画を作成し、届出書により届け出なければならない。",
+        provision_type="article",
+    )
+    categories={x.category for x in fire}
+    assert "submission_requirement" in categories
+    assert "fire_management" in categories
