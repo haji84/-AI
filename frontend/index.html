@@ -60,7 +60,8 @@ table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid #e4e8ec;
 <div class="modalHead"><b>法令レビュー</b><span class="grow"></span><button class="btn" onclick="closeLegalReview()">閉じる</button></div>
 <div class="modalBody">
 <div class="notice">自動抽出は関連候補の優先順位付けだけです。Rule条件・結論は職員確認後に作成し、正式承認は別Gateです。</div>
-<div class="row" style="margin-bottom:10px">
+<div class="row" style="margin-bottom:10px"><button class="btn" onclick="showLegalQueue()">条文候補</button><button class="btn" onclick="showLegalDrafts()">Rule草案</button></div>
+<div id="legalQueueControls" class="row" style="margin-bottom:10px">
 <select id="legalReviewStatus" onchange="loadLegalReview()">
 <option value="pending">未確認</option>
 <option value="reviewed">レビュー済み</option>
@@ -86,9 +87,36 @@ table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid #e4e8ec;
 <input id="legalReviewMinScore" type="number" min="0" step="0.5" value="2" style="max-width:110px" onchange="loadLegalReview()" title="最低関連度">
 <button class="btn" onclick="loadLegalReview()">更新</button>
 </div>
+<div id="legalDraftControls" class="row hidden" style="margin-bottom:10px">
+<select id="legalDraftStatus" onchange="loadLegalDrafts()">
+<option value="pending">未確認草案</option>
+<option value="reviewed">レビュー済み</option>
+<option value="promoted">Draft Rule化済み</option>
+<option value="rejected">却下</option>
+<option value="">すべて</option>
+</select>
+<button class="btn" onclick="loadLegalDrafts()">更新</button>
+</div>
 <div id="legalReviewSummary" class="muted" style="margin-bottom:10px"></div>
 <div id="legalReviewList"></div>
 </div>
+</div>
+</div>
+
+<div id="legalDraftEditModal" class="modalWrap hidden" style="z-index:60">
+<div class="modal" style="width:min(900px,96vw)">
+<div class="modalHead"><b>Rule草案編集</b><span class="grow"></span><button class="btn" onclick="closeLegalDraftEdit()">閉じる</button></div>
+<div class="modalBody">
+<div class="grid2">
+<div class="field"><label>Rule Code</label><input id="legalDraftCode"></div>
+<div class="field"><label>草案名</label><input id="legalDraftName"></div>
+</div>
+<div class="field" style="margin-top:10px"><label>条件 JSON</label><textarea id="legalDraftConditions" style="min-height:170px"></textarea></div>
+<div class="field" style="margin-top:10px"><label>結論 JSON</label><textarea id="legalDraftOutcome" style="min-height:150px"></textarea></div>
+<div class="field" style="margin-top:10px"><label>確認メモ</label><textarea id="legalDraftRationale" style="min-height:100px"></textarea></div>
+<div id="legalDraftEditMsg" class="muted" style="margin-top:8px"></div>
+</div>
+<div class="modalFoot"><button class="btn" onclick="closeLegalDraftEdit()">キャンセル</button><button class="btn primary" onclick="saveLegalDraftEdit()">保存</button></div>
 </div>
 </div>
 
@@ -141,6 +169,113 @@ async function quickReceiveSubmission(){if(!state.detail)return;let types;try{ty
 
 async function smartReceiveSubmission(){if(!state.detail)return;const input=document.createElement('input');input.type='file';input.accept='.pdf,.jpg,.jpeg,.png,.webp,.tif,.tiff,.xlsx,.xlsm,.docx,.txt,.csv,.tsv';input.onchange=async()=>{const file=input.files?.[0];if(!file)return;try{const fd=new FormData();fd.append('file',file);fd.append('document_type','submission_source');const doc=await api('/documents/upload',{method:'POST',body:fd});const analysis=await api('/document-analyses',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({document_id:doc.document_id})});const method=analysis.extraction_method||'unknown',conf=analysis.confidence==null?'－':Math.round(analysis.confidence*100)+'%';alert(`文書解析完了\n抽出方式: ${method}\n書類種別候補: ${analysis.detected_submission_type_code||'判定できず'}\n信頼度: ${conf}\n\n正式登録はまだ行っていません。`);const candidates=analysis.facility_candidates||[];let buildingId=state.detail.facility.building_id;if(candidates.length){const menu=candidates.map((x,i)=>`${i+1}: ${x.name} / ${x.address||'所在地未登録'} / ${Math.round((x.score||0)*100)}%`).join('\n');const currentIndex=candidates.findIndex(x=>x.building_id===buildingId);const choice=Number(prompt(`対象物候補を確認してください\n${menu}\n\n0: 現在開いている対象物 ${state.detail.facility.name}`,currentIndex>=0?String(currentIndex+1):'0'));if(Number.isNaN(choice))return;if(choice>0&&candidates[choice-1])buildingId=candidates[choice-1].building_id}else if(!confirm(`対象物候補を自動特定できませんでした。\n現在開いている「${state.detail.facility.name}」としてレビューしますか？`)){return}const types=await api('/submissions/types');const detected=analysis.detected_submission_type_code;const defaultIndex=Math.max(0,types.findIndex(x=>x.code===detected));const typeMenu=types.map((x,i)=>`${i+1}: ${x.name}${x.code===detected?' [解析候補]':''}`).join('\n');const typeChoice=Number(prompt(`書類種別を確認してください\n${typeMenu}`,String(defaultIndex+1)));if(!typeChoice||!types[typeChoice-1])return;const type=types[typeChoice-1];const reviewed=await api(`/document-analyses/${analysis.document_analysis_id}/review`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:analysis.version,building_id:buildingId,submission_type_code:type.code})});const diffs=reviewed.difference_candidates||{};if(Object.keys(diffs).length){const diffText=Object.entries(diffs).map(([k,v])=>`${k}\n 現在: ${v.current??'－'}\n 読取: ${v.proposed??'－'}`).join('\n\n');alert(`台帳との差分候補があります。\nこの時点では台帳を変更しません。\n\n${diffText}`)}const official=prompt('正式届出番号（既存の番号取得システムで取得した数字のみ。未取得なら空欄）','')||null;if(official&&!/^\d+$/.test(official)){alert('正式届出番号は数字のみです。');return}const submitted=prompt('提出日 YYYY-MM-DD',new Date().toISOString().slice(0,10));if(!submitted)return;const payloadData={};if(type.code==='fire_manager_appointment'&&reviewed.detected_fields?.manager_name)payloadData.manager_name=reviewed.detected_fields.manager_name;if(!confirm(`受付を確定します。\n対象物ID: ${buildingId}\n種別: ${type.name}\n届出番号: ${official||'未登録'}\n提出日: ${submitted}\n\nよろしいですか？`))return;await api(`/document-analyses/${analysis.document_analysis_id}/confirm-receipt`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:reviewed.version,official_number:official,submitted_at:submitted,payload_data:payloadData})});const proposals=await api(`/document-analyses/${analysis.document_analysis_id}/change-proposals`);const pending=proposals.find(x=>x.status==='pending');if(pending){const accepted=[];for(const [path,diff] of Object.entries(pending.changes||{})){if(confirm(`台帳変更候補\n${path}\n現在: ${diff.current??'－'}\n読取: ${diff.proposed??'－'}\n\nこの項目を台帳へ反映しますか？`))accepted.push(path)}if(accepted.length){try{await api(`/facility-change-proposals/${pending.facility_change_proposal_id}/apply`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:pending.version,expected_facility_version:pending.expected_facility_version,accepted_paths:accepted})})}catch(e){alert('台帳差分は反映されませんでした。対象物が他の職員に更新された可能性があります: '+e.message)}}}await loadFacilities(state.offset);await selectFacility(buildingId);alert('受付を登録しました。')}catch(e){alert('文書解析受付を完了できません: '+e.message)}};input.click()}
 
+
+
+function showLegalQueue(){
+  $('legalQueueControls').classList.remove('hidden');
+  $('legalDraftControls').classList.add('hidden');
+  loadLegalReview();
+}
+async function showLegalDrafts(){
+  $('legalQueueControls').classList.add('hidden');
+  $('legalDraftControls').classList.remove('hidden');
+  await loadLegalDrafts();
+}
+
+function draftCitationHtml(c){
+  const p=c.provision||{};
+  const label=[p.display_label,p.heading_text].filter(Boolean).join(' ')||p.provision_key||'条文';
+  return '<div class="history"><b>'+esc(label)+'</b><div class="muted">'+esc(c.citation_role||'primary')+'</div><div>'+esc((p.body_text||'').slice(0,800))+'</div></div>';
+}
+
+async function loadLegalDrafts(){
+  const box=$('legalReviewList');
+  box.innerHTML='<div class="muted">Rule草案を読み込み中…</div>';
+  const p=new URLSearchParams({limit:'100'});
+  const status=$('legalDraftStatus').value;
+  if(status)p.set('draft_status',status);
+  try{
+    const rows=await api('/legal-rule-drafts?'+p);
+    state.legalDraftRows=rows;
+    $('legalReviewSummary').textContent='Rule草案 '+rows.length+'件（最大100件）';
+    box.innerHTML=rows.map(x=>{
+      const domain=legalCategoryLabels[x.domain]||x.domain;
+      let actions='';
+      if(x.status==='pending'){
+        actions='<button class="btn" onclick="openLegalDraftEdit(\''+x.legal_rule_draft_candidate_id+'\')">編集</button> '+
+          '<button class="btn primary" onclick="reviewLegalDraft(\''+x.legal_rule_draft_candidate_id+'\','+x.version+',\'reviewed\')">レビュー完了</button> '+
+          '<button class="btn" onclick="reviewLegalDraft(\''+x.legal_rule_draft_candidate_id+'\','+x.version+',\'rejected\')">却下</button>';
+      }else if(x.status==='reviewed'){
+        actions='<button class="btn primary" onclick="promoteLegalDraft(\''+x.legal_rule_draft_candidate_id+'\','+x.version+')">Draft Ruleへ昇格</button>';
+      }else if(x.status==='promoted'){
+        actions='<span class="pill active">Draft Rule '+esc(x.promoted_rule_version_id||'作成済み')+'</span>';
+      }
+      return '<div class="card">'+
+        '<div class="row"><b class="grow">'+esc(x.proposed_name)+'</b><span class="pill">'+esc(domain)+'</span><span class="pill">'+esc(x.status)+'</span></div>'+
+        '<div class="muted">Code: '+esc(x.proposed_rule_code||'未設定')+' ・ 抽出: '+esc(x.extraction_method)+' ・ Confidence: '+esc(x.confidence??'－')+'</div>'+
+        '<details style="margin-top:8px"><summary>条件・結論</summary><pre>'+esc(JSON.stringify(x.proposed_conditions||{},null,2))+'</pre><pre>'+esc(JSON.stringify(x.proposed_outcome||{},null,2))+'</pre></details>'+
+        (x.rationale?'<div class="muted">メモ: '+esc(x.rationale)+'</div>':'')+
+        (x.citations||[]).map(draftCitationHtml).join('')+
+        '<div class="row" style="margin-top:10px">'+actions+'</div></div>';
+    }).join('')||'<div class="empty">該当するRule草案はありません。</div>';
+  }catch(e){
+    $('legalReviewSummary').textContent='';
+    box.innerHTML='<div class="conflict">Rule草案を取得できません: '+esc(e.message)+'</div>';
+  }
+}
+
+function openLegalDraftEdit(id){
+  const row=(state.legalDraftRows||[]).find(x=>x.legal_rule_draft_candidate_id===id);
+  if(!row)return;
+  state.legalDraftEditId=id;
+  state.legalDraftEditVersion=row.version;
+  $('legalDraftCode').value=row.proposed_rule_code||'';
+  $('legalDraftName').value=row.proposed_name||'';
+  $('legalDraftConditions').value=JSON.stringify(row.proposed_conditions||{},null,2);
+  $('legalDraftOutcome').value=JSON.stringify(row.proposed_outcome||{},null,2);
+  $('legalDraftRationale').value=row.rationale||'';
+  $('legalDraftEditMsg').textContent='';
+  $('legalDraftEditModal').classList.remove('hidden');
+}
+function closeLegalDraftEdit(){$('legalDraftEditModal').classList.add('hidden')}
+
+async function saveLegalDraftEdit(){
+  let conditions,outcome;
+  try{
+    conditions=JSON.parse($('legalDraftConditions').value||'{}');
+    outcome=JSON.parse($('legalDraftOutcome').value||'{}');
+  }catch(e){$('legalDraftEditMsg').textContent='JSON形式を確認してください。';return}
+  try{
+    await api('/legal-rule-drafts/'+state.legalDraftEditId,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      expected_version:state.legalDraftEditVersion,
+      proposed_rule_code:$('legalDraftCode').value.trim()||null,
+      proposed_name:$('legalDraftName').value.trim(),
+      proposed_conditions:conditions,
+      proposed_outcome:outcome,
+      rationale:$('legalDraftRationale').value
+    })});
+    closeLegalDraftEdit();
+    await loadLegalDrafts();
+  }catch(e){$('legalDraftEditMsg').textContent='保存できません: '+e.message}
+}
+
+async function reviewLegalDraft(id,version,nextStatus){
+  try{
+    await api('/legal-rule-drafts/'+id+'/review',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:version,status:nextStatus})});
+    await loadLegalDrafts();
+  }catch(e){alert('Reviewできません: '+e.message)}
+}
+
+async function promoteLegalDraft(id,version){
+  const from=prompt('適用開始日 YYYY-MM-DD');
+  if(!from)return;
+  const to=prompt('適用終了日 YYYY-MM-DD（なければ空欄）','');
+  try{
+    await api('/legal-rule-drafts/'+id+'/promote',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:version,effective_from:from,effective_to:to||null})});
+    await loadLegalDrafts();
+    alert('Draft Rule Versionへ昇格しました。正式承認はまだ行われていません。');
+  }catch(e){alert('Draft Ruleへ昇格できません: '+e.message)}
+}
 
 const legalCategoryLabels={
   equipment_requirement:'必要設備',
