@@ -1,0 +1,12 @@
+[Unit]
+Description=Fire AI legal source synchronization
+After=network-online.target fire-ai.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/srv/fire-ai
+EnvironmentFile=/srv/fire-ai/backend/.env
+ExecStart=/srv/fire-ai/.venv/bin/python scripts/run_legal_source_sync.py
+User=fire-ai
+Group=fire-ai
