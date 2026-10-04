@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS legal_provisions (
   source_path text,
   source_meta jsonb NOT NULL DEFAULT '{}'::jsonb,
   content_sha256 varchar(64) NOT NULL,
+  present_in_source boolean NOT NULL DEFAULT true,
   created_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT uq_legal_provision_key UNIQUE(legal_source_document_version_id, provision_key)
 );
