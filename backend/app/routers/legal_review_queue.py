@@ -62,7 +62,9 @@ def _out(db: Session, row: LegalProvisionReviewCandidate) -> LegalProvisionRevie
         relevance_score=row.relevance_score,
         priority_lane=row.priority_lane,
         source_priority_score=row.source_priority_score,
-        review_priority_score=row.relevance_score + row.source_priority_score,
+        provision_context=row.provision_context,
+        context_priority_score=row.context_priority_score,
+        review_priority_score=row.relevance_score + row.source_priority_score + row.context_priority_score,
         reasons=row.reasons,
         extraction_method=row.extraction_method,
         model_version=row.model_version,
@@ -95,8 +97,9 @@ def list_review_candidates(
     stmt = stmt.where(LegalProvisionReviewCandidate.relevance_score >= min_score)
     rows = db.scalars(
         stmt.order_by(
-            (LegalProvisionReviewCandidate.relevance_score + LegalProvisionReviewCandidate.source_priority_score).desc(),
+            (LegalProvisionReviewCandidate.relevance_score + LegalProvisionReviewCandidate.source_priority_score + LegalProvisionReviewCandidate.context_priority_score).desc(),
             LegalProvisionReviewCandidate.source_priority_score.desc(),
+            LegalProvisionReviewCandidate.context_priority_score.desc(),
             LegalProvisionReviewCandidate.relevance_score.desc(),
             LegalProvisionReviewCandidate.created_at,
         )
@@ -137,7 +140,9 @@ def patch_review_candidate(
             "relevance_score": row.relevance_score,
             "priority_lane": row.priority_lane,
             "source_priority_score": row.source_priority_score,
-            "review_priority_score": row.relevance_score + row.source_priority_score,
+            "provision_context": row.provision_context,
+            "context_priority_score": row.context_priority_score,
+            "review_priority_score": row.relevance_score + row.source_priority_score + row.context_priority_score,
             "version": row.version,
         },
     )
