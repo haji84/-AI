@@ -740,3 +740,133 @@ class RequirementEvaluation(Base):
     created_by: Mapped[str | None] = mapped_column(ForeignKey("app_users.user_id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
 
+class LegalJurisdiction(Base):
+    __tablename__ = "legal_jurisdictions"
+    jurisdiction_id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True, default=uuid_str)
+    code: Mapped[str] = mapped_column(String(150), unique=True, nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(300), nullable=False)
+    jurisdiction_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    parent_jurisdiction_id: Mapped[str | None] = mapped_column(ForeignKey("legal_jurisdictions.jurisdiction_id"))
+    official_base_url: Mapped[str | None] = mapped_column(Text)
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
+class LegalProfile(Base):
+    __tablename__ = "legal_profiles"
+    legal_profile_id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True, default=uuid_str)
+    code: Mapped[str] = mapped_column(String(150), unique=True, nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(300), nullable=False)
+    fire_department_name: Mapped[str | None] = mapped_column(String(300))
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_by: Mapped[str | None] = mapped_column(ForeignKey("app_users.user_id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
+class LegalProfileJurisdiction(Base):
+    __tablename__ = "legal_profile_jurisdictions"
+    legal_profile_id: Mapped[str] = mapped_column(ForeignKey("legal_profiles.legal_profile_id", ondelete="CASCADE"), primary_key=True)
+    jurisdiction_id: Mapped[str] = mapped_column(ForeignKey("legal_jurisdictions.jurisdiction_id", ondelete="CASCADE"), primary_key=True)
+    applicability: Mapped[str] = mapped_column(String(40), nullable=False, default="applicable")
+    priority: Mapped[int] = mapped_column(Integer, nullable=False, default=100)
+
+
+class LegalSource(Base):
+    __tablename__ = "legal_sources"
+    legal_source_id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True, default=uuid_str)
+    legal_profile_id: Mapped[str | None] = mapped_column(ForeignKey("legal_profiles.legal_profile_id", ondelete="CASCADE"), index=True)
+    jurisdiction_id: Mapped[str] = mapped_column(ForeignKey("legal_jurisdictions.jurisdiction_id", ondelete="CASCADE"), nullable=False, index=True)
+    source_code: Mapped[str] = mapped_column(String(180), nullable=False)
+    name: Mapped[str] = mapped_column(String(300), nullable=False)
+    source_type: Mapped[str] = mapped_column(String(60), nullable=False)
+    adapter_type: Mapped[str] = mapped_column(String(80), nullable=False)
+    base_url: Mapped[str] = mapped_column(Text, nullable=False)
+    index_url: Mapped[str | None] = mapped_column(Text)
+    update_mode: Mapped[str] = mapped_column(String(30), nullable=False, default="online")
+    content_scope: Mapped[str] = mapped_column(String(30), nullable=False, default="all")
+    sync_frequency: Mapped[str] = mapped_column(String(30), nullable=False, default="daily")
+    trust_level: Mapped[str] = mapped_column(String(30), nullable=False, default="official")
+    parser_config: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    content_current_date: Mapped[date | None] = mapped_column(Date)
+    last_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_success_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    etag: Mapped[str | None] = mapped_column(Text)
+    last_modified: Mapped[str | None] = mapped_column(Text)
+    index_hash: Mapped[str | None] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    __table_args__ = (UniqueConstraint("jurisdiction_id", "source_code", name="uq_legal_source_code"),)
+
+
+class LegalSourceDocument(Base):
+    __tablename__ = "legal_source_documents"
+    legal_source_document_id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True, default=uuid_str)
+    legal_source_id: Mapped[str] = mapped_column(ForeignKey("legal_sources.legal_source_id", ondelete="CASCADE"), nullable=False, index=True)
+    external_id: Mapped[str] = mapped_column(Text, nullable=False)
+    document_type: Mapped[str] = mapped_column(String(80), nullable=False)
+    title: Mapped[str] = mapped_column(Text, nullable=False)
+    document_number: Mapped[str | None] = mapped_column(Text)
+    promulgation_date: Mapped[date | None] = mapped_column(Date)
+    enacted_date: Mapped[date | None] = mapped_column(Date)
+    current_status: Mapped[str] = mapped_column(String(30), nullable=False, default="current")
+    source_url: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    __table_args__ = (UniqueConstraint("legal_source_id", "external_id", name="uq_legal_source_document"),)
+
+
+class LegalSourceDocumentVersion(Base):
+    __tablename__ = "legal_source_document_versions"
+    legal_source_document_version_id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True, default=uuid_str)
+    legal_source_document_id: Mapped[str] = mapped_column(ForeignKey("legal_source_documents.legal_source_document_id", ondelete="CASCADE"), nullable=False, index=True)
+    version_label: Mapped[str | None] = mapped_column(String(160))
+    revision_external_id: Mapped[str | None] = mapped_column(Text)
+    effective_from: Mapped[date | None] = mapped_column(Date)
+    effective_to: Mapped[date | None] = mapped_column(Date)
+    source_current_date: Mapped[date | None] = mapped_column(Date)
+    retrieved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    raw_document_id: Mapped[str | None] = mapped_column(ForeignKey("documents.document_id"))
+    normalized_text: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    structured_content: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    source_url: Mapped[str | None] = mapped_column(Text)
+    sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    previous_version_id: Mapped[str | None] = mapped_column(ForeignKey("legal_source_document_versions.legal_source_document_version_id"))
+    change_summary: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    parse_status: Mapped[str] = mapped_column(String(30), nullable=False, default="stored")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    __table_args__ = (UniqueConstraint("legal_source_document_id", "sha256", name="uq_legal_source_document_hash"),)
+
+
+class LegalSyncRun(Base):
+    __tablename__ = "legal_sync_runs"
+    legal_sync_run_id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True, default=uuid_str)
+    legal_source_id: Mapped[str] = mapped_column(ForeignKey("legal_sources.legal_source_id", ondelete="CASCADE"), nullable=False, index=True)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="running")
+    checked_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    new_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    amended_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    repealed_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    unchanged_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    error_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    details: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+
+
+class LegalUpdateCandidate(Base):
+    __tablename__ = "legal_update_candidates"
+    legal_update_candidate_id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True, default=uuid_str)
+    legal_source_document_version_id: Mapped[str] = mapped_column(ForeignKey("legal_source_document_versions.legal_source_document_version_id", ondelete="CASCADE"), nullable=False)
+    previous_version_id: Mapped[str | None] = mapped_column(ForeignKey("legal_source_document_versions.legal_source_document_version_id"))
+    change_type: Mapped[str] = mapped_column(String(30), nullable=False)
+    diff_payload: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    impacted_rule_ids: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    impacted_modules: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="review_required", index=True)
+    reviewed_by: Mapped[str | None] = mapped_column(ForeignKey("app_users.user_id"))
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
