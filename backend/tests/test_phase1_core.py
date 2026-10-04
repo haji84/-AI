@@ -18,7 +18,7 @@ def seed():
         u=User(employee_id=emp.employee_id,username="tester",password_hash=hash_password("long-test-password")); db.add(u)
         r=Role(code="tester",name="Tester"); db.add(r); db.flush()
         db.add(UserRole(user_id=u.user_id,role_id=r.role_id))
-        for code in ["facility.read","facility.create","facility.update","facility.restore","document.create","document.read", "inspection.read","inspection.create","inspection.update", "submission.read","submission.create","submission.update","submission.manage", "intake.read","intake.analyze","intake.review","intake.apply", "extension.read","extension.create","extension.review","extension.apply","template.read","template.manage","contract.read","contract.create","contract.update","contract.approve","legal_rule.read","legal_rule.manage","legal_rule.approve","legal_rule.evaluate"]:
+        for code in ["facility.read","facility.create","facility.update","facility.restore","document.create","document.read", "inspection.read","inspection.create","inspection.update", "submission.read","submission.create","submission.update","submission.manage", "intake.read","intake.analyze","intake.review","intake.apply", "extension.read","extension.create","extension.review","extension.apply","template.read","template.manage","contract.read","contract.create","contract.update","contract.approve","legal_rule.read","legal_rule.manage","legal_rule.approve","legal_rule.evaluate","legal_source.read","legal_source.manage","legal_source.sync"]:
             p=Permission(code=code,description=code); db.add(p); db.flush(); db.add(RolePermission(role_id=r.role_id,permission_id=p.permission_id))
         db.commit()
 
@@ -820,3 +820,76 @@ def test_phase5_rejects_unsupported_rule_field():
         "outcome":{"requirement_code":"X"}
     })
     assert bad.status_code==422
+
+
+def test_phase5_1_legal_profile_and_source_registry():
+    login()
+    national=client.post("/legal-sources/jurisdictions",json={
+        "code":"JP",
+        "name":"日本国",
+        "jurisdiction_type":"national",
+        "official_base_url":"https://laws.e-gov.go.jp/"
+    })
+    assert national.status_code==201
+    local=client.post("/legal-sources/jurisdictions",json={
+        "code":"TEST-FD",
+        "name":"テスト消防本部",
+        "jurisdiction_type":"fire_department",
+        "official_base_url":"https://example.invalid/"
+    })
+    assert local.status_code==201
+
+    profile=client.post("/legal-sources/profiles",json={
+        "code":"TEST-PROFILE",
+        "name":"テスト消防本部法令プロファイル",
+        "fire_department_name":"テスト消防本部"
+    })
+    assert profile.status_code==201
+    pid=profile.json()["legal_profile_id"]
+
+    for jid,prio in [(national.json()["jurisdiction_id"],10),(local.json()["jurisdiction_id"],20)]:
+        r=client.post(f"/legal-sources/profiles/{pid}/jurisdictions",json={
+            "jurisdiction_id":jid,
+            "priority":prio
+        })
+        assert r.status_code==204
+
+    source=client.post("/legal-sources/sources",json={
+        "legal_profile_id":pid,
+        "jurisdiction_id":national.json()["jurisdiction_id"],
+        "source_code":"egov-v2",
+        "name":"e-Gov 法令API Version2",
+        "source_type":"national_law_api",
+        "adapter_type":"egov_v2",
+        "base_url":"https://laws.e-gov.go.jp/api/2",
+        "update_mode":"online",
+        "content_scope":"all",
+        "sync_frequency":"daily",
+        "trust_level":"official",
+        "parser_config":{"mode":"watchlist"}
+    })
+    assert source.status_code==201
+    assert source.json()["adapter_type"]=="egov_v2"
+    assert source.json()["content_scope"]=="all"
+
+    listed=client.get("/legal-sources/sources",params={"profile_id":pid})
+    assert listed.status_code==200
+    assert len(listed.json())==1
+
+
+def test_phase5_1_rejects_source_for_unknown_jurisdiction():
+    login()
+    profile=client.post("/legal-sources/profiles",json={
+        "code":"TEST-PROFILE-UNKNOWN",
+        "name":"テスト"
+    }).json()
+    r=client.post("/legal-sources/sources",json={
+        "legal_profile_id":profile["legal_profile_id"],
+        "jurisdiction_id":"00000000-0000-0000-0000-000000000000",
+        "source_code":"bad",
+        "name":"bad",
+        "source_type":"test",
+        "adapter_type":"manual",
+        "base_url":"https://example.invalid/"
+    })
+    assert r.status_code==422
