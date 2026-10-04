@@ -1,0 +1,65 @@
+name: acquire-egov-national-laws
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/acquire-egov-national-laws.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  acquire:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Acquire official all-law XML bundle
+        run: |
+          set -euo pipefail
+          rm -rf _acquired/egov-all
+          mkdir -p _acquired/egov-all
+          python scripts/collect_egov_update_bundle.py \
+            --mode all \
+            --output-dir "_acquired/egov-all"
+      - name: Verify archive integrity and XML corpus
+        run: |
+          python - <<'PY'
+          import json, zipfile
+          from pathlib import Path
+          manifests=sorted(Path("_acquired/egov-all").glob("*.manifest.json"))
+          assert manifests, "manifest not found"
+          m=json.loads(manifests[-1].read_text(encoding="utf-8"))
+          archive=Path("_acquired/egov-all")/m["archive_file"]
+          assert archive.exists(), archive
+          with zipfile.ZipFile(archive) as z:
+              bad=z.testzip()
+              names=[n for n in z.namelist() if n.lower().endswith(".xml") and not n.endswith("/")]
+          assert bad is None, f"corrupt zip member: {bad}"
+          assert names, "no XML law documents found"
+          verification={
+              "provider":"e-Gov",
+              "scope":"all national laws",
+              "xml_document_count":len(names),
+              "archive_sha256":m["archive_sha256"],
+              "archive_file":m["archive_file"],
+              "source_url":m["source_url"],
+              "retrieved_at":m["retrieved_at"],
+              "coverage_status":"complete_official_bulk_archive"
+          }
+          Path("_acquired/egov-all/verification.json").write_text(
+              json.dumps(verification,ensure_ascii=False,indent=2),encoding="utf-8"
+          )
+          print(json.dumps(verification,ensure_ascii=False))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: egov-national-laws-all-xml
+          path: _acquired/egov-all/
+          retention-days: 30
+          if-no-files-found: error
