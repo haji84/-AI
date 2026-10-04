@@ -4,40 +4,61 @@
 
 ## Current Phase
 
-Phase 3 inspection + submission core is code-complete and verified in the development environment.
-The formal approved-host PostgreSQL/TLS/two-client gate remains unexecuted.
+Phase 4 document intake core is code-complete and verified in the development environment.
+Formal approved-host PostgreSQL/TLS/two-client gate remains unexecuted.
 
-## Phase 0-2 retained
-- legacy inspection ledger audited and mapped
-- common auth/RBAC/audit/optimistic locking/extensibility foundation
+## Phase 0-3 retained
+
+- legacy inspection ledger audited/mapped
+- auth / RBAC / audit / optimistic locking / extensibility
 - emergency reporting import foundation
-- facility browser/detail/create/edit/abolish/restore/history
-- 611 facilities normalized to 611 details, 611 contacts, 1,434 floor rows
+- facility CRUD / normalize / conflict UI
+- inspection / findings
+- submission type / receipt / original document linkage
+- legacy prevention values kept as legacy evidence, not falsely promoted to modern filings
 
-## Phase 3 completed in code
-- inspections and findings
-- submission type master
-- receipt/update workflow
-- original document linkage
-- digits-only official number
-- equipment inspection report / fire manager / fire plan specialized records
-- facility dashboard
-- Phase 3 browser workflow
-- legacy Phase 3 normalization with raw evidence preservation
+## Phase 4 completed in code
+
+- PDF embedded-text extraction
+- scanned PDF OCR fallback path
+- image OCR path for JPG/JPEG/PNG/WebP/TIFF
+- DOCX direct extraction
+- XLSX/XLSM direct extraction
+- TXT/CSV/TSV direct extraction
+- deterministic submission-type classification with evidence/confidence
+- facility candidate ranking
+- field extraction candidates
+- facility difference proposals
+- human review gate before receipt
+- explicit accepted-path gate before facility update
+- document analysis / proposal version conflict protection
+- 100MB synchronous analysis cap / OCR page cap
+- managed-storage path boundary
+- Phase 4 browser receipt workflow
 
 ## Verification
-- backend tests: 30 passed
+
+- backend tests: 37 passed
 - frontend JavaScript syntax: PASS
-- real legacy facility workbook import: PASS
-- forced second import idempotency: PASS
-- legacy Phase 3 counts: manager 70, manager-with-filing-text 65, fire-plan 54, equipment-report-value 1, guidance 579
+- migration 007 parser: 8 statements
+- facility legacy regression: PASS (611 / 611 / 611 / 1,434)
+- emergency regression: PASS (2,958 / 2,950 / 8,981; unresolved 66 retained)
 
-## Formal Host Gate remaining
-1. approved LAN PostgreSQL host
-2. migrations 001-006 on host
-3. PostgreSQL backup/restore test
-4. HTTPS client access
-5. two physical clients concurrent edit E2E
+## Not yet reported as PASS
 
-## Next
-Phase 4: document intake/OCR/content classification and AI-assisted extraction/difference review, while keeping formal reflection behind Human Gate.
+- actual Japanese scanned-document OCR quality E2E
+- HEIC decode
+- Local LLM ambiguous-classification fallback
+- approved LAN PostgreSQL migrations 001-007
+- PostgreSQL backup/restore after migration 007
+- HTTPS browser test from production LAN clients
+- two physical client concurrent edit/receipt E2E
+
+## Next Phase 4 Slice / Phase 5 preparation
+
+1. real scanned-form OCR evaluation dataset and confidence thresholds
+2. structured field mapping per official form template
+3. multi-page image grouping/page-order assistance
+4. Local LLM fallback only when deterministic classification is insufficient
+5. legal-rule source/version schema hardening
+6. Phase 5 legal requirement / equipment requirement rule engine
