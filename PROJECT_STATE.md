@@ -4,10 +4,10 @@
 
 ## Current Phase
 
-Phase 5 core legal-rule engine is code-complete and CI-verified.
-Phase 5.1 legal-source / fire-department profile registry core is code-complete and CI-verified.
-Live national/local legal-source collectors are the current implementation slice.
-Formal approved-host PostgreSQL/TLS/two-client gate remains unexecuted.
+Phase 5 legal-rule engine is code-complete and CI-verified.
+Phase 5.1 national/local legal-source update foundation is implemented in code.
+Live full-corpus acquisition from e-Gov and a real designated fire-department regulation source remains an external-source E2E gate.
+Formal approved-host PostgreSQL/TLS/two-client gate also remains unexecuted.
 
 ## Phase 0-4 retained
 
@@ -22,74 +22,111 @@ Formal approved-host PostgreSQL/TLS/two-client gate remains unexecuted.
 - Human Review before receipt/facility change
 - contract/form-template/extensibility foundation
 
-## Phase 5 completed
+## Phase 5 completed in code
 
 - legal rule registry
 - numbered/effective-dated rule versions
-- source requirement before approval
+- verified-source requirement before approval
 - Draft / Approved separation
 - deterministic requirement evaluation
 - submission/equipment requirement domains
 - evidence and candidate-only decisions
-- management/approval/evaluation RBAC
-- facility UI for candidate document/equipment requirements
+- rule management/approval/evaluation RBAC
+- facility UI for candidate required documents/equipment
+- no automatic operational DB mutation from legal evaluation
 
-## Phase 5.1 source registry completed
+## Phase 5.1 source/profile foundation
 
 - national/prefecture/municipality/fire-union/fire-department jurisdiction model
 - fire-department legal profiles
-- multiple applicable jurisdictions per profile
-- multiple official sources per profile/jurisdiction
+- multiple jurisdictions per profile
+- multiple official sources per jurisdiction/profile
+- Source Adapter metadata
 - online/bundle/manual update modes
-- all-content source scope metadata
-- sync frequency metadata
-- legal source document/version model
-- raw original-document linkage
-- hashes and previous-Version chain
-- sync-run tracking
-- legal-update review candidates
-- Rule Version -> legal source Version provenance link
+- all-content scope
+- sync frequency
+- full legal source document/version chain
+- raw-original Document linkage
+- SHA-256 and previous-Version linkage
+- update candidate / impacted Rule placeholder
+- corpus completeness status: unverified/complete/partial/stale/error
 - legal source/profile RBAC
-- API for jurisdictions/profiles/profile-jurisdiction/source registration
+- source/profile registry API
 
-## Verification
+## Phase 5.1 collectors/importers implemented
 
-- Phase 5 backend tests previously: 39 passed
-- Phase 5.1 source/profile registry GitHub Actions: SUCCESS
-- Migration 009 included in project migration parser smoke
-- frontend JavaScript regression: PASS through project-checks
+### e-Gov
+- full national-law XML collector
+- date-based updated-law delta collector
+- SHA-256 Manifest
+- e-Gov XML Archive importer
+- raw XML preservation
+- normalized text
+- Source Document / Version generation
+- LegalUpdateCandidate generation
 
-## External-source facts driving the design
+### Local official regulation
+- official-host bounded HTML collector
+- configurable include/crawl regex
+- maximum page/depth guards
+- raw HTML/PDF/etc byte preservation
+- manifest with visited/captured/failure/truncated counts
+- DB importer
+- Source Document / Version generation
+- update candidate generation
+- corpus completeness tracking
 
-- e-Gov Law API Version 2 is the national source target.
-- e-Gov supports law lists, revision history, law text, attachments, and bulk XML.
-- e-Gov offers latest-updated-law bulk data by date.
-- local regulation systems do not have one universal API or uniform refresh cadence.
+### Scheduler
+- due-source sync orchestrator
+- online e-Gov adapter
+- online official_html_crawl adapter
+- initial e-Gov bootstrap requires explicit --allow-bootstrap
+- daily delta after bootstrap
+- systemd one-shot service
+- daily 03:30 timer with randomized delay
 
-## Current Phase 5.1 implementation slice
+## Important safety policy
 
-1. e-Gov Version2 live adapter
-2. initial national-law bootstrap
-3. daily national-law delta sync
-4. local official-regulation generic adapter contract
-5. official promulgation/update-page adapter
-6. per-fire-department full-corpus source discovery
-7. full ordinance/regulation text/version import
-8. amendment diff + impacted Rule candidates
-9. signed Update Bundle for closed networks
-10. Update Folder automatic verification/import
+- National/local legal original acquisition may be automatic.
+- Rule interpretation/activation after legal amendment is NOT automatic.
+- Legal update -> Version/Diff -> Impact candidate -> Human Gate -> Approved Rule Version.
+- A local regulation Source is not declared complete unless corpus completeness validation succeeds.
+- JavaScript-heavy or vendor-specific regulation systems may require a dedicated Browser Adapter.
 
-## Hard safety rule
+## Verification already completed
 
-Legal text acquisition may be automatic.
-Formal Rule interpretation/activation after a legal amendment remains Human Gate protected.
+- Phase 5 rule engine CI: SUCCESS
+- Phase 5 safety tests: 39 passed at that checkpoint
+- Phase 5.1 Source Registry CI: SUCCESS
+- migrations through 009 included in parser checks
+- operational scripts are now included in Python syntax CI
 
-## Formal Host Gate remaining
+## Not yet reported as PASS
 
+- live e-Gov full bootstrap
+- live e-Gov daily delta -> DB end-to-end
+- real designated fire-department full regulation corpus capture
+- local regulation table-of-contents count reconciliation
+- browser adapter for JS-only regulation systems
+- official promulgation/update-page adapter
+- signed closed-network Update Bundle verification/import
+- real legal amendment -> Rule impact analysis acceptance test
 - approved LAN PostgreSQL migrations 001-009
-- backup/restore after Migration 009
-- HTTPS production LAN client access
+- PostgreSQL backup/restore after Migration 009
+- HTTPS production LAN clients
 - two-client concurrent E2E
-- closed-network Update Bundle transfer E2E
 
-Do not report these as PASS until actually executed.
+## Next Phase 5.1 slice
+
+1. execute live e-Gov bootstrap in an approved internet-connected collector environment
+2. validate daily e-Gov delta
+3. select a real fire department profile
+4. discover and approve all official regulation/promulgation sources for that profile
+5. build any required vendor/browser adapters
+6. full-corpus import and completeness reconciliation
+7. ordinance amendment diff E2E
+8. Rule impact candidate generation
+9. signed Update Bundle for closed networks
+10. then proceed to Phase 6 drawing analysis
+
+Do not report external-source gates as PASS until actually executed.
