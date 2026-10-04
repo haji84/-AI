@@ -1,0 +1,71 @@
+name: acquire-oshima-official-regulations
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/acquire-oshima-official-regulations.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  acquire:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Collect official Reiki-Base corpus
+        run: |
+          set -euo pipefail
+          rm -rf _acquired/oshima-reiki
+          mkdir -p _acquired/oshima-reiki
+          python scripts/collect_official_regulation_snapshot.py \
+            --index-url "https://fd-ohshima.jp/reiki_2026/reiki_taikei/taikei_default.html" \
+            --allowed-host "fd-ohshima.jp" \
+            --include-regex "/reiki_2026/reiki_honbun/" \
+            --crawl-regex "/reiki_2026/reiki_taikei/" \
+            --output-dir "_acquired/oshima-reiki" \
+            --max-pages 1000 \
+            --max-depth 3
+      - name: Verify full corpus count
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path("_acquired/oshima-reiki/manifest.json")
+          m=json.loads(p.read_text(encoding="utf-8"))
+          bodies=[d for d in m["documents"] if "/reiki_2026/reiki_honbun/" in d["url"]]
+          index=[d for d in m["documents"] if d["url"].endswith("/reiki_taikei/taikei_default.html")]
+          print("visited",m["visited_count"])
+          print("captured",m["captured_count"])
+          print("body_documents",len(bodies))
+          print("failures",m["failure_count"])
+          print("truncated",m["truncated"])
+          assert len(index)==1, "official index page not captured exactly once"
+          assert len(bodies)==119, f"expected 119 regulation body documents, got {len(bodies)}"
+          assert m["failure_count"]==0, f"collector failures: {m['failures'][:5]}"
+          assert not m["truncated"], "collector truncated before full traversal"
+          Path("_acquired/oshima-reiki/verification.json").write_text(
+              json.dumps({
+                  "expected_body_document_count":119,
+                  "captured_body_document_count":len(bodies),
+                  "failure_count":m["failure_count"],
+                  "truncated":m["truncated"],
+                  "content_current_date":"2025-04-01",
+                  "official_index_url":"https://fd-ohshima.jp/reiki_2026/reiki_taikei/taikei_default.html"
+              },ensure_ascii=False,indent=2),
+              encoding="utf-8"
+          )
+          PY
+      - name: Upload verified official corpus
+        uses: actions/upload-artifact@v4
+        with:
+          name: oshima-fire-union-reiki-2025-04-01
+          path: _acquired/oshima-reiki/
+          retention-days: 90
+          if-no-files-found: error
