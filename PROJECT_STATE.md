@@ -4,61 +4,83 @@
 
 ## Current Phase
 
-Phase 4 document intake core is code-complete and verified in the development environment.
+Phase 5 managed legal-rule / requirement-evaluation core is code-complete and CI-verified.
 Formal approved-host PostgreSQL/TLS/two-client gate remains unexecuted.
+Actual official legal content has not been populated and must not be treated as completed.
 
-## Phase 0-3 retained
+## Phase 0-4 retained
 
-- legacy inspection ledger audited/mapped
+- legacy inspection ledger audit / 574-column mapping
 - auth / RBAC / audit / optimistic locking / extensibility
 - emergency reporting import foundation
-- facility CRUD / normalize / conflict UI
+- facility CRUD / normalized detail / conflict UI
 - inspection / findings
 - submission type / receipt / original document linkage
-- legacy prevention values kept as legacy evidence, not falsely promoted to modern filings
+- PDF/image/DOCX/XLSX/text document intake
+- OCR fallback path and deterministic document classification
+- human review before receipt/facility change
+- contract/form-template/extensibility foundation
+- operational legacy values preserved as evidence without falsely promoting them to modern filings
 
-## Phase 4 completed in code
+## Phase 5 completed in code
 
-- PDF embedded-text extraction
-- scanned PDF OCR fallback path
-- image OCR path for JPG/JPEG/PNG/WebP/TIFF
-- DOCX direct extraction
-- XLSX/XLSM direct extraction
-- TXT/CSV/TSV direct extraction
-- deterministic submission-type classification with evidence/confidence
-- facility candidate ranking
-- field extraction candidates
-- facility difference proposals
-- human review gate before receipt
-- explicit accepted-path gate before facility update
-- document analysis / proposal version conflict protection
-- 100MB synchronous analysis cap / OCR page cap
-- managed-storage path boundary
-- Phase 4 browser receipt workflow
+- legal rule registry
+- immutable numbered rule versions
+- effective date ranges
+- source document/reference requirement before approval
+- draft / approved separation
+- non-overlapping approved effective periods per rule
+- deterministic condition engine
+- submission-requirement / equipment-requirement domains
+- requirement evaluation history
+- candidate-only decisions
+- evidence per matched condition
+- rule management/approval/evaluation RBAC separation
+- facility-detail UI for candidate required documents/equipment
+- no automatic facility/submission/equipment mutation from evaluation
 
-## Verification
+## Phase 5 verification
 
-- backend tests: 37 passed
+- backend tests: 39 passed
+- Migration 008 parser: PASS (8 statements)
 - frontend JavaScript syntax: PASS
-- migration 007 parser: 8 statements
-- facility legacy regression: PASS (611 / 611 / 611 / 1,434)
-- emergency regression: PASS (2,958 / 2,950 / 8,981; unresolved 66 retained)
+- GitHub Actions project-checks: SUCCESS
+- Phase 0-4 automated regression included
+
+## Last verified real legacy dataset state
+
+From the preceding real-workbook regression:
+- facilities: 611
+- facility details: 611
+- facility contacts: 611
+- facility floors: 1,434
+- emergency cases: 2,958
+- emergency patients: 2,950
+- emergency crew: 8,981
+- unresolved crew identity: 66 retained
+
+Phase 5 did not rerun the supplied operational workbooks because production data is intentionally excluded from GitHub.
+Do not report a Phase 5 real-workbook regression as newly executed.
 
 ## Not yet reported as PASS
 
-- actual Japanese scanned-document OCR quality E2E
+- actual official legal-rule population from verified primary sources
+- complete Japanese fire-law/ordinance requirement acceptance testing
+- complex mixed-use/floor/windowless/underground conditions
+- actual Japanese scanned-form OCR quality E2E
 - HEIC decode
 - Local LLM ambiguous-classification fallback
-- approved LAN PostgreSQL migrations 001-007
-- PostgreSQL backup/restore after migration 007
+- approved LAN PostgreSQL migrations 001-008
+- PostgreSQL backup/restore after Migration 008
 - HTTPS browser test from production LAN clients
-- two physical client concurrent edit/receipt E2E
+- two physical client concurrent edit/receipt/rule E2E
 
-## Next Phase 4 Slice / Phase 5 preparation
+## Next Phase 5 Slice / Phase 6 preparation
 
-1. real scanned-form OCR evaluation dataset and confidence thresholds
-2. structured field mapping per official form template
-3. multi-page image grouping/page-order assistance
-4. Local LLM fallback only when deterministic classification is insufficient
-5. legal-rule source/version schema hardening
-6. Phase 5 legal requirement / equipment requirement rule engine
+1. register official source documents with provenance/version
+2. expand rule-condition model for floor/use/windowless/underground conditions
+3. compare required-document candidates against actual submission status
+4. compare required-equipment candidates against installed-equipment records
+5. add Human Review confirmation state for evaluation results
+6. prepare Phase 6 drawing-analysis data model
+7. keep AI explanatory only; formal rules remain deterministic and approved
