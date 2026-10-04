@@ -3,6 +3,7 @@
 更新日: 2026-10-05
 
 ## Automated tests
+
 - backend pytest: 30 passed
 - frontend JavaScript syntax: PASS (`node --check`)
 
@@ -21,7 +22,10 @@ Covered behavior includes:
 - legacy dashboard states
 
 ## Real legacy workbook verification
-No business row values or personal information were printed to evidence.
+
+Input: supplied operational inspection ledger. No business row values or personal information were printed to evidence.
+
+First import:
 - facilities: 611
 - facility details: 611
 - facility contacts: 611
@@ -38,7 +42,10 @@ Forced second import:
 - facilities skipped: 611
 - normalized Phase 3 record counts remained unchanged
 
+This confirms idempotency for the tested development import path.
+
 ## Not executed
+
 - approved LAN PostgreSQL migration 001-006
 - real PostgreSQL backup/restore after migration 006
 - HTTPS from production LAN clients
