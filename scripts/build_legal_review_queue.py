@@ -8,6 +8,7 @@ from sqlalchemy import select
 
 from app.db import SessionLocal
 from app.legal_relevance import SCANNER_VERSION, score_fire_service_relevance
+from app.legal_priority import classify_source_priority
 from app.models import (
     LegalProvision,
     LegalProvisionReviewCandidate,
@@ -59,6 +60,7 @@ def main() -> None:
 
         for provision, title in db.execute(stmt.execution_options(yield_per=1000)):
             scanned += 1
+            source_priority = classify_source_priority(title)
             hits = [
                 x
                 for x in score_fire_service_relevance(
@@ -94,7 +96,15 @@ def main() -> None:
                             legal_provision_id=provision.legal_provision_id,
                             category=hit.category,
                             relevance_score=hit.score,
-                            reasons=reasons,
+                            priority_lane=source_priority.lane,
+                            source_priority_score=source_priority.score,
+                            reasons=[
+                                *reasons,
+                                *[
+                                    {"priority_lane": source_priority.lane, "source_priority": reason}
+                                    for reason in source_priority.reasons
+                                ],
+                            ],
                             extraction_method="deterministic",
                             model_version=SCANNER_VERSION,
                         )
@@ -102,7 +112,15 @@ def main() -> None:
                     inserted += 1
                 elif existing.status == "pending":
                     existing.relevance_score = hit.score
-                    existing.reasons = reasons
+                    existing.priority_lane = source_priority.lane
+                    existing.source_priority_score = source_priority.score
+                    existing.reasons = [
+                        *reasons,
+                        *[
+                            {"priority_lane": source_priority.lane, "source_priority": reason}
+                            for reason in source_priority.reasons
+                        ],
+                    ]
                     existing.model_version = SCANNER_VERSION
                     existing.updated_at = datetime.now(timezone.utc)
                     updated += 1
