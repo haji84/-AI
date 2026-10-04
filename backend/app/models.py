@@ -689,3 +689,54 @@ class FacilityChangeProposal(Base):
     version: Mapped[int] = mapped_column(BigInteger, nullable=False, default=1)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+class LegalRule(Base):
+    __tablename__ = "legal_rules"
+    rule_id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True, default=uuid_str)
+    rule_code: Mapped[str] = mapped_column(String(150), unique=True, nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(300), nullable=False)
+    domain: Mapped[str] = mapped_column(String(60), nullable=False, index=True)
+    description: Mapped[str | None] = mapped_column(Text)
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_by: Mapped[str | None] = mapped_column(ForeignKey("app_users.user_id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
+class LegalRuleVersion(Base):
+    __tablename__ = "legal_rule_versions"
+    legal_rule_version_id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True, default=uuid_str)
+    rule_id: Mapped[str] = mapped_column(ForeignKey("legal_rules.rule_id", ondelete="CASCADE"), nullable=False, index=True)
+    version_no: Mapped[int] = mapped_column(Integer, nullable=False)
+    effective_from: Mapped[date] = mapped_column(Date, nullable=False)
+    effective_to: Mapped[date | None] = mapped_column(Date)
+    conditions: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    outcome: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    source_document_id: Mapped[str | None] = mapped_column(ForeignKey("documents.document_id"))
+    source_reference: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="draft")
+    approved_by: Mapped[str | None] = mapped_column(ForeignKey("app_users.user_id"))
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    version: Mapped[int] = mapped_column(BigInteger, nullable=False, default=1)
+    created_by: Mapped[str | None] = mapped_column(ForeignKey("app_users.user_id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    __table_args__ = (UniqueConstraint("rule_id", "version_no", name="uq_legal_rule_version"),)
+
+
+class RequirementEvaluation(Base):
+    __tablename__ = "requirement_evaluations"
+    evaluation_id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True, default=uuid_str)
+    building_id: Mapped[str] = mapped_column(ForeignKey("facilities.building_id", ondelete="CASCADE"), nullable=False, index=True)
+    domain: Mapped[str] = mapped_column(String(60), nullable=False, index=True)
+    evaluation_date: Mapped[date] = mapped_column(Date, nullable=False)
+    facility_version: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    engine_version: Mapped[str] = mapped_column(String(50), nullable=False, default="phase5-v1")
+    input_snapshot: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    results: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="candidate")
+    reviewed_by: Mapped[str | None] = mapped_column(ForeignKey("app_users.user_id"))
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_by: Mapped[str | None] = mapped_column(ForeignKey("app_users.user_id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
