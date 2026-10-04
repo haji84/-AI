@@ -1156,3 +1156,94 @@ def test_phase5_3_rule_draft_requires_review_and_promotes_only_to_draft_rule():
         assert rv is not None
         assert rv.status=="draft"
         assert rv.source_legal_document_version_id==source_version_id
+
+
+def test_phase5_4_relevance_scanner_is_review_priority_only():
+    from app.legal_relevance import score_fire_service_relevance
+    hits=score_fire_service_relevance(
+        title="テスト規程",
+        label="第十条",
+        heading="消防用設備等",
+        body="消防用設備等点検結果報告を提出する。",
+        provision_type="article",
+    )
+    categories={x.category for x in hits}
+    assert "equipment_requirement" in categories
+    assert "submission_requirement" in categories
+    assert all(x.score >= 2 for x in hits)
+
+
+def test_phase5_4_review_queue_human_status_transition():
+    from app.models import (
+        LegalJurisdiction, LegalSource, LegalSourceDocument,
+        LegalSourceDocumentVersion, LegalProvision, LegalProvisionReviewCandidate
+    )
+    login()
+    with SessionLocal() as db:
+        j=LegalJurisdiction(code="TEST-JUR-54",name="Test 5.4",jurisdiction_type="fire_union")
+        db.add(j); db.flush()
+        s=LegalSource(
+            jurisdiction_id=j.jurisdiction_id,
+            source_code="test-source-54",
+            name="Test source 5.4",
+            source_type="official_regulation",
+            adapter_type="manual",
+            base_url="https://example.invalid/",
+        )
+        db.add(s); db.flush()
+        d=LegalSourceDocument(
+            legal_source_id=s.legal_source_id,
+            external_id="REG-54",
+            document_type="regulation",
+            title="テスト火災予防規程",
+        )
+        db.add(d); db.flush()
+        v=LegalSourceDocumentVersion(
+            legal_source_document_id=d.legal_source_document_id,
+            normalized_text="消防用設備等",
+            structured_content={},
+            sha256="e"*64,
+            structure_status="structured",
+            provision_count=1,
+        )
+        db.add(v); db.flush()
+        p=LegalProvision(
+            legal_source_document_version_id=v.legal_source_document_version_id,
+            provision_type="article",
+            provision_key="article:54",
+            sequence_no=1,
+            display_label="第五十四条",
+            body_text="消防用設備等に関するテスト",
+            content_sha256="f"*64,
+        )
+        db.add(p); db.flush()
+        q=LegalProvisionReviewCandidate(
+            legal_provision_id=p.legal_provision_id,
+            category="equipment_requirement",
+            relevance_score=7.25,
+            reasons=[{"scanner_version":"test","match":"消防用設備×1"}],
+            extraction_method="deterministic",
+            model_version="test",
+        )
+        db.add(q); db.commit()
+        qid=q.legal_provision_review_candidate_id
+
+    listed=client.get("/legal-review-queue",params={"category":"equipment_requirement","min_score":7})
+    assert listed.status_code==200
+    target=next(x for x in listed.json() if x["legal_provision_review_candidate_id"]==qid)
+    assert target["status"]=="pending"
+    assert target["document_title"]=="テスト火災予防規程"
+
+    reviewed=client.patch(f"/legal-review-queue/{qid}",json={
+        "expected_version":1,
+        "status":"reviewed"
+    })
+    assert reviewed.status_code==200
+    assert reviewed.json()["status"]=="reviewed"
+    assert reviewed.json()["version"]==2
+
+    stale=client.patch(f"/legal-review-queue/{qid}",json={
+        "expected_version":1,
+        "status":"ignored"
+    })
+    assert stale.status_code==409
