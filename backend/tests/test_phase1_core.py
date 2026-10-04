@@ -1505,3 +1505,20 @@ def test_phase5_4_relevance_scanner_rejects_generic_reporting_noise():
     categories={x.category for x in fire}
     assert "submission_requirement" in categories
     assert "fire_management" in categories
+
+
+def test_phase5_4_supplementary_provisions_are_retained_but_deprioritized():
+    from app.legal_priority import classify_provision_context
+    main=classify_provision_context("chapter:1/article:17/paragraph:1","paragraph")
+    assert main.context=="main"
+    assert main.score==0
+
+    supplementary=classify_provision_context(
+        "supplementary:true/article:2/paragraph:1","paragraph"
+    )
+    assert supplementary.context=="supplementary_transition"
+    assert supplementary.score < 0
+
+    notice=classify_provision_context("document_body:1","document_body")
+    assert notice.context=="document_body"
+    assert notice.score < 0
