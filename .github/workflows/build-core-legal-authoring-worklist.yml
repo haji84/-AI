@@ -163,6 +163,15 @@ jobs:
                   x["provision_key"],
               )
           )
+          lanes=cfg.get("authoring_lanes",{})
+          lane_items={}
+          for lane,definition in lanes.items():
+              categories=set(definition["categories"])
+              lane_items[lane]=[
+                  item for item in work
+                  if any(hit["category"] in categories for hit in item["hits"])
+              ]
+
           summary={
               "config_version":cfg["version"],
               "national_expected":len(national),
@@ -170,17 +179,24 @@ jobs:
               "oshima_expected":len(oshima),
               "oshima_found":len(found_oshima),
               "worklist_items":len(work),
+              "lane_counts":{lane:len(items) for lane,items in lane_items.items()},
               "inventory":sorted(inventory,key=lambda x:(x["scope"],x["title"])),
               "policy":cfg["policy"],
+              "authoring_lanes":lanes,
           }
           out=Path("_core/results")
           out.mkdir(parents=True,exist_ok=True)
           (out/"core-source-inventory.json").write_text(json.dumps(summary,ensure_ascii=False,indent=2),encoding="utf-8")
           (out/"core-rule-authoring-worklist.json").write_text(json.dumps(work,ensure_ascii=False,indent=2),encoding="utf-8")
+          for lane,items in lane_items.items():
+              (out/f"{lane}-worklist.json").write_text(
+                  json.dumps(items,ensure_ascii=False,indent=2),encoding="utf-8"
+              )
           print(json.dumps({
               "national_found":len(found_national),
               "oshima_found":len(found_oshima),
               "worklist_items":len(work),
+              "lane_counts":summary["lane_counts"],
               "top_documents":[
                   [x["title"],x["relevant_provisions"],x["category_counts"]]
                   for x in sorted(inventory,key=lambda x:-x["relevant_provisions"])[:10]
