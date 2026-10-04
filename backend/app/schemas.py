@@ -504,3 +504,67 @@ class RequirementEvaluationOut(BaseModel):
     results: list
     status: str
 
+class LegalJurisdictionCreate(BaseModel):
+    code: str = Field(min_length=1, max_length=150)
+    name: str = Field(min_length=1, max_length=300)
+    jurisdiction_type: Literal["national","prefecture","municipality","fire_union","fire_department","other"]
+    parent_jurisdiction_id: str | None = None
+    official_base_url: str | None = None
+
+class LegalJurisdictionOut(BaseModel):
+    jurisdiction_id: str
+    code: str
+    name: str
+    jurisdiction_type: str
+    parent_jurisdiction_id: str | None = None
+    official_base_url: str | None = None
+    active: bool
+
+class LegalProfileCreate(BaseModel):
+    code: str = Field(min_length=1, max_length=150)
+    name: str = Field(min_length=1, max_length=300)
+    fire_department_name: str | None = None
+
+class LegalProfileOut(BaseModel):
+    legal_profile_id: str
+    code: str
+    name: str
+    fire_department_name: str | None = None
+    active: bool
+
+class LegalProfileJurisdictionCreate(BaseModel):
+    jurisdiction_id: str
+    applicability: str = "applicable"
+    priority: int = 100
+
+class LegalSourceCreate(BaseModel):
+    legal_profile_id: str | None = None
+    jurisdiction_id: str
+    source_code: str = Field(min_length=1, max_length=180)
+    name: str = Field(min_length=1, max_length=300)
+    source_type: str
+    adapter_type: str
+    base_url: str
+    index_url: str | None = None
+    update_mode: Literal["online","bundle","manual"] = "online"
+    content_scope: str = "all"
+    sync_frequency: str = "daily"
+    trust_level: str = "official"
+    parser_config: dict = Field(default_factory=dict)
+
+class LegalSourceOut(BaseModel):
+    legal_source_id: str
+    legal_profile_id: str | None = None
+    jurisdiction_id: str
+    source_code: str
+    name: str
+    source_type: str
+    adapter_type: str
+    base_url: str
+    index_url: str | None = None
+    update_mode: str
+    content_scope: str
+    sync_frequency: str
+    trust_level: str
+    enabled: bool
+
