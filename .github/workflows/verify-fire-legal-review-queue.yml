@@ -1,0 +1,178 @@
+name: verify-fire-legal-review-queue
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/verify-fire-legal-review-queue.yml"
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: egov-national-laws-all-xml
+          path: _review/egov
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: haji84/-AI
+          run-id: 37240404083
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: oshima-fire-union-reiki-full-2025-04-01
+          path: _review/oshima
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: haji84/-AI
+          run-id: 37240040293
+
+      - name: Score structured legal corpora
+        env:
+          PYTHONPATH: backend
+        run: |
+          python - <<'PY'
+          import heapq, json, zipfile
+          from collections import Counter, defaultdict
+          from pathlib import Path
+          from app.legal_structure import parse_egov_xml, parse_regulation_html
+          from app.legal_relevance import SCANNER_VERSION, score_fire_service_relevance
+
+          ALLOWED_TYPES={
+              "article","paragraph","item","subitem1","subitem2","subitem3",
+              "subitem4","subitem5","subitem6","document_body"
+          }
+          TOP_N=50
+          MIN_SCORE=2.0
+
+          def new_stats():
+              return {
+                  "documents":0,
+                  "scored_provisions":0,
+                  "matched_provisions":0,
+                  "category_counts":Counter(),
+                  "document_counts":Counter(),
+                  "top":defaultdict(list),
+              }
+
+          def add(stats,title,row):
+              if row.provision_type not in ALLOWED_TYPES:
+                  return
+              stats["scored_provisions"]+=1
+              hits=score_fire_service_relevance(
+                  title=title,
+                  label=row.display_label,
+                  heading=row.heading_text,
+                  body=row.body_text,
+                  provision_type=row.provision_type,
+              )
+              hits=[h for h in hits if h.score>=MIN_SCORE]
+              if not hits:
+                  return
+              stats["matched_provisions"]+=1
+              stats["document_counts"][title]+=1
+              for h in hits:
+                  stats["category_counts"][h.category]+=1
+                  item=(
+                      h.score,
+                      title or "",
+                      row.display_label or row.provision_key,
+                      row.heading_text or "",
+                      (row.body_text or "")[:400],
+                      "; ".join(h.reasons),
+                  )
+                  heap=stats["top"][h.category]
+                  if len(heap)<TOP_N:
+                      heapq.heappush(heap,item)
+                  elif item[0]>heap[0][0]:
+                      heapq.heapreplace(heap,item)
+
+          egov=new_stats()
+          archives=list(Path("_review/egov").glob("*.zip"))
+          assert archives
+          archive=max(archives,key=lambda p:p.stat().st_size)
+          with zipfile.ZipFile(archive) as z:
+              names=[n for n in z.namelist() if n.lower().endswith(".xml") and not n.endswith("/")]
+              assert len(names)==10414
+              for name in names:
+                  rows=parse_egov_xml(z.read(name))
+                  title=name
+                  for row in rows:
+                      # The XML parser does not currently expose LawTitle on each provision.
+                      # Archive member is stable and keeps this scan non-authoritative.
+                      add(egov,title,row)
+                  egov["documents"]+=1
+
+          oshima=new_stats()
+          manifest=json.loads(Path("_review/oshima/manifest.json").read_text(encoding="utf-8"))
+          docs=manifest["documents"]
+          assert len(docs)==119
+          for item in docs:
+              p=Path("_review/oshima")/item["file"]
+              rows=parse_regulation_html(p.read_bytes(),item.get("content_type"))
+              title=item.get("title") or item["url"]
+              for row in rows:
+                  add(oshima,title,row)
+              oshima["documents"]+=1
+
+          def finalize(stats):
+              return {
+                  "documents":stats["documents"],
+                  "scored_provisions":stats["scored_provisions"],
+                  "matched_provisions":stats["matched_provisions"],
+                  "category_counts":dict(stats["category_counts"]),
+                  "top_documents":stats["document_counts"].most_common(50),
+                  "top_by_category":{
+                      cat:[
+                          {
+                              "score":x[0],
+                              "document":x[1],
+                              "label":x[2],
+                              "heading":x[3],
+                              "body_excerpt":x[4],
+                              "reasons":x[5],
+                          }
+                          for x in sorted(heap,reverse=True)
+                      ]
+                      for cat,heap in stats["top"].items()
+                  }
+              }
+
+          result={
+              "scanner_version":SCANNER_VERSION,
+              "min_score":MIN_SCORE,
+              "egov":finalize(egov),
+              "oshima_fire_union":finalize(oshima),
+              "policy":"relevance ranking only; no Rule conditions/outcomes are inferred",
+          }
+          out=Path("_review/results")
+          out.mkdir(parents=True,exist_ok=True)
+          (out/"fire-legal-review-queue-verification.json").write_text(
+              json.dumps(result,ensure_ascii=False,indent=2),encoding="utf-8"
+          )
+          print(json.dumps({
+              "scanner_version":SCANNER_VERSION,
+              "min_score":MIN_SCORE,
+              "egov_matched":result["egov"]["matched_provisions"],
+              "egov_categories":result["egov"]["category_counts"],
+              "oshima_matched":result["oshima_fire_union"]["matched_provisions"],
+              "oshima_categories":result["oshima_fire_union"]["category_counts"],
+          },ensure_ascii=False))
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fire-legal-review-queue-verification
+          path: _review/results/
+          retention-days: 90
+          if-no-files-found: error
