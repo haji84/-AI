@@ -175,3 +175,18 @@ Latest main project-checks at commit `9b0fae6b065b7ce923017d625fc950450590903e`:
 7. legally review and approve only verified Rules
 8. compare required documents/equipment against facility/submission/equipment records
 9. then continue Phase 6 drawing-analysis integration
+
+## Phase 5.2 verified structured legal corpus
+
+- e-Gov documents: 10,414 / failures 0 / zero structures 0
+- e-Gov structured provisions: 5,447,878
+- 大島地区消防組合 documents: 119 / failures 0 / zero structures 0
+- 大島地区消防組合 structured provisions: 26,898
+- exact Rule -> Provision citations implemented
+- structured-source Rule cannot be approved without a citation
+- changed/removed cited provisions feed impacted Rule candidates
+- article-less official documents use document_body fallback
+- legal document -> Version -> Provision search API implemented
+- full-corpus verification run: 37241690774 SUCCESS
+- backend regression at checkpoint: 46 passed
+
