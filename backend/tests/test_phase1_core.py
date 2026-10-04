@@ -1470,3 +1470,14 @@ def test_phase5_4_source_priority_lanes():
     normal=classify_source_priority("大島地区消防組合職員旅費規則")
     assert normal.lane=="normal"
     assert normal.score==0
+
+
+def test_phase5_4_browser_legal_review_entrypoint_exists():
+    from pathlib import Path
+    root=Path(__file__).resolve().parents[2]
+    ui=(root/"frontend"/"index.html").read_text(encoding="utf-8")
+    assert "法令レビュー" in ui
+    assert "openLegalReview" in ui
+    assert "/legal-review-queue" in ui
+    assert "national_core" in ui
+    assert "local_core" in ui
