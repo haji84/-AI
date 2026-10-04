@@ -334,7 +334,7 @@ async function loadLegalReview(){
       return '<div class="card">'+
         '<div class="row"><b class="grow">'+esc(x.document_title)+'</b>'+
         '<span class="pill">'+esc(laneLabel)+'</span><span class="pill">'+esc(catLabel)+'</span></div>'+
-        '<div class="muted">'+esc(label)+' ・ 関連度 '+esc(x.relevance_score)+' ・ Source優先 '+esc(x.source_priority_score)+' ・ 総合 '+esc(x.review_priority_score)+'</div>'+
+        '<div class="muted">'+esc(label)+' ・ 関連度 '+esc(x.relevance_score)+' ・ Source優先 '+esc(x.source_priority_score)+' ・ 文脈 '+esc(x.provision_context||'main')+' ('+esc(x.context_priority_score||0)+') ・ 総合 '+esc(x.review_priority_score)+'</div>'+
         '<div class="value">'+esc(body||'本文なし')+'</div>'+
         '<div class="muted">抽出根拠: '+esc(legalReasonText(x.reasons))+'</div>'+
         '<div class="row" style="margin-top:10px">'+actions+'</div>'+
