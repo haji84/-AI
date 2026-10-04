@@ -1,1 +1,5 @@
-The requested file reference is not currently visible. Use files.search or files.list to rediscover the file, then retry with a returned ref_id or file_id.
+@echo off
+setlocal
+cd /d C:\FireAI\backend
+call C:\FireAI\venv\Scripts\activate.bat
+uvicorn app.main:app --host 0.0.0.0 --port 8080 --workers 2
