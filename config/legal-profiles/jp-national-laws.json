@@ -1,0 +1,17 @@
+{
+  "profile_code": "jp-national-laws",
+  "profile_name": "日本国 法令",
+  "jurisdiction_code": "JP",
+  "jurisdiction_type": "national",
+  "official_base_url": "https://laws.e-gov.go.jp/",
+  "api_v2_base_url": "https://laws.e-gov.go.jp/api/2",
+  "bulk_download_url": "https://laws.e-gov.go.jp/bulkdownload",
+  "adapter_type": "egov_v2",
+  "content_scope": "all",
+  "trust_level": "official",
+  "update_mode": "online",
+  "sync_frequency": "daily",
+  "initial_bootstrap": "bulk_all_xml",
+  "incremental_update": "bulk_updated_laws_by_date",
+  "version_policy": "retain_all"
+}
