@@ -1030,3 +1030,17 @@ def test_phase5_2_structured_rule_requires_exact_citation_before_approval():
 
     citations=client.get(f"/legal-rules/versions/{rvid}/citations")
     assert citations.status_code==200 and len(citations.json())==1
+
+
+def test_phase5_2_articleless_notice_fallback():
+    from app.legal_structure import parse_regulation_html
+    html="""<html><body>
+    <h1>指定金融機関の指定について</h1>
+    <div>平成元年4月1日</div>
+    <div>地方自治法施行令第168条第2項の規定によって，次の金融機関を指定金融機関に指定する。</div>
+    <div>株式会社 鹿児島銀行</div>
+    </body></html>""".encode("utf-8")
+    rows=parse_regulation_html(html,"text/html; charset=utf-8")
+    assert len(rows)==1
+    assert rows[0].provision_type=="document_body"
+    assert "指定金融機関" in rows[0].body_text
