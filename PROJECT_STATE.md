@@ -1091,7 +1091,7 @@ Safety:
 
 ## Phase 6 consultation response package
 
-Implemented on branch `phase6-consultation-response-package`; CI verification pending:
+Implemented and CI-verified:
 - Migration 037 persists reviewed consultation response payload/SHA and review notes
 - one response package combines:
   - Human-confirmed occupancy classification
@@ -1117,6 +1117,12 @@ Implemented on branch `phase6-consultation-response-package`; CI verification pe
 - annotation/version, legal citation hash, Rule output, Coverage accepted-run IDs and evaluation date contribute to the current response evidence
 - E2E covers equipment-less drawing -> required add_candidate + room Marker -> partial response -> review blocked
 - E2E covers review_ready -> Human review -> Annotation version change -> review_stale -> Human re-review
+
+Verified checkpoint:
+- run: `37318496981` SUCCESS
+- backend pytest: 124 passed
+- Migration 037 parser smoke: PASS
+- frontend JavaScript syntax: PASS
 
 Safety:
 - a partial consultation result is never presented as a fully reviewed answer
