@@ -22,6 +22,21 @@ table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid #e4e8ec;
 .modalWrap{position:fixed;inset:0;background:rgba(22,30,38,.45);z-index:40;display:grid;place-items:center;padding:16px}.modal{background:#fff;width:min(1000px,96vw);max-height:92vh;overflow:auto;border-radius:14px;border:1px solid #ccd3da;box-shadow:0 18px 60px rgba(0,0,0,.2)}.modalHead{position:sticky;top:0;background:#fff;border-bottom:1px solid #e0e4e8;padding:14px 18px;display:flex;align-items:center;z-index:2}.modalBody{padding:18px}.modalFoot{position:sticky;bottom:0;background:#fff;border-top:1px solid #e0e4e8;padding:12px 18px;display:flex;justify-content:flex-end;gap:8px}
 .notice{border:1px solid #e0c47b;background:#fff9e8;padding:10px 12px;border-radius:9px;margin-bottom:10px}.conflict{border:1px solid #d49999;background:#fff4f4;padding:12px;border-radius:9px}.diffRow{display:grid;grid-template-columns:180px 1fr 1fr;gap:8px;border-bottom:1px solid #eadcdc;padding:6px 0;font-size:.85rem}.legacy{font-size:.83rem}.history{border-left:3px solid #ccd5df;padding:8px 0 8px 12px;margin:8px 0}.loginBox{max-width:520px;margin:10vh auto}.loginBox h1{margin-top:0}
 @media(max-width:900px){.shell{grid-template-columns:1fr}.sidebar{border-right:0;border-bottom:1px solid #d9dee5;max-height:45vh}.grid2,.grid3{grid-template-columns:1fr}.future{grid-template-columns:1fr}.diffRow{grid-template-columns:1fr}.main{padding:12px}}
+
+.drawingWorkspaceGrid{display:grid;grid-template-columns:minmax(420px,1.25fr) minmax(360px,.95fr);gap:12px;align-items:start}
+.drawingWorkspaceSide{display:grid;gap:10px}
+.drawingStage{position:relative;width:100%;border:1px solid #cbd3dc;border-radius:10px;overflow:hidden;background:#f6f8fa}
+.drawingStage img{display:block;width:100%;height:auto;user-select:none;-webkit-user-drag:none}
+.drawingStage object{display:block;width:100%;height:72vh;min-height:520px}
+.drawingOverlay{position:absolute;inset:0;width:100%;height:100%;pointer-events:auto}
+.drawingOverlay.editing{cursor:crosshair}
+.drawingRoomList{display:grid;gap:6px;max-height:220px;overflow:auto}
+.drawingRoomRow{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;padding:8px;border:1px solid #e1e6eb;border-radius:8px;background:#fff}
+.drawingCoverage{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.drawingCoverage>div{padding:8px;border:1px solid #e1e6eb;border-radius:8px}
+.drawingResponseActions{display:grid;gap:6px}
+.drawingWorkspaceTabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+@media(max-width:980px){.drawingWorkspaceGrid{grid-template-columns:1fr}.drawingCoverage{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -145,6 +160,13 @@ table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid #e4e8ec;
 </div>
 </div>
 
+<div id="drawingWorkspaceModal" class="modalWrap hidden" style="z-index:68">
+<div class="modal" style="width:min(1480px,99vw);max-height:96vh">
+<div class="modalHead"><b>図面 Human Annotation・設備相談</b><span class="grow"></span><button class="btn" onclick="closeDrawingWorkspace()">閉じる</button></div>
+<div class="modalBody" style="overflow:auto"><div id="drawingWorkspaceBody"></div></div>
+</div>
+</div>
+
 
 <input id="fireMediaFileInput" class="hidden" type="file" onchange="uploadFireMediaFile(event)">
 
@@ -185,7 +207,7 @@ table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid #e4e8ec;
 
 <script>
 const $=id=>document.getElementById(id);
-const state={offset:0,limit:50,total:0,selected:null,detail:null,mode:null,draft:null,drawings:[],drawingAnalysisId:null,drawingDetail:null};
+const state={offset:0,limit:50,total:0,selected:null,detail:null,mode:null,draft:null,drawings:[],drawingAnalysisId:null,drawingDetail:null,drawingWorkspace:null,drawingDoc:null,drawingAnnotations:[],drawingAnnotation:null,drawingConsultations:[],drawingConsultation:null,drawingResponse:null,drawingPageWidth:0,drawingPageHeight:0,drawingDrawPoints:[],drawingDrawActive:false};
 const legalReviewState={offset:0,limit:50,total:0};
 const fireState={caseId:null,detail:null,mediaType:null};
 const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
@@ -1113,8 +1135,9 @@ function renderDrawingAnalysis(d){
   if(a.status!=='reviewed'){
     reviewButton='<button class="btn" onclick="reviewDrawingAnalysis(\''+a.drawing_analysis_id+'\','+a.version+')">解析レビュー完了</button>';
   }
+  const workspaceButton='<button class="btn primary" onclick="openDrawingWorkspace(\''+a.drawing_analysis_id+'\')">Human Annotation・設備相談</button>';
   $('drawingReviewBody').innerHTML=
-    '<div class="row"><b class="grow">'+esc(drawingStatusLabel(a.status))+'</b><span class="pill">'+esc(a.analysis_method)+'</span>'+reviewButton+'</div>'+
+    '<div class="row"><b class="grow">'+esc(drawingStatusLabel(a.status))+'</b><span class="pill">'+esc(a.analysis_method)+'</span>'+workspaceButton+reviewButton+'</div>'+
     '<div class="notice">設備候補の昇格後も verification_status=ai_candidate です。別途、現地または正式書類で確認して初めてverifiedにできます。</div>'+
     '<div class="grid2"><div class="card"><div class="sectionTitle">設備候補</div>'+eqHtml+'</div><div class="card"><div class="sectionTitle">対象物情報候補</div>'+factHtml+'</div></div>'+
     elementHtml;
@@ -1166,6 +1189,312 @@ async function reviewDrawingAnalysis(id,version){
     await selectFacility(state.selected.building_id);
     await openDrawingAnalysis(id);
   }catch(e){alert('解析レビューを完了できません: '+e.message)}
+}
+
+
+function drawingWorkspaceStatusLabel(v){
+  return ({draft:'下書き',reviewed:'Human確認済み',rejected:'却下',classification_pending:'項判定待ち',classification_candidate:'項候補あり',classified:'項確定済み',equipment_evaluated:'設備判定済み'})[v]||v||'－';
+}
+function drawingAnswerLabel(k){
+  return ({primary_use:'主用途',has_sleeping_use:'宿泊用途',has_food_service:'飲食提供',public_access:'一般利用',mixed_use:'複合用途',windowless_floor_count:'無窓階数',structure:'構造',above_ground_floors:'地上階',basement_floors:'地下階',building_area:'建築面積㎡',total_floor_area:'延べ面積㎡',occupancy_total:'収容人員',employee_total:'従業員数'})[k]||k;
+}
+function closeDrawingWorkspace(){
+  $('drawingWorkspaceModal').classList.add('hidden');
+  state.drawingWorkspace=null;state.drawingDoc=null;state.drawingAnnotations=[];state.drawingAnnotation=null;
+  state.drawingConsultations=[];state.drawingConsultation=null;state.drawingResponse=null;
+  state.drawingDrawPoints=[];state.drawingDrawActive=false;state.drawingPageWidth=0;state.drawingPageHeight=0;
+}
+async function openDrawingWorkspace(id){
+  try{
+    const analysis=await api('/drawing-analyses/'+id);
+    const [doc,annotations,consultations]=await Promise.all([
+      api('/documents/'+analysis.analysis.document_id),
+      api('/drawing-analyses/'+id+'/annotations'),
+      api('/drawing-analyses/'+id+'/consultations')
+    ]);
+    state.drawingWorkspace=analysis;
+    state.drawingDoc=doc;
+    state.drawingAnnotations=annotations||[];
+    const currentAnnId=state.drawingAnnotation?.drawing_annotation_set_id;
+    state.drawingAnnotation=(annotations||[]).find(x=>x.drawing_annotation_set_id===currentAnnId)
+      ||(annotations||[]).find(x=>x.status==='draft')
+      ||(annotations||[]).find(x=>x.status==='reviewed')
+      ||annotations?.[0]||null;
+    state.drawingConsultations=consultations||[];
+    const currentConsultId=state.drawingConsultation?.drawing_consultation_id;
+    state.drawingConsultation=(consultations||[]).find(x=>x.drawing_consultation_id===currentConsultId)
+      ||consultations?.[0]||null;
+    state.drawingResponse=null;
+    if(state.drawingConsultation){
+      try{state.drawingResponse=await api('/drawing-consultations/'+state.drawingConsultation.drawing_consultation_id+'/response')}
+      catch{}
+    }
+    $('drawingWorkspaceModal').classList.remove('hidden');
+    renderDrawingWorkspace();
+  }catch(e){alert('図面相談ワークスペースを開けません: '+e.message)}
+}
+async function refreshDrawingWorkspace(){
+  const id=state.drawingWorkspace?.analysis?.drawing_analysis_id||state.drawingAnalysisId;
+  if(id)await openDrawingWorkspace(id);
+}
+function selectDrawingAnnotation(id){
+  state.drawingAnnotation=(state.drawingAnnotations||[]).find(x=>x.drawing_annotation_set_id===id)||null;
+  state.drawingDrawPoints=[];state.drawingDrawActive=false;renderDrawingWorkspace();
+}
+function selectDrawingConsultation(id){
+  state.drawingConsultation=(state.drawingConsultations||[]).find(x=>x.drawing_consultation_id===id)||null;
+  state.drawingResponse=null;
+  renderDrawingWorkspace();
+  if(state.drawingConsultation)loadDrawingWorkspaceResponse();
+}
+function drawingWorkspaceImageLoaded(img){
+  state.drawingPageWidth=img.naturalWidth||state.drawingPageWidth||1024;
+  state.drawingPageHeight=img.naturalHeight||state.drawingPageHeight||768;
+  renderDrawingOverlay();
+}
+function drawingGeometryPoints(g){
+  if(!g||typeof g!=='object')return[];
+  if(Array.isArray(g.points))return g.points.map(p=>Array.isArray(p)?[Number(p[0]),Number(p[1])]:[Number(p.x),Number(p.y)]).filter(p=>Number.isFinite(p[0])&&Number.isFinite(p[1]));
+  if(Array.isArray(g.bbox)&&g.bbox.length===4){const [x,y,w,h]=g.bbox.map(Number);return[[x,y],[x+w,y],[x+w,y+h],[x,y+h]]}
+  if(['x','y','width','height'].every(k=>g[k]!==undefined)){const x=Number(g.x),y=Number(g.y),w=Number(g.width),h=Number(g.height);return[[x,y],[x+w,y],[x+w,y+h],[x,y+h]]}
+  if(['x1','y1','x2','y2'].every(k=>g[k]!==undefined)){return[[Number(g.x1),Number(g.y1)],[Number(g.x2),Number(g.y1)],[Number(g.x2),Number(g.y2)],[Number(g.x1),Number(g.y2)]]}
+  return[];
+}
+function drawingWorkspaceDimensions(){
+  const dims=state.drawingAnnotation?.page_dimensions||{};
+  const one=dims['1']||dims[1]||{};
+  return {w:Number(one.width)||state.drawingPageWidth||1024,h:Number(one.height)||state.drawingPageHeight||768};
+}
+function renderDrawingOverlay(){
+  const svg=$('drawingOverlay');if(!svg)return;
+  const {w,h}=drawingWorkspaceDimensions();svg.setAttribute('viewBox','0 0 '+w+' '+h);
+  svg.classList.toggle('editing',!!state.drawingDrawActive);
+  const elements=state.drawingAnnotation?.payload?.elements||[];
+  let html='';
+  elements.forEach((x,i)=>{
+    if(x.element_type!=='room')return;
+    const pts=drawingGeometryPoints(x.geometry);
+    if(pts.length<3)return;
+    const pointText=pts.map(p=>p[0]+','+p[1]).join(' ');
+    const cx=pts.reduce((a,p)=>a+p[0],0)/pts.length,cy=pts.reduce((a,p)=>a+p[1],0)/pts.length;
+    html+='<polygon points="'+esc(pointText)+'" fill="rgba(24,59,91,.12)" stroke="#183b5b" stroke-width="2"/>';
+    html+='<text x="'+cx+'" y="'+cy+'" text-anchor="middle" font-size="14" fill="#183b5b">'+esc(x.label||x.extracted_data?.use_name||('Room '+(i+1)))+'</text>';
+  });
+  const markers=state.drawingResponse?.overlay_markers||[];
+  markers.forEach(m=>{
+    const x=Number(m.geometry?.x),y=Number(m.geometry?.y);if(!Number.isFinite(x)||!Number.isFinite(y))return;
+    html+='<circle cx="'+x+'" cy="'+y+'" r="8" fill="#fff" stroke="#8c2323" stroke-width="3"/>';
+    html+='<text x="'+(x+11)+'" y="'+(y-8)+'" font-size="13" fill="#8c2323">'+esc(m.equipment_type_code||'設備')+'</text>';
+  });
+  if(state.drawingDrawPoints.length){
+    const pt=state.drawingDrawPoints.map(p=>p[0]+','+p[1]).join(' ');
+    html+='<polyline points="'+esc(pt)+'" fill="rgba(140,35,35,.08)" stroke="#8c2323" stroke-width="2" stroke-dasharray="6 4"/>';
+    state.drawingDrawPoints.forEach(p=>{html+='<circle cx="'+p[0]+'" cy="'+p[1]+'" r="4" fill="#8c2323"/>'});
+  }
+  svg.innerHTML=html;
+}
+function drawingOverlayClick(ev){
+  if(!state.drawingDrawActive)return;
+  const svg=ev.currentTarget,rect=svg.getBoundingClientRect(),dim=drawingWorkspaceDimensions();
+  const x=Math.max(0,Math.min(dim.w,(ev.clientX-rect.left)/rect.width*dim.w));
+  const y=Math.max(0,Math.min(dim.h,(ev.clientY-rect.top)/rect.height*dim.h));
+  state.drawingDrawPoints.push([Math.round(x*10)/10,Math.round(y*10)/10]);renderDrawingOverlay();
+}
+function startDrawingRoom(){
+  if(!state.drawingAnnotation||state.drawingAnnotation.status!=='draft')return;
+  state.drawingDrawActive=true;state.drawingDrawPoints=[];renderDrawingOverlay();
+}
+function undoDrawingPoint(){state.drawingDrawPoints.pop();renderDrawingOverlay()}
+function cancelDrawingRoom(){state.drawingDrawActive=false;state.drawingDrawPoints=[];renderDrawingOverlay()}
+function finishDrawingRoom(){
+  if(state.drawingDrawPoints.length<3){alert('部屋は3点以上で囲ってください。');return}
+  const label=$('humanRoomLabel')?.value.trim()||'';const use=$('humanRoomUse')?.value.trim()||'';
+  if(!label&&!use){alert('部屋名または部屋用途を入力してください。');return}
+  const floorRaw=$('humanRoomFloor')?.value.trim()||'';
+  const floor=floorRaw===''?null:Number(floorRaw);
+  const ann=state.drawingAnnotation;ann.payload=ann.payload||{};ann.payload.elements=ann.payload.elements||[];
+  ann.payload.elements.push({client_ref:'room-human-'+Date.now(),page_no:1,element_type:'room',label:label||null,floor_number:Number.isFinite(floor)?floor:null,geometry:{points:state.drawingDrawPoints.map(p=>[p[0],p[1]])},extracted_data:{use_name:use||null}});
+  const dim=drawingWorkspaceDimensions();ann.page_dimensions=ann.page_dimensions||{};ann.page_dimensions['1']={width:dim.w,height:dim.h};
+  state.drawingDrawActive=false;state.drawingDrawPoints=[];renderDrawingWorkspace();
+}
+function removeDrawingRoom(index){
+  if(!state.drawingAnnotation||state.drawingAnnotation.status!=='draft')return;
+  state.drawingAnnotation.payload.elements.splice(index,1);renderDrawingWorkspace();
+}
+async function seedDrawingAnnotation(){
+  try{
+    const a=state.drawingWorkspace.analysis,dim=drawingWorkspaceDimensions();
+    const row=await api('/drawing-analyses/'+a.drawing_analysis_id+'/annotations/seed',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_analysis_version:a.version,coordinate_space:'pixel',page_dimensions:{'1':{width:dim.w,height:dim.h}}})});
+    state.drawingAnnotation=row;await refreshDrawingWorkspace();
+  }catch(e){alert('Annotation下書きを作れません: '+e.message)}
+}
+async function createEmptyDrawingAnnotation(){
+  try{
+    const a=state.drawingWorkspace.analysis,dim=drawingWorkspaceDimensions();
+    const row=await api('/drawing-analyses/'+a.drawing_analysis_id+'/annotations',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({coordinate_space:'pixel',page_dimensions:{'1':{width:dim.w,height:dim.h}},payload:{elements:[],equipment_candidates:[],fact_candidates:[]},source_method:'manual'})});
+    state.drawingAnnotation=row;await refreshDrawingWorkspace();
+  }catch(e){alert('空のAnnotationを作れません: '+e.message)}
+}
+async function saveDrawingAnnotation(showMessage=true){
+  const ann=state.drawingAnnotation;if(!ann||ann.status!=='draft')return ann;
+  try{
+    const row=await api('/drawing-annotations/'+ann.drawing_annotation_set_id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:ann.version,coordinate_space:ann.coordinate_space||'pixel',page_dimensions:ann.page_dimensions||{},payload:ann.payload||{elements:[],equipment_candidates:[],fact_candidates:[]}})});
+    state.drawingAnnotation=row;
+    if(showMessage)alert('Human Annotation下書きを保存しました。');
+    return row;
+  }catch(e){alert('Human Annotationを保存できません: '+e.message);throw e}
+}
+async function reviewDrawingAnnotation(){
+  try{
+    const ann=await saveDrawingAnnotation(false);if(!ann)return;
+    await api('/drawing-annotations/'+ann.drawing_annotation_set_id+'/review',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:ann.version,status:'reviewed'})});
+    await refreshDrawingWorkspace();
+  }catch(e){if(!e?.message?.includes('Annotationを保存'))alert('Human Annotationを確認済みにできません: '+e.message)}
+}
+function drawingAnswerInput(key,snapshot={},editable=true){
+  const v=snapshot[key];
+  const bools=['has_sleeping_use','has_food_service','public_access','mixed_use'];
+  if(bools.includes(key)){
+    const s=v===true?'true':v===false?'false':'';
+    return '<div class="field"><label>'+esc(drawingAnswerLabel(key))+'</label><select id="consultAns_'+key+'" '+(editable?'':'disabled')+'><option value="" '+(s===''?'selected':'')+'>未確認</option><option value="true" '+(s==='true'?'selected':'')+'>はい</option><option value="false" '+(s==='false'?'selected':'')+'>いいえ</option></select></div>';
+  }
+  const numeric=['windowless_floor_count','above_ground_floors','basement_floors','building_area','total_floor_area','occupancy_total','employee_total'].includes(key);
+  return '<div class="field"><label>'+esc(drawingAnswerLabel(key))+'</label><input id="consultAns_'+key+'" '+(numeric?'type="number" step="any"':'type="text"')+' value="'+esc(v??'')+'" '+(editable?'':'disabled')+'></div>';
+}
+function collectDrawingConsultationAnswers(){
+  const keys=['primary_use','has_sleeping_use','has_food_service','public_access','mixed_use','windowless_floor_count','structure','above_ground_floors','basement_floors','building_area','total_floor_area','occupancy_total','employee_total'];
+  const out={};const bools=new Set(['has_sleeping_use','has_food_service','public_access','mixed_use']);const nums=new Set(['windowless_floor_count','above_ground_floors','basement_floors','building_area','total_floor_area','occupancy_total','employee_total']);
+  keys.forEach(k=>{const el=$('consultAns_'+k);if(!el||el.value==='')return;if(bools.has(k))out[k]=el.value==='true';else if(nums.has(k))out[k]=Number(el.value);else out[k]=el.value.trim()});
+  return out;
+}
+async function createDrawingConsultation(){
+  const ann=state.drawingAnnotation;if(!ann||ann.status!=='reviewed'){alert('先にHuman Annotationを確認済みにしてください。');return}
+  try{
+    const row=await api('/drawing-analyses/'+state.drawingWorkspace.analysis.drawing_analysis_id+'/consultations',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({drawing_annotation_set_id:ann.drawing_annotation_set_id,answers:collectDrawingConsultationAnswers(),notes:'図面相談UIから作成'})});
+    state.drawingConsultation=row;await refreshDrawingWorkspace();
+  }catch(e){alert('図面相談を開始できません: '+e.message)}
+}
+async function saveDrawingConsultationAnswers(){
+  const row=state.drawingConsultation;if(!row)return null;
+  if(!['draft','classification_pending','classification_candidate'].includes(row.status))return row;
+  const updated=await api('/drawing-consultations/'+row.drawing_consultation_id+'/answers',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:row.version,answers:collectDrawingConsultationAnswers()})});
+  state.drawingConsultation=updated;return updated;
+}
+async function classifyDrawingConsultation(){
+  try{
+    let row=await saveDrawingConsultationAnswers();if(!row)return;
+    row=await api('/drawing-consultations/'+row.drawing_consultation_id+'/classify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:row.version})});
+    state.drawingConsultation=row;state.drawingResponse=null;renderDrawingWorkspace();
+  }catch(e){alert('項候補を判定できません: '+e.message)}
+}
+async function confirmDrawingClassification(index){
+  const row=state.drawingConsultation,candidate=row?.classification_results?.[index];if(!candidate)return;
+  const o=candidate.outcome||{};
+  if(!confirm((o.classification_code||'')+' '+(o.classification_label||'')+' で項を確定しますか？'))return;
+  try{
+    const updated=await api('/drawing-consultations/'+row.drawing_consultation_id+'/classification/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:row.version,classification_code:o.classification_code,classification_label:o.classification_label,candidate_rule_version_id:candidate.legal_rule_version_id,review_note:'図面相談UIでHuman確認'})});
+    state.drawingConsultation=updated;renderDrawingWorkspace();
+  }catch(e){alert('項を確定できません: '+e.message)}
+}
+async function manualConfirmDrawingClassification(){
+  const row=state.drawingConsultation;if(!row)return;
+  const code=(prompt('令別表第一の項コードを入力してください 例：（三）ロ','')||'').trim();if(!code)return;
+  const label=(prompt('用途名称を入力してください','')||'').trim();if(!label)return;
+  const note=(prompt('手動確定の根拠・確認内容を入力してください','')||'').trim();if(!note){alert('手動確定には確認メモが必要です。');return}
+  try{
+    state.drawingConsultation=await api('/drawing-consultations/'+row.drawing_consultation_id+'/classification/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:row.version,classification_code:code,classification_label:label,review_note:note})});
+    renderDrawingWorkspace();
+  }catch(e){alert('項を手動確定できません: '+e.message)}
+}
+async function evaluateDrawingConsultationEquipment(){
+  const row=state.drawingConsultation;if(!row)return;
+  try{
+    state.drawingConsultation=await api('/drawing-consultations/'+row.drawing_consultation_id+'/equipment/evaluate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:row.version})});
+    await loadDrawingWorkspaceResponse();
+  }catch(e){alert('必要設備を判定できません: '+e.message)}
+}
+async function loadDrawingWorkspaceResponse(){
+  const row=state.drawingConsultation;if(!row)return;
+  try{state.drawingResponse=await api('/drawing-consultations/'+row.drawing_consultation_id+'/response');renderDrawingWorkspace()}
+  catch(e){state.drawingResponse=null;renderDrawingWorkspace()}
+}
+async function reviewDrawingWorkspaceResponse(){
+  const row=state.drawingConsultation,r=state.drawingResponse;if(!row||!r)return;
+  if(!r.reviewable){alert('この回答はまだHuman Review可能な状態ではありません。');return}
+  if(!confirm('現在の項判定・必要設備・配置候補・根拠をHuman確認済みにしますか？'))return;
+  try{
+    const reviewed=await api('/drawing-consultations/'+row.drawing_consultation_id+'/response/review',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:row.version,review_notes:'図面相談UIでHuman Review'})});
+    state.drawingResponse=reviewed;await refreshDrawingWorkspace();
+  }catch(e){alert('相談回答を確認済みにできません: '+e.message)}
+}
+function drawingCoverageHtml(cov={}){
+  const item=(label,x)=>'<div><b>'+esc(label)+'</b><div style="margin-top:4px"><span class="pill '+(x?.complete?'active':'')+'">'+(x?.complete?'完了':'未完了')+'</span></div>'+(x?.blockers?.length?'<div class="muted">'+x.blockers.map(esc).join('<br>')+'</div>':'')+'</div>';
+  return '<div class="drawingCoverage">'+item('項判定',cov.occupancy_classification)+item('必要設備',cov.equipment_requirement)+item('配置Rule',cov.equipment_placement)+'</div>';
+}
+function renderDrawingResponse(r){
+  if(!r)return '<div class="muted">設備判定後に相談回答を生成できます。</div>';
+  const stateLabel={blocked:'回答保留',partial:'部分回答',review_ready:'Human Review可能',reviewed:'Human確認済み',review_stale:'再確認必要'}[r.answer_state]||r.answer_state;
+  const actions=(r.equipment_actions||[]).map(x=>'<div class="history"><b>'+esc(x.equipment_type_name||x.equipment_type_code)+'</b> <span class="pill">'+esc(x.action)+'</span>'+(x.placement?'<div class="muted">配置: '+esc(x.placement.state)+'</div>':'')+'</div>').join('')||'<div class="muted">必要設備候補なし</div>';
+  const questions=(r.unresolved_questions||[]).map(x=>'<li>'+esc(drawingAnswerLabel(x.field))+'：'+esc(x.reason||'確認が必要です')+'</li>').join('');
+  const citations=(r.citations||[]).map(x=>'<div class="muted">'+esc(x.domain||'')+' / '+esc(x.display_label||x.provision_key||'根拠条文')+(x.rule_code?' / '+esc(x.rule_code):'')+'</div>').join('');
+  return '<div class="card"><div class="row"><div class="sectionTitle grow">相談回答</div><span class="pill '+(r.answer_state==='reviewed'?'active':'')+'">'+esc(stateLabel)+'</span></div>'+
+    drawingCoverageHtml(r.coverage||{})+
+    '<div style="margin-top:10px"><b>項判定</b><div class="value">'+esc((r.classification?.code||'未確定')+' '+(r.classification?.label||''))+'</div></div>'+
+    '<div style="margin-top:10px"><b>設備アクション</b><div class="drawingResponseActions">'+actions+'</div></div>'+
+    (questions?'<div class="notice"><b>未確認事項</b><ul>'+questions+'</ul></div>':'')+
+    ((r.blockers||[]).length?'<div class="notice"><b>回答Blocker</b><div>'+r.blockers.map(esc).join('<br>')+'</div></div>':'')+
+    (citations?'<details><summary>根拠条文</summary>'+citations+'</details>':'')+
+    '<div class="muted" style="margin-top:8px">Response SHA-256: '+esc(r.response_sha256)+'</div>'+
+    (r.reviewable?'<button class="btn primary" style="margin-top:8px" onclick="reviewDrawingWorkspaceResponse()">この回答をHuman確認済みにする</button>':'')+
+    '</div>';
+}
+function renderDrawingWorkspace(){
+  const a=state.drawingWorkspace?.analysis,doc=state.drawingDoc,ann=state.drawingAnnotation,consult=state.drawingConsultation;
+  if(!a||!doc){$('drawingWorkspaceBody').innerHTML='<div class="empty">読み込み中</div>';return}
+  const isImage=(doc.mime_type||'').startsWith('image/'),isPdf=(doc.mime_type||'')==='application/pdf'||/\.pdf$/i.test(doc.original_filename||'');
+  const annSelect=state.drawingAnnotations.length?'<select onchange="selectDrawingAnnotation(this.value)">'+state.drawingAnnotations.map(x=>'<option value="'+esc(x.drawing_annotation_set_id)+'" '+(ann?.drawing_annotation_set_id===x.drawing_annotation_set_id?'selected':'')+'>'+esc(drawingWorkspaceStatusLabel(x.status))+' / v'+esc(x.version)+' / '+esc(x.source_method)+'</option>').join('')+'</select>':'';
+  let preview='';
+  if(isImage){
+    preview='<div class="drawingStage"><img id="drawingWorkspaceImage" src="/documents/'+encodeURIComponent(doc.document_id)+'/download" onload="drawingWorkspaceImageLoaded(this)"><svg id="drawingOverlay" class="drawingOverlay" onclick="drawingOverlayClick(event)"></svg></div>';
+  }else if(isPdf){
+    preview='<div class="drawingStage"><object data="/documents/'+encodeURIComponent(doc.document_id)+'/download" type="application/pdf"></object></div><div class="notice">PDF原本は閲覧できます。画面上での直接ポリゴンAnnotationは画像原本で利用できます。AI Seedの部屋ラベル・用途は右側で保持できます。</div>';
+  }else{
+    preview='<div class="empty">この形式は画面プレビュー対象外です。原本を別タブで確認してください。</div>';
+  }
+  let annHtml='';
+  if(!ann){
+    annHtml='<div class="card"><div class="sectionTitle">Human Annotation</div><div class="notice">AI解析結果は正解データではありません。下書きを作り、部屋位置・部屋名・用途をHuman確認してください。</div><div class="row"><button class="btn primary" onclick="seedDrawingAnnotation()">AI解析から下書き</button><button class="btn" onclick="createEmptyDrawingAnnotation()">空の下書き</button></div></div>';
+  }else{
+    const rooms=(ann.payload?.elements||[]).map((x,i)=>({x,i})).filter(z=>z.x.element_type==='room');
+    const roomList=rooms.length?rooms.map(z=>'<div class="drawingRoomRow"><div><b>'+esc(z.x.label||z.x.extracted_data?.use_name||'名称未設定')+'</b><div class="muted">用途 '+esc(z.x.extracted_data?.use_name||'－')+' / 階 '+esc(z.x.floor_number??'－')+'</div></div>'+(ann.status==='draft'?'<button class="btn danger" onclick="removeDrawingRoom('+z.i+')">削除</button>':'')+'</div>').join(''):'<div class="muted">部屋Annotationなし</div>';
+    annHtml='<div class="card"><div class="row"><div class="sectionTitle grow">Human Annotation</div><span class="pill '+(ann.status==='reviewed'?'active':'')+'">'+esc(drawingWorkspaceStatusLabel(ann.status))+'</span></div>'+
+      '<div class="row">'+annSelect+'</div>'+
+      (ann.status==='draft'?'<div class="grid3" style="margin-top:8px"><div class="field"><label>部屋名</label><input id="humanRoomLabel" placeholder="例：主寝室"></div><div class="field"><label>用途コード</label><input id="humanRoomUse" placeholder="例：bedroom"></div><div class="field"><label>階</label><input id="humanRoomFloor" type="number" value="1"></div></div>'+
+      (isImage?'<div class="row" style="margin-top:8px"><button class="btn primary" onclick="startDrawingRoom()">部屋を囲う</button><button class="btn" onclick="undoDrawingPoint()">1点戻す</button><button class="btn" onclick="finishDrawingRoom()">この部屋を確定</button><button class="btn" onclick="cancelDrawingRoom()">描画取消</button></div><div class="muted">「部屋を囲う」→原図の角を順にクリック→「この部屋を確定」。</div>':'')+
+      '<div class="drawingRoomList" style="margin-top:8px">'+roomList+'</div><div class="row" style="margin-top:8px"><button class="btn" onclick="saveDrawingAnnotation()">下書き保存</button><button class="btn primary" onclick="reviewDrawingAnnotation()">Human確認済みにする</button></div>':
+      '<div class="drawingRoomList" style="margin-top:8px">'+roomList+'</div><div class="notice">確認済みAnnotationはBenchmark Referenceと相談入力に使用できます。</div>')+
+      '</div>';
+  }
+  const reviewedAnn=ann?.status==='reviewed';
+  const consultSelect=state.drawingConsultations.length?'<select onchange="selectDrawingConsultation(this.value)">'+state.drawingConsultations.map(x=>'<option value="'+esc(x.drawing_consultation_id)+'" '+(consult?.drawing_consultation_id===x.drawing_consultation_id?'selected':'')+'>'+esc(drawingWorkspaceStatusLabel(x.status))+' / v'+esc(x.version)+'</option>').join('')+'</select>':'';
+  const snap=consult?.input_snapshot||{};const editable=!consult||['draft','classification_pending','classification_candidate'].includes(consult.status);
+  const answerFields=['primary_use','has_sleeping_use','has_food_service','public_access','mixed_use','windowless_floor_count','structure','above_ground_floors','basement_floors','building_area','total_floor_area','occupancy_total','employee_total'].map(k=>drawingAnswerInput(k,snap,editable)).join('');
+  let consultHtml='<div class="card"><div class="row"><div class="sectionTitle grow">設備相談</div>'+consultSelect+'</div>';
+  if(!reviewedAnn)consultHtml+='<div class="notice">設備相談を始めるにはHuman Annotationを確認済みにしてください。</div>';
+  else if(!consult)consultHtml+='<div class="grid3">'+answerFields+'</div><button class="btn primary" style="margin-top:8px" onclick="createDrawingConsultation()">この図面で相談開始</button>';
+  else{
+    const candidates=(consult.classification_results||[]).map((x,i)=>{const o=x.outcome||{};return '<div class="history"><b>'+esc(o.classification_code||'')+' '+esc(o.classification_label||'')+'</b><div class="muted">'+esc(x.rule_code||'')+'</div>'+(!consult.confirmed_classification_code?'<button class="btn primary" onclick="confirmDrawingClassification('+i+')">この項で確定</button>':'')+'</div>'}).join('');
+    const missing=(consult.missing_information||[]).filter(x=>!String(x.field||'').includes('rule_coverage')).map(x=>'<li>'+esc(drawingAnswerLabel(x.field))+'：'+esc(x.reason||'要確認')+'</li>').join('');
+    consultHtml+='<div class="grid3">'+answerFields+'</div>'+
+      (editable?'<div class="row" style="margin-top:8px"><button class="btn primary" onclick="classifyDrawingConsultation()">回答保存→項候補判定</button><button class="btn" onclick="manualConfirmDrawingClassification()">項を手動確定</button></div>':'')+
+      (missing?'<div class="notice"><b>不足情報</b><ul>'+missing+'</ul></div>':'')+
+      (candidates?'<div style="margin-top:8px"><b>項候補</b>'+candidates+'</div>':'')+
+      (consult.confirmed_classification_code?'<div class="notice"><b>Human確定項：</b>'+esc(consult.confirmed_classification_code)+' '+esc(consult.confirmed_classification_label||'')+'</div><button class="btn primary" onclick="evaluateDrawingConsultationEquipment()">必要設備・配置候補を再評価</button>':'');
+  }
+  consultHtml+='</div>';
+  const responseHtml=renderDrawingResponse(state.drawingResponse);
+  $('drawingWorkspaceBody').innerHTML='<div class="drawingWorkspaceGrid"><div><div class="row" style="margin-bottom:8px"><b class="grow">'+esc(doc.original_filename)+'</b><a class="btn" target="_blank" href="/documents/'+encodeURIComponent(doc.document_id)+'/download">原本を開く</a></div>'+preview+'</div><div class="drawingWorkspaceSide">'+annHtml+consultHtml+responseHtml+'</div></div>';
+  setTimeout(renderDrawingOverlay,0);
 }
 
 async function quickAddEquipment(){
