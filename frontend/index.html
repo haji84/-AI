@@ -60,6 +60,7 @@ table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid #e4e8ec;
 <div class="modalHead"><b>法令レビュー</b><span class="grow"></span><button class="btn" onclick="closeLegalReview()">閉じる</button></div>
 <div class="modalBody">
 <div class="notice">自動抽出は関連候補の優先順位付けだけです。Rule条件・結論は職員確認後に作成し、正式承認は別Gateです。</div>
+<div id="legalCoverageStats" class="grid2" style="margin-bottom:10px"></div>
 <div class="row" style="margin-bottom:10px"><button class="btn" onclick="showLegalQueue()">条文候補</button><button class="btn" onclick="showLegalDrafts()">Rule草案</button></div>
 <div id="legalQueueControls" class="row" style="margin-bottom:10px">
 <select id="legalReviewStatus" onchange="loadLegalReview(0)">
@@ -342,10 +343,24 @@ async function loadLegalReview(offset=legalReviewState.offset){
   if(minPriority){p.set('min_review_priority',minPriority);summaryParams.set('min_review_priority',minPriority)}
 
   try{
-    const [rows,summary]=await Promise.all([
+    const [rows,summary,coverage]=await Promise.all([
       api('/legal-review-queue?'+p),
-      api('/legal-review-queue/summary?'+summaryParams)
+      api('/legal-review-queue/summary?'+summaryParams),
+      api('/legal-rules/coverage')
     ]);
+    const sumStates=obj=>Object.values(obj||{}).reduce((a,b)=>a+Number(b||0),0);
+    const renderCoverageDomain=(domain,label)=>{
+      const queue=coverage.review_queue_by_domain_status?.[domain]||{};
+      const drafts=coverage.draft_candidates_by_domain_status?.[domain]||{};
+      const versions=coverage.rule_versions_by_domain_status?.[domain]||{};
+      const approved=coverage.approved_rule_count_by_domain?.[domain]||0;
+      return '<div class="card" style="margin:0"><b>'+esc(label)+'</b>'+
+        '<div class="muted">条文候補 '+sumStates(queue)+'件 ・ Rule草案 '+sumStates(drafts)+'件 ・ Rule Version '+sumStates(versions)+'件 ・ 承認済Rule '+esc(approved)+'件</div></div>';
+    };
+    $('legalCoverageStats').innerHTML=
+      renderCoverageDomain('equipment_requirement','必要設備')+
+      renderCoverageDomain('submission_requirement','必要届出')+
+      '<div class="muted" style="grid-column:1/-1">※ 件数は作業進捗です。法令の網羅率を意味しません。</div>';
     const statusTotal=status?(summary.by_status?.[status]||0):summary.total;
     legalReviewState.total=statusTotal;
     const page=Math.floor(legalReviewState.offset/legalReviewState.limit)+1;
@@ -387,6 +402,7 @@ async function loadLegalReview(offset=legalReviewState.offset){
   }catch(e){
     $('legalReviewSummary').textContent='';
     $('legalReviewStats').innerHTML='';
+    $('legalCoverageStats').innerHTML='';
     $('legalReviewPageInfo').textContent='';
     box.innerHTML='<div class="conflict">法令レビュー候補を取得できません: '+esc(e.message)+'</div>';
   }
