@@ -1733,3 +1733,17 @@ def test_phase5_5_review_queue_summary_search_and_priority_filter():
     })
     assert too_high.status_code==200
     assert too_high.json()==[]
+
+
+def test_phase5_6_rule_coverage_endpoint_is_counts_not_percentage():
+    login()
+    r=client.get("/legal-rules/coverage")
+    assert r.status_code==200
+    body=r.json()
+    assert "equipment_requirement" in body["review_queue_by_domain_status"]
+    assert "submission_requirement" in body["review_queue_by_domain_status"]
+    assert "equipment_requirement" in body["draft_candidates_by_domain_status"]
+    assert "submission_requirement" in body["rule_versions_by_domain_status"]
+    assert isinstance(body["approved_rule_count_by_domain"]["equipment_requirement"], int)
+    assert isinstance(body["exact_citation_count"], int)
+    assert "not a percentage" in body["note"]
