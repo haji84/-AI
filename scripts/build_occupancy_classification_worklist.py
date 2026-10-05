@@ -89,6 +89,8 @@ def _table_rows(node: ET.Element) -> list[dict]:
         sentences = _direct_column_sentences(columns[1])
         if not item_label or not sentences:
             continue
+        if not (item_label.startswith("（") and item_label.endswith("）")):
+            continue
         rows.append(
             {
                 "item_label": item_label,
