@@ -7,6 +7,8 @@ from sqlalchemy.orm import Session
 from ..audit import write_audit
 from ..authz import require_permission
 from ..db import get_db
+from ..legal_structure import PARSER_VERSION
+from ..legal_structure_service import structure_legal_version
 from ..models import (
     LegalJurisdiction,
     LegalProfile,
@@ -26,6 +28,8 @@ from ..schemas import (
     LegalSourceDocumentOut,
     LegalSourceDocumentVersionOut,
     LegalSourceOut,
+    LegalStructureRebuildRequest,
+    LegalStructureRebuildOut,
 )
 
 router = APIRouter(prefix="/legal-sources", tags=["legal-sources"])
@@ -299,3 +303,61 @@ def list_legal_document_versions(
         .order_by(LegalSourceDocumentVersion.retrieved_at.desc())
     ).all()
     return [_document_version_out(x) for x in rows]
+
+
+@router.post(
+    "/document-versions/{version_id}/restructure",
+    response_model=LegalStructureRebuildOut,
+)
+def restructure_legal_document_version(
+    version_id: str,
+    payload: LegalStructureRebuildRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("legal_source.manage")),
+):
+    version = db.get(LegalSourceDocumentVersion, version_id)
+    if not version:
+        raise HTTPException(status_code=404, detail="legal source document version not found")
+
+    if payload.expected_sha256 and version.sha256 != payload.expected_sha256:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": "legal source version SHA-256 does not match expected value",
+                "current_sha256": version.sha256,
+            },
+        )
+
+    already_current = (
+        version.structure_status == "structured"
+        and version.structure_parser_version == PARSER_VERSION
+    )
+    if already_current and not payload.force:
+        return LegalStructureRebuildOut(
+            changed=False,
+            result={
+                "version_id": version.legal_source_document_version_id,
+                "status": version.structure_status,
+                "parser_version": version.structure_parser_version,
+                "count": version.provision_count or 0,
+                "note": "already structured with current parser",
+            },
+        )
+
+    before = {
+        "structure_status": version.structure_status,
+        "structure_parser_version": version.structure_parser_version,
+        "provision_count": version.provision_count,
+    }
+    result = structure_legal_version(db, version)
+    write_audit(
+        db,
+        user_id=user.user_id,
+        action="legal_source.restructure",
+        entity_type="legal_source_document_version",
+        entity_id=version.legal_source_document_version_id,
+        before=before,
+        after=result,
+    )
+    db.commit()
+    return LegalStructureRebuildOut(changed=True, result=result)
