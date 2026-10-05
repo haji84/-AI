@@ -1416,3 +1416,26 @@ class FireEvidenceComparisonOut(BaseModel):
     model_version: str | None = None
     status: str
     version: int
+
+
+class UnifiedSearchHitOut(BaseModel):
+    module: str
+    source_type: str
+    source_id: str
+    title: str
+    snippet: str
+    score: float
+    building_id: str | None = None
+    parent_id: str | None = None
+    occurred_at: str | None = None
+    required_permission: str
+    navigation: dict = Field(default_factory=dict)
+    evidence: dict = Field(default_factory=dict)
+
+class UnifiedSearchResponse(BaseModel):
+    query: str
+    hits: list[UnifiedSearchHitOut] = Field(default_factory=list)
+    searched_modules: list[str] = Field(default_factory=list)
+    skipped_modules: list[str] = Field(default_factory=list)
+    total_hits: int = 0
+    note: str
