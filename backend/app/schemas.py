@@ -1288,3 +1288,26 @@ class FireReportAIManifest(BaseModel):
     structured_content: dict = Field(default_factory=dict)
     evidence_refs: list[dict] = Field(default_factory=list)
     payload_metadata: dict = Field(default_factory=dict)
+
+
+class FireReportExportCreate(BaseModel):
+    expected_report_version: int = Field(ge=1)
+
+class FireReportExportVerify(BaseModel):
+    expected_case_version: int = Field(ge=1)
+
+class FireReportExportOut(BaseModel):
+    fire_report_export_id: str
+    fire_report_draft_id: str
+    form_template_id: str
+    template_document_id: str
+    template_sha256: str
+    report_draft_version: int
+    request_sha256: str
+    output_format: str
+    field_values: dict
+    render_manifest: dict
+    output_document_id: str | None = None
+    status: str
+    error_detail: str | None = None
+    created_at: str
