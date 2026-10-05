@@ -2069,7 +2069,7 @@ def test_phase6_drawing_candidate_requires_human_review_before_equipment_promoti
     })
     assert analysis.status_code==201
     aid=analysis.json()["drawing_analysis_id"]
-    assert analysis.json()["status"]=="analyzed"
+    assert analysis.json()["status"]=="pending"
 
     element=client.post(f"/drawing-analyses/{aid}/elements",json={
         "page_no":1,
