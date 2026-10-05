@@ -15,6 +15,7 @@ from ..models import (
     Document,
     Facility,
     FireCauseCandidate,
+    FireEvidenceSnapshot,
     FireInvestigationAIManifest,
     FireInvestigationCase,
     FireInvestigationMedia,
@@ -30,6 +31,8 @@ from ..schemas import (
     FireAIManifestIngestOut,
     FireCauseCandidateCreate,
     FireCauseCandidateOut,
+    FireEvidenceSnapshotCreate,
+    FireEvidenceSnapshotOut,
     FireCauseCandidateReview,
     FireInvestigationCaseCreate,
     FireInvestigationCaseDetailOut,
@@ -42,6 +45,7 @@ from ..schemas import (
     FirePhotoAnnotationCreate,
     FirePhotoAnnotationOut,
     FirePhotoAnnotationReview,
+    FireReportAIManifest,
     FireReportDraftApprove,
     FireReportDraftCreate,
     FireReportDraftOut,
@@ -238,11 +242,60 @@ def _report_out(row: FireReportDraft) -> FireReportDraftOut:
         narrative_text=row.narrative_text,
         structured_content=row.structured_content or {},
         evidence_refs=row.evidence_refs or [],
+        fire_evidence_snapshot_id=row.fire_evidence_snapshot_id,
+        source_manifest_id=row.source_manifest_id,
         ai_generated=row.ai_generated,
         model_version=row.model_version,
         status=row.status,
         version=row.version,
     )
+
+
+def _evidence_snapshot_out(row: FireEvidenceSnapshot) -> FireEvidenceSnapshotOut:
+    return FireEvidenceSnapshotOut(
+        fire_evidence_snapshot_id=row.fire_evidence_snapshot_id,
+        fire_investigation_case_id=row.fire_investigation_case_id,
+        case_version=row.case_version,
+        snapshot_sha256=row.snapshot_sha256,
+        photo_annotation_ids=row.photo_annotation_ids or [],
+        transcript_segment_ids=row.transcript_segment_ids or [],
+        statement_draft_ids=row.statement_draft_ids or [],
+        timeline_event_ids=row.timeline_event_ids or [],
+        official_cause_candidate_id=row.official_cause_candidate_id,
+        media_document_hashes=row.media_document_hashes or {},
+        metadata=row.snapshot_metadata or {},
+        created_at=row.created_at.isoformat(),
+    )
+
+
+def _snapshot_ref_set(row: FireEvidenceSnapshot) -> dict[str, set[str]]:
+    return {
+        "photo_annotation": set(row.photo_annotation_ids or []),
+        "transcript_segment": set(row.transcript_segment_ids or []),
+        "statement": set(row.statement_draft_ids or []),
+        "timeline_event": set(row.timeline_event_ids or []),
+        "official_cause": ({row.official_cause_candidate_id} if row.official_cause_candidate_id else set()),
+    }
+
+
+def _snapshot_default_refs(row: FireEvidenceSnapshot) -> list[dict]:
+    out: list[dict] = []
+    for ref_type, ids in _snapshot_ref_set(row).items():
+        for ref_id in sorted(ids):
+            out.append({"type": ref_type, "id": ref_id})
+    return out
+
+
+def _validate_report_evidence_refs(row: FireEvidenceSnapshot, refs: list[dict]) -> None:
+    allowed = _snapshot_ref_set(row)
+    for ref in refs:
+        ref_type = ref.get("type")
+        ref_id = ref.get("id")
+        if ref_type not in allowed or not ref_id or ref_id not in allowed[ref_type]:
+            raise HTTPException(
+                status_code=422,
+                detail=f"report evidence reference is not present in snapshot: {ref_type}:{ref_id}",
+            )
 
 
 def _case_detail(db: Session, row: FireInvestigationCase) -> FireInvestigationCaseDetailOut:
