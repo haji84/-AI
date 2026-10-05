@@ -298,6 +298,31 @@ def _validate_report_evidence_refs(row: FireEvidenceSnapshot, refs: list[dict]) 
             )
 
 
+def _validate_report_template(
+    db: Session,
+    *,
+    case: FireInvestigationCase,
+    form_template_id: str | None,
+) -> FormTemplate | None:
+    if not form_template_id:
+        return None
+    template = db.get(FormTemplate, form_template_id)
+    if not template:
+        raise HTTPException(status_code=422, detail="form_template_id not found")
+    if template.status != "active":
+        raise HTTPException(status_code=409, detail="form template is not active")
+    target_date = (
+        case.occurred_at.date()
+        if case.occurred_at
+        else datetime.now(timezone.utc).date()
+    )
+    if template.effective_from and template.effective_from > target_date:
+        raise HTTPException(status_code=409, detail="form template is not yet effective for this case date")
+    if template.effective_to and template.effective_to < target_date:
+        raise HTTPException(status_code=409, detail="form template was expired for this case date")
+    return template
+
+
 def _case_detail(db: Session, row: FireInvestigationCase) -> FireInvestigationCaseDetailOut:
     media = db.scalars(
         select(FireInvestigationMedia)
@@ -1224,6 +1249,267 @@ def approve_official_cause(
     )
     db.commit()
     return _case_out(row)
+
+
+@router.post(
+    "/{case_id}/evidence-snapshots",
+    response_model=FireEvidenceSnapshotOut,
+    status_code=201,
+)
+def create_evidence_snapshot(
+    case_id: str,
+    payload: FireEvidenceSnapshotCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("fire_investigation.review")),
+):
+    case = _require_case(db, case_id)
+
+    accepted_media = db.scalars(
+        select(FireInvestigationMedia).where(
+            FireInvestigationMedia.fire_investigation_case_id == case_id,
+            FireInvestigationMedia.review_status == "accepted",
+        )
+    ).all()
+    media_ids = [x.fire_investigation_media_id for x in accepted_media]
+
+    photo_ids = list(db.scalars(
+        select(FirePhotoAnnotation.fire_photo_annotation_id)
+        .where(
+            FirePhotoAnnotation.fire_investigation_media_id.in_(media_ids) if media_ids else False,
+            FirePhotoAnnotation.status == "accepted",
+        )
+        .order_by(FirePhotoAnnotation.fire_photo_annotation_id)
+    ).all()) if media_ids else []
+
+    transcript_ids = list(db.scalars(
+        select(FireTranscriptSegment.fire_transcript_segment_id)
+        .where(
+            FireTranscriptSegment.fire_investigation_media_id.in_(media_ids) if media_ids else False,
+            FireTranscriptSegment.review_status == "accepted",
+        )
+        .order_by(FireTranscriptSegment.fire_transcript_segment_id)
+    ).all()) if media_ids else []
+
+    statement_ids = list(db.scalars(
+        select(FireStatementDraft.fire_statement_draft_id)
+        .where(
+            FireStatementDraft.fire_investigation_case_id == case_id,
+            FireStatementDraft.status == "reviewed",
+        )
+        .order_by(FireStatementDraft.fire_statement_draft_id)
+    ).all())
+
+    timeline_ids = list(db.scalars(
+        select(FireTimelineEvent.fire_timeline_event_id)
+        .where(
+            FireTimelineEvent.fire_investigation_case_id == case_id,
+            FireTimelineEvent.status == "confirmed",
+        )
+        .order_by(FireTimelineEvent.fire_timeline_event_id)
+    ).all())
+
+    official_cause_id = case.official_cause_candidate_id
+
+    if not (photo_ids or transcript_ids or statement_ids or timeline_ids or official_cause_id):
+        raise HTTPException(
+            status_code=409,
+            detail="no Human-accepted/reviewed/confirmed evidence is available for a snapshot",
+        )
+
+    media_document_hashes: dict[str, dict] = {}
+    for media in accepted_media:
+        doc = db.get(Document, media.document_id)
+        if doc:
+            media_document_hashes[media.fire_investigation_media_id] = {
+                "document_id": doc.document_id,
+                "sha256": doc.sha256,
+                "media_type": media.media_type,
+            }
+
+    canonical = {
+        "case_id": case_id,
+        "case_version": case.version,
+        "photo_annotation_ids": sorted(photo_ids),
+        "transcript_segment_ids": sorted(transcript_ids),
+        "statement_draft_ids": sorted(statement_ids),
+        "timeline_event_ids": sorted(timeline_ids),
+        "official_cause_candidate_id": official_cause_id,
+        "media_document_hashes": {
+            key: media_document_hashes[key]
+            for key in sorted(media_document_hashes)
+        },
+    }
+    digest = hashlib.sha256(
+        json.dumps(
+            canonical,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+
+    existing = db.scalar(
+        select(FireEvidenceSnapshot).where(
+            FireEvidenceSnapshot.fire_investigation_case_id == case_id,
+            FireEvidenceSnapshot.snapshot_sha256 == digest,
+        )
+    )
+    if existing:
+        return _evidence_snapshot_out(existing)
+
+    row = FireEvidenceSnapshot(
+        fire_investigation_case_id=case_id,
+        case_version=case.version,
+        snapshot_sha256=digest,
+        photo_annotation_ids=sorted(photo_ids),
+        transcript_segment_ids=sorted(transcript_ids),
+        statement_draft_ids=sorted(statement_ids),
+        timeline_event_ids=sorted(timeline_ids),
+        official_cause_candidate_id=official_cause_id,
+        media_document_hashes=media_document_hashes,
+        snapshot_metadata=payload.metadata,
+        created_by=user.user_id,
+    )
+    db.add(row)
+    db.flush()
+    write_audit(
+        db,
+        user_id=user.user_id,
+        action="fire_investigation.evidence_snapshot.create",
+        entity_type="fire_evidence_snapshot",
+        entity_id=row.fire_evidence_snapshot_id,
+        after={
+            "case_id": case_id,
+            "case_version": case.version,
+            "snapshot_sha256": digest,
+            "photo_annotations": len(photo_ids),
+            "transcript_segments": len(transcript_ids),
+            "statements": len(statement_ids),
+            "timeline_events": len(timeline_ids),
+            "official_cause": bool(official_cause_id),
+        },
+    )
+    db.commit()
+    return _evidence_snapshot_out(row)
+
+
+@router.get("/{case_id}/evidence-snapshots", response_model=list[FireEvidenceSnapshotOut])
+def list_evidence_snapshots(
+    case_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("fire_investigation.read")),
+):
+    _require_case(db, case_id)
+    rows = db.scalars(
+        select(FireEvidenceSnapshot)
+        .where(FireEvidenceSnapshot.fire_investigation_case_id == case_id)
+        .order_by(FireEvidenceSnapshot.created_at.desc())
+    ).all()
+    return [_evidence_snapshot_out(x) for x in rows]
+
+
+@router.post(
+    "/{case_id}/report-ai-manifest",
+    response_model=FireAIManifestIngestOut,
+)
+def ingest_report_ai_manifest(
+    case_id: str,
+    payload: FireReportAIManifest,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("fire_investigation.update")),
+):
+    case = _require_case(db, case_id)
+    snapshot = db.get(FireEvidenceSnapshot, payload.evidence_snapshot_id)
+    if not snapshot or snapshot.fire_investigation_case_id != case_id:
+        raise HTTPException(status_code=422, detail="evidence snapshot does not belong to case")
+    if snapshot.case_version != case.version:
+        raise HTTPException(
+            status_code=409,
+            detail="evidence snapshot is stale because the case version has changed; create a new snapshot",
+        )
+
+    _validate_report_template(
+        db,
+        case=case,
+        form_template_id=payload.form_template_id,
+    )
+
+    refs = payload.evidence_refs or _snapshot_default_refs(snapshot)
+    _validate_report_evidence_refs(snapshot, refs)
+
+    digest = _manifest_hash(payload)
+    scope_key = f"case:{case_id}:snapshot:{snapshot.fire_evidence_snapshot_id}"
+    existing = _existing_manifest(
+        db,
+        scope_key=scope_key,
+        manifest_type="report_draft",
+        manifest_sha256=digest,
+    )
+    if existing:
+        ids = list(db.scalars(
+            select(FireReportDraft.fire_report_draft_id)
+            .where(FireReportDraft.source_manifest_id == existing.fire_investigation_ai_manifest_id)
+            .order_by(FireReportDraft.created_at)
+        ).all())
+        return _manifest_out(existing, created=False, derived_ids=ids)
+
+    manifest = FireInvestigationAIManifest(
+        fire_investigation_case_id=case_id,
+        scope_key=scope_key,
+        manifest_type="report_draft",
+        manifest_sha256=digest,
+        model_version=payload.model_version,
+        payload_metadata={
+            **(payload.payload_metadata or {}),
+            "evidence_snapshot_id": snapshot.fire_evidence_snapshot_id,
+            "evidence_snapshot_sha256": snapshot.snapshot_sha256,
+            "report_type": payload.report_type,
+            "form_template_id": payload.form_template_id,
+        },
+        created_by=user.user_id,
+    )
+    db.add(manifest)
+    db.flush()
+
+    report = FireReportDraft(
+        fire_investigation_case_id=case_id,
+        report_type=payload.report_type,
+        form_template_id=payload.form_template_id,
+        narrative_text=payload.narrative_text,
+        structured_content=payload.structured_content,
+        evidence_refs=refs,
+        fire_evidence_snapshot_id=snapshot.fire_evidence_snapshot_id,
+        source_manifest_id=manifest.fire_investigation_ai_manifest_id,
+        ai_generated=True,
+        model_version=payload.model_version,
+        status="draft",
+        created_by=user.user_id,
+    )
+    db.add(report)
+    db.flush()
+
+    write_audit(
+        db,
+        user_id=user.user_id,
+        action="fire_investigation.report_ai_manifest.ingest",
+        entity_type="fire_investigation_ai_manifest",
+        entity_id=manifest.fire_investigation_ai_manifest_id,
+        after={
+            "case_id": case_id,
+            "evidence_snapshot_id": snapshot.fire_evidence_snapshot_id,
+            "report_draft_id": report.fire_report_draft_id,
+            "report_type": payload.report_type,
+            "form_template_id": payload.form_template_id,
+        },
+        ai_used=True,
+        ai_model_version=payload.model_version,
+    )
+    db.commit()
+    return _manifest_out(
+        manifest,
+        created=True,
+        derived_ids=[report.fire_report_draft_id],
+    )
 
 
 @router.post("/{case_id}/report-drafts", response_model=FireReportDraftOut, status_code=201)
