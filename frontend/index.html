@@ -589,7 +589,14 @@ function renderFireCase(d){
       '<button class="btn" onclick="analyzeFirePhoto(\''+m.fire_investigation_media_id+'\')">写真解析</button> <button class="btn" onclick="showFirePhotoProfile(\''+m.fire_investigation_media_id+'\')">メタデータ</button> <button class="btn" onclick="showFirePhotoEvidence(\''+m.fire_investigation_media_id+'\')">AI注釈</button>':
       m.media_type==='audio'?'<button class="btn" onclick="showFireTranscript(\''+m.fire_investigation_media_id+'\')">文字起こし</button>':'')+'</td></tr>').join('')+
     '</tbody></table></div>':'<div class="muted">証拠原本なし</div>';
-  const statementHtml=statements.length?statements.map(x=>'<div class="history"><b>'+esc(x.person_label||'人物未設定')+'</b> <span class="pill">'+esc(x.status)+'</span><div class="value">'+esc(x.draft_text)+'</div>'+(x.status==='draft'?'<button class="btn" onclick="reviewFireStatement(\''+x.fire_statement_draft_id+'\','+x.version+',\'reviewed\')">レビュー済み</button> <button class="btn" onclick="reviewFireStatement(\''+x.fire_statement_draft_id+'\','+x.version+',\'rejected\')">却下</button>':'')+'</div>').join(''):'<div class="muted">供述Draftなし</div>';
+  const statementHtml=statements.length?statements.map(x=>{
+    const uncertainty=x.source_uncertainty_markers||[];
+    return '<div class="history"><b>'+esc(x.person_label||'人物未設定')+'</b> <span class="pill">'+esc(x.status)+'</span>'+
+      (uncertainty.length?'<span class="pill">曖昧表現あり</span>':'')+
+      '<div class="value">'+esc(x.draft_text)+'</div>'+
+      (uncertainty.length?'<div class="notice">原文字起こしの曖昧表現: '+esc(uncertainty.join(' / '))+(x.uncertainty_reviewed?' ・ 確認済み':' ・ 未確認')+'</div>':'')+
+      (x.status==='draft'?'<button class="btn" onclick="reviewFireStatement(\''+x.fire_statement_draft_id+'\','+x.version+',\'reviewed\','+(uncertainty.length?'true':'false')+')">レビュー済み</button> <button class="btn" onclick="reviewFireStatement(\''+x.fire_statement_draft_id+'\','+x.version+',\'rejected\',false)">却下</button>':'')+'</div>';
+  }).join(''):'<div class="muted">供述Draftなし</div>';
   const timelineHtml=timeline.length?timeline.map(x=>'<div class="history"><b>'+esc(x.title)+'</b> <span class="pill">'+esc(x.status)+'</span><div class="muted">'+esc(x.event_time?formatDate(x.event_time):x.event_time_text||'時刻未確定')+'</div><div>'+esc(x.description||'')+'</div>'+(x.status==='candidate'?'<button class="btn" onclick="reviewFireTimeline(\''+x.fire_timeline_event_id+'\','+x.version+',\'confirmed\')">確認済み</button> <button class="btn" onclick="reviewFireTimeline(\''+x.fire_timeline_event_id+'\','+x.version+',\'rejected\')">却下</button>':'')+'</div>').join(''):'<div class="muted">タイムライン候補なし</div>';
   const causeHtml=causes.length?causes.map(x=>'<div class="history"><b>'+esc(x.cause_category||'原因候補')+'</b> <span class="pill">'+esc(x.status)+'</span><div class="value">'+esc(x.cause_text)+'</div><div class="muted">信頼度 '+esc(x.confidence===null||x.confidence===undefined?'－':Math.round(x.confidence*100)+'%')+' ・ '+esc(x.extraction_method)+'</div><div class="row" style="margin-top:8px">'+fireCauseActions(x,c.version)+'</div></div>').join(''):'<div class="muted">原因候補なし</div>';
   const reportHtml=reports.length?reports.map(x=>'<div class="history"><b>'+esc(x.report_type)+'</b> <span class="pill">'+esc(x.status)+'</span>'+(x.ai_generated?'<span class="pill">AI Draft</span>':'')+'<div class="value">'+esc(x.narrative_text||'本文未入力')+'</div>'+(x.form_template_id?'<div class="muted">FormTemplate '+esc(x.form_template_id)+'</div>':'')+(x.fire_evidence_snapshot_id?'<div class="muted">Evidence Snapshot '+esc(x.fire_evidence_snapshot_id)+'</div>':'')+(x.source_manifest_id?'<div class="muted">AI Manifest '+esc(x.source_manifest_id)+'</div>':'')+'<div class="row" style="margin-top:8px">'+fireReportActions(x,c.version)+'</div><div id="fireReportExports-'+esc(x.fire_report_draft_id)+'" class="muted" style="margin-top:8px"></div></div>').join(''):'<div class="muted">報告Draftなし</div>';
@@ -780,11 +787,63 @@ async function showFirePhotoEvidence(mediaId){
       (rows.length?rows.map(x=>'<div class="history"><span class="pill">'+esc(x.status)+'</span> '+esc(x.description||'説明なし')+'<div class="muted">'+esc((x.tags||[]).join(' / '))+'</div>'+(x.status==='pending'?'<button class="btn primary" onclick="reviewFirePhotoAnnotation(\''+x.fire_photo_annotation_id+'\','+x.version+',\'accepted\')">承認</button> <button class="btn" onclick="reviewFirePhotoAnnotation(\''+x.fire_photo_annotation_id+'\','+x.version+',\'rejected\')">却下</button>':'')+'</div>').join(''):'<div class="muted">AI注釈なし</div>')+'</div>';
   }catch(e){alert('写真注釈を取得できません: '+e.message)}
 }
+async function promptFireTranscriptSearch(){
+  if(!fireState.caseId)return;
+  const q=prompt('文字起こし検索語（例: 煙 1時）');
+  if(!q)return;
+  try{
+    const rows=await api('/fire-investigations/'+fireState.caseId+'/transcript-search?'+new URLSearchParams({q,accepted_only:'true',limit:'100'}));
+    $('fireEvidencePanel').innerHTML='<div class="card"><div class="sectionTitle">文字起こし検索「'+esc(q)+'」</div>'+
+      (rows.length?rows.map(x=>{
+        const s=x.segment,markers=s.uncertainty_markers||[];
+        return '<div class="history"><b>'+esc(s.speaker_label||'話者未設定')+'</b> <span class="pill">一致 '+esc(x.search_score)+'</span>'+
+          (markers.length?'<span class="pill">曖昧表現あり</span>':'')+
+          '<div class="value">'+esc(s.text)+'</div>'+
+          '<div class="muted">'+esc(s.start_ms??'－')+'ms - '+esc(s.end_ms??'－')+'ms ・ Media '+esc(x.media.fire_investigation_media_id)+'</div>'+
+          (markers.length?'<div class="notice">'+esc(markers.map(m=>m.text).join(' / '))+'</div>':'')+'</div>';
+      }).join(''):'<div class="muted">Human承認済み文字起こしに一致なし</div>')+'</div>';
+  }catch(e){alert('文字起こし検索できません: '+e.message)}
+}
+function fireEvidenceRefLabel(ref){
+  if(!ref)return '証拠不明';
+  if(ref.type==='transcript_segment')return (ref.speaker_label||'話者未設定')+' '+(ref.start_ms??'－')+'-'+(ref.end_ms??'－')+'ms: '+(ref.text||'');
+  if(ref.type==='statement')return (ref.person_label||'人物未設定')+': '+(ref.text||'');
+  if(ref.type==='timeline_event')return (ref.event_time||ref.event_time_text||'時刻未確定')+' '+(ref.title||'')+' '+(ref.description||'');
+  return JSON.stringify(ref);
+}
+async function showFireEvidenceComparisons(){
+  if(!fireState.caseId)return;
+  try{
+    const rows=await api('/fire-investigations/'+fireState.caseId+'/evidence-comparisons');
+    $('fireEvidencePanel').innerHTML='<div class="card"><div class="sectionTitle">証拠の矛盾・整合候補</div><div class="notice">AIが見つけた比較候補であり、どちらが正しいかを自動確定しません。</div>'+
+      (rows.length?rows.map(x=>'<div class="history"><b>'+esc(x.issue_type)+'</b> <span class="pill">'+esc(x.status)+'</span>'+
+        '<div class="value">'+esc(x.summary)+'</div>'+
+        '<div class="grid2"><div><b>A</b><div class="muted">'+esc(fireEvidenceRefLabel(x.left_ref))+'</div></div><div><b>B</b><div class="muted">'+esc(fireEvidenceRefLabel(x.right_ref))+'</div></div></div>'+
+        '<div class="muted">信頼度 '+esc(x.confidence===null||x.confidence===undefined?'－':Math.round(x.confidence*100)+'%')+' ・ '+esc(x.model_version||x.extraction_method)+'</div>'+
+        (x.status==='pending'?'<button class="btn primary" onclick="reviewFireEvidenceComparison(\''+x.fire_evidence_comparison_candidate_id+'\','+x.version+',\'accepted\')">レビューで採用</button> <button class="btn" onclick="reviewFireEvidenceComparison(\''+x.fire_evidence_comparison_candidate_id+'\','+x.version+',\'rejected\')">却下</button>':'')+'</div>').join(''):'<div class="muted">比較候補なし</div>')+'</div>';
+  }catch(e){alert('矛盾・整合候補を取得できません: '+e.message)}
+}
+async function reviewFireEvidenceComparison(id,version,next){
+  try{
+    await api('/fire-investigations/evidence-comparisons/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:version,status:next})});
+    await showFireEvidenceComparisons();
+  }catch(e){alert('比較候補を更新できません: '+e.message)}
+}
+
 async function showFireTranscript(mediaId){
   try{
     const rows=await api('/fire-investigations/media/'+mediaId+'/transcript-segments');
     $('fireEvidencePanel').innerHTML='<div class="card"><div class="sectionTitle">音声文字起こし</div>'+
-      (rows.length?rows.map(x=>'<div class="history"><b>'+esc(x.speaker_label||'話者未設定')+'</b> <span class="pill">'+esc(x.review_status)+'</span><div class="value">'+esc(x.text)+'</div><div class="muted">'+esc(x.start_ms??'－')+'ms - '+esc(x.end_ms??'－')+'ms</div>'+(x.review_status==='pending'?'<button class="btn primary" onclick="reviewFireTranscript(\''+x.fire_transcript_segment_id+'\','+x.version+',\'accepted\')">承認</button> <button class="btn" onclick="reviewFireTranscript(\''+x.fire_transcript_segment_id+'\','+x.version+',\'rejected\')">却下</button>':'')+'</div>').join(''):'<div class="muted">文字起こしなし</div>')+'</div>';
+      (rows.length?rows.map(x=>{
+        const markers=x.uncertainty_markers||[];
+        return '<div class="history"><b>'+esc(x.speaker_label||'話者未設定')+'</b> <span class="pill">'+esc(x.review_status)+'</span>'+
+          (markers.length?'<span class="pill">曖昧表現 '+esc(markers.length)+'</span>':'')+
+          '<div class="value">'+esc(x.text)+'</div>'+
+          '<div class="muted">'+esc(x.start_ms??'－')+'ms - '+esc(x.end_ms??'－')+'ms'+
+          (x.text_sha256?' ・ Text SHA '+esc(x.text_sha256.slice(0,12)):'')+'</div>'+
+          (markers.length?'<div class="notice">曖昧表現: '+esc(markers.map(m=>m.text).join(' / '))+'</div>':'')+
+          (x.review_status==='pending'?'<button class="btn primary" onclick="reviewFireTranscript(\''+x.fire_transcript_segment_id+'\','+x.version+',\'accepted\')">承認</button> <button class="btn" onclick="reviewFireTranscript(\''+x.fire_transcript_segment_id+'\','+x.version+',\'rejected\')">却下</button>':'')+'</div>';
+      }).join(''):'<div class="muted">文字起こしなし</div>')+'</div>';
   }catch(e){alert('文字起こしを取得できません: '+e.message)}
 }
 async function reviewFirePhotoAnnotation(id,version,next){
@@ -795,9 +854,16 @@ async function reviewFireTranscript(id,version,next){
   try{await api('/fire-investigations/transcript-segments/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:version,status:next})});await openFireCase(fireState.caseId)}
   catch(e){alert('文字起こしを更新できません: '+e.message)}
 }
-async function reviewFireStatement(id,version,next){
-  try{await api('/fire-investigations/statements/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:version,status:next})});await openFireCase(fireState.caseId)}
-  catch(e){alert('供述Draftを更新できません: '+e.message)}
+async function reviewFireStatement(id,version,next,hasUncertainty=false){
+  let uncertaintyReviewed=false;
+  if(next==='reviewed'&&hasUncertainty){
+    uncertaintyReviewed=confirm('根拠となる文字起こしに「頃・たぶん・と思う」等の曖昧表現があります。原文の不確実性を確認し、供述Draftが断定化していないことを確認しましたか？');
+    if(!uncertaintyReviewed)return;
+  }
+  try{
+    await api('/fire-investigations/statements/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:version,status:next,uncertainty_reviewed:uncertaintyReviewed})});
+    await openFireCase(fireState.caseId)
+  }catch(e){alert('供述Draftを更新できません: '+e.message)}
 }
 async function reviewFireTimeline(id,version,next){
   try{await api('/fire-investigations/timeline/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:version,status:next})});await openFireCase(fireState.caseId)}
