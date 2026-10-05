@@ -1202,6 +1202,8 @@ class FireReportDraftOut(BaseModel):
     narrative_text: str | None = None
     structured_content: dict
     evidence_refs: list
+    fire_evidence_snapshot_id: str | None = None
+    source_manifest_id: str | None = None
     ai_generated: bool
     model_version: str | None = None
     status: str
@@ -1257,3 +1259,31 @@ class FireAIManifestIngestOut(BaseModel):
     model_version: str | None = None
     created: bool
     derived_ids: list[str] = Field(default_factory=list)
+
+
+class FireEvidenceSnapshotCreate(BaseModel):
+    metadata: dict = Field(default_factory=dict)
+
+class FireEvidenceSnapshotOut(BaseModel):
+    fire_evidence_snapshot_id: str
+    fire_investigation_case_id: str
+    case_version: int
+    snapshot_sha256: str
+    photo_annotation_ids: list[str] = Field(default_factory=list)
+    transcript_segment_ids: list[str] = Field(default_factory=list)
+    statement_draft_ids: list[str] = Field(default_factory=list)
+    timeline_event_ids: list[str] = Field(default_factory=list)
+    official_cause_candidate_id: str | None = None
+    media_document_hashes: dict = Field(default_factory=dict)
+    metadata: dict = Field(default_factory=dict)
+    created_at: str
+
+class FireReportAIManifest(BaseModel):
+    evidence_snapshot_id: str
+    report_type: str = Field(min_length=1, max_length=120)
+    form_template_id: str | None = None
+    model_version: str = Field(min_length=1, max_length=200)
+    narrative_text: str | None = None
+    structured_content: dict = Field(default_factory=dict)
+    evidence_refs: list[dict] = Field(default_factory=list)
+    payload_metadata: dict = Field(default_factory=dict)
