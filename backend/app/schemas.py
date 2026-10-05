@@ -1545,3 +1545,38 @@ class DrawingBenchmarkComparisonOut(BaseModel):
     right_review_status: str
     metrics: dict
     note: str
+
+
+class DrawingAnnotationSetCreate(BaseModel):
+    coordinate_space: Literal["pixel","normalized"] = "pixel"
+    page_dimensions: dict = Field(default_factory=dict)
+    payload: dict = Field(default_factory=dict)
+    source_method: Literal["manual","ai_seed","import"] = "manual"
+
+class DrawingAnnotationSeedCreate(BaseModel):
+    expected_analysis_version: int = Field(ge=1)
+    coordinate_space: Literal["pixel","normalized"] = "pixel"
+    page_dimensions: dict = Field(default_factory=dict)
+
+class DrawingAnnotationSetUpdate(BaseModel):
+    expected_version: int = Field(ge=1)
+    coordinate_space: Literal["pixel","normalized"] = "pixel"
+    page_dimensions: dict = Field(default_factory=dict)
+    payload: dict
+
+class DrawingAnnotationReview(BaseModel):
+    expected_version: int = Field(ge=1)
+    status: Literal["reviewed","rejected"]
+
+class DrawingAnnotationSetOut(BaseModel):
+    drawing_annotation_set_id: str
+    drawing_analysis_id: str
+    annotation_kind: str
+    coordinate_space: str
+    page_dimensions: dict
+    payload: dict
+    source_method: str
+    status: str
+    version: int
+    created_at: str
+    reviewed_at: str | None = None
