@@ -782,7 +782,7 @@ Next gate:
 
 ## Phase 6 legal restructure / occupancy readiness
 
-Implemented on branch `phase6-legal-restructure-readiness`; CI verification pending:
+Implemented and CI-verified:
 - reusable `legal_structure_service.structure_legal_version`
 - CLI and API share the same structuring implementation
 - legal document Version restructure API
@@ -794,6 +794,12 @@ Implemented on branch `phase6-legal-restructure-readiness`; CI verification pend
 - readiness checks exact source SHA, parser version, entry validity, table_row existence and official-text match
 - readiness reports existing pending/terminal skeleton counts and would-insert count
 - E2E covers unparsed -> readiness blocked -> parser v2 restructure -> readiness PASS -> skeleton import
+
+Verified checkpoint:
+- run: `37275726652` SUCCESS
+- backend pytest: 114 passed
+- migration parser smoke: PASS
+- frontend JavaScript syntax: PASS
 
 Target production flow:
 1. identify the stored 消防法施行令 Version matching official catalog SHA
