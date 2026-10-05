@@ -1356,3 +1356,52 @@ Verified checkpoint:
 - backend pytest: 143 passed
 - migration parser smoke: PASS
 - frontend JavaScript syntax: PASS
+
+
+## Phase 6 Human Reference Draft import
+
+Implemented and CI-verified:
+- Human Reference Draft JSON can be imported directly into a DrawingAnalysis as an editable Annotation
+- supported format prefix: `fire-ai-drawing-human-reference...`
+- source Document SHA-256 must exactly match the DrawingAnalysis source
+- bad/mismatched source SHA is rejected
+- coordinate space is restricted to pixel/normalized
+- imported Reference status is never trusted as current Annotation review status
+- even a source Reference marked `human_accepted` is imported as `draft`
+- imported Geometry passes through server-authoritative area recalculation
+- fake client-derived area values are overwritten
+- existing room/zone edit tools remain available after import:
+  - vertex drag
+  - vertex add/remove
+  - room/zone add/remove
+  - label/use/floor correction
+  - scale calibration
+  - px² / m² automatic recalculation
+- import provenance is stored in Annotation payload under `reference_import`
+- UI file picker added to the Human Annotation workspace
+- existing Annotation and no-Annotation states can both import another Draft
+- E2E covers source-bound import, forced Draft status, automatic area recalculation, later Human Review/export, source-SHA mismatch rejection, and coordinate-space rejection
+- frontend contract protects Reference Draft import wiring
+
+Verified checkpoint:
+- run: `37388194605` SUCCESS
+- backend pytest: 146 passed
+- migration parser smoke: PASS
+- frontend JavaScript syntax: PASS
+
+Target house-plan-001 flow:
+1. upload/open the same source drawing whose SHA is `2df43a8f5cebe48f2a55ae8968714319ca05491088d98a1e6038fd0b10aa26b6`
+2. open Human Annotation workspace
+3. import `benchmarks/phase6/reference/house-plan-001.reference.json`
+4. manually correct the 12 Draft regions
+5. add/delete arbitrary regions as needed
+6. calibrate scale using a known dimension
+7. verify automatic m² results
+8. Human Review the Annotation
+9. export reviewed Human Reference JSON
+10. use that reviewed export for the first real Benchmark
+
+Safety:
+- source mismatch blocks import
+- imported acceptance metadata is provenance only
+- Human review remains mandatory before benchmark truth export

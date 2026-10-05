@@ -20,6 +20,7 @@ from ..models import (
     User,
 )
 from ..schemas import (
+    DrawingAnnotationReferenceImport,
     DrawingAnnotationReview,
     DrawingAnnotationSeedCreate,
     DrawingAnnotationSetCreate,
@@ -180,6 +181,160 @@ def create_annotation(
         entity_type="drawing_annotation_set",
         entity_id=row.drawing_annotation_set_id,
         after=_annotation_out(row).model_dump(mode="json"),
+    )
+    db.commit()
+    return _annotation_out(row)
+
+
+
+
+@router.post(
+    "/drawing-analyses/{analysis_id}/annotations/import-reference",
+    response_model=DrawingAnnotationSetOut,
+    status_code=201,
+)
+def import_reference_annotation(
+    analysis_id: str,
+    payload: DrawingAnnotationReferenceImport,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("drawing.review")),
+):
+    analysis = _require_analysis(db, analysis_id)
+    document = db.get(Document, analysis.document_id)
+    if not document:
+        raise HTTPException(
+            status_code=409,
+            detail="source drawing document missing",
+        )
+
+    reference = payload.reference
+    if not isinstance(reference, dict):
+        raise HTTPException(
+            status_code=422,
+            detail="reference must be an object",
+        )
+
+    reference_format = str(
+        reference.get("reference_format") or ""
+    ).strip()
+    if not reference_format.startswith(
+        "fire-ai-drawing-human-reference"
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail="unsupported Human Reference format",
+        )
+
+    source = reference.get("source")
+    if not isinstance(source, dict):
+        raise HTTPException(
+            status_code=422,
+            detail="reference source is required",
+        )
+    source_sha = str(source.get("sha256") or "").strip()
+    if len(source_sha) != 64:
+        raise HTTPException(
+            status_code=422,
+            detail="reference source SHA-256 is invalid",
+        )
+    if source_sha != document.sha256:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "message": "reference source SHA-256 does not match DrawingAnalysis source",
+                "reference_sha256": source_sha,
+                "document_sha256": document.sha256,
+            },
+        )
+
+    page_dimensions = reference.get("page_dimensions")
+    if not isinstance(page_dimensions, dict):
+        page_dimensions = {}
+    if not page_dimensions:
+        width = source.get("pixel_width")
+        height = source.get("pixel_height")
+        if width and height:
+            page_dimensions = {
+                "1": {
+                    "width": width,
+                    "height": height,
+                }
+            }
+
+    body = {
+        "elements": reference.get("elements") or [],
+        "equipment_candidates":
+            reference.get("equipment_candidates") or [],
+        "fact_candidates":
+            reference.get("fact_candidates") or [],
+        "reference_import": {
+            "reference_format": reference_format,
+            "reference_status":
+                reference.get("reference_status"),
+            "source_sha256": source_sha,
+            "source_filename": source.get("filename"),
+            "human_review":
+                reference.get("human_review"),
+            "human_gate":
+                reference.get("human_gate"),
+        },
+    }
+    try:
+        body, page_dimensions = apply_geometry_metrics(
+            body,
+            page_dimensions,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=str(exc),
+        )
+
+    coordinate_space = str(
+        reference.get("coordinate_space") or "pixel"
+    )
+    if coordinate_space not in {"pixel", "normalized"}:
+        raise HTTPException(
+            status_code=422,
+            detail="reference coordinate_space must be pixel or normalized",
+        )
+
+    row = DrawingAnnotationSet(
+        drawing_analysis_id=analysis_id,
+        annotation_kind="human_reference",
+        coordinate_space=coordinate_space,
+        page_dimensions=page_dimensions,
+        payload=body,
+        source_method="import",
+        status="draft",
+        created_by=user.user_id,
+    )
+    db.add(row)
+    db.flush()
+    write_audit(
+        db,
+        user_id=user.user_id,
+        action="drawing_annotation.import_reference",
+        entity_type="drawing_annotation_set",
+        entity_id=row.drawing_annotation_set_id,
+        after={
+            "drawing_analysis_id": analysis_id,
+            "source_document_id": document.document_id,
+            "source_sha256": document.sha256,
+            "reference_format": reference_format,
+            "reference_status":
+                reference.get("reference_status"),
+            "element_count": len(
+                body.get("elements") or []
+            ),
+            "equipment_candidate_count": len(
+                body.get("equipment_candidates") or []
+            ),
+            "fact_candidate_count": len(
+                body.get("fact_candidates") or []
+            ),
+            "imported_as_status": "draft",
+        },
     )
     db.commit()
     return _annotation_out(row)

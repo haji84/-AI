@@ -7124,3 +7124,216 @@ def test_phase6_annotation_rejects_invalid_scale_calibration():
     )
     assert bad.status_code == 422
     assert "points must differ" in str(bad.json())
+
+
+
+def test_phase6_import_reference_draft_is_source_bound_editable_and_recomputed():
+    login()
+    facility = client.post(
+        "/facilities",
+        json={"name":"Reference Draft Import対象"},
+    ).json()
+    bid = facility["building_id"]
+
+    upload = client.post(
+        "/documents/upload",
+        files={"file":("reference-source.png",b"reference-source","image/png")},
+        data={"document_type":"drawing","building_id":bid},
+    )
+    assert upload.status_code == 201
+    document = upload.json()
+
+    analysis = client.post(
+        f"/facilities/{bid}/drawing-analyses",
+        json={
+            "document_id":document["document_id"],
+            "analysis_method":"manual",
+        },
+    )
+    assert analysis.status_code == 201
+    aid = analysis.json()["drawing_analysis_id"]
+
+    reference = {
+        "reference_format":"fire-ai-drawing-human-reference-draft-v1",
+        "reference_status":"human_accepted",
+        "coordinate_space":"pixel",
+        "source":{
+            "document_id":"foreign-reference-id",
+            "filename":"reference-source.png",
+            "sha256":document["sha256"],
+            "pixel_width":1000,
+            "pixel_height":800,
+        },
+        "page_dimensions":{
+            "1":{
+                "width":1000,
+                "height":800,
+                "calibration":{
+                    "method":"two_point",
+                    "point_a":[0,0],
+                    "point_b":[100,0],
+                    "reference_length_m":2.0,
+                },
+            }
+        },
+        "elements":[
+            {
+                "client_ref":"room-import-1",
+                "page_no":1,
+                "element_type":"room",
+                "label":"Imported Room",
+                "geometry":{
+                    "points":[
+                        [0,0],[100,0],[100,50],[0,50]
+                    ]
+                },
+                "extracted_data":{"use_name":"imported_room"},
+                "derived_geometry":{
+                    "area_px2":999999,
+                    "area_m2":999999,
+                },
+            },
+            {
+                "client_ref":"zone-import-1",
+                "page_no":1,
+                "element_type":"zone",
+                "label":"Imported Zone",
+                "geometry":{
+                    "points":[
+                        [200,0],[250,0],[250,40],[200,40]
+                    ]
+                },
+                "extracted_data":{"use_name":"custom_zone"},
+            },
+        ],
+        "equipment_candidates":[],
+        "fact_candidates":[],
+        "human_gate":{
+            "required":True,
+            "accepted":True,
+        },
+    }
+
+    imported = client.post(
+        f"/drawing-analyses/{aid}/annotations/import-reference",
+        json={"reference":reference},
+    )
+    assert imported.status_code == 201
+    body = imported.json()
+
+    assert body["source_method"] == "import"
+    assert body["status"] == "draft"
+    assert body["version"] == 1
+    assert body["coordinate_space"] == "pixel"
+    assert body["page_dimensions"]["1"]["calibration"]["meters_per_pixel"] == 0.02
+
+    room = body["payload"]["elements"][0]
+    assert room["derived_geometry"]["area_px2"] == 5000.0
+    assert room["derived_geometry"]["area_m2"] == 2.0
+
+    zone = body["payload"]["elements"][1]
+    assert zone["derived_geometry"]["area_px2"] == 2000.0
+    assert zone["derived_geometry"]["area_m2"] == 0.8
+
+    provenance = body["payload"]["reference_import"]
+    assert provenance["reference_status"] == "human_accepted"
+    assert provenance["source_sha256"] == document["sha256"]
+    assert provenance["human_gate"]["accepted"] is True
+
+    ann_id = body["drawing_annotation_set_id"]
+
+    room["geometry"]["points"] = [
+        [0,0],[200,0],[200,50],[0,50]
+    ]
+    updated = client.put(
+        f"/drawing-annotations/{ann_id}",
+        json={
+            "expected_version":1,
+            "coordinate_space":"pixel",
+            "page_dimensions":body["page_dimensions"],
+            "payload":body["payload"],
+        },
+    )
+    assert updated.status_code == 200
+    updated_room = updated.json()["payload"]["elements"][0]
+    assert updated_room["derived_geometry"]["area_px2"] == 10000.0
+    assert updated_room["derived_geometry"]["area_m2"] == 4.0
+
+    reviewed = client.post(
+        f"/drawing-annotations/{ann_id}/review",
+        json={
+            "expected_version":updated.json()["version"],
+            "status":"reviewed",
+        },
+    )
+    assert reviewed.status_code == 200
+    assert reviewed.json()["status"] == "reviewed"
+
+    exported = client.get(
+        f"/drawing-annotations/{ann_id}/benchmark-reference"
+    )
+    assert exported.status_code == 200
+    export_body = exported.json()
+    assert export_body["source"]["sha256"] == document["sha256"]
+    assert export_body["elements"][0]["derived_geometry"]["area_m2"] == 4.0
+    assert export_body["human_review"]["status"] == "reviewed"
+
+
+def test_phase6_import_reference_draft_rejects_source_sha_mismatch_and_bad_coordinate_space():
+    login()
+    facility = client.post(
+        "/facilities",
+        json={"name":"Reference Draft Import拒否対象"},
+    ).json()
+    bid = facility["building_id"]
+    upload = client.post(
+        "/documents/upload",
+        files={"file":("source.png",b"source-one","image/png")},
+        data={"document_type":"drawing","building_id":bid},
+    ).json()
+    aid = client.post(
+        f"/facilities/{bid}/drawing-analyses",
+        json={
+            "document_id":upload["document_id"],
+            "analysis_method":"manual",
+        },
+    ).json()["drawing_analysis_id"]
+
+    mismatch = client.post(
+        f"/drawing-analyses/{aid}/annotations/import-reference",
+        json={
+            "reference":{
+                "reference_format":"fire-ai-drawing-human-reference-draft-v1",
+                "source":{
+                    "sha256":"0"*64,
+                    "pixel_width":100,
+                    "pixel_height":100,
+                },
+                "elements":[],
+                "equipment_candidates":[],
+                "fact_candidates":[],
+            }
+        },
+    )
+    assert mismatch.status_code == 409
+    assert "does not match" in str(mismatch.json())
+
+    bad_space = client.post(
+        f"/drawing-analyses/{aid}/annotations/import-reference",
+        json={
+            "reference":{
+                "reference_format":"fire-ai-drawing-human-reference-draft-v1",
+                "coordinate_space":"meters",
+                "source":{
+                    "sha256":upload["sha256"],
+                    "pixel_width":100,
+                    "pixel_height":100,
+                },
+                "elements":[],
+                "equipment_candidates":[],
+                "fact_candidates":[],
+            }
+        },
+    )
+    assert bad_space.status_code == 422
+    assert "coordinate_space" in str(bad_space.json())
