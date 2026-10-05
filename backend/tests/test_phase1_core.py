@@ -18,7 +18,7 @@ def seed():
         u=User(employee_id=emp.employee_id,username="tester",password_hash=hash_password("long-test-password")); db.add(u)
         r=Role(code="tester",name="Tester"); db.add(r); db.flush()
         db.add(UserRole(user_id=u.user_id,role_id=r.role_id))
-        for code in ["facility.read","facility.create","facility.update","facility.restore","document.create","document.read", "inspection.read","inspection.create","inspection.update", "submission.read","submission.create","submission.update","submission.manage", "intake.read","intake.analyze","intake.review","intake.apply", "extension.read","extension.create","extension.review","extension.apply","template.read","template.manage","contract.read","contract.create","contract.update","contract.approve","legal_rule.read","legal_rule.manage","legal_rule.approve","legal_rule.evaluate","legal_source.read","legal_source.manage","legal_source.sync","equipment.read","equipment.manage"]:
+        for code in ["facility.read","facility.create","facility.update","facility.restore","document.create","document.read", "inspection.read","inspection.create","inspection.update", "submission.read","submission.create","submission.update","submission.manage", "intake.read","intake.analyze","intake.review","intake.apply", "extension.read","extension.create","extension.review","extension.apply","template.read","template.manage","contract.read","contract.create","contract.update","contract.approve","legal_rule.read","legal_rule.manage","legal_rule.approve","legal_rule.evaluate","legal_source.read","legal_source.manage","legal_source.sync","equipment.read","equipment.manage","drawing.read","drawing.analyze","drawing.review"]:
             p=Permission(code=code,description=code); db.add(p); db.flush(); db.add(RolePermission(role_id=r.role_id,permission_id=p.permission_id))
         db.commit()
 
@@ -2038,3 +2038,190 @@ def test_phase5_9_seeded_equipment_master_is_extensible_not_legal_completeness_c
     assert "automatic_fire_alarm" in rows
     assert rows["automatic_fire_alarm"]["metadata"]["legal_completeness"] is False
     assert rows["automatic_fire_alarm"]["metadata"]["editable_master"] is True
+
+
+def test_phase6_drawing_candidate_requires_human_review_before_equipment_promotion():
+    login()
+
+    facility=client.post("/facilities",json={
+        "name":"Phase6図面対象",
+        "detail":{"classification_code":"DRAW-6"}
+    })
+    assert facility.status_code==201
+    bid=facility.json()["building_id"]
+
+    upload=client.post(
+        "/documents/upload",
+        files={"file":("drawing.pdf",b"test-drawing-bytes","application/pdf")},
+        data={"document_type":"drawing"}
+    )
+    assert upload.status_code==201
+    document_id=upload.json()["document_id"]
+
+    analysis=client.post(f"/facilities/{bid}/drawing-analyses",json={
+        "document_id":document_id,
+        "analysis_method":"ai",
+        "model_version":"test-drawing-model-v1",
+        "page_count":1,
+        "confidence":0.88,
+        "summary":{"drawing_type":"floor_plan"},
+        "evidence":{"test":True}
+    })
+    assert analysis.status_code==201
+    aid=analysis.json()["drawing_analysis_id"]
+    assert analysis.json()["status"]=="analyzed"
+
+    element=client.post(f"/drawing-analyses/{aid}/elements",json={
+        "page_no":1,
+        "element_type":"equipment_symbol",
+        "label":"自火報",
+        "floor_number":1,
+        "geometry":{"x":10,"y":20},
+        "confidence":0.91,
+        "source_kind":"ai"
+    })
+    assert element.status_code==201
+    element_id=element.json()["drawing_element_id"]
+
+    candidate=client.post(f"/drawing-analyses/{aid}/equipment-candidates",json={
+        "drawing_element_id":element_id,
+        "suggested_equipment_type_code":"automatic_fire_alarm",
+        "suggested_label":"自動火災報知設備",
+        "floor_number":1,
+        "location_text":"1階",
+        "quantity":1,
+        "confidence":0.91
+    })
+    assert candidate.status_code==201
+    cid=candidate.json()["drawing_equipment_candidate_id"]
+    assert candidate.json()["status"]=="pending"
+
+    blocked=client.post(f"/drawing-equipment-candidates/{cid}/promote",json={
+        "expected_version":1
+    })
+    assert blocked.status_code==409
+
+    accepted=client.patch(f"/drawing-equipment-candidates/{cid}",json={
+        "expected_version":1,
+        "status":"accepted"
+    })
+    assert accepted.status_code==200
+    assert accepted.json()["version"]==2
+
+    promoted=client.post(f"/drawing-equipment-candidates/{cid}/promote",json={
+        "expected_version":2,
+        "notes":"Human accepted drawing evidence; field verification still required"
+    })
+    assert promoted.status_code==200
+    assert promoted.json()["status"]=="promoted"
+    eid=promoted.json()["facility_equipment_id"]
+    assert eid
+
+    equipment=client.get(f"/facilities/{bid}/equipment")
+    assert equipment.status_code==200
+    row=next(x for x in equipment.json() if x["facility_equipment_id"]==eid)
+    assert row["verification_status"]=="ai_candidate"
+    assert row["source_kind"]=="drawing_ai"
+    assert row["source_document_id"]==document_id
+
+    rule=client.post("/legal-rules",json={
+        "rule_code":"TEST-DRAWING-EQ-6",
+        "name":"図面設備照合Rule6",
+        "domain":"equipment_requirement"
+    })
+    assert rule.status_code==201
+    rv=client.post(f"/legal-rules/{rule.json()['rule_id']}/versions",json={
+        "version_no":1,
+        "effective_from":"2026-01-01",
+        "conditions":{"all":[{"field":"classification_code","op":"eq","value":"DRAW-6"}]},
+        "outcome":{
+            "decision":"required",
+            "equipment_type_code":"automatic_fire_alarm",
+            "comparison_mode":"presence"
+        },
+        "source_reference":"TEST DRAWING SOURCE 6"
+    })
+    assert rv.status_code==201
+    assert client.post(
+        f"/legal-rules/versions/{rv.json()['legal_rule_version_id']}/approve",
+        json={"expected_version":1}
+    ).status_code==200
+
+    before_verify=client.post(f"/facilities/{bid}/equipment-compliance/evaluate")
+    assert before_verify.status_code==200
+    item=next(x for x in before_verify.json()["items"] if x["equipment_type_code"]=="automatic_fire_alarm")
+    assert item["state"]=="unverified_evidence_only"
+    assert eid in item["evidence_equipment_ids"]
+
+    verified=client.patch(f"/facility-equipment/{eid}",json={
+        "expected_version":1,
+        "verification_status":"verified",
+        "last_verified_at":"2026-10-05"
+    })
+    assert verified.status_code==200
+    assert verified.json()["verification_status"]=="verified"
+    assert verified.json()["source_kind"]=="drawing_ai"
+
+    after_verify=client.post(f"/facilities/{bid}/equipment-compliance/evaluate")
+    assert after_verify.status_code==200
+    item2=next(x for x in after_verify.json()["items"] if x["equipment_type_code"]=="automatic_fire_alarm")
+    assert item2["state"]=="verified_installed"
+    assert eid in item2["verified_equipment_ids"]
+
+
+def test_phase6_analysis_review_waits_for_all_candidates():
+    login()
+    facility=client.post("/facilities",json={"name":"Phase6レビュー対象"}).json()
+    upload=client.post(
+        "/documents/upload",
+        files={"file":("plan.pdf",b"plan-bytes","application/pdf")},
+        data={"document_type":"drawing"}
+    ).json()
+    analysis=client.post(f"/facilities/{facility['building_id']}/drawing-analyses",json={
+        "document_id":upload["document_id"],
+        "analysis_method":"ai",
+        "model_version":"test-model"
+    }).json()
+    aid=analysis["drawing_analysis_id"]
+
+    fact=client.post(f"/drawing-analyses/{aid}/fact-candidates",json={
+        "target_path":"detail.total_floor_area",
+        "proposed_value":{"value":1234.5},
+        "confidence":0.7,
+        "evidence":{"page":1}
+    })
+    assert fact.status_code==201
+    fid=fact.json()["drawing_fact_candidate_id"]
+
+    blocked=client.post(f"/drawing-analyses/{aid}/review",json={"expected_version":1})
+    assert blocked.status_code==409
+
+    rejected=client.patch(f"/drawing-fact-candidates/{fid}",json={
+        "expected_version":1,
+        "status":"rejected"
+    })
+    assert rejected.status_code==200
+
+    reviewed=client.post(f"/drawing-analyses/{aid}/review",json={"expected_version":1})
+    assert reviewed.status_code==200
+    assert reviewed.json()["status"]=="reviewed"
+    assert reviewed.json()["version"]==2
+
+    locked=client.post(f"/drawing-analyses/{aid}/fact-candidates",json={
+        "target_path":"detail.building_area",
+        "proposed_value":{"value":500}
+    })
+    assert locked.status_code==409
+
+
+def test_phase6_prevention_role_has_drawing_permissions():
+    from app.rbac_seed import seed_rbac
+    with SessionLocal() as db:
+        roles=seed_rbac(db); db.commit()
+        role=roles["prevention_editor"]
+        codes=set(db.scalars(
+            select(Permission.code)
+            .join(RolePermission,RolePermission.permission_id==Permission.permission_id)
+            .where(RolePermission.role_id==role.role_id)
+        ).all())
+        assert {"drawing.read","drawing.analyze","drawing.review"}.issubset(codes)
