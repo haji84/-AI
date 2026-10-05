@@ -98,6 +98,7 @@ jobs:
                       "provision_context":context.context,
                       "context_priority_score":context.score,
                       "provision_key":row.provision_key,
+                      "provision_content_sha256":row.content_sha256,
                       "provision_type":row.provision_type,
                       "display_label":row.display_label,
                       "heading_text":row.heading_text,
@@ -186,6 +187,19 @@ jobs:
               "inventory":sorted(inventory,key=lambda x:(x["scope"],x["title"])),
               "policy":cfg["policy"],
               "authoring_lanes":lanes,
+              "baseline_sources":{
+                  "egov":{
+                      "acquisition_run_id":37240404083,
+                      "artifact_id":11317001520,
+                      "source_archive_sha256":"830c24983bee6d9e7db8765b01ed671ee91ca9472324ec5c0d8d0e5a32e660cf"
+                  },
+                  "oshima_fire_union":{
+                      "acquisition_run_id":37240040293,
+                      "artifact_id":11317595248,
+                      "artifact_sha256":"2426f76c7a50609d63f231943f3058b8c196cd8563be54033dba9cbf6defc941",
+                      "content_current_date":"2025-04-01"
+                  }
+              },
           }
           out=Path("_core/results")
           out.mkdir(parents=True,exist_ok=True)
