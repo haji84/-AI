@@ -967,7 +967,7 @@ Safety:
 
 ## Phase 6 equipment placement legal worklist
 
-Implemented on branch `phase6-placement-worklist`; CI verification pending:
+Implemented and CI-verified:
 - deterministic legal relevance scanner upgraded to `fire-legal-relevance-v3`
 - new `equipment_placement` review category
 - placement candidates require co-occurrence of a supported equipment term and a placement-specific term
@@ -980,6 +980,12 @@ Implemented on branch `phase6-placement-worklist`; CI verification pending:
 - `equipment_placement` is importable into the existing Human legal review queue
 - Human-reviewed placement candidates can create Rule Drafts using the existing review -> Draft -> review -> promote -> approve gates
 - regression tests cover co-occurrence guard and table-row extraction
+
+Verified checkpoint:
+- run: `37291518081` SUCCESS
+- backend pytest: 122 passed
+- migration parser smoke: PASS
+- frontend JavaScript syntax: PASS
 
 Next gate:
 1. merge to main
