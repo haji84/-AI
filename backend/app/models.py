@@ -1434,3 +1434,34 @@ class FirePhotoProfile(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
 
+
+
+class FirePhotoPlanLink(Base):
+    __tablename__ = "fire_photo_plan_links"
+    fire_photo_plan_link_id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True, default=uuid_str)
+    fire_investigation_media_id: Mapped[str] = mapped_column(
+        ForeignKey("fire_investigation_media.fire_investigation_media_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    drawing_analysis_id: Mapped[str] = mapped_column(
+        ForeignKey("drawing_analyses.drawing_analysis_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    drawing_element_id: Mapped[str | None] = mapped_column(
+        ForeignKey("drawing_elements.drawing_element_id", ondelete="SET NULL")
+    )
+    page_no: Mapped[int | None] = mapped_column(Integer)
+    floor_number: Mapped[int | None] = mapped_column(Integer)
+    position: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    label: Mapped[str | None] = mapped_column(Text)
+    source_kind: Mapped[str] = mapped_column(String(30), nullable=False, default="manual")
+    confidence: Mapped[float | None] = mapped_column(Float)
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="pending", index=True)
+    version: Mapped[int] = mapped_column(BigInteger, nullable=False, default=1)
+    reviewed_by: Mapped[str | None] = mapped_column(ForeignKey("app_users.user_id"))
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_by: Mapped[str | None] = mapped_column(ForeignKey("app_users.user_id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
