@@ -50,3 +50,43 @@ def test_phase6_drawing_consultation_workspace_supports_pdf_page_annotation():
     assert "Number(x.page_no||1)!==currentPage" in html
     assert "AI解析結果は正解データではありません" in html
     assert "Human確認済みにする" in html
+
+
+
+def test_phase6_annotation_editing_area_and_zone_tools_are_wired():
+    html = (
+        Path(__file__).resolve().parents[2]
+        / "frontend"
+        / "index.html"
+    ).read_text(encoding="utf-8")
+
+    required_fragments = [
+        "beginDrawingVertexDrag(",
+        "drawingOverlayPointerMove(",
+        "addDrawingVertex()",
+        "removeDrawingVertex()",
+        "applySelectedDrawingMeta()",
+        "2点で縮尺校正",
+        "startDrawingCalibration()",
+        "reference_length_m",
+        "meters_per_pixel",
+        "drawingPolygonAreaPx2(",
+        "drawingMetricLabel(",
+        "区画追加",
+        '<option value="zone">任意区画</option>',
+        "㎡",
+    ]
+    missing = [x for x in required_fragments if x not in html]
+    assert not missing, f"Annotation edit/area wiring missing: {missing}"
+
+
+def test_phase6_annotation_overlay_has_pointer_drag_handlers():
+    html = (
+        Path(__file__).resolve().parents[2]
+        / "frontend"
+        / "index.html"
+    ).read_text(encoding="utf-8")
+
+    assert 'onpointermove="drawingOverlayPointerMove(event)"' in html
+    assert 'onpointerup="endDrawingVertexDrag(event)"' in html
+    assert 'class="drawingVertexHandle"' in html
