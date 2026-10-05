@@ -633,7 +633,7 @@ AI-seeded content never becomes Reference truth without Human review.
 
 ## Phase 6 drawing consultation / occupancy classification
 
-Implemented on branch `phase6-drawing-consultation`; CI verification pending:
+Implemented and CI-verified:
 - Migration 031 drawing consultation persistence
 - Managed Legal Rule domains expanded with occupancy_classification and equipment_placement
 - consultation snapshot from Human-reviewed drawing annotation
@@ -648,6 +648,12 @@ Implemented on branch `phase6-drawing-consultation`; CI verification pending:
 - placement Rule absence blocks auto-placement
 - room-candidate placement uses Human-reviewed room geometry only
 - E2E tests cover classification -> confirm -> equipment -> placement
+
+Verified checkpoint:
+- run: `37269178086` SUCCESS
+- backend pytest: 105 passed
+- Migration 031 parser smoke: PASS
+- frontend JavaScript syntax: PASS
 
 Legal content Gate remains:
 - occupancy classification Rule set is not yet declared complete
