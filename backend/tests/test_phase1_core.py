@@ -5868,16 +5868,77 @@ def test_phase6_equipment_requirement_batch_coverage_tracks_ignore_and_approved_
     )
     assert approved.status_code == 200
 
+    authored = client.get(
+        "/legal-review-queue/equipment-requirement/coverage",
+        params={"worklist_sha256":batch_sha,"evaluation_date":"2026-10-05"},
+    )
+    assert authored.status_code == 200
+    comp = authored.json()["coverage"]
+    assert comp["counts"]["ignored"] == 1
+    assert comp["counts"]["drafted"] == 1
+    assert comp["counts"]["draft_terminal_approved"] == 1
+    assert comp["processed_candidate_count"] == 2
+    assert comp["authoring_coverage_complete"] is True
+    assert comp["regression_gate_passed"] is False
+    assert comp["coverage_complete"] is False
+
+    case = client.post(
+        "/equipment-regression/cases",
+        json={
+            "worklist_sha256":batch_sha,
+            "name":"TEST-EQ 必要設備",
+            "input_snapshot":{"classification_code":"TEST-EQ"},
+            "expected_equipment_type_codes":["batch-test-equipment"],
+            "notes":"Human-reviewed equipment regression fixture",
+        },
+    )
+    assert case.status_code == 201
+    case_id = case.json()["equipment_requirement_test_case_id"]
+
+    reviewed_case = client.post(
+        f"/equipment-regression/cases/{case_id}/review",
+        json={"expected_version":1,"status":"reviewed"},
+    )
+    assert reviewed_case.status_code == 200
+
+    run = client.post(
+        "/equipment-regression/runs",
+        json={
+            "worklist_sha256":batch_sha,
+            "evaluation_date":"2026-10-05",
+        },
+    )
+    assert run.status_code == 201
+    run_body = run.json()
+    assert run_body["case_count"] == 1
+    assert run_body["passed_case_count"] == 1
+    assert run_body["failed_case_count"] == 0
+    assert run_body["under_requirement_case_count"] == 0
+    assert run_body["over_requirement_case_count"] == 0
+    assert run_body["result_payload"]["overall_pass"] is True
+    assert len(run_body["result_payload"]["rule_engine_fingerprint"]) == 64
+    assert len(run_body["result_payload"]["test_suite_fingerprint"]) == 64
+    run_id = run_body["equipment_requirement_test_run_id"]
+
+    accepted = client.post(
+        f"/equipment-regression/runs/{run_id}/review",
+        json={
+            "expected_version":1,
+            "human_decision":"accepted_regression",
+            "review_notes":"Human accepted equipment regression",
+        },
+    )
+    assert accepted.status_code == 200
+
     complete = client.get(
         "/legal-review-queue/equipment-requirement/coverage",
         params={"worklist_sha256":batch_sha,"evaluation_date":"2026-10-05"},
     )
     assert complete.status_code == 200
     comp = complete.json()["coverage"]
-    assert comp["counts"]["ignored"] == 1
-    assert comp["counts"]["drafted"] == 1
-    assert comp["counts"]["draft_terminal_approved"] == 1
-    assert comp["processed_candidate_count"] == 2
+    assert comp["authoring_coverage_complete"] is True
+    assert comp["regression_gate_passed"] is True
+    assert comp["accepted_regression_run_id"] == run_id
     assert comp["coverage_complete"] is True
     assert comp["blockers"] == []
 
