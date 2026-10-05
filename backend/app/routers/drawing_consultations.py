@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from ..audit import write_audit
 from ..authz import require_permission
 from ..db import get_db
+from ..consultation_response import build_consultation_response_package
 from ..equipment_authoring_batch import equipment_requirement_batch_coverage
 from ..equipment_placement_batch import equipment_placement_batch_coverage
 from ..equipment_placement_engine import evaluate_placement_candidates
@@ -32,6 +33,8 @@ from ..schemas import (
     DrawingConsultationEquipmentEvaluate,
     DrawingConsultationOut,
     DrawingConsultationUpdateAnswers,
+    DrawingConsultationResponseReview,
+    DrawingConsultationResponseOut,
 )
 
 
@@ -604,6 +607,13 @@ def evaluate_required_equipment(
         evaluation_date=evaluation_date,
     )
 
+    if row.status == "reviewed":
+        row.response_payload = {}
+        row.response_sha256 = None
+        row.response_review_notes = None
+        row.reviewed_by = None
+        row.reviewed_at = None
+
     row.equipment_results = [
         {
             "required": required,
@@ -655,3 +665,94 @@ def evaluate_required_equipment(
     )
     db.commit()
     return _out(row)
+
+
+@router.get(
+    "/drawing-consultations/{consultation_id}/response",
+    response_model=DrawingConsultationResponseOut,
+)
+def get_consultation_response(
+    consultation_id: str,
+    evaluation_date: str | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("drawing.read")),
+):
+    row = _require_consultation(db, consultation_id)
+    day = _date(evaluation_date)
+    return DrawingConsultationResponseOut(
+        **build_consultation_response_package(
+            db,
+            consultation=row,
+            evaluation_date=day,
+        )
+    )
+
+
+@router.post(
+    "/drawing-consultations/{consultation_id}/response/review",
+    response_model=DrawingConsultationResponseOut,
+)
+def review_consultation_response(
+    consultation_id: str,
+    payload: DrawingConsultationResponseReview,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("drawing.review")),
+):
+    row = _require_consultation(db, consultation_id)
+    if row.version != payload.expected_version:
+        raise HTTPException(
+            status_code=409,
+            detail="drawing consultation was updated",
+        )
+
+    day = _date(payload.evaluation_date)
+    package = build_consultation_response_package(
+        db,
+        consultation=row,
+        evaluation_date=day,
+    )
+    if not package.get("reviewable"):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "message": "consultation response is not review-ready",
+                "answer_state": package.get("answer_state"),
+                "blockers": package.get("blockers") or [],
+                "coverage": package.get("coverage") or {},
+                "unresolved_questions":
+                    package.get("unresolved_questions") or [],
+            },
+        )
+
+    row.response_payload = package
+    row.response_sha256 = package["response_sha256"]
+    row.response_review_notes = payload.review_notes
+    row.status = "reviewed"
+    row.reviewed_by = user.user_id
+    row.reviewed_at = datetime.now(timezone.utc)
+    row.updated_at = datetime.now(timezone.utc)
+    row.version += 1
+
+    write_audit(
+        db,
+        user_id=user.user_id,
+        action="drawing_consultation.response_review",
+        entity_type="drawing_consultation",
+        entity_id=consultation_id,
+        after={
+            "response_sha256": row.response_sha256,
+            "evaluation_date": day.isoformat(),
+            "version": row.version,
+            "coverage_complete":
+                package.get("coverage_complete"),
+        },
+    )
+    db.commit()
+
+    return DrawingConsultationResponseOut(
+        **build_consultation_response_package(
+            db,
+            consultation=row,
+            evaluation_date=day,
+        )
+    )

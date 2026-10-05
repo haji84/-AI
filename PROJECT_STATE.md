@@ -1087,3 +1087,45 @@ Safety:
 - Regression truth is Human-reviewed.
 - Regression does not alter Rule conditions, placement constraints or drawing annotations.
 - A stale PASS cannot survive Rule, room-test or source-provision changes.
+
+
+## Phase 6 consultation response package
+
+Implemented and CI-verified:
+- Migration 037 persists reviewed consultation response payload/SHA and review notes
+- one response package combines:
+  - Human-confirmed occupancy classification
+  - current required equipment from effective Approved Rules
+  - equipment already present in the Human-reviewed drawing annotation
+  - add_candidate / present_in_drawing / existing_unmatched actions
+  - current placement states, constraints and overlay markers
+  - exact legal citations and current provision content hashes
+  - unresolved questions
+  - occupancy / equipment-requirement / placement Coverage gates
+- response computation re-evaluates current Approved Rules instead of replaying stale stored equipment results
+- equipment missing from the drawing but required by current Rules is surfaced as `add_candidate`
+- existing equipment not matched by current requirement results is never auto-marked for removal
+- answer states:
+  - blocked: prerequisite classification/annotation missing
+  - partial: answer can be shown but legal Coverage or required inputs are incomplete
+  - review_ready: all three current legal Coverage gates pass and no unresolved blocker remains
+  - reviewed: Human reviewed the exact current response SHA
+  - review_stale: a previously reviewed response no longer matches current Rule/source/annotation evidence
+- Human response review is blocked unless `review_ready`
+- reviewed response stores canonical SHA-256 evidence
+- re-running equipment evaluation clears previous response review evidence
+- annotation/version, legal citation hash, Rule output, Coverage accepted-run IDs and evaluation date contribute to the current response evidence
+- E2E covers equipment-less drawing -> required add_candidate + room Marker -> partial response -> review blocked
+- E2E covers review_ready -> Human review -> Annotation version change -> review_stale -> Human re-review
+
+Verified checkpoint:
+- run: `37318496981` SUCCESS
+- backend pytest: 124 passed
+- Migration 037 parser smoke: PASS
+- frontend JavaScript syntax: PASS
+
+Safety:
+- a partial consultation result is never presented as a fully reviewed answer
+- existing unmatched equipment is not interpreted as removable
+- stale Human review cannot survive changes to current evidence
+- legal Coverage completeness remains dependent on current Human-accepted regression evidence
