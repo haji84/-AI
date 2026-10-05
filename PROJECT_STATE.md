@@ -963,3 +963,28 @@ Safety:
 - zero equipment is a valid expected set for negative cases
 - an old PASS cannot survive a current Rule-set or reviewed-test-suite change
 - equipment consultation continues to warn while final equipment Rule coverage is incomplete
+
+
+## Phase 6 equipment placement legal worklist
+
+Implemented on branch `phase6-placement-worklist`; CI verification pending:
+- deterministic legal relevance scanner upgraded to `fire-legal-relevance-v3`
+- new `equipment_placement` review category
+- placement candidates require co-occurrence of a supported equipment term and a placement-specific term
+- placement-specific terms include walking/horizontal distance, placement location/position, visibility, entrance proximity, floor-height and interval expressions
+- equipment term without placement evidence is not classified as equipment_placement
+- generic placement wording without an equipment term is not classified as equipment_placement
+- `table_row` LegalProvisions are now included in verified authoring Worklists
+- core authoring config upgraded to `phase6-core-sources-v2`
+- separate `placement_rules` authoring lane added
+- `equipment_placement` is importable into the existing Human legal review queue
+- Human-reviewed placement candidates can create Rule Drafts using the existing review -> Draft -> review -> promote -> approve gates
+- regression tests cover co-occurrence guard and table-row extraction
+
+Next gate:
+1. merge to main
+2. rebuild the verified official core authoring Worklist
+3. inspect the real equipment_placement candidate count and source distribution
+4. bind that official placement Worklist to an immutable batch
+5. Human process all placement candidates
+6. add placement Rule regression before declaring placement coverage complete
