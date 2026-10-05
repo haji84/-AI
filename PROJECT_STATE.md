@@ -594,7 +594,13 @@ Triggered by first supplied residential reference drawing:
 - symbol/equipment/fact N/A values are preserved through Benchmark Run comparison API
 - benchmark contract documents N/A semantics
 
-CI verification pending on branch `phase6-drawing-benchmark-na-hardening`.
+CI-verified on branch `phase6-drawing-benchmark-na-hardening`.
+
+Verified hardening checkpoint:
+- run: `37267047053` SUCCESS
+- backend pytest: 101 passed
+- migration parser smoke: PASS
+- frontend JavaScript syntax: PASS
 
 The supplied residential plan is suitable for Geometry and Facility fact extraction Baseline.
 It is not sufficient by itself for fire-equipment symbol accuracy coverage.
