@@ -608,7 +608,7 @@ It is not sufficient by itself for fire-equipment symbol accuracy coverage.
 
 ## Phase 6 Human Annotation
 
-Implemented on branch `phase6-human-annotation`; CI verification pending:
+Implemented and CI-verified:
 - Migration 030 drawing annotation sets
 - manual Human Reference draft creation
 - AI-seeded annotation draft from DrawingAnalysis
@@ -622,4 +622,10 @@ Implemented on branch `phase6-human-annotation`; CI verification pending:
 - room annotations require valid geometry and label/use before review
 
 This allows room polygons and room-use labels to become Human-reviewed benchmark truth.
+Verified checkpoint:
+- run: `37268130556` SUCCESS
+- backend pytest: 103 passed
+- Migration 030 parser smoke: PASS
+- frontend JavaScript syntax: PASS
+
 AI-seeded content never becomes Reference truth without Human review.
