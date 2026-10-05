@@ -1519,9 +1519,17 @@ def create_report_draft(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("fire_investigation.update")),
 ):
-    _require_case(db, case_id)
-    if payload.form_template_id and not db.get(FormTemplate, payload.form_template_id):
-        raise HTTPException(status_code=422, detail="form_template_id not found")
+    case = _require_case(db, case_id)
+    if payload.ai_generated:
+        raise HTTPException(
+            status_code=422,
+            detail="AI-generated report drafts must use the evidence-snapshot report-ai-manifest endpoint",
+        )
+    _validate_report_template(
+        db,
+        case=case,
+        form_template_id=payload.form_template_id,
+    )
     row = FireReportDraft(
         fire_investigation_case_id=case_id,
         report_type=payload.report_type,
@@ -1595,6 +1603,17 @@ def approve_report_draft(
         raise HTTPException(status_code=404, detail="report draft not found")
     if row.status != "reviewed":
         raise HTTPException(status_code=409, detail="report draft must be Human-reviewed before approval")
+    if row.ai_generated:
+        if not row.fire_evidence_snapshot_id or not row.source_manifest_id:
+            raise HTTPException(
+                status_code=409,
+                detail="AI-generated report is missing required evidence snapshot or AI manifest provenance",
+            )
+        snapshot = db.get(FireEvidenceSnapshot, row.fire_evidence_snapshot_id)
+        manifest = db.get(FireInvestigationAIManifest, row.source_manifest_id)
+        if not snapshot or not manifest or manifest.manifest_type != "report_draft":
+            raise HTTPException(status_code=409, detail="AI report provenance is invalid")
+        _validate_report_evidence_refs(snapshot, row.evidence_refs or [])
     result = db.execute(
         update(FireReportDraft)
         .where(
