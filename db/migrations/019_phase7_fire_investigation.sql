@@ -62,6 +62,7 @@ CREATE TABLE IF NOT EXISTS fire_photo_annotations (
   model_version varchar(200),
   status varchar(30) NOT NULL DEFAULT 'pending'
     CHECK (status IN ('pending','accepted','rejected')),
+  version bigint NOT NULL DEFAULT 1,
   reviewed_by uuid REFERENCES app_users(user_id),
   reviewed_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now()
@@ -83,6 +84,9 @@ CREATE TABLE IF NOT EXISTS fire_transcript_segments (
   model_version varchar(200),
   review_status varchar(30) NOT NULL DEFAULT 'pending'
     CHECK (review_status IN ('pending','accepted','rejected')),
+  version bigint NOT NULL DEFAULT 1,
+  reviewed_by uuid REFERENCES app_users(user_id),
+  reviewed_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
@@ -177,7 +181,7 @@ CREATE TABLE IF NOT EXISTS fire_report_drafts (
   ai_generated boolean NOT NULL DEFAULT false,
   model_version varchar(200),
   status varchar(30) NOT NULL DEFAULT 'draft'
-    CHECK (status IN ('draft','reviewed','approved')),
+    CHECK (status IN ('draft','reviewed','rejected','approved')),
   version bigint NOT NULL DEFAULT 1,
   created_by uuid REFERENCES app_users(user_id),
   reviewed_by uuid REFERENCES app_users(user_id),
