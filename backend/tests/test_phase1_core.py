@@ -3726,3 +3726,106 @@ def test_phase9_audio_benchmark_scoring_helpers():
     assert markers["false_negative"]==1
     assert markers["precision"]==0.5
     assert markers["recall"]==0.5
+
+
+def test_phase9_audio_benchmark_v2_speaker_mapping_tolerance_and_aggregate(tmp_path):
+    import importlib.util
+    import json
+    from pathlib import Path
+
+    script=Path(__file__).resolve().parents[2]/"scripts"/"benchmark_fire_audio.py"
+    spec=importlib.util.spec_from_file_location("benchmark_fire_audio_v2",script)
+    mod=importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    # Hypothesis labels are intentionally swapped. Auto mapping should recover them.
+    diar=mod.diarization_score(
+        [
+            {"start_ms":0,"end_ms":1000,"speaker":"INVESTIGATOR"},
+            {"start_ms":1000,"end_ms":2000,"speaker":"WITNESS"},
+        ],
+        [
+            {"start_ms":0,"end_ms":1000,"speaker":"SPEAKER_01"},
+            {"start_ms":1000,"end_ms":2000,"speaker":"SPEAKER_00"},
+        ],
+        auto_map_speakers=True,
+    )
+    assert diar["speaker_error_rate"]==0
+    assert diar["speaker_mapping"]["SPEAKER_01"]=="INVESTIGATOR"
+    assert diar["speaker_mapping"]["SPEAKER_00"]=="WITNESS"
+
+    # A small timestamp shift should match under tolerance but not exact mode.
+    ref_markers=[{"start_ms":1000,"end_ms":1200,"type":"inaudible"}]
+    hyp_markers=[{"start_ms":1030,"end_ms":1235,"type":"inaudible"}]
+    exact=mod.marker_metrics(ref_markers,hyp_markers,tolerance_ms=0)
+    tolerant=mod.marker_metrics(ref_markers,hyp_markers,tolerance_ms=50)
+    assert exact["f1"]==0
+    assert tolerant["f1"]==1
+
+    ref1={
+        "transcript_text":"火災調査",
+        "speaker_segments":[{"start_ms":0,"end_ms":1000,"speaker":"A"}],
+        "uncertainty_markers":[],
+    }
+    hyp1={
+        "transcript_text":"火災調査",
+        "speaker_segments":[{"start_ms":0,"end_ms":1000,"speaker":"S0"}],
+        "uncertainty_markers":[],
+    }
+    ref2={
+        "transcript_text":"出火場所",
+        "speaker_segments":[{"start_ms":0,"end_ms":1000,"speaker":"B"}],
+        "uncertainty_markers":[{"start_ms":500,"end_ms":700,"type":"low_confidence"}],
+    }
+    hyp2={
+        "transcript_text":"出火場処",
+        "speaker_segments":[{"start_ms":0,"end_ms":1000,"speaker":"S1"}],
+        "uncertainty_markers":[{"start_ms":520,"end_ms":720,"type":"low_confidence"}],
+    }
+
+    (tmp_path/"r1.json").write_text(json.dumps(ref1,ensure_ascii=False),encoding="utf-8")
+    (tmp_path/"h1.json").write_text(json.dumps(hyp1,ensure_ascii=False),encoding="utf-8")
+    (tmp_path/"r2.json").write_text(json.dumps(ref2,ensure_ascii=False),encoding="utf-8")
+    (tmp_path/"h2.json").write_text(json.dumps(hyp2,ensure_ascii=False),encoding="utf-8")
+    manifest={
+        "marker_tolerance_ms":50,
+        "recordings":[
+            {"id":"case-1","reference":"r1.json","hypothesis":"h1.json"},
+            {"id":"case-2","reference":"r2.json","hypothesis":"h2.json"},
+        ],
+    }
+    manifest_path=tmp_path/"manifest.json"
+    manifest_path.write_text(json.dumps(manifest,ensure_ascii=False),encoding="utf-8")
+
+    result=mod.score_manifest(manifest_path)
+    assert result["benchmark_format"]=="fire-ai-japanese-stt-benchmark-v2"
+    assert result["aggregate"]["recording_count"]==2
+    assert result["aggregate"]["text_micro"]["reference_chars"]==8
+    assert result["aggregate"]["text_micro"]["errors"]==1
+    assert result["aggregate"]["text_micro"]["cer"]==1/8
+    assert result["aggregate"]["diarization_micro"]["speaker_error_rate"]==0
+    assert result["aggregate"]["uncertainty_markers_micro"]["f1"]==1
+
+
+def test_phase9_audio_benchmark_v2_false_alarm_and_overlap_do_not_double_count():
+    import importlib.util
+    from pathlib import Path
+
+    script=Path(__file__).resolve().parents[2]/"scripts"/"benchmark_fire_audio.py"
+    spec=importlib.util.spec_from_file_location("benchmark_fire_audio_v2_false_alarm",script)
+    mod=importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    result=mod.diarization_score(
+        [{"start_ms":0,"end_ms":1000,"speaker":"A"}],
+        [
+            {"start_ms":0,"end_ms":1000,"speaker":"H1"},
+            {"start_ms":250,"end_ms":750,"speaker":"H2"},
+            {"start_ms":1000,"end_ms":1200,"speaker":"H3"},
+        ],
+        auto_map_speakers=True,
+    )
+    assert result["reference_ms"]==1000
+    assert result["correct_speaker_ms"]<=1000
+    assert result["speaker_confusion_ms"]+result["missed_ms"]<=1000
+    assert result["false_alarm_ms"]==200
