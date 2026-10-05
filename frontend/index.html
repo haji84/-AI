@@ -1296,8 +1296,9 @@ function drawingPolygonPerimeterPx(points){
   return sum;
 }
 function drawingPageMeta(pageNo=state.drawingPageNo||1){
-  const ann=state.drawingAnnotation;ann.page_dimensions=ann?.page_dimensions||{};
-  return ann?.page_dimensions?.[String(pageNo)]||ann?.page_dimensions?.[pageNo]||null;
+  const ann=state.drawingAnnotation;if(!ann)return null;
+  ann.page_dimensions=ann.page_dimensions||{};
+  return ann.page_dimensions[String(pageNo)]||ann.page_dimensions[pageNo]||null;
 }
 function drawingMetersPerPixel(pageNo=state.drawingPageNo||1){
   const cal=drawingPageMeta(pageNo)?.calibration;
