@@ -10,6 +10,7 @@ from ..audit import write_audit
 from ..authz import require_permission
 from ..db import get_db
 from ..legal_rule_validation import validate_rule_conditions
+from ..legal_outcome_validation import validate_rule_outcome_references
 from ..models import (
     LegalProvision,
     LegalRule,
@@ -109,6 +110,14 @@ def _validate_ready_for_review(db: Session, row: LegalRuleDraftCandidate) -> Non
         validate_rule_conditions(row.proposed_conditions)
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=f"invalid proposed_conditions: {exc}")
+    try:
+        validate_rule_outcome_references(
+            db,
+            domain=row.domain,
+            outcome=row.proposed_outcome,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=f"invalid proposed_outcome: {exc}")
     if row.source_legal_document_version_id:
         citations = db.scalars(
             select(LegalRuleDraftCitation).where(
