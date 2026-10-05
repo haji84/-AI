@@ -998,7 +998,7 @@ Next gate:
 
 ## Phase 6 equipment placement authoring batch
 
-Implemented on branch `phase6-equipment-placement-batch`; CI verification pending:
+Implemented and CI-verified:
 - Migration 035 equipment placement authoring batch persistence
 - official placement Worklist batch SHA-256 binding
 - equipment_placement Human review candidates linked to an immutable batch
@@ -1010,6 +1010,12 @@ Implemented on branch `phase6-equipment-placement-batch`; CI verification pendin
 - source hash drift immediately invalidates placement authoring coverage
 - drawing consultation exposes an explicit placement Rule coverage warning while incomplete
 - placement authoring coverage and placement regression coverage are separated
+
+Verified checkpoint:
+- run: `37310422832` SUCCESS
+- backend pytest: 123 passed
+- Migration 035 parser smoke: PASS
+- frontend JavaScript syntax: PASS
 
 Verified official Worklist evidence from run `37291827627`, artifact `11337265684`:
 - artifact digest: `sha256:e85a10327047f60c37b08cee052cc7f50356fdd3611a0d2a5a273d093e3c67ba`
