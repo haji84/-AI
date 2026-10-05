@@ -1985,3 +1985,56 @@ def test_phase5_8_prevention_role_has_equipment_permissions():
             .where(RolePermission.role_id==role.role_id)
         ).all())
         assert {"equipment.read","equipment.manage"}.issubset(codes)
+
+
+def test_phase5_9_rule_outcome_rejects_unknown_master_codes():
+    login()
+
+    eq_rule=client.post("/legal-rules",json={
+        "rule_code":"TEST-EQ-BAD-CODE-59",
+        "name":"不明設備コード拒否59",
+        "domain":"equipment_requirement"
+    })
+    assert eq_rule.status_code==201
+    bad_eq=client.post(f"/legal-rules/{eq_rule.json()['rule_id']}/versions",json={
+        "version_no":1,
+        "effective_from":"2026-01-01",
+        "conditions":{"all":[{"field":"status","op":"eq","value":"active"}]},
+        "outcome":{
+            "decision":"required",
+            "equipment_type_code":"does_not_exist_59",
+            "comparison_mode":"presence"
+        },
+        "source_reference":"TEST SOURCE 59"
+    })
+    assert bad_eq.status_code==422
+
+    sub_rule=client.post("/legal-rules",json={
+        "rule_code":"TEST-SUB-BAD-CODE-59",
+        "name":"不明届出コード拒否59",
+        "domain":"submission_requirement"
+    })
+    assert sub_rule.status_code==201
+    bad_sub=client.post(f"/legal-rules/{sub_rule.json()['rule_id']}/versions",json={
+        "version_no":1,
+        "effective_from":"2026-01-01",
+        "conditions":{"all":[{"field":"status","op":"eq","value":"active"}]},
+        "outcome":{
+            "decision":"required",
+            "submission_type_code":"does_not_exist_59",
+            "comparison_mode":"presence"
+        },
+        "source_reference":"TEST SOURCE 59"
+    })
+    assert bad_sub.status_code==422
+
+
+def test_phase5_9_seeded_equipment_master_is_extensible_not_legal_completeness_claim():
+    login()
+    r=client.get("/equipment-types")
+    assert r.status_code==200
+    rows={x["code"]:x for x in r.json()}
+    assert "extinguisher" in rows
+    assert "automatic_fire_alarm" in rows
+    assert rows["automatic_fire_alarm"]["metadata"]["legal_completeness"] is False
+    assert rows["automatic_fire_alarm"]["metadata"]["editable_master"] is True
