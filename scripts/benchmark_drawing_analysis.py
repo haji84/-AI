@@ -81,9 +81,23 @@ def bbox_iou(left: dict, right: dict) -> float:
 
 
 def _prf(tp: int, fp: int, fn: int) -> dict:
-    precision = tp / (tp + fp) if tp + fp else 1.0
-    recall = tp / (tp + fn) if tp + fn else 1.0
-    f1 = 2 * precision * recall / (precision + recall) if precision + recall else 0.0
+    if tp == 0 and fp == 0 and fn == 0:
+        return {
+            "true_positive": 0,
+            "false_positive": 0,
+            "false_negative": 0,
+            "precision": None,
+            "recall": None,
+            "f1": None,
+            "applicable": False,
+        }
+
+    precision = tp / (tp + fp) if tp + fp else None
+    recall = tp / (tp + fn) if tp + fn else None
+    if precision is None or recall is None:
+        f1 = 0.0
+    else:
+        f1 = 2 * precision * recall / (precision + recall) if precision + recall else 0.0
     return {
         "true_positive": tp,
         "false_positive": fp,
@@ -91,6 +105,7 @@ def _prf(tp: int, fp: int, fn: int) -> dict:
         "precision": precision,
         "recall": recall,
         "f1": f1,
+        "applicable": True,
     }
 
 
@@ -213,11 +228,11 @@ def score_drawing(reference_payload: dict, hypothesis_payload: dict, iou_thresho
 
     geometry = _prf(len(pairs), len(hypothesis) - len(pairs), len(reference) - len(pairs))
     geometry["iou_threshold"] = iou_threshold
-    geometry["mean_iou"] = sum(x[2] for x in pairs) / len(pairs) if pairs else 0.0
+    geometry["mean_iou"] = sum(x[2] for x in pairs) / len(pairs) if pairs else None
 
     type_correct = sum(1 for ri, hi, _ in pairs if str(reference[ri].get("element_type") or "") == str(hypothesis[hi].get("element_type") or ""))
     geometry["element_type_correct"] = type_correct
-    geometry["element_type_accuracy"] = type_correct / len(pairs) if pairs else 1.0
+    geometry["element_type_accuracy"] = type_correct / len(pairs) if pairs else None
 
     symbol_total = 0
     symbol_correct = 0
@@ -231,7 +246,8 @@ def score_drawing(reference_payload: dict, hypothesis_payload: dict, iou_thresho
     symbols = {
         "reference_scored": symbol_total,
         "correct": symbol_correct,
-        "accuracy": symbol_correct / symbol_total if symbol_total else 1.0,
+        "accuracy": symbol_correct / symbol_total if symbol_total else None,
+        "applicable": symbol_total > 0,
     }
 
     equipment, facts = _candidate_metrics(reference_payload, hypothesis_payload, pairs)
@@ -267,10 +283,10 @@ def _aggregate(drawings: list[dict], iou_threshold: float) -> dict:
         x["metrics"]["geometry_detection"]["mean_iou"] * x["metrics"]["geometry_detection"]["true_positive"]
         for x in drawings
     )
-    geometry["mean_iou"] = weighted_iou / gtp if gtp else 0.0
+    geometry["mean_iou"] = weighted_iou / gtp if gtp else None
     type_correct = sum(x["metrics"]["geometry_detection"]["element_type_correct"] for x in drawings)
     geometry["element_type_correct"] = type_correct
-    geometry["element_type_accuracy"] = type_correct / gtp if gtp else 1.0
+    geometry["element_type_accuracy"] = type_correct / gtp if gtp else None
 
     symbol_total = sum(x["metrics"]["symbol_classification"]["reference_scored"] for x in drawings)
     symbol_correct = sum(x["metrics"]["symbol_classification"]["correct"] for x in drawings)
@@ -287,7 +303,8 @@ def _aggregate(drawings: list[dict], iou_threshold: float) -> dict:
         "symbol_classification": {
             "reference_scored": symbol_total,
             "correct": symbol_correct,
-            "accuracy": symbol_correct / symbol_total if symbol_total else 1.0,
+            "accuracy": symbol_correct / symbol_total if symbol_total else None,
+            "applicable": symbol_total > 0,
         },
         "equipment_candidates": sum_prf("equipment_candidates"),
         "fact_candidates": sum_prf("fact_candidates"),
