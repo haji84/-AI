@@ -17,9 +17,12 @@ from .models import (
     EquipmentRequirementBatchCandidate,
     LegalProvision,
     LegalProvisionReviewCandidate,
+    LegalRule,
     LegalRuleCitation,
     LegalRuleDraftCandidate,
     LegalRuleVersion,
+    EquipmentRequirementTestCase,
+    EquipmentRequirementTestRun,
 )
 
 
@@ -302,6 +305,133 @@ def _draft_terminal_state(
     }
 
 
+
+def _active_equipment_rule_version(
+    db: Session,
+    *,
+    rule_id: str,
+    evaluation_date: date,
+) -> LegalRuleVersion | None:
+    rows = db.scalars(
+        select(LegalRuleVersion)
+        .where(
+            LegalRuleVersion.rule_id == rule_id,
+            LegalRuleVersion.status == "approved",
+            LegalRuleVersion.effective_from <= evaluation_date,
+        )
+        .order_by(LegalRuleVersion.version_no.desc())
+    ).all()
+    return next(
+        (
+            row for row in rows
+            if row.effective_to is None or row.effective_to >= evaluation_date
+        ),
+        None,
+    )
+
+
+def equipment_rule_engine_fingerprint(
+    db: Session,
+    *,
+    evaluation_date: date,
+) -> str:
+    rules = db.scalars(
+        select(LegalRule)
+        .where(
+            LegalRule.domain == EQUIPMENT_CATEGORY,
+            LegalRule.active.is_(True),
+        )
+        .order_by(LegalRule.rule_code)
+    ).all()
+    payload = []
+    for rule in rules:
+        version = _active_equipment_rule_version(
+            db,
+            rule_id=rule.rule_id,
+            evaluation_date=evaluation_date,
+        )
+        if version is None:
+            continue
+        citations = db.scalars(
+            select(LegalRuleCitation).where(
+                LegalRuleCitation.legal_rule_version_id
+                == version.legal_rule_version_id
+            )
+        ).all()
+        citation_payload = []
+        for citation in citations:
+            provision = db.get(LegalProvision, citation.legal_provision_id)
+            citation_payload.append(
+                {
+                    "role": citation.citation_role,
+                    "provision_id": citation.legal_provision_id,
+                    "provision_key": provision.provision_key if provision else None,
+                    "content_sha256": provision.content_sha256 if provision else None,
+                    "present_in_source": bool(
+                        provision and provision.present_in_source
+                    ),
+                }
+            )
+        citation_payload.sort(
+            key=lambda x: (
+                str(x.get("role") or ""),
+                str(x.get("provision_key") or ""),
+            )
+        )
+        payload.append(
+            {
+                "rule_code": rule.rule_code,
+                "rule_name": rule.name,
+                "rule_version_id": version.legal_rule_version_id,
+                "version_no": version.version_no,
+                "effective_from": version.effective_from.isoformat(),
+                "effective_to": (
+                    version.effective_to.isoformat()
+                    if version.effective_to
+                    else None
+                ),
+                "conditions": version.conditions or {},
+                "outcome": version.outcome or {},
+                "source_legal_document_version_id":
+                    version.source_legal_document_version_id,
+                "citations": citation_payload,
+            }
+        )
+    return _canonical_sha(payload)
+
+
+def equipment_test_suite_fingerprint(
+    db: Session,
+    *,
+    worklist_sha256: str,
+) -> str | None:
+    rows = db.scalars(
+        select(EquipmentRequirementTestCase)
+        .where(
+            EquipmentRequirementTestCase.worklist_sha256 == worklist_sha256,
+            EquipmentRequirementTestCase.status == "reviewed",
+        )
+        .order_by(
+            EquipmentRequirementTestCase.name,
+            EquipmentRequirementTestCase.created_at,
+        )
+    ).all()
+    if not rows:
+        return None
+    payload = [
+        {
+            "test_case_id": row.equipment_requirement_test_case_id,
+            "version": row.version,
+            "name": row.name,
+            "input_snapshot": row.input_snapshot or {},
+            "expected_equipment_type_codes":
+                row.expected_equipment_type_codes or [],
+        }
+        for row in rows
+    ]
+    return _canonical_sha(payload)
+
+
 def equipment_requirement_batch_coverage(
     db: Session,
     *,
@@ -405,7 +535,7 @@ def equipment_requirement_batch_coverage(
     expected = batch.expected_candidate_count
     linked_count = len(links)
     all_linked = linked_count == expected
-    coverage_complete = (
+    authoring_coverage_complete = (
         expected > 0
         and all_linked
         and processed_count == expected
@@ -434,6 +564,46 @@ def equipment_requirement_batch_coverage(
     if processed_count != expected:
         blockers.append(f"processed candidates {processed_count}/{expected}")
 
+
+    current_rule_engine_fingerprint = equipment_rule_engine_fingerprint(
+        db,
+        evaluation_date=evaluation_date,
+    )
+    current_test_suite_fingerprint = equipment_test_suite_fingerprint(
+        db,
+        worklist_sha256=batch.worklist_sha256,
+    )
+    accepted_runs = db.scalars(
+        select(EquipmentRequirementTestRun)
+        .where(
+            EquipmentRequirementTestRun.worklist_sha256 == batch.worklist_sha256,
+            EquipmentRequirementTestRun.review_status == "reviewed",
+            EquipmentRequirementTestRun.human_decision == "accepted_regression",
+        )
+        .order_by(EquipmentRequirementTestRun.reviewed_at.desc())
+    ).all()
+    matching_accepted_run = next(
+        (
+            run for run in accepted_runs
+            if (run.result_payload or {}).get("rule_engine_fingerprint")
+            == current_rule_engine_fingerprint
+            and (run.result_payload or {}).get("test_suite_fingerprint")
+            == current_test_suite_fingerprint
+            and (run.result_payload or {}).get("evaluation_date")
+            == evaluation_date.isoformat()
+            and bool((run.result_payload or {}).get("overall_pass"))
+        ),
+        None,
+    )
+    regression_gate_passed = matching_accepted_run is not None
+    if authoring_coverage_complete and not regression_gate_passed:
+        blockers.append(
+            "accepted equipment regression run is missing or stale for the current Rule/test-suite fingerprints"
+        )
+    final_coverage_complete = (
+        authoring_coverage_complete and regression_gate_passed
+    )
+
     return {
         "batch_found": True,
         "batch_id": batch.equipment_requirement_authoring_batch_id,
@@ -444,7 +614,16 @@ def equipment_requirement_batch_coverage(
         "processed_candidate_count": processed_count,
         "evaluation_date": evaluation_date.isoformat(),
         "counts": counts,
-        "coverage_complete": coverage_complete,
+        "authoring_coverage_complete": authoring_coverage_complete,
+        "current_rule_engine_fingerprint": current_rule_engine_fingerprint,
+        "current_test_suite_fingerprint": current_test_suite_fingerprint,
+        "regression_gate_passed": regression_gate_passed,
+        "accepted_regression_run_id": (
+            matching_accepted_run.equipment_requirement_test_run_id
+            if matching_accepted_run
+            else None
+        ),
+        "coverage_complete": final_coverage_complete,
         "blockers": blockers,
         "source_metadata": batch.source_metadata or {},
         "items": items,
