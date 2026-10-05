@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select, update
@@ -39,6 +40,12 @@ from ..schemas import (
 )
 
 router = APIRouter(tags=["drawings"])
+
+def _json_safe_value(value):
+    if isinstance(value, Decimal):
+        return float(value)
+    return value
+
 
 DRAWING_FACT_APPLY_FIELDS = {
     "detail.classification_code": ("classification_code", "str"),
@@ -627,7 +634,7 @@ def apply_drawing_fact_candidate(
         entity_id=facility.building_id,
         before={
             "target_path": row.target_path,
-            "value": before_value,
+            "value": _json_safe_value(before_value),
             "facility_version": payload.expected_facility_version,
         },
         after={
