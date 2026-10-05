@@ -143,3 +143,43 @@ def test_phase6_occupancy_worklist_rejects_wrong_law_and_missing_schedule():
         assert False, "expected ValueError"
     except ValueError as exc:
         assert "AppdxTable" in str(exc)
+
+
+
+def test_phase6_schedule_one_worklist_key_matches_citable_table_row_provision():
+    from app.legal_structure import PARSER_VERSION, parse_egov_xml
+
+    mod = _mod()
+    xml = """<?xml version="1.0" encoding="UTF-8"?>
+<Law>
+  <LawBody>
+    <LawTitle>消防法施行令</LawTitle>
+    <LawNum>昭和三十六年政令第三十七号</LawNum>
+    <AppdxTable Num="1">
+      <AppdxTableTitle>別表第一</AppdxTableTitle>
+      <TableStruct>
+        <Table>
+          <TableRow>
+            <TableColumn><Sentence>（三）</Sentence></TableColumn>
+            <TableColumn>
+              <Sentence Num="1">イ　待合、料理店その他これらに類するもの</Sentence>
+              <Sentence Num="2">ロ　飲食店</Sentence>
+            </TableColumn>
+          </TableRow>
+        </Table>
+      </TableStruct>
+    </AppdxTable>
+  </LawBody>
+</Law>
+""".encode("utf-8")
+
+    worklist = mod.extract_schedule_one(xml)
+    provisions = parse_egov_xml(xml)
+    table_rows = [x for x in provisions if x.provision_type == "table_row"]
+
+    assert PARSER_VERSION == "legal-structure-v2"
+    assert len(table_rows) == 1
+    assert worklist["rows"][0]["row_provision_key"] == table_rows[0].provision_key
+    assert table_rows[0].display_label is None
+    assert "（三）" in table_rows[0].body_text
+    assert "飲食店" in table_rows[0].body_text
