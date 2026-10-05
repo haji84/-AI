@@ -1,0 +1,67 @@
+{
+  "reference_format": "fire-ai-drawing-human-reference-draft-v1",
+  "reference_status": "pending_human_acceptance",
+  "source": {
+    "filename": "平面図-1024x745.jpg",
+    "sha256": "2df43a8f5cebe48f2a55ae8968714319ca05491088d98a1e6038fd0b10aa26b6",
+    "pixel_width": 1024,
+    "pixel_height": 745,
+    "drawing_kind": "residential_floor_plan",
+    "visible_floor": "1F"
+  },
+  "scope": {
+    "geometry_annotation_complete": false,
+    "symbol_annotation_complete": false,
+    "equipment_annotation_complete": false,
+    "facility_fact_annotation_complete": true,
+    "note": "This first reference item is intentionally limited to high-confidence facts visible in the printed area table. Geometry/symbol/equipment labels require a separate annotation pass."
+  },
+  "elements": [],
+  "equipment_candidates": [],
+  "fact_candidates": [
+    {
+      "target_path": "detail.above_ground_floors",
+      "proposed_value": {
+        "value": 2
+      },
+      "evidence": {
+        "source": "printed_area_table",
+        "rows": [
+          "1階",
+          "2階"
+        ]
+      }
+    },
+    {
+      "target_path": "detail.total_floor_area",
+      "proposed_value": {
+        "value": 112.1
+      },
+      "evidence": {
+        "source": "printed_area_table",
+        "label": "延床面積",
+        "unit": "m2"
+      }
+    },
+    {
+      "target_path": "detail.building_area",
+      "proposed_value": {
+        "value": 85.61
+      },
+      "evidence": {
+        "source": "printed_area_table",
+        "label": "建築面積",
+        "unit": "m2"
+      }
+    }
+  ],
+  "source_observations": {
+    "floor_area_m2": {
+      "1F": 78.66,
+      "2F": 33.44
+    },
+    "total_floor_area_m2": 112.1,
+    "construction_floor_area_m2": 137.42,
+    "building_area_m2": 85.61
+  }
+}
