@@ -7,6 +7,7 @@ from .models import User, Employee, UserRole
 from .rbac_seed import seed_rbac
 from .module_seed import seed_modules
 from .submission_seed import seed_submission_types
+from .equipment_seed import seed_equipment_types
 from .security import hash_password
 
 
@@ -25,6 +26,7 @@ def main():
         roles = seed_rbac(db)
         seed_modules(db)
         seed_submission_types(db)
+        seed_equipment_types(db)
         emp = Employee(display_name=args.display_name)
         db.add(emp)
         db.flush()
