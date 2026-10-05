@@ -10,6 +10,7 @@ from ..audit import write_audit
 from ..authz import require_permission
 from ..db import get_db
 from ..equipment_authoring_batch import equipment_requirement_batch_coverage
+from ..placement_authoring_batch import equipment_placement_batch_coverage
 from ..occupancy_authoring_workbench import occupancy_rule_coverage
 from ..legal_requirement_engine import (
     approved_rule_count,
@@ -705,6 +706,24 @@ def evaluate_required_equipment(
         required_equipment=required,
         evaluation_date=evaluation_date,
     )
+    placement_coverage = equipment_placement_batch_coverage(
+        db,
+        evaluation_date=evaluation_date,
+    )
+    if not placement_coverage.get("coverage_complete"):
+        missing.append(
+            {
+                "field": "equipment_placement_rule_coverage",
+                "reason": "equipment placement Rule coverage is not complete",
+                "coverage": {
+                    "batch_found": placement_coverage.get("batch_found"),
+                    "worklist_sha256": placement_coverage.get("worklist_sha256"),
+                    "expected_candidate_count": placement_coverage.get("expected_candidate_count"),
+                    "processed_candidate_count": placement_coverage.get("processed_candidate_count"),
+                    "blockers": placement_coverage.get("blockers") or [],
+                },
+            }
+        )
 
     row.equipment_results = [
         {
@@ -719,6 +738,9 @@ def evaluate_required_equipment(
             "missing_information": missing,
             "equipment_rule_coverage_complete": bool(
                 equipment_coverage.get("coverage_complete")
+            ),
+            "placement_rule_coverage_complete": bool(
+                placement_coverage.get("coverage_complete")
             ),
             "note": (
                 "Zero matched Rules does not mean zero required equipment unless the Approved Rule set "
