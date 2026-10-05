@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime, timezone
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -289,6 +289,7 @@ def bulk_author_occupancy_conditions(
             if item.get("rationale") is not None:
                 row.rationale = str(item["rationale"])
             row.version += 1
+            row.updated_at = datetime.now(timezone.utc)
             updated += 1
         db.flush()
 
@@ -414,8 +415,16 @@ def occupancy_rule_coverage(
         {code for code in unique_codes if codes.count(code) > 1}
     )
 
+    catalog_sizes = {
+        int((item.get("generation_context") or {}).get("catalog_entry_count"))
+        for item in items
+        if (item.get("generation_context") or {}).get("catalog_entry_count") is not None
+    }
+    catalog_batch_valid = catalog_sizes == {EXPECTED_OCCUPANCY_CLASSIFICATION_COUNT}
+
     complete = (
         selected_sha is not None
+        and catalog_batch_valid
         and len(items) == EXPECTED_OCCUPANCY_CLASSIFICATION_COUNT
         and len(unique_codes) == EXPECTED_OCCUPANCY_CLASSIFICATION_COUNT
         and not duplicate_codes
@@ -427,6 +436,10 @@ def occupancy_rule_coverage(
     blockers = []
     if selected_sha is None:
         blockers.append("official occupancy authoring batch is not imported")
+    if not catalog_batch_valid:
+        blockers.append(
+            f"catalog batch size marker is not the verified {EXPECTED_OCCUPANCY_CLASSIFICATION_COUNT}: {sorted(catalog_sizes)}"
+        )
     if len(items) != EXPECTED_OCCUPANCY_CLASSIFICATION_COUNT:
         blockers.append(
             f"expected {EXPECTED_OCCUPANCY_CLASSIFICATION_COUNT} skeletons, found {len(items)}"
@@ -450,6 +463,8 @@ def occupancy_rule_coverage(
         "source_xml_sha256": selected_sha,
         "evaluation_date": evaluation_date.isoformat(),
         "expected_classification_count": EXPECTED_OCCUPANCY_CLASSIFICATION_COUNT,
+        "catalog_batch_valid": catalog_batch_valid,
+        "catalog_batch_size_markers": sorted(catalog_sizes),
         "skeleton_count": len(items),
         "unique_classification_count": len(unique_codes),
         "valid_condition_count": valid_condition_count,
