@@ -117,7 +117,8 @@ def _stable_photo_number(db: Session, media: FireInvestigationMedia) -> int:
             FireInvestigationMedia.media_type == "photo",
         )
         .order_by(
-            FireInvestigationMedia.sequence_no.asc().nulls_last(),
+            FireInvestigationMedia.sequence_no.is_(None),
+            FireInvestigationMedia.sequence_no,
             FireInvestigationMedia.created_at,
             FireInvestigationMedia.fire_investigation_media_id,
         )
