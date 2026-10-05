@@ -1475,3 +1475,38 @@ class FireAudioBenchmarkComparisonOut(BaseModel):
     right_review_status: str
     metrics: dict
     note: str
+
+
+class FireEvidenceComparisonBenchmarkRunCreate(BaseModel):
+    dataset_label: str = Field(min_length=1, max_length=300)
+    result_payload: dict
+
+class FireEvidenceComparisonBenchmarkRunReview(BaseModel):
+    expected_version: int = Field(ge=1)
+    human_decision: Literal["accepted_baseline","rejected_baseline"]
+    review_notes: str | None = None
+
+class FireEvidenceComparisonBenchmarkRunOut(BaseModel):
+    fire_evidence_comparison_benchmark_run_id: str
+    benchmark_format: str
+    dataset_label: str
+    manifest_sha256: str | None = None
+    result_sha256: str
+    case_count: int
+    result_payload: dict
+    review_status: str
+    human_decision: str | None = None
+    review_notes: str | None = None
+    version: int
+    created_at: str
+    reviewed_at: str | None = None
+
+class FireEvidenceComparisonBenchmarkComparisonOut(BaseModel):
+    left_id: str
+    right_id: str
+    left_dataset_label: str
+    right_dataset_label: str
+    left_review_status: str
+    right_review_status: str
+    metrics: dict
+    note: str
