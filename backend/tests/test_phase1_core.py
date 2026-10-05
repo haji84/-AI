@@ -6744,3 +6744,120 @@ def test_phase6_consultation_response_review_becomes_stale_when_annotation_chang
     assert rereviewed.json()["answer_state"]=="reviewed"
     assert rereviewed.json()["review_current"] is True
     assert rereviewed.json()["response_sha256"]==stale_body["response_sha256"]
+
+
+
+def test_phase6_pdf_drawing_preview_info_and_page_render():
+    import fitz
+
+    login()
+    pdf = fitz.open()
+    page1 = pdf.new_page(width=400, height=300)
+    page1.insert_text((40, 60), "Floor plan page 1")
+    page2 = pdf.new_page(width=300, height=500)
+    page2.insert_text((40, 60), "Floor plan page 2")
+    payload = pdf.tobytes()
+    pdf.close()
+
+    facility = client.post(
+        "/facilities",
+        json={"name":"PDF図面Annotation対象"},
+    ).json()
+    bid = facility["building_id"]
+    upload = client.post(
+        "/documents/upload",
+        files={"file":("two-page-plan.pdf", payload, "application/pdf")},
+        data={"document_type":"drawing","building_id":bid},
+    )
+    assert upload.status_code == 201
+    document = upload.json()
+
+    analysis = client.post(
+        f"/facilities/{bid}/drawing-analyses",
+        json={
+            "document_id":document["document_id"],
+            "analysis_method":"manual",
+        },
+    )
+    assert analysis.status_code == 201
+    aid = analysis.json()["drawing_analysis_id"]
+
+    info = client.get(
+        f"/drawing-analyses/{aid}/preview-info"
+    )
+    assert info.status_code == 200
+    body = info.json()
+    assert body["preview_kind"] == "pdf"
+    assert body["preview_version"] == "drawing-pdf-preview-v1"
+    assert body["page_count"] == 2
+    assert [x["page_no"] for x in body["pages"]] == [1,2]
+    assert all(x["width"] > 0 and x["height"] > 0 for x in body["pages"])
+    assert max(x["width"] for x in body["pages"]) <= 2400
+    assert max(x["height"] for x in body["pages"]) <= 2400
+
+    preview = client.get(
+        f"/drawing-analyses/{aid}/pages/1/preview"
+    )
+    assert preview.status_code == 200
+    assert preview.headers["content-type"].startswith("image/png")
+    assert preview.content[:8] == b"\x89PNG\r\n\x1a\n"
+    assert preview.headers["x-drawing-preview-version"] == "drawing-pdf-preview-v1"
+    assert preview.headers["x-drawing-page-no"] == "1"
+    assert int(preview.headers["x-drawing-page-width"]) > 0
+    assert int(preview.headers["x-drawing-page-height"]) > 0
+    assert len(preview.headers["etag"]) == 64
+
+    page2_preview = client.get(
+        f"/drawing-analyses/{aid}/pages/2/preview"
+    )
+    assert page2_preview.status_code == 200
+    assert page2_preview.content[:8] == b"\x89PNG\r\n\x1a\n"
+
+    missing = client.get(
+        f"/drawing-analyses/{aid}/pages/3/preview"
+    )
+    assert missing.status_code == 404
+    assert "out of range" in str(missing.json())
+
+
+def test_phase6_image_drawing_preview_info_keeps_original_pixel_space():
+    from PIL import Image
+    import io
+
+    login()
+    buf = io.BytesIO()
+    Image.new("RGB", (321, 123), "white").save(buf, format="PNG")
+
+    facility = client.post(
+        "/facilities",
+        json={"name":"画像図面Preview対象"},
+    ).json()
+    bid = facility["building_id"]
+    upload = client.post(
+        "/documents/upload",
+        files={"file":("plan.png", buf.getvalue(), "image/png")},
+        data={"document_type":"drawing","building_id":bid},
+    ).json()
+    aid = client.post(
+        f"/facilities/{bid}/drawing-analyses",
+        json={
+            "document_id":upload["document_id"],
+            "analysis_method":"manual",
+        },
+    ).json()["drawing_analysis_id"]
+
+    info = client.get(
+        f"/drawing-analyses/{aid}/preview-info"
+    )
+    assert info.status_code == 200
+    body = info.json()
+    assert body["preview_kind"] == "image"
+    assert body["page_count"] == 1
+    assert body["pages"] == [
+        {"page_no":1,"width":321,"height":123}
+    ]
+
+    wrong_endpoint = client.get(
+        f"/drawing-analyses/{aid}/pages/1/preview"
+    )
+    assert wrong_endpoint.status_code == 409
