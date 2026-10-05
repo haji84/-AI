@@ -664,7 +664,7 @@ Legal content Gate remains:
 
 ## Phase 6 occupancy classification Rule worklist
 
-Implemented on branch `phase6-occupancy-classification-worklist`; CI verification pending:
+Implemented and CI-verified:
 - exact target law title: 消防法施行令
 - exact target appendix prefix: 別表第一
 - e-Gov XML AppdxTable selection
@@ -676,6 +676,12 @@ Implemented on branch `phase6-occupancy-classification-worklist`; CI verificatio
 - no automatic Rule approval
 - no automatic classification Rule generation
 - workflow uses the previously verified e-Gov national-law artifact
+
+Verified checkpoint:
+- run: `37269627180` SUCCESS
+- backend pytest: 107 passed
+- migration parser smoke: PASS
+- frontend JavaScript syntax: PASS
 
 Next legal-authoring gate:
 1. run the worklist workflow on the verified official corpus
