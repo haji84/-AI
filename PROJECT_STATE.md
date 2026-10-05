@@ -874,3 +874,54 @@ Safety:
 - regression cases and expected answers are Human-reviewed truth, not AI-generated truth
 - regression acceptance does not modify Rule conditions or legal classifications
 - current fingerprints prevent reuse of stale validation evidence
+
+
+## Phase 6 equipment requirement authoring batch
+
+Implemented and CI-verified:
+- Migration 033 equipment requirement authoring batch persistence
+- official core legal Worklist batch SHA-256 binding
+- equipment_requirement candidate extraction from the verified Worklist
+- Human review candidates are linked to an immutable batch
+- batch import supports Dry-run / Apply
+- source provision content SHA-256 is stored per linked candidate
+- Human `ignored` candidates count as correctly processed non-Rules
+- Human `reviewed` candidates remain incomplete until Rule Draft handoff
+- `drafted` candidates become terminal only when the Draft is Human-rejected or promoted to an Approved/effective Rule with valid source citation
+- source hash drift immediately invalidates coverage
+- drawing consultation reports an explicit equipment Rule coverage warning while the batch is incomplete
+- CLI added for offline/production batch import
+
+Verified checkpoint:
+- run: `37289599466` SUCCESS
+- backend pytest: 118 passed
+- Migration 033 parser smoke: PASS
+- frontend JavaScript syntax: PASS
+
+Verified official Worklist evidence from run `37271954544`, artifact `11328598413`:
+- artifact digest: `sha256:b1364930c7acd6d74804cf2e67fcc65d889a94cfb715242b6c503ba55db00805`
+- full core authoring Worklist items: 7,854
+- requirement lane items: 1,602
+- equipment_requirement candidates: 794
+- largest equipment candidate sources:
+  - 消防法施行規則: 423
+  - 消防法施行令: 205
+  - 危険物の規制に関する規則: 60
+  - 消防法: 42
+  - 大島地区消防組合火災予防条例: 38
+
+Coverage semantics:
+- 794 is the current verified candidate count, not a legal Rule count.
+- irrelevant/noise provisions must be Human-ignored rather than auto-promoted.
+- a future rebuilt Worklist receives a different batch SHA and must be reviewed separately.
+- equipment Rule coverage_complete is never inferred merely from the number of Approved Rules.
+
+Target flow:
+1. import verified equipment_requirement Worklist batch
+2. Human process every linked review candidate
+3. relevant candidates -> Rule Draft
+4. irrelevant candidates -> ignored
+5. Drafts -> Human rejected or promoted
+6. promoted Rule Versions -> Human Approved and effective
+7. require zero stale source hashes and all batch candidates processed
+8. only then treat equipment requirement Rule coverage as complete for that batch

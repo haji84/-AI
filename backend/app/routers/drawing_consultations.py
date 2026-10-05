@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from ..audit import write_audit
 from ..authz import require_permission
 from ..db import get_db
+from ..equipment_authoring_batch import equipment_requirement_batch_coverage
 from ..occupancy_authoring_workbench import occupancy_rule_coverage
 from ..legal_requirement_engine import (
     approved_rule_count,
@@ -644,6 +645,24 @@ def evaluate_required_equipment(
         domain="equipment_requirement",
         evaluation_date=evaluation_date,
     )
+    equipment_coverage = equipment_requirement_batch_coverage(
+        db,
+        evaluation_date=evaluation_date,
+    )
+    if not equipment_coverage.get("coverage_complete"):
+        missing.append(
+            {
+                "field": "equipment_requirement_rule_coverage",
+                "reason": "equipment requirement Rule coverage is not complete",
+                "coverage": {
+                    "batch_found": equipment_coverage.get("batch_found"),
+                    "worklist_sha256": equipment_coverage.get("worklist_sha256"),
+                    "expected_candidate_count": equipment_coverage.get("expected_candidate_count"),
+                    "processed_candidate_count": equipment_coverage.get("processed_candidate_count"),
+                    "blockers": equipment_coverage.get("blockers") or [],
+                },
+            }
+        )
 
     required: list[dict] = []
     manual_review: list[dict] = []
@@ -698,6 +717,9 @@ def evaluate_required_equipment(
                 evaluation_date=evaluation_date,
             ),
             "missing_information": missing,
+            "equipment_rule_coverage_complete": bool(
+                equipment_coverage.get("coverage_complete")
+            ),
             "note": (
                 "Zero matched Rules does not mean zero required equipment unless the Approved Rule set "
                 "has been independently declared complete for this use case."
@@ -722,6 +744,9 @@ def evaluate_required_equipment(
             "manual_review_count": len(manual_review),
             "placement_group_count": len(placement),
             "evaluation_date": evaluation_date.isoformat(),
+            "equipment_rule_coverage_complete": bool(
+                equipment_coverage.get("coverage_complete")
+            ),
         },
     )
     db.commit()
