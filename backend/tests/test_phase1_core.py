@@ -2225,3 +2225,118 @@ def test_phase6_prevention_role_has_drawing_permissions():
             .where(RolePermission.role_id==role.role_id)
         ).all())
         assert {"drawing.read","drawing.analyze","drawing.review"}.issubset(codes)
+
+
+def test_phase6_1_accepted_drawing_fact_applies_with_facility_optimistic_lock():
+    login()
+    facility=client.post("/facilities",json={
+        "name":"Phase6.1 Fact対象",
+        "detail":{"classification_code":"OLD","total_floor_area":100}
+    }).json()
+    bid=facility["building_id"]
+
+    upload=client.post(
+        "/documents/upload",
+        files={"file":("fact-plan.pdf",b"fact-plan","application/pdf")},
+        data={"document_type":"drawing"}
+    ).json()
+    analysis=client.post(f"/facilities/{bid}/drawing-analyses",json={
+        "document_id":upload["document_id"],
+        "analysis_method":"ai",
+        "model_version":"fact-test-v1"
+    }).json()
+    aid=analysis["drawing_analysis_id"]
+
+    fact=client.post(f"/drawing-analyses/{aid}/fact-candidates",json={
+        "target_path":"detail.total_floor_area",
+        "proposed_value":{"value":1234.5},
+        "confidence":0.82,
+        "evidence":{"page":1,"label":"延べ面積"}
+    })
+    assert fact.status_code==201
+    fid=fact.json()["drawing_fact_candidate_id"]
+
+    pending_apply=client.post(f"/drawing-fact-candidates/{fid}/apply",json={
+        "expected_version":1,
+        "expected_facility_version":1
+    })
+    assert pending_apply.status_code==409
+
+    accepted=client.patch(f"/drawing-fact-candidates/{fid}",json={
+        "expected_version":1,
+        "status":"accepted"
+    })
+    assert accepted.status_code==200
+    assert accepted.json()["version"]==2
+
+    applied=client.post(f"/drawing-fact-candidates/{fid}/apply",json={
+        "expected_version":2,
+        "expected_facility_version":1
+    })
+    assert applied.status_code==200
+    body=applied.json()
+    assert body["version"]==3
+    assert body["applied_facility_version"]==2
+    assert body["applied_at"]
+
+    detail=client.get(f"/facilities/{bid}/detail")
+    assert detail.status_code==200
+    assert detail.json()["detail"]["total_floor_area"]==1234.5
+    assert detail.json()["facility"]["version"]==2
+
+    duplicate=client.post(f"/drawing-fact-candidates/{fid}/apply",json={
+        "expected_version":3,
+        "expected_facility_version":2
+    })
+    assert duplicate.status_code==409
+
+
+def test_phase6_1_drawing_fact_rejects_stale_facility_and_unapproved_target_path():
+    login()
+    facility=client.post("/facilities",json={"name":"Phase6.1 stale対象"}).json()
+    bid=facility["building_id"]
+    upload=client.post(
+        "/documents/upload",
+        files={"file":("stale-plan.pdf",b"stale-plan","application/pdf")},
+        data={"document_type":"drawing"}
+    ).json()
+    aid=client.post(f"/facilities/{bid}/drawing-analyses",json={
+        "document_id":upload["document_id"],
+        "analysis_method":"ai"
+    }).json()["drawing_analysis_id"]
+
+    good=client.post(f"/drawing-analyses/{aid}/fact-candidates",json={
+        "target_path":"detail.above_ground_floors",
+        "proposed_value":{"value":3}
+    }).json()
+    gid=good["drawing_fact_candidate_id"]
+    assert client.patch(f"/drawing-fact-candidates/{gid}",json={
+        "expected_version":1,"status":"accepted"
+    }).status_code==200
+
+    updated=client.patch(f"/facilities/{bid}",json={
+        "expected_version":1,
+        "name":"別職員が更新済み"
+    })
+    assert updated.status_code==200
+    assert updated.json()["version"]==2
+
+    stale=client.post(f"/drawing-fact-candidates/{gid}/apply",json={
+        "expected_version":2,
+        "expected_facility_version":1
+    })
+    assert stale.status_code==409
+
+    bad=client.post(f"/drawing-analyses/{aid}/fact-candidates",json={
+        "target_path":"facility.secret_admin_flag",
+        "proposed_value":{"value":True}
+    }).json()
+    bad_id=bad["drawing_fact_candidate_id"]
+    assert client.patch(f"/drawing-fact-candidates/{bad_id}",json={
+        "expected_version":1,"status":"accepted"
+    }).status_code==200
+    rejected=client.post(f"/drawing-fact-candidates/{bad_id}/apply",json={
+        "expected_version":2,
+        "expected_facility_version":2
+    })
+    assert rejected.status_code==422
