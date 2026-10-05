@@ -54,6 +54,11 @@ PERMISSIONS: dict[str, str] = {
     "drawing.read": "図面解析・候補参照",
     "drawing.analyze": "図面解析候補作成",
     "drawing.review": "図面解析候補レビュー・設備候補昇格",
+    "fire_investigation.read": "火災調査ケース・証拠参照",
+    "fire_investigation.create": "火災調査ケース・証拠登録",
+    "fire_investigation.update": "火災調査ケース・派生情報更新",
+    "fire_investigation.review": "火災調査AI候補・供述・原因候補レビュー",
+    "fire_investigation.approve": "火災原因・正式報告承認",
 }
 
 ROLE_POLICY: dict[str, dict] = {
@@ -129,6 +134,24 @@ ROLE_POLICY: dict[str, dict] = {
         "permissions": {
             "system.health.read", "legal_rule.read", "legal_rule.approve", "legal_rule.evaluate", "legal_source.read",
             "document.read",
+        },
+    },
+    "fire_investigator": {
+        "name": "火災調査担当",
+        "system_role": True,
+        "permissions": {
+            "system.health.read",
+            "fire_investigation.read", "fire_investigation.create",
+            "fire_investigation.update", "fire_investigation.review",
+            "document.create", "document.read", "template.read",
+        },
+    },
+    "fire_investigation_approver": {
+        "name": "火災調査承認者",
+        "system_role": True,
+        "permissions": {
+            "system.health.read", "fire_investigation.read",
+            "fire_investigation.approve", "document.read", "template.read",
         },
     },
     "auditor": {
