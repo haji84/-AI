@@ -11,6 +11,7 @@ from ..authz import require_permission
 from ..db import get_db
 from ..legal_rule_validation import validate_rule_conditions
 from ..legal_requirement_engine import evaluate_approved_requirement_rules
+from ..legal_outcome_validation import validate_rule_outcome_references
 from ..models import (
     Document,
     Facility,
@@ -378,6 +379,10 @@ def create_version(
     _validate_conditions(payload.conditions)
     if not payload.outcome:
         raise HTTPException(status_code=422, detail="outcome must not be empty")
+    try:
+        validate_rule_outcome_references(db, domain=rule.domain, outcome=payload.outcome)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
     start = _date(payload.effective_from, required=True)
     end = _date(payload.effective_to)
     if end and end < start:
@@ -435,6 +440,17 @@ def approve_version(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="rule version was updated")
     if row.status != "draft":
         raise HTTPException(status_code=409, detail="only draft rule versions can be approved")
+    rule_for_approval = db.get(LegalRule, row.rule_id)
+    if rule_for_approval is None:
+        raise HTTPException(status_code=409, detail="legal Rule missing")
+    try:
+        validate_rule_outcome_references(
+            db,
+            domain=rule_for_approval.domain,
+            outcome=row.outcome,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
     if (
         not row.source_document_id
         and not row.source_legal_document_version_id
