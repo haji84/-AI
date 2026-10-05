@@ -629,3 +629,28 @@ Verified checkpoint:
 - frontend JavaScript syntax: PASS
 
 AI-seeded content never becomes Reference truth without Human review.
+
+
+## Phase 6 drawing consultation / occupancy classification
+
+Implemented on branch `phase6-drawing-consultation`; CI verification pending:
+- Migration 031 drawing consultation persistence
+- Managed Legal Rule domains expanded with occupancy_classification and equipment_placement
+- consultation snapshot from Human-reviewed drawing annotation
+- classification candidate evaluation from effective Approved Rules
+- missing-information discovery for Rule-required inputs
+- manual Human classification fallback requires review note
+- hard gate: equipment evaluation is rejected until classification is Human-confirmed
+- required equipment candidates use effective Approved equipment_requirement Rules only
+- exact Rule Version / citations / source reference are preserved
+- zero matched Rules is explicitly not treated as zero required equipment
+- placement candidates are generated only from effective Approved equipment_placement Rules
+- placement Rule absence blocks auto-placement
+- room-candidate placement uses Human-reviewed room geometry only
+- E2E tests cover classification -> confirm -> equipment -> placement
+
+Legal content Gate remains:
+- occupancy classification Rule set is not yet declared complete
+- equipment requirement Rule set is not yet declared complete
+- equipment placement Rule set is not yet declared complete
+- production legal advice must not be claimed until Human-approved Rule coverage and production Host Gates are complete
