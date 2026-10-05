@@ -58,14 +58,14 @@ def test_phase6_occupancy_worklist_extracts_schedule_one_table_rows():
 
 def test_phase6_occupancy_worklist_rejects_wrong_law_and_missing_schedule():
     mod = _mod()
-    wrong = b"""<Law><LawBody><LawTitle>別の政令</LawTitle></LawBody></Law>"""
+    wrong = """<Law><LawBody><LawTitle>別の政令</LawTitle></LawBody></Law>""".encode("utf-8")
     try:
         mod.extract_schedule_one(wrong)
         assert False, "expected ValueError"
     except ValueError as exc:
         assert "unexpected law title" in str(exc)
 
-    missing = b"""<Law><LawBody><LawTitle>消防法施行令</LawTitle></LawBody></Law>"""
+    missing = """<Law><LawBody><LawTitle>消防法施行令</LawTitle></LawBody></Law>""".encode("utf-8")
     try:
         mod.extract_schedule_one(missing)
         assert False, "expected ValueError"
