@@ -99,14 +99,18 @@ def _validate_reference_payload(payload: dict) -> None:
                 raise HTTPException(status_code=422, detail=f"duplicate client_ref: {client_ref}")
             seen_refs.add(client_ref)
 
-        if str(element.get("element_type") or "").strip() == "room":
+        element_type = str(element.get("element_type") or "").strip()
+        if element_type in {"room", "zone"}:
             extracted = element.get("extracted_data") or {}
-            room_label = str(element.get("label") or "").strip()
+            region_label = str(element.get("label") or "").strip()
             use_name = str(extracted.get("use_name") or "").strip() if isinstance(extracted, dict) else ""
-            if not room_label and not use_name:
+            if not region_label and not use_name:
                 raise HTTPException(
                     status_code=422,
-                    detail=f"room element {client_ref or index} requires label or extracted_data.use_name",
+                    detail=(
+                        f"{element_type} element {client_ref or index} "
+                        "requires label or extracted_data.use_name"
+                    ),
                 )
 
 
