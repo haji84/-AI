@@ -183,3 +183,56 @@ def test_phase6_schedule_one_worklist_key_matches_citable_table_row_provision():
     assert table_rows[0].display_label is None
     assert "（三）" in table_rows[0].body_text
     assert "飲食店" in table_rows[0].body_text
+
+
+
+def test_phase6_occupancy_catalog_flattens_classification_entries():
+    mod = _mod()
+    xml = """<?xml version="1.0" encoding="UTF-8"?>
+<Law>
+  <LawBody>
+    <LawTitle>消防法施行令</LawTitle>
+    <LawNum>昭和三十六年政令第三十七号</LawNum>
+    <AppdxTable Num="1">
+      <AppdxTableTitle>別表第一</AppdxTableTitle>
+      <TableStruct>
+        <Table>
+          <TableRow>
+            <TableColumn><Sentence>（三）</Sentence></TableColumn>
+            <TableColumn>
+              <Sentence Num="1">イ　待合、料理店その他これらに類するもの</Sentence>
+              <Sentence Num="2">ロ　飲食店</Sentence>
+            </TableColumn>
+          </TableRow>
+        </Table>
+      </TableStruct>
+    </AppdxTable>
+  </LawBody>
+</Law>
+""".encode("utf-8")
+    worklist = mod.extract_schedule_one(xml)
+    worklist["source_path"] = "test.xml"
+    catalog = mod.build_catalog(worklist)
+
+    assert catalog["classification_entry_count"] == 2
+    assert catalog["entries"][0]["classification_code"] == "（三）イ"
+    assert catalog["entries"][1]["classification_code"] == "（三）ロ"
+    assert catalog["entries"][1]["classification_label"] == "飲食店"
+    assert catalog["entries"][1]["row_provision_key"] == worklist["rows"][0]["row_provision_key"]
+    assert catalog["entries"][1]["proposed_conditions"] == {}
+    assert catalog["entries"][1]["proposed_outcome"]["classification_code"] == "（三）ロ"
+    assert catalog["policy"]["human_review_required"] is True
+
+
+def test_phase6_occupancy_worklist_shape_guard_detects_unreviewed_legal_change():
+    mod = _mod()
+    bad = {
+        "row_count": 21,
+        "classification_entry_count": 35,
+        "rows": [],
+    }
+    try:
+        mod.validate_expected_shape(bad)
+        assert False, "expected ValueError"
+    except ValueError as exc:
+        assert "row count changed" in str(exc)
