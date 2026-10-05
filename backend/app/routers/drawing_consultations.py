@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from ..audit import write_audit
 from ..authz import require_permission
 from ..db import get_db
+from ..occupancy_authoring_workbench import occupancy_rule_coverage
 from ..legal_requirement_engine import (
     approved_rule_count,
     evaluate_approved_rules_for_snapshot,
@@ -501,6 +502,23 @@ def classify_consultation(
         domain="occupancy_classification",
         evaluation_date=evaluation_date,
     )
+    coverage = occupancy_rule_coverage(
+        db,
+        evaluation_date=evaluation_date,
+    )
+    if not coverage["coverage_complete"]:
+        missing.append(
+            {
+                "field": "occupancy_classification_rule_coverage",
+                "reason": "occupancy classification Rule coverage is not complete",
+                "coverage": {
+                    "source_xml_sha256": coverage["source_xml_sha256"],
+                    "expected_classification_count": coverage["expected_classification_count"],
+                    "approved_effective_count": coverage["approved_effective_count"],
+                    "blockers": coverage["blockers"],
+                },
+            }
+        )
 
     row.classification_results = results
     row.missing_information = missing
@@ -517,6 +535,8 @@ def classify_consultation(
             "candidate_count": len(results),
             "missing_information": missing,
             "evaluation_date": evaluation_date.isoformat(),
+            "coverage_complete": coverage["coverage_complete"],
+            "coverage_approved_effective_count": coverage["approved_effective_count"],
         },
     )
     db.commit()
