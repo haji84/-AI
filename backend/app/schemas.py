@@ -1809,3 +1809,67 @@ class EquipmentPlacementBatchImportOut(BaseModel):
 
 class EquipmentPlacementBatchCoverageOut(BaseModel):
     coverage: dict
+
+
+class EquipmentPlacementRegressionCaseCreate(BaseModel):
+    worklist_sha256: str = Field(min_length=64, max_length=64)
+    name: str = Field(min_length=1, max_length=300)
+    input_snapshot: dict
+    rooms: list[dict] = Field(min_length=1)
+    equipment_type_codes: list[str] = Field(min_length=1)
+    expected_results: list[dict] = Field(min_length=1)
+    notes: str | None = None
+
+class EquipmentPlacementRegressionCaseUpdate(BaseModel):
+    expected_version: int = Field(ge=1)
+    name: str = Field(min_length=1, max_length=300)
+    input_snapshot: dict
+    rooms: list[dict] = Field(min_length=1)
+    equipment_type_codes: list[str] = Field(min_length=1)
+    expected_results: list[dict] = Field(min_length=1)
+    notes: str | None = None
+
+class EquipmentPlacementRegressionCaseReview(BaseModel):
+    expected_version: int = Field(ge=1)
+    status: Literal["reviewed","rejected"]
+
+class EquipmentPlacementRegressionCaseOut(BaseModel):
+    equipment_placement_test_case_id: str
+    worklist_sha256: str
+    name: str
+    input_snapshot: dict
+    rooms: list[dict]
+    equipment_type_codes: list[str]
+    expected_results: list[dict]
+    notes: str | None = None
+    status: str
+    version: int
+    created_at: str
+    reviewed_at: str | None = None
+
+class EquipmentPlacementRegressionRunCreate(BaseModel):
+    worklist_sha256: str = Field(min_length=64, max_length=64)
+    evaluation_date: str | None = None
+
+class EquipmentPlacementRegressionRunReview(BaseModel):
+    expected_version: int = Field(ge=1)
+    human_decision: Literal["accepted_regression","rejected_regression"]
+    review_notes: str | None = None
+
+class EquipmentPlacementRegressionRunOut(BaseModel):
+    equipment_placement_test_run_id: str
+    worklist_sha256: str
+    result_sha256: str
+    case_count: int
+    passed_case_count: int
+    failed_case_count: int
+    state_mismatch_case_count: int
+    marker_mismatch_case_count: int
+    constraint_mismatch_case_count: int
+    result_payload: dict
+    review_status: str
+    human_decision: str | None = None
+    review_notes: str | None = None
+    version: int
+    created_at: str
+    reviewed_at: str | None = None
