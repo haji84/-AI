@@ -896,7 +896,6 @@ def review_transcript_segment(
             version=payload.expected_version + 1,
             reviewed_by=user.user_id,
             reviewed_at=datetime.now(timezone.utc),
-            uncertainty_reviewed=payload.uncertainty_reviewed if payload.status == "reviewed" else False,
             updated_at=datetime.now(timezone.utc),
         )
     )
@@ -1102,6 +1101,7 @@ def review_statement_draft(
             version=payload.expected_version + 1,
             reviewed_by=user.user_id,
             reviewed_at=datetime.now(timezone.utc),
+            uncertainty_reviewed=payload.uncertainty_reviewed if payload.status == "reviewed" else False,
             updated_at=datetime.now(timezone.utc),
         )
     )
