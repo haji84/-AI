@@ -191,3 +191,134 @@ def test_phase6_drawing_benchmark_false_positive_only_category_is_not_na():
     assert equipment["precision"] == 0.0
     assert equipment["recall"] is None
     assert equipment["f1"] == 0.0
+
+
+
+def test_phase6_drawing_benchmark_blocks_pending_human_reference(tmp_path):
+    mod = _mod()
+    reference = {
+        "reference_format": "fire-ai-drawing-human-reference-draft-v1",
+        "reference_status": "pending_human_acceptance",
+        "elements": [],
+        "equipment_candidates": [],
+        "fact_candidates": [],
+    }
+    hypothesis = {
+        "elements": [],
+        "equipment_candidates": [],
+        "fact_candidates": [],
+    }
+    ref_path = tmp_path / "reference.json"
+    hyp_path = tmp_path / "hypothesis.json"
+    ref_path.write_text(json.dumps(reference), encoding="utf-8")
+    hyp_path.write_text(json.dumps(hypothesis), encoding="utf-8")
+
+    try:
+        mod.score_pair(ref_path, hyp_path)
+        assert False, "expected ValueError"
+    except ValueError as exc:
+        assert "Human-accepted drawing reference is required" in str(exc)
+
+
+def test_phase6_drawing_benchmark_accepts_human_accepted_reference(tmp_path):
+    mod = _mod()
+    reference = {
+        "reference_format": "fire-ai-drawing-human-reference-v1",
+        "reference_status": "human_accepted",
+        "elements": [
+            {
+                "page_no": 1,
+                "element_type": "room",
+                "geometry": {"x": 0, "y": 0, "width": 10, "height": 10},
+            }
+        ],
+        "equipment_candidates": [],
+        "fact_candidates": [],
+    }
+    hypothesis = {
+        "elements": [
+            {
+                "page_no": 1,
+                "element_type": "room",
+                "geometry": {"x": 0, "y": 0, "width": 10, "height": 10},
+            }
+        ],
+        "equipment_candidates": [],
+        "fact_candidates": [],
+    }
+    ref_path = tmp_path / "reference.json"
+    hyp_path = tmp_path / "hypothesis.json"
+    ref_path.write_text(json.dumps(reference), encoding="utf-8")
+    hyp_path.write_text(json.dumps(hypothesis), encoding="utf-8")
+
+    result = mod.score_pair(ref_path, hyp_path)
+    assert result["metrics"]["geometry_detection"]["f1"] == 1.0
+
+
+def test_phase6_drawing_benchmark_accepts_reviewed_export_reference(tmp_path):
+    mod = _mod()
+    reference = {
+        "reference_format": "fire-ai-drawing-human-reference-v1",
+        "human_review": {"status": "reviewed"},
+        "elements": [],
+        "equipment_candidates": [],
+        "fact_candidates": [],
+    }
+    hypothesis = {
+        "elements": [],
+        "equipment_candidates": [],
+        "fact_candidates": [],
+    }
+    ref_path = tmp_path / "reference.json"
+    hyp_path = tmp_path / "hypothesis.json"
+    ref_path.write_text(json.dumps(reference), encoding="utf-8")
+    hyp_path.write_text(json.dumps(hypothesis), encoding="utf-8")
+
+    result = mod.score_pair(ref_path, hyp_path)
+    assert result["metrics"]["geometry_detection"]["applicable"] is False
+
+
+def test_phase6_house_plan_001_geometry_draft_is_complete_but_not_accepted():
+    path = (
+        Path(__file__).resolve().parents[2]
+        / "benchmarks"
+        / "phase6"
+        / "reference"
+        / "house-plan-001.reference.json"
+    )
+    data = json.loads(path.read_text(encoding="utf-8"))
+
+    assert data["reference_status"] == "pending_human_acceptance"
+    assert data["scope"]["geometry_annotation_complete"] is True
+    assert data["scope"]["geometry_human_review_required"] is True
+    assert data["human_gate"]["accepted"] is False
+    assert len(data["elements"]) == 12
+
+    labels = {x["label"] for x in data["elements"]}
+    assert labels == {
+        "UB",
+        "トイレ",
+        "洗面脱衣室",
+        "玄関",
+        "ホール",
+        "WIC",
+        "主寝室",
+        "タタミコーナー",
+        "L",
+        "D",
+        "K",
+        "P",
+    }
+
+    width = data["source"]["pixel_width"]
+    height = data["source"]["pixel_height"]
+    refs = set()
+    for element in data["elements"]:
+        assert element["client_ref"] not in refs
+        refs.add(element["client_ref"])
+        assert element["element_type"] == "room"
+        assert element["page_no"] == 1
+        points = element["geometry"]["points"]
+        assert len(points) >= 3
+        assert all(0 <= x <= width and 0 <= y <= height for x, y in points)
+        assert element["reference_meta"]["human_review_status"] == "pending"
