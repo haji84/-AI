@@ -1543,3 +1543,23 @@ class FireEvidenceComparisonBenchmarkRun(Base):
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
+class DrawingBenchmarkRun(Base):
+    __tablename__ = "drawing_benchmark_runs"
+    drawing_benchmark_run_id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True, default=uuid_str)
+    benchmark_format: Mapped[str] = mapped_column(String(120), nullable=False)
+    dataset_label: Mapped[str] = mapped_column(String(300), nullable=False)
+    manifest_sha256: Mapped[str | None] = mapped_column(String(64))
+    result_sha256: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
+    drawing_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    result_payload: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    review_status: Mapped[str] = mapped_column(String(30), nullable=False, default="pending", index=True)
+    human_decision: Mapped[str | None] = mapped_column(String(30))
+    review_notes: Mapped[str | None] = mapped_column(Text)
+    version: Mapped[int] = mapped_column(BigInteger, nullable=False, default=1)
+    created_by: Mapped[str | None] = mapped_column(ForeignKey("app_users.user_id"))
+    reviewed_by: Mapped[str | None] = mapped_column(ForeignKey("app_users.user_id"))
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
