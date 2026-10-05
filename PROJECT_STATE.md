@@ -4,10 +4,14 @@
 
 ## Current Phase
 
-Phase 5.2 structured legal corpus + exact Rule citation core is complete and real-corpus E2E verified.
-Phase 5.3 Human-Gated Rule draft candidate core is complete and CI verified.
-The next slice is review-queue generation and actual fire-related Rule authoring from verified provisions.
-Formal approved-host PostgreSQL/TLS/two-client gate remains unexecuted.
+Phase 5.1-5.6 legal-source, structured-citation, Human review, authoring-worklist, import, and workflow coverage foundations are implemented and CI-verified.
+
+Real official corpora have been acquired and structurally verified:
+- e-Gov national laws: 10,414 documents
+- 大島地区消防組合 official regulations: 119 documents
+
+Formal Rule conditions/outcomes remain Human-Gated.
+Approved-host PostgreSQL/TLS/two-client production gate remains unexecuted.
 
 ## Phase 0-4 retained
 
@@ -24,169 +28,224 @@ Formal approved-host PostgreSQL/TLS/two-client gate remains unexecuted.
 
 ## Phase 5 legal Rule engine
 
-Completed:
+Implemented:
 - legal Rule registry
 - numbered/effective-dated Rule Versions
-- verified-source requirement before approval
+- verified source before approval
 - Draft / Approved separation
-- deterministic requirement evaluation
-- submission/equipment requirement domains
+- deterministic equipment/submission requirement evaluation
 - candidate-only operational decisions
 - exact audit trail
-- management/approval/evaluation RBAC
-- facility UI for required-document/equipment candidates
+- Rule management/approval/evaluation RBAC
+- facility UI for candidate required documents/equipment
+- exact LegalProvision citations
 - no automatic operational DB mutation from legal evaluation
 
-## Phase 5.1 legal source/update foundation
+## Phase 5.1 source/update foundation
 
-Completed:
+Implemented:
 - national/prefecture/municipality/fire-union/fire-department jurisdiction model
-- fire-department legal profiles
-- multiple jurisdictions and official sources per profile
-- Source Adapter metadata
+- legal profiles per fire department
+- multiple official sources per profile
 - online/bundle/manual update modes
-- sync frequency and corpus completeness state
-- legal source Document / Version chain
-- raw-original SHA-256 preservation
-- update candidate and sync-run tracking
-- e-Gov full/delta collectors/importers
-- bounded official local-regulation collector/importer
-- daily sync orchestrator and systemd timer
-- corpus completeness: unverified/complete/partial/stale/error
+- sync frequency and corpus completeness
+- raw original + SHA-256 + Version chain
+- e-Gov full/delta collectors and importer
+- local official regulation collector/importer
+- daily source-sync orchestrator / systemd timer
+- update candidates and old/new Version preservation
 
-## Verified source corpora
+### Verified national corpus
 
-### e-Gov national laws
-- official full XML corpus acquired
+e-Gov:
+- acquisition run: 37240404083
 - documents: 10,414
 - archive integrity: PASS
-- coverage: complete_official_bulk_archive
-- acquisition run: 37240404083
-- artifact ID: 11317001520
 - source archive SHA-256: `830c24983bee6d9e7db8765b01ed671ee91ca9472324ec5c0d8d0e5a32e660cf`
 
-### 大島地区消防組合
-- official source: `https://fd-ohshima.jp/reiki_2026/`
+### Verified local corpus
+
+大島地区消防組合:
+- source: `https://fd-ohshima.jp/reiki_2026/`
 - content current: 2025-04-01
 - expected/discovered/captured: 119 / 119 / 119
 - failures: 0
 - coverage: complete
 - acquisition run: 37240040293
-- artifact ID: 11317595248
 - artifact SHA-256: `2426f76c7a50609d63f231943f3058b8c196cd8563be54033dba9cbf6defc941`
 
 ## Phase 5.2 structured legal corpus
 
-Migration 010:
-- `legal_provisions`
-- `legal_rule_citations`
-- structure status/parser metadata on legal source Versions
-
-Supported structured concepts:
-- part/chapter/section/subsection/division
-- article
-- paragraph
-- item/subitem
+Implemented:
+- Migration 010
+- LegalProvision hierarchy
+- part/chapter/section/article/paragraph/item/subitem
 - supplementary provisions
-- appendix/tables/forms/figures/notes
-- article-less official notices as `document_body`
+- appendix/table/form/figure/note
+- article-less notice `document_body` fallback
+- Rule Version -> exact Provision Citation
+- Citation text snapshot
+- Provision-level amendment diff
+- changed/removed cited Provision -> impacted Rule candidates
+- legal document/version/provision search API
+- exact citation display in requirement UI
 
-Exact Rule citation:
-- Rule Version -> LegalProvision
-- citation roles: primary/definition/exception/reference/supplementary
-- cited text snapshot preserved
-- structured-source Rule cannot be approved without an exact citation
-- changed/removed cited provisions reverse-map to impacted Rule IDs
-
-### Real full-corpus parser E2E
-
-Workflow run: 37241690774
-Result: SUCCESS
+Real full-corpus E2E run: 37241690774 SUCCESS
 
 e-Gov:
 - documents: 10,414
 - structured provisions: 5,447,878
 - parse failures: 0
 - zero-provision documents: 0
-- article: 1,030,986
-- paragraph: 2,364,763
-- item: 1,274,776
 
 大島地区消防組合:
 - documents: 119
 - structured provisions: 26,898
 - parse failures: 0
 - zero-provision documents: 0
-- article: 3,577
-- paragraph: 4,983
-- item: 404
-- article-less notice fallback: 1
 
-## Phase 5.3 Rule draft candidates
+## Phase 5.3 Human-Gated Rule drafts
 
-Migration 011:
-- `legal_rule_draft_candidates`
-- `legal_rule_draft_citations`
-
-Implemented flow:
-LegalProvision
--> manual/deterministic/AI Rule Draft Candidate
--> Human Review
--> promoted Draft Rule Version
--> separate formal Rule approval
--> Approved Rule Version
+Implemented:
+- Migration 011
+- Migration 012
+- Rule Draft Candidate
+- exact Draft Citation
+- manual/deterministic/AI extraction source
+- confidence/rationale/model metadata
+- candidate fingerprint / idempotency
+- Human editing of proposed Rule code/name/conditions/outcome
+- pending -> reviewed/rejected
+- reviewed -> promoted Draft Rule Version
+- promotion never creates Approved Rule
+- final Rule approval remains separate Human Gate
+- centralized condition validation
 
 Safety:
-- AI candidate cannot directly become Approved
-- promotion before Human Review is rejected
-- structured-source draft requires exact provision citation
-- promotion creates only a Draft Rule Version
-- formal approval stays a separate Human Gate
+- relevance detection can create candidates with blank conditions/outcomes
+- blank/unvalidated conditions cannot be reviewed/promoted
+- structured-source draft requires exact Citation
+- AI/deterministic candidate cannot directly become Approved
+
+## Phase 5.4 Human legal review queue
+
+Implemented:
+- Migration 013
+- Migration 014
+- Migration 015
+- Provision relevance review queue
+- status: pending/reviewed/ignored/drafted
+- category: equipment/submission/fire-management/inspection/hazardous/local prevention
+- source priority: national_core/local_core/normal
+- Provision context: main/supplementary_transition/document_body
+- supplementary provisions retained but deprioritized
+- reviewed equipment/submission Provision -> incomplete Rule Draft handoff
+- exact original text displayed in UI
+- optimistic concurrency on review
+
+Real-corpus verification run: 37243458396 SUCCESS
+
+e-Gov matched Provisions: 15,065
+- equipment: 1,900
+- submission: 1,688
+- fire management: 522
+- inspection/enforcement: 729
+- hazardous materials: 9,294
+- local fire prevention: 2,009
+
+大島地区消防組合 matched Provisions: 2,226
+- equipment: 69
+- submission: 601
+- fire management: 72
+- inspection/enforcement: 524
+- hazardous materials: 240
+- local fire prevention: 1,129
+
+These category counts overlap by design.
+
+## Phase 5.5 core authoring worklist
+
+Exact core source set:
+- national: 5 / 5 found
+- 大島地区消防組合: 13 / 13 found
+
+Verified worklist run: 37248400904 SUCCESS
+Artifact ID: 11320435391
+Artifact SHA-256: `39688473f87fa888ae9db6840ec6f2f41a880a500f72c97f05dc4c96582221ec`
+
+Worklist:
+- total items: 7,854
+- requirement_rules: 1,602
+- management_review: 803
+- hazardous_materials: 5,093
+- local_fire_prevention: 1,223
+
+Implemented:
+- exact Provision content SHA-256 inside worklist
+- source baseline evidence inside inventory
+- dry-run/apply importer
+- exact external ID + title + Provision Key + Provision Hash verification
+- stale worklist rejection
+- terminal review states are not overwritten
+- repeated import is idempotent
+- legal-review summary API
+- title/text search
+- category/lane/context/min-score/min-total-priority filters
+- 50-item pagination
+- status counts in UI
+
+Important:
+1,602 worklist items do NOT imply 1,602 final Rules.
+Multiple Provisions can compose one Rule and one Provision can support several Rules.
+
+## Phase 5.6 authoring workflow coverage
+
+Implemented:
+- workflow counts for equipment/submission
+- review queue counts by status
+- Rule Draft counts by status
+- Rule Version counts by status
+- Approved Rule count by domain
+- exact citation count
+- coverage displayed in legal review UI
+
+Coverage is explicitly a work-progress count, not a percentage of legal completeness.
 
 ## Verification
 
-Latest main project-checks at commit `9b0fae6b065b7ce923017d625fc950450590903e`:
-- backend pytest: 46 passed
-- Migration 010: 7 statements PASS
-- Migration 011: 5 statements PASS
+Latest verified project-checks checkpoint:
+- backend pytest: 58 passed
+- Migration 010: PASS
+- Migration 011: PASS
+- Migration 012: PASS
+- Migration 013: PASS
+- Migration 014: PASS
+- Migration 015: PASS
 - frontend JavaScript syntax: PASS
-- operational script syntax: PASS
+- operational Python script syntax: PASS
 
 ## Not yet reported as PASS
 
-- complete production authoring of all fire-service Rules from 5.4M provisions
-- legal acceptance review of Rule conditions/outcomes
-- live e-Gov daily delta -> production DB
-- official promulgation/update-page adapter for every local source
+- Human legal acceptance/review of all requirement Rule conditions/outcomes
+- complete production Approved Rule set
+- import of the verified 1,602-item requirement worklist into the approved production LAN DB
+- live e-Gov daily delta -> approved production DB E2E
+- every local official promulgation/update-page adapter
 - signed closed-network Update Bundle verification/import
-- approved LAN PostgreSQL migrations 001-011
-- PostgreSQL backup/restore after Migration 011
+- approved LAN PostgreSQL migrations 001-015
+- PostgreSQL backup/restore after Migration 015
 - HTTPS production LAN clients
 - two-client concurrent E2E
 
 ## Next slice
 
-1. build legal-provision review queue for fire-service-relevant provisions
-2. identify national source documents needed for prevention/equipment/submission Rules
-3. identify 大島地区消防組合 local provisions that override/add local requirements
-4. generate non-authoritative Rule Draft Candidates with exact citations
-5. Human Review each candidate
-6. promote reviewed candidates to Draft Rule Versions
-7. legally review and approve only verified Rules
-8. compare required documents/equipment against facility/submission/equipment records
-9. then continue Phase 6 drawing-analysis integration
+1. compare Approved submission-requirement Rules against actual submission records
+2. report missing-submission candidates only when an Approved Rule explicitly requires that submission
+3. build installed-equipment registry
+4. compare Approved equipment-requirement Rules against installed-equipment records
+5. preserve exact Rule/Provision evidence for every gap candidate
+6. add Human confirmation for compliance/gap findings
+7. continue legal Rule authoring through the 1,602-item requirement worklist
+8. then connect Phase 6 drawing analysis to the same requirement engine
 
-## Phase 5.2 verified structured legal corpus
-
-- e-Gov documents: 10,414 / failures 0 / zero structures 0
-- e-Gov structured provisions: 5,447,878
-- 大島地区消防組合 documents: 119 / failures 0 / zero structures 0
-- 大島地区消防組合 structured provisions: 26,898
-- exact Rule -> Provision citations implemented
-- structured-source Rule cannot be approved without a citation
-- changed/removed cited provisions feed impacted Rule candidates
-- article-less official documents use document_body fallback
-- legal document -> Version -> Provision search API implemented
-- full-corpus verification run: 37241690774 SUCCESS
-- backend regression at checkpoint: 46 passed
-
+Do not report Rule completeness or production legal compliance until Human-approved Rules and production Host Gates are complete.
