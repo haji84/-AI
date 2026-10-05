@@ -555,3 +555,31 @@ External Gate remains:
 - real architectural drawing Human Reference dataset has not yet been benchmarked
 - production-quality drawing AI accuracy is not claimed
 - acceptance thresholds remain Human-set after real Baseline measurement
+
+
+## Phase 6 drawing benchmark run registry
+
+Implemented and CI-verified:
+- Migration 029 benchmark-run persistence
+- drawing benchmark v1 result payload storage
+- canonical result SHA-256
+- Manifest SHA-256
+- drawing count
+- duplicate result idempotency
+- Human baseline review
+- optimistic concurrency
+- Benchmark Run history API
+- two-run comparison API
+- Geometry F1 / mean IoU / element-type accuracy / symbol accuracy deltas
+- equipment/fact F1 deltas
+- geometry false positives per drawing delta
+
+Verified checkpoint:
+- run: `37260374408` SUCCESS
+- backend pytest: 98 passed
+- Migration 029 parser smoke: PASS
+- frontend JavaScript syntax: PASS
+
+External Gate remains:
+- real Human-labeled architectural drawing dataset has not yet been benchmarked
+- production acceptance thresholds remain Human-set after Baseline review

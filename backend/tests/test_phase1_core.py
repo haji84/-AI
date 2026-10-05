@@ -4057,3 +4057,84 @@ def test_phase9_evidence_comparison_benchmark_registry_human_gate_and_comparison
         },
     )
     assert bad.status_code == 422
+
+
+def test_phase6_drawing_benchmark_registry_human_gate_and_comparison():
+    login()
+
+    def payload(geometry_f1, mean_iou, type_acc, symbol_acc, equipment_f1, fact_f1, fp, marker):
+        return {
+            "benchmark_format":"fire-ai-drawing-benchmark-v1",
+            "manifest_sha256":marker*64,
+            "iou_threshold":0.5,
+            "drawings":[],
+            "aggregate":{
+                "drawing_count":5,
+                "geometry_detection":{
+                    "true_positive":20,
+                    "false_positive":fp,
+                    "false_negative":2,
+                    "precision":20/(20+fp),
+                    "recall":20/22,
+                    "f1":geometry_f1,
+                    "mean_iou":mean_iou,
+                    "element_type_accuracy":type_acc,
+                },
+                "symbol_classification":{"reference_scored":10,"correct":round(symbol_acc*10),"accuracy":symbol_acc},
+                "equipment_candidates":{"true_positive":8,"false_positive":1,"false_negative":1,"precision":8/9,"recall":8/9,"f1":equipment_f1},
+                "fact_candidates":{"true_positive":6,"false_positive":1,"false_negative":1,"precision":6/7,"recall":6/7,"f1":fact_f1},
+            },
+        }
+
+    first_payload=payload(0.85,0.72,0.8,0.8,0.8,0.75,5,"a")
+    first=client.post("/drawing-benchmarks",json={"dataset_label":"Vision A","result_payload":first_payload})
+    assert first.status_code==201
+    body=first.json()
+    bid=body["drawing_benchmark_run_id"]
+    assert body["review_status"]=="pending"
+    assert body["drawing_count"]==5
+
+    duplicate=client.post("/drawing-benchmarks",json={"dataset_label":"Duplicate","result_payload":first_payload})
+    assert duplicate.status_code==201
+    assert duplicate.json()["drawing_benchmark_run_id"]==bid
+
+    reviewed=client.post(f"/drawing-benchmarks/{bid}/review",json={
+        "expected_version":1,
+        "human_decision":"accepted_baseline",
+        "review_notes":"Baseline only"
+    })
+    assert reviewed.status_code==200
+    assert reviewed.json()["version"]==2
+
+    stale=client.post(f"/drawing-benchmarks/{bid}/review",json={
+        "expected_version":1,
+        "human_decision":"rejected_baseline"
+    })
+    assert stale.status_code==409
+
+    second=client.post("/drawing-benchmarks",json={
+        "dataset_label":"Vision B",
+        "result_payload":payload(0.9,0.8,0.9,0.9,0.88,0.82,2,"b")
+    })
+    assert second.status_code==201
+
+    compared=client.get("/drawing-benchmarks/compare",params={
+        "left_id":bid,
+        "right_id":second.json()["drawing_benchmark_run_id"]
+    })
+    assert compared.status_code==200
+    metrics=compared.json()["metrics"]
+    assert round(metrics["mean_iou"]["delta_right_minus_left"],6)==0.08
+    assert round(metrics["geometry_false_positives_per_drawing"]["delta_right_minus_left"],6)==-0.6
+    assert metrics["geometry_f1"]["higher_is_better"] is True
+    assert metrics["geometry_false_positives_per_drawing"]["lower_is_better"] is True
+
+    listed=client.get("/drawing-benchmarks")
+    assert listed.status_code==200
+    assert any(x["drawing_benchmark_run_id"]==bid for x in listed.json())
+
+    bad=client.post("/drawing-benchmarks",json={
+        "dataset_label":"Bad",
+        "result_payload":{"benchmark_format":"unknown-v99"}
+    })
+    assert bad.status_code==422
