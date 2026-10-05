@@ -3679,3 +3679,50 @@ def test_phase10_unified_search_returns_reviewed_fire_evidence_only():
     hits=[x for x in after.json()["hits"] if x["source_type"]=="accepted_transcript"]
     assert len(hits)==1
     assert hits[0]["navigation"]["segment_id"]==pending["fire_transcript_segment_id"]
+
+
+def test_phase9_audio_benchmark_scoring_helpers():
+    import importlib.util
+    from pathlib import Path
+
+    script=Path(__file__).resolve().parents[2]/"scripts"/"benchmark_fire_audio.py"
+    spec=importlib.util.spec_from_file_location("benchmark_fire_audio",script)
+    mod=importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    exact=mod.score_text("火災調査","火災調査")
+    assert exact["cer"]==0
+    changed=mod.score_text("火災調査","火災調書")
+    assert changed["errors"]==1
+    assert changed["cer"]==1/4
+
+    diar=mod.diarization_score(
+        [
+            {"start_ms":0,"end_ms":1000,"speaker":"A"},
+            {"start_ms":1000,"end_ms":2000,"speaker":"B"},
+        ],
+        [
+            {"start_ms":0,"end_ms":1000,"speaker":"A"},
+            {"start_ms":1000,"end_ms":1500,"speaker":"A"},
+            {"start_ms":1500,"end_ms":2000,"speaker":"B"},
+        ],
+    )
+    assert diar["reference_ms"]==2000
+    assert diar["speaker_confusion_ms"]==500
+    assert diar["speaker_error_rate"]==0.25
+
+    markers=mod.marker_metrics(
+        [
+            {"start_ms":100,"end_ms":200,"type":"low_confidence"},
+            {"start_ms":300,"end_ms":400,"type":"inaudible"},
+        ],
+        [
+            {"start_ms":100,"end_ms":200,"type":"low_confidence"},
+            {"start_ms":500,"end_ms":600,"type":"inaudible"},
+        ],
+    )
+    assert markers["true_positive"]==1
+    assert markers["false_positive"]==1
+    assert markers["false_negative"]==1
+    assert markers["precision"]==0.5
+    assert markers["recall"]==0.5
