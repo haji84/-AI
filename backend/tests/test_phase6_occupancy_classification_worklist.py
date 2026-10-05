@@ -171,3 +171,64 @@ def test_phase6_occupancy_worklist_shape_guard_detects_unreviewed_legal_change()
         assert False, "expected ValueError"
     except ValueError as exc:
         assert "row count changed" in str(exc)
+
+
+
+def test_phase6_occupancy_worklist_reads_egov_bulk_zip(tmp_path):
+    import csv
+    import io
+    import zipfile
+
+    mod = _mod()
+    law_id = "336CO0000000037"
+    folder = f"{law_id}_20251001_507CO0000000085"
+    xml_name = f"{folder}/{folder}.xml"
+    xml = """<?xml version="1.0" encoding="UTF-8"?>
+<Law>
+  <LawBody>
+    <LawTitle>消防法施行令</LawTitle>
+    <LawNum>昭和三十六年政令第三十七号</LawNum>
+    <AppdxTable Num="1">
+      <AppdxTableTitle>別表第一</AppdxTableTitle>
+      <TableStruct>
+        <Table>
+          <TableRow>
+            <TableColumn><Sentence>（三）</Sentence></TableColumn>
+            <TableColumn>
+              <Sentence Num="1">イ　待合、料理店その他これらに類するもの</Sentence>
+              <Sentence Num="2">ロ　飲食店</Sentence>
+            </TableColumn>
+          </TableRow>
+        </Table>
+      </TableStruct>
+    </AppdxTable>
+  </LawBody>
+</Law>
+""".encode("utf-8")
+
+    csv_buf = io.StringIO()
+    writer = csv.writer(csv_buf)
+    writer.writerow([
+        "法令種別","法令番号","法令名","法令名読み","旧法令名","公布日",
+        "改正法令名","改正法令番号","改正法令公布日","施行日","施行日備考",
+        "法令ID","本文URL","未施行"
+    ])
+    writer.writerow([
+        "政令","昭和三十六年政令第三十七号","消防法施行令","しょうぼうほうしこうれい",
+        "","","","","","2025-10-01","",law_id,"https://example.invalid",""
+    ])
+
+    archive = tmp_path / "egov-all.zip"
+    with zipfile.ZipFile(archive, "w") as z:
+        z.writestr("all_law_list.csv", csv_buf.getvalue().encode("utf-8-sig"))
+        z.writestr(xml_name, xml)
+
+    source, data = mod.find_target_xml(tmp_path)
+
+    assert str(source).startswith(str(archive))
+    assert "!/" in str(source)
+    assert xml_name in str(source)
+    result = mod.extract_schedule_one(data)
+    assert result["law_title"] == "消防法施行令"
+    assert result["classification_entry_count"] == 2
+    assert result["rows"][0]["classification_entries"][1]["classification_code"] == "（三）ロ"

@@ -717,3 +717,16 @@ Next gate:
 2. verify 22 rows / 35 entries and exact source hash
 3. use the catalog to prepare Human-authored occupancy classification Draft Rules
 4. do not approve Rules until conditions and exact source evidence are reviewed
+
+
+## Phase 6 occupancy bulk artifact compatibility
+
+Implemented on branch `phase6-occupancy-bulk-zip`; CI verification pending:
+- Schedule 1 builder now supports loose XML and e-Gov bulk ZIP sources
+- bulk ZIP resolution uses all_law_list.csv and exact law-title match
+- exact law ID is resolved before selecting the current XML
+- target XML title is revalidated after extraction
+- no full bulk archive extraction is required
+- regression test reproduces the verified e-Gov artifact layout
+
+This fixes the first real official-corpus failure where the Actions artifact contained the nationwide bulk ZIP rather than loose XML files.

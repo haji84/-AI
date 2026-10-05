@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import hashlib
+import io
 import json
 import re
 import xml.etree.ElementTree as ET
+import zipfile
 from pathlib import Path
 
 
@@ -363,10 +366,59 @@ def validate_expected_shape(worklist: dict) -> None:
         raise ValueError(f"Expected Schedule 1 classification codes missing: {missing}")
 
 
-def find_target_xml(root_dir: Path) -> tuple[Path, bytes]:
+def _find_target_in_bulk_zip(path: Path) -> tuple[str, bytes] | None:
+    try:
+        archive = zipfile.ZipFile(path)
+    except zipfile.BadZipFile:
+        return None
+
+    with archive:
+        names = set(archive.namelist())
+        if "all_law_list.csv" not in names:
+            return None
+
+        rows = csv.DictReader(
+            io.StringIO(archive.read("all_law_list.csv").decode("utf-8-sig"))
+        )
+        law_ids = [
+            str(row.get("法令ID") or "").strip()
+            for row in rows
+            if str(row.get("法令名") or "").strip() == TARGET_LAW_TITLE
+        ]
+        law_ids = sorted({x for x in law_ids if x})
+        if len(law_ids) != 1:
+            raise ValueError(
+                f"Expected exactly one {TARGET_LAW_TITLE} law ID in bulk list, got {law_ids}"
+            )
+        law_id = law_ids[0]
+
+        xml_names = sorted(
+            name
+            for name in names
+            if name.endswith(".xml")
+            and name.split("/", 1)[0].startswith(f"{law_id}_")
+        )
+        if len(xml_names) != 1:
+            raise ValueError(
+                f"Expected exactly one current XML for {TARGET_LAW_TITLE} ({law_id}), "
+                f"got {len(xml_names)}"
+            )
+
+        xml_name = xml_names[0]
+        data = archive.read(xml_name)
+        try:
+            root = ET.fromstring(data)
+        except ET.ParseError as exc:
+            raise ValueError(f"Target law XML is not parseable: {xml_name}") from exc
+        if extract_law_title(root) != TARGET_LAW_TITLE:
+            raise ValueError(
+                f"Bulk list/XML title mismatch for {xml_name}: {extract_law_title(root)!r}"
+            )
+        return f"{path}!/{xml_name}", data
+
+
+def find_target_xml(root_dir: Path) -> tuple[str | Path, bytes]:
     candidates = sorted(root_dir.rglob("*.xml"))
-    if not candidates:
-        raise ValueError(f"XML files not found under {root_dir}")
     for path in candidates:
         data = path.read_bytes()
         try:
@@ -375,7 +427,16 @@ def find_target_xml(root_dir: Path) -> tuple[Path, bytes]:
             continue
         if extract_law_title(root) == TARGET_LAW_TITLE:
             return path, data
-    raise ValueError(f"{TARGET_LAW_TITLE} XML not found")
+
+    bulk_archives = sorted(root_dir.rglob("*.zip"))
+    for path in bulk_archives:
+        found = _find_target_in_bulk_zip(path)
+        if found is not None:
+            return found
+
+    raise ValueError(
+        f"{TARGET_LAW_TITLE} XML not found as loose XML or e-Gov bulk ZIP under {root_dir}"
+    )
 
 
 def main() -> int:
