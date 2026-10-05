@@ -1175,7 +1175,7 @@ Safety:
 
 ## Phase 6 PDF visual Annotation
 
-Implemented on branch `phase6-pdf-visual-annotation`; CI verification pending:
+Implemented and CI-verified:
 - drawing preview metadata API
 - original image documents remain direct visual previews
 - PDF drawings are rendered page-by-page to PNG with existing PyMuPDF dependency
@@ -1196,6 +1196,12 @@ Implemented on branch `phase6-pdf-visual-annotation`; CI verification pending:
   - page-specific preview dimensions
   - out-of-range page rejection
 - frontend contract verifies PDF page Annotation wiring
+
+Verified checkpoint:
+- run: `37323108939` SUCCESS
+- backend pytest: 127 passed
+- migration parser smoke: PASS
+- frontend JavaScript syntax: PASS
 
 Safety / resource controls:
 - preview rendering is read-only and never rewrites the original drawing
