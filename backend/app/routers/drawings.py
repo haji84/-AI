@@ -4,14 +4,19 @@ import hashlib
 import json
 from datetime import datetime, timezone
 from decimal import Decimal
+from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, status
+import fitz
+from PIL import Image
+from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi.responses import FileResponse
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from ..audit import write_audit
 from ..authz import require_permission
 from ..db import get_db
+from ..settings import settings
 from ..models import (
     Document,
     DrawingAnalysis,
@@ -29,6 +34,7 @@ from ..schemas import (
     DrawingAnalysisDetailOut,
     DrawingAnalysisOut,
     DrawingAnalysisResultManifest,
+    DrawingPreviewInfoOut,
     DrawingAnalysisReview,
     DrawingElementCreate,
     DrawingElementOut,
@@ -43,6 +49,56 @@ from ..schemas import (
 )
 
 router = APIRouter(tags=["drawings"])
+
+PDF_PREVIEW_MAX_EDGE = 3200.0
+PDF_PREVIEW_MAX_SCALE = 2.0
+
+
+def _drawing_document_path(doc: Document) -> Path:
+    root = Path(settings.storage_root).resolve()
+    path = (root / doc.storage_path).resolve()
+    if path != root and root not in path.parents:
+        raise HTTPException(
+            status_code=409,
+            detail="drawing document path escapes managed storage",
+        )
+    if not path.exists() or not path.is_file():
+        raise HTTPException(
+            status_code=404,
+            detail="drawing document file not found",
+        )
+    return path
+
+
+def _is_pdf_document(doc: Document) -> bool:
+    return (
+        (doc.mime_type or "").lower() == "application/pdf"
+        or (doc.original_filename or "").lower().endswith(".pdf")
+    )
+
+
+def _is_image_document(doc: Document) -> bool:
+    return (doc.mime_type or "").lower().startswith("image/")
+
+
+def _pdf_preview_scale(width: float, height: float) -> float:
+    longest = max(float(width), float(height), 1.0)
+    return max(
+        0.1,
+        min(PDF_PREVIEW_MAX_SCALE, PDF_PREVIEW_MAX_EDGE / longest),
+    )
+
+
+def _pdf_page_preview_meta(page) -> dict:
+    rect = page.rect
+    scale = _pdf_preview_scale(rect.width, rect.height)
+    return {
+        "page_no": page.number + 1,
+        "width": max(1, int(round(rect.width * scale))),
+        "height": max(1, int(round(rect.height * scale))),
+        "scale": scale,
+    }
+
 
 def _json_safe_value(value):
     if isinstance(value, Decimal):
@@ -412,6 +468,184 @@ def ingest_drawing_analysis_manifest(
     )
     db.commit()
     return _detail(db, analysis)
+
+
+
+@router.get(
+    "/drawing-analyses/{analysis_id}/preview-info",
+    response_model=DrawingPreviewInfoOut,
+)
+def get_drawing_preview_info(
+    analysis_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("drawing.read")),
+):
+    analysis = db.get(DrawingAnalysis, analysis_id)
+    if not analysis:
+        raise HTTPException(
+            status_code=404,
+            detail="drawing analysis not found",
+        )
+    doc = db.get(Document, analysis.document_id)
+    if not doc:
+        raise HTTPException(
+            status_code=409,
+            detail="drawing source document missing",
+        )
+    path = _drawing_document_path(doc)
+
+    if _is_pdf_document(doc):
+        try:
+            pdf = fitz.open(path)
+        except Exception as exc:
+            raise HTTPException(
+                status_code=422,
+                detail="drawing PDF cannot be opened",
+            ) from exc
+        try:
+            if pdf.needs_pass:
+                raise HTTPException(
+                    status_code=422,
+                    detail="password-protected drawing PDF is not previewable",
+                )
+            pages = [
+                _pdf_page_preview_meta(pdf.load_page(i))
+                for i in range(pdf.page_count)
+            ]
+        finally:
+            pdf.close()
+        return DrawingPreviewInfoOut(
+            drawing_analysis_id=analysis_id,
+            document_id=doc.document_id,
+            original_filename=doc.original_filename,
+            mime_type=doc.mime_type,
+            preview_mode="pdf_pages",
+            page_count=len(pages),
+            pages=pages,
+            render_scale_policy=(
+                f"adaptive <= {PDF_PREVIEW_MAX_SCALE}x, "
+                f"longest edge <= {int(PDF_PREVIEW_MAX_EDGE)}px"
+            ),
+        )
+
+    if _is_image_document(doc):
+        pages = []
+        try:
+            with Image.open(path) as image:
+                pages = [
+                    {
+                        "page_no": 1,
+                        "width": int(image.width),
+                        "height": int(image.height),
+                        "scale": 1.0,
+                    }
+                ]
+        except Exception:
+            pages = []
+        return DrawingPreviewInfoOut(
+            drawing_analysis_id=analysis_id,
+            document_id=doc.document_id,
+            original_filename=doc.original_filename,
+            mime_type=doc.mime_type,
+            preview_mode="image_direct",
+            page_count=1,
+            pages=pages,
+            render_scale_policy="original image pixels",
+        )
+
+    return DrawingPreviewInfoOut(
+        drawing_analysis_id=analysis_id,
+        document_id=doc.document_id,
+        original_filename=doc.original_filename,
+        mime_type=doc.mime_type,
+        preview_mode="unsupported",
+        page_count=1,
+        pages=[],
+        render_scale_policy=None,
+    )
+
+
+@router.get("/drawing-analyses/{analysis_id}/pages/{page_no}/preview")
+def get_drawing_page_preview(
+    analysis_id: str,
+    page_no: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("drawing.read")),
+):
+    analysis = db.get(DrawingAnalysis, analysis_id)
+    if not analysis:
+        raise HTTPException(
+            status_code=404,
+            detail="drawing analysis not found",
+        )
+    doc = db.get(Document, analysis.document_id)
+    if not doc:
+        raise HTTPException(
+            status_code=409,
+            detail="drawing source document missing",
+        )
+    path = _drawing_document_path(doc)
+
+    if _is_image_document(doc):
+        if page_no != 1:
+            raise HTTPException(
+                status_code=404,
+                detail="drawing image has only page 1",
+            )
+        return FileResponse(
+            str(path),
+            media_type=doc.mime_type or "application/octet-stream",
+            headers={
+                "Cache-Control": "private, max-age=300",
+                "ETag": f'"{doc.sha256}-page-1"',
+            },
+        )
+
+    if not _is_pdf_document(doc):
+        raise HTTPException(
+            status_code=422,
+            detail="drawing document is not preview-renderable",
+        )
+
+    try:
+        pdf = fitz.open(path)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=422,
+            detail="drawing PDF cannot be opened",
+        ) from exc
+    try:
+        if pdf.needs_pass:
+            raise HTTPException(
+                status_code=422,
+                detail="password-protected drawing PDF is not previewable",
+            )
+        if page_no < 1 or page_no > pdf.page_count:
+            raise HTTPException(
+                status_code=404,
+                detail="drawing PDF page not found",
+            )
+        page = pdf.load_page(page_no - 1)
+        rect = page.rect
+        scale = _pdf_preview_scale(rect.width, rect.height)
+        pix = page.get_pixmap(
+            matrix=fitz.Matrix(scale, scale),
+            alpha=False,
+        )
+        png = pix.tobytes("png")
+        return Response(
+            content=png,
+            media_type="image/png",
+            headers={
+                "Cache-Control": "private, max-age=300",
+                "ETag": f'"{doc.sha256}-page-{page_no}-{scale:.6f}"',
+                "X-Drawing-Page-Width": str(pix.width),
+                "X-Drawing-Page-Height": str(pix.height),
+                "X-Drawing-Render-Scale": f"{scale:.6f}",
+            },
+        )
+    finally:
+        pdf.close()
 
 
 @router.get("/drawing-analyses/{analysis_id}", response_model=DrawingAnalysisDetailOut)
