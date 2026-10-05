@@ -987,3 +987,220 @@ class DrawingAnalysisResultManifest(BaseModel):
     elements: list[DrawingManifestElement] = Field(default_factory=list)
     equipment_candidates: list[DrawingManifestEquipmentCandidate] = Field(default_factory=list)
     fact_candidates: list[DrawingManifestFactCandidate] = Field(default_factory=list)
+
+
+class FireInvestigationCaseCreate(BaseModel):
+    case_number: str | None = None
+    building_id: str | None = None
+    title: str = Field(min_length=1, max_length=500)
+    occurred_at: str | None = None
+    location_text: str | None = None
+
+class FireInvestigationCasePatch(BaseModel):
+    expected_version: int = Field(ge=1)
+    case_number: str | None = None
+    building_id: str | None = None
+    title: str | None = Field(default=None, min_length=1, max_length=500)
+    occurred_at: str | None = None
+    location_text: str | None = None
+    status: Literal["draft","active","review","closed"] | None = None
+
+class FireInvestigationCaseOut(BaseModel):
+    fire_investigation_case_id: str
+    case_number: str | None = None
+    building_id: str | None = None
+    title: str
+    occurred_at: str | None = None
+    location_text: str | None = None
+    status: str
+    official_cause_text: str | None = None
+    official_cause_candidate_id: str | None = None
+    final_report_document_id: str | None = None
+    version: int
+    cause_approved_by: str | None = None
+    cause_approved_at: str | None = None
+    created_at: str
+
+class FireInvestigationMediaCreate(BaseModel):
+    document_id: str
+    media_type: Literal["photo","audio","video","drawing","other"]
+    sequence_no: int | None = Field(default=None, ge=0)
+    captured_at: str | None = None
+    location_label: str | None = None
+    floor_number: int | None = None
+    notes: str | None = None
+    ai_metadata: dict = Field(default_factory=dict)
+
+class FireInvestigationMediaOut(BaseModel):
+    fire_investigation_media_id: str
+    fire_investigation_case_id: str
+    document_id: str
+    media_type: str
+    sequence_no: int | None = None
+    captured_at: str | None = None
+    location_label: str | None = None
+    floor_number: int | None = None
+    notes: str | None = None
+    review_status: str
+    ai_metadata: dict
+
+class FireReviewStateChange(BaseModel):
+    expected_version: int | None = Field(default=None, ge=1)
+    status: Literal["accepted","rejected","reviewed","confirmed"] | None = None
+
+class FirePhotoAnnotationCreate(BaseModel):
+    description: str | None = None
+    tags: list[str] = Field(default_factory=list)
+    map_position: dict = Field(default_factory=dict)
+    confidence: float | None = Field(default=None, ge=0, le=1)
+    source_kind: Literal["ai","manual","import"] = "ai"
+    model_version: str | None = None
+
+class FirePhotoAnnotationOut(BaseModel):
+    fire_photo_annotation_id: str
+    fire_investigation_media_id: str
+    description: str | None = None
+    tags: list
+    map_position: dict
+    confidence: float | None = None
+    source_kind: str
+    model_version: str | None = None
+    status: str
+
+class FireTranscriptSegmentCreate(BaseModel):
+    start_ms: int | None = Field(default=None, ge=0)
+    end_ms: int | None = Field(default=None, ge=0)
+    speaker_label: str | None = None
+    text: str = Field(min_length=1)
+    confidence: float | None = Field(default=None, ge=0, le=1)
+    source_kind: Literal["ai","manual","import"] = "ai"
+    model_version: str | None = None
+
+class FireTranscriptSegmentOut(BaseModel):
+    fire_transcript_segment_id: str
+    fire_investigation_media_id: str
+    start_ms: int | None = None
+    end_ms: int | None = None
+    speaker_label: str | None = None
+    text: str
+    confidence: float | None = None
+    source_kind: str
+    model_version: str | None = None
+    review_status: str
+
+class FireStatementDraftCreate(BaseModel):
+    fire_investigation_media_id: str | None = None
+    person_label: str | None = None
+    draft_text: str = Field(min_length=1)
+    evidence_segment_ids: list[str] = Field(default_factory=list)
+    ai_generated: bool = False
+    model_version: str | None = None
+
+class FireStatementDraftReview(BaseModel):
+    expected_version: int = Field(ge=1)
+    status: Literal["reviewed","rejected"]
+
+class FireStatementDraftOut(BaseModel):
+    fire_statement_draft_id: str
+    fire_investigation_case_id: str
+    fire_investigation_media_id: str | None = None
+    person_label: str | None = None
+    draft_text: str
+    evidence_segment_ids: list
+    ai_generated: bool
+    model_version: str | None = None
+    status: str
+    version: int
+
+class FireTimelineEventCreate(BaseModel):
+    event_time: str | None = None
+    event_time_text: str | None = None
+    event_type: str | None = None
+    title: str = Field(min_length=1, max_length=500)
+    description: str | None = None
+    source_refs: list[dict] = Field(default_factory=list)
+    confidence: float | None = Field(default=None, ge=0, le=1)
+
+class FireTimelineEventReview(BaseModel):
+    expected_version: int = Field(ge=1)
+    status: Literal["confirmed","rejected"]
+
+class FireTimelineEventOut(BaseModel):
+    fire_timeline_event_id: str
+    fire_investigation_case_id: str
+    event_time: str | None = None
+    event_time_text: str | None = None
+    event_type: str | None = None
+    title: str
+    description: str | None = None
+    source_refs: list
+    confidence: float | None = None
+    status: str
+    version: int
+
+class FireCauseCandidateCreate(BaseModel):
+    cause_category: str | None = None
+    cause_text: str = Field(min_length=1)
+    hypothesis: dict = Field(default_factory=dict)
+    evidence_refs: list[dict] = Field(default_factory=list)
+    confidence: float | None = Field(default=None, ge=0, le=1)
+    extraction_method: Literal["manual","ai","import"] = "manual"
+    model_version: str | None = None
+
+class FireCauseCandidateReview(BaseModel):
+    expected_version: int = Field(ge=1)
+    status: Literal["reviewed","rejected"]
+
+class FireCauseCandidateOut(BaseModel):
+    fire_cause_candidate_id: str
+    fire_investigation_case_id: str
+    cause_category: str | None = None
+    cause_text: str
+    hypothesis: dict
+    evidence_refs: list
+    confidence: float | None = None
+    extraction_method: str
+    model_version: str | None = None
+    status: str
+    version: int
+
+class FireOfficialCauseApprove(BaseModel):
+    expected_case_version: int = Field(ge=1)
+    cause_candidate_id: str
+
+class FireReportDraftCreate(BaseModel):
+    report_type: str = Field(min_length=1, max_length=120)
+    form_template_id: str | None = None
+    narrative_text: str | None = None
+    structured_content: dict = Field(default_factory=dict)
+    evidence_refs: list[dict] = Field(default_factory=list)
+    ai_generated: bool = False
+    model_version: str | None = None
+
+class FireReportDraftReview(BaseModel):
+    expected_version: int = Field(ge=1)
+    status: Literal["reviewed","rejected"]
+
+class FireReportDraftApprove(BaseModel):
+    expected_version: int = Field(ge=1)
+
+class FireReportDraftOut(BaseModel):
+    fire_report_draft_id: str
+    fire_investigation_case_id: str
+    report_type: str
+    form_template_id: str | None = None
+    narrative_text: str | None = None
+    structured_content: dict
+    evidence_refs: list
+    ai_generated: bool
+    model_version: str | None = None
+    status: str
+    version: int
+
+class FireInvestigationCaseDetailOut(BaseModel):
+    case: FireInvestigationCaseOut
+    media: list[FireInvestigationMediaOut] = Field(default_factory=list)
+    statements: list[FireStatementDraftOut] = Field(default_factory=list)
+    timeline: list[FireTimelineEventOut] = Field(default_factory=list)
+    cause_candidates: list[FireCauseCandidateOut] = Field(default_factory=list)
+    report_drafts: list[FireReportDraftOut] = Field(default_factory=list)
