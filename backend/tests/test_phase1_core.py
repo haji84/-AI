@@ -4854,3 +4854,189 @@ def test_phase6_occupancy_catalog_import_requires_parser_v2_source():
     assert result.status_code == 200
     assert result.json()["stats"]["parser_upgrade_required"] == 1
     assert result.json()["stats"]["inserted"] == 0
+
+
+
+def test_phase6_restructure_then_occupancy_catalog_readiness():
+    from app.legal_structure import parse_egov_xml
+    from app.models import (
+        LegalJurisdiction,
+        LegalSource,
+        LegalSourceDocument,
+        LegalSourceDocumentVersion,
+    )
+
+    login()
+
+    xml = """<?xml version="1.0" encoding="UTF-8"?>
+<Law>
+  <LawBody>
+    <LawTitle>消防法施行令</LawTitle>
+    <LawNum>昭和三十六年政令第三十七号</LawNum>
+    <AppdxTable Num="1">
+      <AppdxTableTitle>別表第一</AppdxTableTitle>
+      <TableStruct>
+        <Table>
+          <TableRow>
+            <TableColumn><Sentence>（三）</Sentence></TableColumn>
+            <TableColumn>
+              <Sentence Num="1">イ　待合、料理店その他これらに類するもの</Sentence>
+              <Sentence Num="2">ロ　飲食店</Sentence>
+            </TableColumn>
+          </TableRow>
+        </Table>
+      </TableStruct>
+    </AppdxTable>
+  </LawBody>
+</Law>
+""".encode("utf-8")
+
+    upload = client.post(
+        "/documents/upload",
+        files={"file":("fire-order.xml", xml, "application/xml")},
+        data={"document_type":"legal_source_original"},
+    )
+    assert upload.status_code == 201
+    uploaded = upload.json()
+
+    parsed = parse_egov_xml(xml)
+    row = next(x for x in parsed if x.provision_type == "table_row")
+    row_key = row.provision_key
+
+    with SessionLocal() as db:
+        jurisdiction = LegalJurisdiction(
+            code="TEST-RESTRUCTURE-JP",
+            name="国",
+            jurisdiction_type="national",
+        )
+        db.add(jurisdiction)
+        db.flush()
+
+        source = LegalSource(
+            jurisdiction_id=jurisdiction.jurisdiction_id,
+            source_code="egov-restructure-test",
+            name="e-Gov restructure test",
+            source_type="law",
+            adapter_type="manual",
+            base_url="https://example.invalid/",
+        )
+        db.add(source)
+        db.flush()
+
+        document = LegalSourceDocument(
+            legal_source_id=source.legal_source_id,
+            external_id="336CO0000000037",
+            document_type="cabinet_order",
+            title="消防法施行令",
+            document_number="昭和三十六年政令第三十七号",
+        )
+        db.add(document)
+        db.flush()
+
+        version = LegalSourceDocumentVersion(
+            legal_source_document_id=document.legal_source_document_id,
+            normalized_text="別表第一",
+            structured_content={},
+            raw_document_id=uploaded["document_id"],
+            sha256=uploaded["sha256"],
+            structure_status="unparsed",
+            structure_parser_version=None,
+        )
+        db.add(version)
+        db.commit()
+        version_id = version.legal_source_document_version_id
+
+    catalog = {
+        "format":"fire-ai-occupancy-classification-catalog-v1",
+        "law_title":"消防法施行令",
+        "law_number":"昭和三十六年政令第三十七号",
+        "target_appendix":"別表第一",
+        "source_xml_sha256":uploaded["sha256"],
+        "classification_entry_count":1,
+        "entries":[{
+            "classification_code":"（三）ロ",
+            "classification_label":"飲食店",
+            "official_text":"ロ 飲食店",
+            "detail_sentences":[],
+            "source_row_no":1,
+            "source_entry_no":2,
+            "row_provision_key":row_key,
+            "row_sha256":"a"*64,
+            "entry_sha256":"b"*64,
+            "proposed_rule_code":"OCC-S1-R01-E02",
+            "proposed_name":"令別表第一 （三）ロ",
+            "proposed_conditions":{},
+            "proposed_outcome":{
+                "decision":"classification_candidate",
+                "classification_code":"（三）ロ",
+                "classification_label":"飲食店",
+            },
+            "human_review_status":"pending",
+            "conditions_authoring_status":"required",
+        }],
+    }
+
+    before = client.post(
+        "/legal-rule-drafts/imports/occupancy-catalog/readiness",
+        json={"catalog":catalog},
+    )
+    assert before.status_code == 200
+    readiness = before.json()["readiness"]
+    assert readiness["ready"] is False
+    assert readiness["resolution"] == "parser_upgrade_required"
+    assert readiness["source_version_id"] == version_id
+
+    mismatch = client.post(
+        f"/legal-sources/document-versions/{version_id}/restructure",
+        json={"expected_sha256":"0"*64,"force":False},
+    )
+    assert mismatch.status_code == 409
+
+    rebuilt = client.post(
+        f"/legal-sources/document-versions/{version_id}/restructure",
+        json={"expected_sha256":uploaded["sha256"],"force":False},
+    )
+    assert rebuilt.status_code == 200
+    result = rebuilt.json()
+    assert result["changed"] is True
+    assert result["result"]["status"] == "structured"
+    assert result["result"]["parser_version"] == "legal-structure-v2"
+    assert result["result"]["table_row_count"] == 1
+
+    again = client.post(
+        f"/legal-sources/document-versions/{version_id}/restructure",
+        json={"expected_sha256":uploaded["sha256"],"force":False},
+    )
+    assert again.status_code == 200
+    assert again.json()["changed"] is False
+
+    after = client.post(
+        "/legal-rule-drafts/imports/occupancy-catalog/readiness",
+        json={"catalog":catalog},
+    )
+    assert after.status_code == 200
+    readiness = after.json()["readiness"]
+    assert readiness["ready"] is True
+    assert readiness["resolution"] == "ok"
+    assert readiness["valid_entry_count"] == 1
+    assert readiness["exact_provision_match_count"] == 1
+    assert readiness["missing_provision_count"] == 0
+    assert readiness["stale_provision_count"] == 0
+    assert readiness["would_insert_count"] == 1
+
+    imported = client.post(
+        "/legal-rule-drafts/imports/occupancy-catalog",
+        json={"catalog":catalog,"apply":True},
+    )
+    assert imported.status_code == 200
+    assert imported.json()["stats"]["inserted"] == 1
+
+    final_ready = client.post(
+        "/legal-rule-drafts/imports/occupancy-catalog/readiness",
+        json={"catalog":catalog},
+    )
+    assert final_ready.status_code == 200
+    readiness = final_ready.json()["readiness"]
+    assert readiness["ready"] is True
+    assert readiness["would_insert_count"] == 0
+    assert readiness["existing_pending_skeleton_count"] == 1
