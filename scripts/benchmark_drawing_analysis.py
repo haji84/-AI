@@ -28,6 +28,15 @@ def _require_human_accepted_reference(payload: dict) -> None:
         and human_review.get("status") == "reviewed"
     )
     accepted = status == "human_accepted" or reviewed_export
+    human_gate = payload.get("human_gate")
+    if (
+        status == "human_accepted"
+        and isinstance(human_gate, dict)
+        and human_gate.get("required") is True
+        and human_gate.get("accepted") is not True
+    ):
+        accepted = False
+
     if not accepted:
         raise ValueError(
             "Human-accepted drawing reference is required before benchmark "
