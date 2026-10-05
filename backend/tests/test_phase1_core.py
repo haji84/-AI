@@ -1855,3 +1855,131 @@ def test_phase5_7_submission_compliance_uses_only_explicit_approved_presence_rul
     presence2=next(x for x in body2["items"] if x["submission_type_code"]==type_code)
     assert presence2["state"]=="modern_submission_recorded"
     assert presence2["latest_submission_id"]==received.json()["submission_id"]
+
+
+def test_phase5_8_equipment_registry_and_rule_comparison_states():
+    login()
+
+    et=client.post("/equipment-types",json={
+        "code":"test_auto_alarm_58",
+        "name":"テスト自動火災報知設備58",
+        "category":"alarm",
+        "metadata":{"test":True}
+    })
+    assert et.status_code==201
+
+    facility=client.post("/facilities",json={
+        "name":"Phase5.8対象",
+        "detail":{"classification_code":"EQ-58"}
+    })
+    assert facility.status_code==201
+    bid=facility.json()["building_id"]
+
+    rule=client.post("/legal-rules",json={
+        "rule_code":"TEST-EQ-PRESENCE-58",
+        "name":"設備Presence Rule58",
+        "domain":"equipment_requirement"
+    })
+    assert rule.status_code==201
+    rid=rule.json()["rule_id"]
+
+    rv=client.post(f"/legal-rules/{rid}/versions",json={
+        "version_no":1,
+        "effective_from":"2026-01-01",
+        "conditions":{"all":[{"field":"classification_code","op":"eq","value":"EQ-58"}]},
+        "outcome":{
+            "decision":"required",
+            "equipment_type_code":"test_auto_alarm_58",
+            "comparison_mode":"presence"
+        },
+        "source_reference":"TEST SOURCE EQ58"
+    })
+    assert rv.status_code==201
+    assert client.post(
+        f"/legal-rules/versions/{rv.json()['legal_rule_version_id']}/approve",
+        json={"expected_version":1}
+    ).status_code==200
+
+    first=client.post(f"/facilities/{bid}/equipment-compliance/evaluate")
+    assert first.status_code==200
+    body=first.json()
+    assert body["gap_candidate_count"]==1
+    item=next(x for x in body["items"] if x["equipment_type_code"]=="test_auto_alarm_58")
+    assert item["state"]=="missing_equipment_candidate"
+    assert "not a formal violation" in body["note"]
+
+    ai=client.post(f"/facilities/{bid}/equipment",json={
+        "equipment_type_code":"test_auto_alarm_58",
+        "floor_number":1,
+        "location_text":"1階",
+        "quantity":1,
+        "verification_status":"ai_candidate",
+        "source_kind":"drawing_ai",
+        "notes":"図面AI候補"
+    })
+    assert ai.status_code==201
+    eid=ai.json()["facility_equipment_id"]
+
+    second=client.post(f"/facilities/{bid}/equipment-compliance/evaluate")
+    assert second.status_code==200
+    item2=next(x for x in second.json()["items"] if x["equipment_type_code"]=="test_auto_alarm_58")
+    assert item2["state"]=="unverified_evidence_only"
+    assert eid in item2["evidence_equipment_ids"]
+
+    verified=client.patch(f"/facility-equipment/{eid}",json={
+        "expected_version":1,
+        "verification_status":"verified",
+        "source_kind":"manual",
+        "last_verified_at":"2026-10-05"
+    })
+    assert verified.status_code==200
+    assert verified.json()["version"]==2
+    assert verified.json()["verification_status"]=="verified"
+
+    third=client.post(f"/facilities/{bid}/equipment-compliance/evaluate")
+    assert third.status_code==200
+    item3=next(x for x in third.json()["items"] if x["equipment_type_code"]=="test_auto_alarm_58")
+    assert item3["state"]=="verified_installed"
+    assert eid in item3["verified_equipment_ids"]
+
+
+def test_phase5_8_equipment_update_uses_optimistic_lock():
+    login()
+    assert client.post("/equipment-types",json={
+        "code":"test_extinguisher_58",
+        "name":"テスト消火器58"
+    }).status_code==201
+    facility=client.post("/facilities",json={"name":"設備競合58"}).json()
+    created=client.post(f"/facilities/{facility['building_id']}/equipment",json={
+        "equipment_type_code":"test_extinguisher_58",
+        "quantity":2,
+        "verification_status":"verified",
+        "source_kind":"manual"
+    })
+    assert created.status_code==201
+    eid=created.json()["facility_equipment_id"]
+
+    p1=client.patch(f"/facility-equipment/{eid}",json={
+        "expected_version":1,
+        "quantity":3
+    })
+    assert p1.status_code==200 and p1.json()["version"]==2
+
+    stale=client.patch(f"/facility-equipment/{eid}",json={
+        "expected_version":1,
+        "quantity":4
+    })
+    assert stale.status_code==409
+
+
+def test_phase5_8_prevention_role_has_equipment_permissions():
+    from app.rbac_seed import seed_rbac
+    with SessionLocal() as db:
+        roles=seed_rbac(db); db.commit()
+        role=roles["prevention_editor"]
+        codes=set(db.scalars(
+            select(Permission.code)
+            .join(RolePermission,RolePermission.permission_id==Permission.permission_id)
+            .where(RolePermission.role_id==role.role_id)
+        ).all())
+        assert {"equipment.read","equipment.manage"}.issubset(codes)
