@@ -1256,7 +1256,7 @@ Verified checkpoint:
 
 ## Phase 6 DrawingAnalysis benchmark Hypothesis export
 
-Implemented on branch `phase6-drawing-hypothesis-export`; CI verification pending:
+Implemented and CI-verified:
 - `DrawingAnalysis` AI results can be exported as `fire-ai-drawing-hypothesis-v1`
 - export requires:
   - `analysis_method=ai`
@@ -1293,3 +1293,9 @@ Target Baseline flow:
 External/Human gate remains:
 - house-plan-001 Reference is still pending Human acceptance
 - real Local Vision Hypothesis #001 has not yet been produced
+
+Verified checkpoint:
+- run: `37382418987` SUCCESS
+- backend pytest: 135 passed
+- migration parser smoke: PASS
+- frontend JavaScript syntax: PASS
