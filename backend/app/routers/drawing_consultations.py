@@ -10,6 +10,7 @@ from ..audit import write_audit
 from ..authz import require_permission
 from ..db import get_db
 from ..equipment_authoring_batch import equipment_requirement_batch_coverage
+from ..equipment_placement_batch import equipment_placement_batch_coverage
 from ..occupancy_authoring_workbench import occupancy_rule_coverage
 from ..legal_requirement_engine import (
     approved_rule_count,
@@ -693,6 +694,27 @@ def evaluate_required_equipment(
             }
         )
 
+    placement_coverage = equipment_placement_batch_coverage(
+        db,
+        evaluation_date=evaluation_date,
+    )
+    if not placement_coverage.get("coverage_complete"):
+        missing.append(
+            {
+                "field": "equipment_placement_rule_coverage",
+                "reason": "equipment placement Rule coverage is not complete",
+                "coverage": {
+                    "batch_found": placement_coverage.get("batch_found"),
+                    "worklist_sha256": placement_coverage.get("worklist_sha256"),
+                    "expected_candidate_count": placement_coverage.get("expected_candidate_count"),
+                    "processed_candidate_count": placement_coverage.get("processed_candidate_count"),
+                    "authoring_coverage_complete": placement_coverage.get("authoring_coverage_complete"),
+                    "regression_gate_passed": placement_coverage.get("regression_gate_passed"),
+                    "blockers": placement_coverage.get("blockers") or [],
+                },
+            }
+        )
+
     annotation = _require_reviewed_annotation(
         db,
         analysis_id=row.drawing_analysis_id,
@@ -720,6 +742,9 @@ def evaluate_required_equipment(
             "equipment_rule_coverage_complete": bool(
                 equipment_coverage.get("coverage_complete")
             ),
+            "equipment_placement_rule_coverage_complete": bool(
+                placement_coverage.get("coverage_complete")
+            ),
             "note": (
                 "Zero matched Rules does not mean zero required equipment unless the Approved Rule set "
                 "has been independently declared complete for this use case."
@@ -746,6 +771,9 @@ def evaluate_required_equipment(
             "evaluation_date": evaluation_date.isoformat(),
             "equipment_rule_coverage_complete": bool(
                 equipment_coverage.get("coverage_complete")
+            ),
+            "equipment_placement_rule_coverage_complete": bool(
+                placement_coverage.get("coverage_complete")
             ),
         },
     )
