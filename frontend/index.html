@@ -25,7 +25,7 @@ table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid #e4e8ec;
 </style>
 </head>
 <body>
-<header><strong>消防業務 Local AI</strong><span class="pill active">Phase 7</span><span class="muted">対象物・査察・届出・法令・図面・火災調査</span><span class="grow"></span><button id="fireInvestigationBtn" class="btn hidden" onclick="openFireInvestigations()">火災調査</button><button id="legalReviewBtn" class="btn hidden" onclick="openLegalReview()">法令レビュー</button><button id="logoutBtn" class="btn hidden" onclick="logout()">ログアウト</button></header>
+<header><strong>消防業務 Local AI</strong><span class="pill active">Phase 8</span><span class="muted">対象物・査察・届出・法令・図面・火災調査・写真AI</span><span class="grow"></span><button id="fireInvestigationBtn" class="btn hidden" onclick="openFireInvestigations()">火災調査</button><button id="legalReviewBtn" class="btn hidden" onclick="openLegalReview()">法令レビュー</button><button id="logoutBtn" class="btn hidden" onclick="logout()">ログアウト</button></header>
 
 <section id="loginView" class="loginBox card">
 <h1>ログイン</h1>
@@ -584,7 +584,9 @@ function renderFireCase(d){
   const media=d.media||[], statements=d.statements||[], timeline=d.timeline||[], causes=d.cause_candidates||[], reports=d.report_drafts||[], snapshots=d.evidence_snapshots||[];
   const snapshotHtml=snapshots.length?snapshots.map(s=>'<div class="history"><b>Snapshot '+esc((s.snapshot_sha256||'').slice(0,12))+'</b> <span class="pill">Case v'+esc(s.case_version)+'</span><div class="muted">写真注釈 '+esc((s.photo_annotation_ids||[]).length)+' ・ 文字起こし '+esc((s.transcript_segment_ids||[]).length)+' ・ 供述 '+esc((s.statement_draft_ids||[]).length)+' ・ タイムライン '+esc((s.timeline_event_ids||[]).length)+' ・ 正式原因 '+(s.official_cause_candidate_id?'あり':'なし')+'</div><div class="muted">ID '+esc(s.fire_evidence_snapshot_id)+'</div></div>').join(''):'<div class="muted">Evidence Snapshotなし</div>';
   const mediaHtml=media.length?'<div class="scroll"><table><thead><tr><th>順</th><th>種別</th><th>場所</th><th>状態</th><th></th></tr></thead><tbody>'+
-    media.map(m=>'<tr><td>'+esc(m.sequence_no??'－')+'</td><td>'+esc(m.media_type)+'</td><td>'+esc(m.location_label||'－')+'</td><td>'+esc(m.review_status)+'</td><td>'+(m.media_type==='photo'?'<button class="btn" onclick="showFirePhotoEvidence(\''+m.fire_investigation_media_id+'\')">AI注釈</button>':m.media_type==='audio'?'<button class="btn" onclick="showFireTranscript(\''+m.fire_investigation_media_id+'\')">文字起こし</button>':'')+'</td></tr>').join('')+
+    media.map(m=>'<tr><td>'+esc(m.sequence_no??'－')+'</td><td>'+esc(m.media_type)+'</td><td>'+esc(m.location_label||'－')+'</td><td>'+esc(m.review_status)+'</td><td>'+(m.media_type==='photo'?
+      '<button class="btn" onclick="analyzeFirePhoto(\''+m.fire_investigation_media_id+'\')">写真解析</button> <button class="btn" onclick="showFirePhotoProfile(\''+m.fire_investigation_media_id+'\')">メタデータ</button> <button class="btn" onclick="showFirePhotoEvidence(\''+m.fire_investigation_media_id+'\')">AI注釈</button>':
+      m.media_type==='audio'?'<button class="btn" onclick="showFireTranscript(\''+m.fire_investigation_media_id+'\')">文字起こし</button>':'')+'</td></tr>').join('')+
     '</tbody></table></div>':'<div class="muted">証拠原本なし</div>';
   const statementHtml=statements.length?statements.map(x=>'<div class="history"><b>'+esc(x.person_label||'人物未設定')+'</b> <span class="pill">'+esc(x.status)+'</span><div class="value">'+esc(x.draft_text)+'</div>'+(x.status==='draft'?'<button class="btn" onclick="reviewFireStatement(\''+x.fire_statement_draft_id+'\','+x.version+',\'reviewed\')">レビュー済み</button> <button class="btn" onclick="reviewFireStatement(\''+x.fire_statement_draft_id+'\','+x.version+',\'rejected\')">却下</button>':'')+'</div>').join(''):'<div class="muted">供述Draftなし</div>';
   const timelineHtml=timeline.length?timeline.map(x=>'<div class="history"><b>'+esc(x.title)+'</b> <span class="pill">'+esc(x.status)+'</span><div class="muted">'+esc(x.event_time?formatDate(x.event_time):x.event_time_text||'時刻未確定')+'</div><div>'+esc(x.description||'')+'</div>'+(x.status==='candidate'?'<button class="btn" onclick="reviewFireTimeline(\''+x.fire_timeline_event_id+'\','+x.version+',\'confirmed\')">確認済み</button> <button class="btn" onclick="reviewFireTimeline(\''+x.fire_timeline_event_id+'\','+x.version+',\'rejected\')">却下</button>':'')+'</div>').join(''):'<div class="muted">タイムライン候補なし</div>';
@@ -595,7 +597,7 @@ function renderFireCase(d){
     (c.official_cause_text?'<div class="notice"><b>正式原因</b><div>'+esc(c.official_cause_text)+'</div></div>':'<div class="muted">正式原因は未承認です。</div>')+
     '<div class="row" style="margin-top:10px"><button class="btn primary" onclick="triggerFireMediaUpload(\'photo\')">＋ 写真原本</button><button class="btn" onclick="triggerFireMediaUpload(\'audio\')">＋ 音声原本</button><button class="btn" onclick="createManualFireCause()">＋ 原因候補</button><button class="btn" onclick="createFireReportDraft()">＋ 報告Draft</button></div></div>'+
     '<div id="fireEvidencePanel"></div>'+
-    '<div class="card"><div class="sectionTitle">証拠原本</div>'+mediaHtml+'</div>'+
+    '<div class="card"><div class="row"><div class="sectionTitle grow">証拠原本</div><input id="firePhotoSearchQ" placeholder="写真を自然文検索" style="max-width:240px" onkeydown="if(event.key===\'Enter\')searchFirePhotos()"><button class="btn" onclick="searchFirePhotos()">写真検索</button><button class="btn" onclick="showFirePhotoDuplicates()">重複候補</button></div>'+mediaHtml+'</div>'+
     '<div class="grid2"><div class="card"><div class="sectionTitle">供述Draft</div>'+statementHtml+'</div><div class="card"><div class="sectionTitle">タイムライン</div>'+timelineHtml+'</div></div>'+
     '<div class="grid2"><div class="card"><div class="sectionTitle">火災原因候補</div>'+causeHtml+'</div><div class="card"><div class="sectionTitle">報告書Draft</div>'+reportHtml+'</div></div>';
 }
@@ -623,6 +625,76 @@ async function uploadFireMediaFile(event){
   }catch(e){alert('証拠原本を登録できません: '+e.message)}
   finally{event.target.value=''}
 }
+async function analyzeFirePhoto(mediaId){
+  try{
+    const p=await api('/fire-photos/media/'+mediaId+'/analyze',{method:'POST'});
+    await showFirePhotoProfile(mediaId,p);
+  }catch(e){alert('写真メタデータを解析できません: '+e.message)}
+}
+function firePhotoQualityLabel(flags){
+  if(!flags||!flags.length)return '品質警告なし';
+  const labels={
+    low_resolution:'低解像度候補',
+    too_dark_candidate:'暗すぎる候補',
+    too_bright_candidate:'明るすぎる候補',
+    low_contrast_candidate:'低コントラスト候補',
+    low_sharpness_candidate:'不鮮明候補'
+  };
+  return flags.map(x=>labels[x]||x).join(' / ');
+}
+async function showFirePhotoProfile(mediaId,known=null){
+  try{
+    const p=known||await api('/fire-photos/media/'+mediaId+'/profile');
+    const dup=p.duplicate_of_media_id
+      ? '<div class="notice">重複候補: '+esc(p.duplicate_of_media_id)+' ・ dHash距離 '+esc(p.duplicate_distance)+'</div>'
+      : '';
+    const rawExif=p.exif_metadata?.DateTimeOriginal
+      ? '<div class="muted">EXIF撮影日時原文: '+esc(p.exif_metadata.DateTimeOriginal)+(p.exif_captured_at?' ・ timezone確認済み '+esc(formatDate(p.exif_captured_at)):' ・ timezone未確定のため自動確定なし')+'</div>'
+      : '';
+    $('fireEvidencePanel').innerHTML='<div class="card"><div class="row"><div class="sectionTitle grow">写真メタデータ #'+esc(p.photo_number??'－')+'</div><span class="pill">'+esc(p.analysis_version)+'</span></div>'+
+      dup+
+      '<div class="grid3"><div class="field"><label>画像サイズ</label><div class="value">'+esc(p.image_width)+' × '+esc(p.image_height)+'</div></div>'+
+      '<div class="field"><label>カメラ</label><div class="value">'+esc([p.camera_make,p.camera_model].filter(Boolean).join(' ')||'不明')+'</div></div>'+
+      '<div class="field"><label>原本SHA-256</label><div class="value">'+esc((p.exact_sha256||'').slice(0,16))+'…</div></div></div>'+
+      '<div class="grid3"><div class="field"><label>明るさ</label><div class="value">'+esc(p.brightness_score??'－')+'</div></div>'+
+      '<div class="field"><label>コントラスト</label><div class="value">'+esc(p.contrast_score??'－')+'</div></div>'+
+      '<div class="field"><label>シャープネス</label><div class="value">'+esc(p.sharpness_score??'－')+'</div></div></div>'+
+      '<div class="muted">画質判定: '+esc(firePhotoQualityLabel(p.quality_flags))+'</div>'+rawExif+
+      '<div class="muted">※ 画質指標と近似重複は派生候補です。原本写真は変更されません。</div></div>';
+  }catch(e){
+    if(e.status===404){alert('まだ写真解析されていません。「写真解析」を実行してください。');return}
+    alert('写真メタデータを取得できません: '+e.message)
+  }
+}
+async function searchFirePhotos(){
+  if(!fireState.caseId)return;
+  const q=$('firePhotoSearchQ')?.value.trim();
+  if(!q){alert('検索語を入力してください');return}
+  try{
+    const rows=await api('/fire-photos/cases/'+fireState.caseId+'/search?'+new URLSearchParams({q,limit:'100'}));
+    $('fireEvidencePanel').innerHTML='<div class="card"><div class="sectionTitle">写真検索「'+esc(q)+'」</div>'+
+      (rows.length?rows.map(x=>{
+        const p=x.profile||{};
+        const anns=x.accepted_annotations||[];
+        return '<div class="history"><b>写真 #'+esc(p.photo_number??x.media.sequence_no??'－')+'</b> <span class="pill">一致 '+esc(x.search_score)+'</span>'+
+          '<div class="muted">'+esc(x.media.location_label||'場所未登録')+' ・ '+esc(p.image_width??'－')+'×'+esc(p.image_height??'－')+'</div>'+
+          anns.map(a=>'<div>'+esc(a.description||'')+'<div class="muted">'+esc((a.tags||[]).join(' / '))+'</div></div>').join('')+
+          '<button class="btn" onclick="showFirePhotoProfile(\''+x.media.fire_investigation_media_id+'\')">メタデータ</button> <button class="btn" onclick="showFirePhotoEvidence(\''+x.media.fire_investigation_media_id+'\')">AI注釈</button></div>';
+      }).join(''):'<div class="muted">一致するHuman承認済み注釈・メタデータはありません。</div>')+'</div>';
+  }catch(e){alert('写真検索できません: '+e.message)}
+}
+async function showFirePhotoDuplicates(){
+  if(!fireState.caseId)return;
+  try{
+    const rows=await api('/fire-photos/cases/'+fireState.caseId+'/duplicates');
+    $('fireEvidencePanel').innerHTML='<div class="card"><div class="sectionTitle">写真重複候補</div>'+
+      (rows.length?rows.map(x=>'<div class="history"><b>写真 #'+esc(x.profile?.photo_number??x.media.sequence_no??'－')+'</b> → '+esc(x.profile?.duplicate_of_media_id||'')+
+        '<div class="muted">dHash距離 '+esc(x.profile?.duplicate_distance??'－')+' ・ 距離0は完全重複Hashまたは同一知覚Hash候補</div>'+
+        '<button class="btn" onclick="showFirePhotoProfile(\''+x.media.fire_investigation_media_id+'\')">確認</button></div>').join(''):'<div class="muted">重複候補なし</div>')+
+      '<div class="muted">近似重複は自動削除しません。確認用候補だけです。</div></div>';
+  }catch(e){alert('重複候補を取得できません: '+e.message)}
+}
+
 async function showFirePhotoEvidence(mediaId){
   try{
     const rows=await api('/fire-investigations/media/'+mediaId+'/photo-annotations');
