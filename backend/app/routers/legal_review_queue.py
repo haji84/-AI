@@ -9,6 +9,10 @@ from sqlalchemy.orm import Session
 from ..audit import write_audit
 from ..authz import require_permission
 from ..db import get_db
+from ..equipment_placement_batch import (
+    equipment_placement_batch_coverage,
+    import_equipment_placement_batch,
+)
 from ..equipment_authoring_batch import (
     equipment_requirement_batch_coverage,
     import_equipment_requirement_batch,
@@ -32,6 +36,9 @@ from ..schemas import (
     EquipmentRequirementBatchImportRequest,
     EquipmentRequirementBatchImportOut,
     EquipmentRequirementBatchCoverageOut,
+    EquipmentPlacementBatchImportRequest,
+    EquipmentPlacementBatchImportOut,
+    EquipmentPlacementBatchCoverageOut,
 )
 
 router = APIRouter(prefix="/legal-review-queue", tags=["legal-review-queue"])
@@ -142,6 +149,78 @@ def _review_query(
     return stmt, score_expr
 
 
+
+
+
+
+@router.post(
+    "/imports/equipment-placement-worklist",
+    response_model=EquipmentPlacementBatchImportOut,
+)
+def import_equipment_placement_worklist(
+    payload: EquipmentPlacementBatchImportRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("legal_rule.manage")),
+):
+    try:
+        result = import_equipment_placement_batch(
+            db,
+            items=payload.items,
+            source_metadata=payload.source_metadata,
+            apply=payload.apply,
+            created_by=user.user_id,
+        )
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=422, detail=str(exc))
+
+    if payload.apply and result.get("applied"):
+        write_audit(
+            db,
+            user_id=user.user_id,
+            action="equipment_placement_worklist.import",
+            entity_type="equipment_placement_authoring_batch",
+            entity_id=result.get("batch_id"),
+            after={
+                "worklist_sha256": result.get("worklist_sha256"),
+                "expected_candidate_count": result.get("expected_candidate_count"),
+                "linked_candidate_count": result.get("linked_candidate_count"),
+                "source_metadata": payload.source_metadata,
+            },
+        )
+        db.commit()
+    elif payload.apply:
+        db.rollback()
+
+    return EquipmentPlacementBatchImportOut(result=result)
+
+
+@router.get(
+    "/equipment-placement/coverage",
+    response_model=EquipmentPlacementBatchCoverageOut,
+)
+def equipment_placement_coverage(
+    worklist_sha256: str | None = None,
+    evaluation_date: str | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("legal_rule.read")),
+):
+    from datetime import date
+
+    day = date.today()
+    if evaluation_date:
+        try:
+            day = date.fromisoformat(evaluation_date)
+        except ValueError:
+            raise HTTPException(status_code=422, detail="invalid evaluation_date")
+
+    return EquipmentPlacementBatchCoverageOut(
+        coverage=equipment_placement_batch_coverage(
+            db,
+            worklist_sha256=worklist_sha256,
+            evaluation_date=day,
+        )
+    )
 
 
 @router.post(

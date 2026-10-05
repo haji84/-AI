@@ -1797,3 +1797,15 @@ class EquipmentRegressionRunOut(BaseModel):
     version: int
     created_at: str
     reviewed_at: str | None = None
+
+
+class EquipmentPlacementBatchImportRequest(BaseModel):
+    items: list[dict] = Field(min_length=1)
+    source_metadata: dict = Field(default_factory=dict)
+    apply: bool = False
+
+class EquipmentPlacementBatchImportOut(BaseModel):
+    result: dict
+
+class EquipmentPlacementBatchCoverageOut(BaseModel):
+    coverage: dict
