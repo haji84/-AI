@@ -5,13 +5,21 @@ import json
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from ..audit import write_audit
 from ..authz import require_permission
 from ..db import get_db
+from ..drawing_preview import (
+    PDF_PREVIEW_VERSION,
+    image_preview_info,
+    managed_document_path,
+    pdf_preview_info,
+    preview_kind,
+    render_pdf_page_png,
+)
 from ..models import (
     Document,
     DrawingAnalysis,
@@ -30,6 +38,8 @@ from ..schemas import (
     DrawingAnalysisOut,
     DrawingAnalysisResultManifest,
     DrawingAnalysisReview,
+    DrawingPreviewInfoOut,
+    DrawingPreviewPageOut,
     DrawingElementCreate,
     DrawingElementOut,
     DrawingEquipmentCandidateCreate,
@@ -412,6 +422,145 @@ def ingest_drawing_analysis_manifest(
     )
     db.commit()
     return _detail(db, analysis)
+
+
+
+
+@router.get(
+    "/drawing-analyses/{analysis_id}/preview-info",
+    response_model=DrawingPreviewInfoOut,
+)
+def drawing_preview_info(
+    analysis_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("drawing.read")),
+):
+    analysis = db.get(DrawingAnalysis, analysis_id)
+    if not analysis:
+        raise HTTPException(
+            status_code=404,
+            detail="drawing analysis not found",
+        )
+    document = db.get(Document, analysis.document_id)
+    if not document:
+        raise HTTPException(
+            status_code=409,
+            detail="source drawing document missing",
+        )
+    kind = preview_kind(document)
+    try:
+        path = managed_document_path(document)
+        if kind == "pdf":
+            pages = pdf_preview_info(path)
+            version = PDF_PREVIEW_VERSION
+        elif kind == "image":
+            pages = image_preview_info(path)
+            version = None
+        else:
+            pages = []
+            version = None
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=404,
+            detail="source drawing file not found",
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail=str(exc),
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=f"drawing preview metadata could not be read: {type(exc).__name__}",
+        )
+
+    return DrawingPreviewInfoOut(
+        drawing_analysis_id=analysis.drawing_analysis_id,
+        document_id=document.document_id,
+        preview_kind=kind,
+        preview_version=version,
+        page_count=len(pages),
+        pages=[
+            DrawingPreviewPageOut(
+                page_no=x.page_no,
+                width=x.width,
+                height=x.height,
+            )
+            for x in pages
+        ],
+    )
+
+
+@router.get("/drawing-analyses/{analysis_id}/pages/{page_no}/preview")
+def drawing_pdf_page_preview(
+    analysis_id: str,
+    page_no: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("drawing.read")),
+):
+    analysis = db.get(DrawingAnalysis, analysis_id)
+    if not analysis:
+        raise HTTPException(
+            status_code=404,
+            detail="drawing analysis not found",
+        )
+    document = db.get(Document, analysis.document_id)
+    if not document:
+        raise HTTPException(
+            status_code=409,
+            detail="source drawing document missing",
+        )
+    if preview_kind(document) != "pdf":
+        raise HTTPException(
+            status_code=409,
+            detail="page preview endpoint is only available for PDF drawings",
+        )
+    try:
+        path = managed_document_path(document)
+        payload, page = render_pdf_page_png(
+            path,
+            page_no=page_no,
+        )
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=404,
+            detail="source drawing file not found",
+        )
+    except IndexError:
+        raise HTTPException(
+            status_code=404,
+            detail="drawing page out of range",
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail=str(exc),
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=f"PDF drawing page could not be rendered: {type(exc).__name__}",
+        )
+
+    etag = hashlib.sha256(
+        (
+            f"{document.sha256}:{page_no}:{PDF_PREVIEW_VERSION}:"
+            f"{page.width}x{page.height}"
+        ).encode("utf-8")
+    ).hexdigest()
+    return Response(
+        content=payload,
+        media_type="image/png",
+        headers={
+            "Cache-Control": "private, max-age=300",
+            "ETag": etag,
+            "X-Drawing-Preview-Version": PDF_PREVIEW_VERSION,
+            "X-Drawing-Page-No": str(page.page_no),
+            "X-Drawing-Page-Width": str(page.width),
+            "X-Drawing-Page-Height": str(page.height),
+        },
+    )
 
 
 @router.get("/drawing-analyses/{analysis_id}", response_model=DrawingAnalysisDetailOut)
