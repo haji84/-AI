@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from ..audit import write_audit
 from ..authz import require_permission
 from ..db import get_db
+from ..drawing_annotation_geometry import apply_geometry_metrics
 from ..models import (
     Document,
     DrawingAnalysis,
@@ -98,14 +99,18 @@ def _validate_reference_payload(payload: dict) -> None:
                 raise HTTPException(status_code=422, detail=f"duplicate client_ref: {client_ref}")
             seen_refs.add(client_ref)
 
-        if str(element.get("element_type") or "").strip() == "room":
+        element_type = str(element.get("element_type") or "").strip()
+        if element_type in {"room", "zone"}:
             extracted = element.get("extracted_data") or {}
-            room_label = str(element.get("label") or "").strip()
+            region_label = str(element.get("label") or "").strip()
             use_name = str(extracted.get("use_name") or "").strip() if isinstance(extracted, dict) else ""
-            if not room_label and not use_name:
+            if not region_label and not use_name:
                 raise HTTPException(
                     status_code=422,
-                    detail=f"room element {client_ref or index} requires label or extracted_data.use_name",
+                    detail=(
+                        f"{element_type} element {client_ref or index} "
+                        "requires label or extracted_data.use_name"
+                    ),
                 )
 
 
@@ -149,11 +154,18 @@ def create_annotation(
     body = payload.payload
     if not isinstance(body, dict):
         raise HTTPException(status_code=422, detail="payload must be an object")
+    try:
+        body, page_dimensions = apply_geometry_metrics(
+            body,
+            payload.page_dimensions,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
     row = DrawingAnnotationSet(
         drawing_analysis_id=analysis_id,
         annotation_kind="human_reference",
         coordinate_space=payload.coordinate_space,
-        page_dimensions=payload.page_dimensions,
+        page_dimensions=page_dimensions,
         payload=body,
         source_method=payload.source_method,
         status="draft",
@@ -249,16 +261,24 @@ def seed_annotation_from_analysis(
         for row in facts
     ]
 
+    try:
+        seed_payload, page_dimensions = apply_geometry_metrics(
+            {
+                "elements": element_payload,
+                "equipment_candidates": equipment_payload,
+                "fact_candidates": fact_payload,
+            },
+            payload.page_dimensions,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
     row = DrawingAnnotationSet(
         drawing_analysis_id=analysis_id,
         annotation_kind="human_reference",
         coordinate_space=payload.coordinate_space,
-        page_dimensions=payload.page_dimensions,
-        payload={
-            "elements": element_payload,
-            "equipment_candidates": equipment_payload,
-            "fact_candidates": fact_payload,
-        },
+        page_dimensions=page_dimensions,
+        payload=seed_payload,
         source_method="ai_seed",
         status="draft",
         created_by=user.user_id,
@@ -297,10 +317,18 @@ def update_annotation(
     if current.status != "draft":
         raise HTTPException(status_code=409, detail="only draft annotations can be edited")
 
+    try:
+        normalized_payload, page_dimensions = apply_geometry_metrics(
+            payload.payload,
+            payload.page_dimensions,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
     values = {
         "coordinate_space": payload.coordinate_space,
-        "page_dimensions": payload.page_dimensions,
-        "payload": payload.payload,
+        "page_dimensions": page_dimensions,
+        "payload": normalized_payload,
         "version": payload.expected_version + 1,
         "updated_at": datetime.now(timezone.utc),
     }
@@ -341,7 +369,17 @@ def review_annotation(
     if current.status != "draft":
         raise HTTPException(status_code=409, detail="only draft annotations can be reviewed")
     if payload.status == "reviewed":
-        _validate_reference_payload(current.payload or {})
+        try:
+            normalized_payload, page_dimensions = apply_geometry_metrics(
+                current.payload or {},
+                current.page_dimensions or {},
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc))
+        _validate_reference_payload(normalized_payload)
+    else:
+        normalized_payload = current.payload or {}
+        page_dimensions = current.page_dimensions or {}
 
     result = db.execute(
         update(DrawingAnnotationSet)
@@ -352,6 +390,8 @@ def review_annotation(
         )
         .values(
             status=payload.status,
+            payload=normalized_payload,
+            page_dimensions=page_dimensions,
             version=payload.expected_version + 1,
             reviewed_by=user.user_id,
             reviewed_at=datetime.now(timezone.utc),

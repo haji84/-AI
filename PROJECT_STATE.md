@@ -1299,3 +1299,60 @@ Verified checkpoint:
 - backend pytest: 135 passed
 - migration parser smoke: PASS
 - frontend JavaScript syntax: PASS
+
+
+## Phase 6 Annotation editing / automatic area calculation
+
+Implemented and CI-verified:
+- existing Draft room/zone polygons can be selected and edited by dragging vertices
+- selected polygon vertices can be added or deleted with a minimum 3-vertex guard
+- existing region label / use code / floor can be corrected manually
+- new regions can be added as either:
+  - `room`
+  - arbitrary `zone`
+- browser immediately recalculates polygon area/perimeter after geometry edits
+- backend is authoritative and overwrites any client-supplied derived area values
+- canonical backend calculation: polygon shoelace v1
+- stored per region:
+  - area_px2
+  - perimeter_px
+  - area_m2
+  - perimeter_m
+  - calibration status
+  - meters_per_pixel
+- page scale calibration uses Human-selected two points plus known real distance in meters
+- calibration is page-specific and is not reused across PDF pages
+- without calibration:
+  - px² remains available
+  - m² remains null
+  - UI explicitly marks scale as unresolved
+- create / AI seed / Draft update / Human review all pass through server-side geometry recalculation
+- invalid calibration is rejected
+- reviewed `room` and `zone` regions require label or use code
+- Human Reference export naturally includes derived geometry and page calibration evidence
+- backend tests cover:
+  - 100x50px -> 5000px²
+  - 100px=2m calibration -> 2.0m²
+  - geometry edit -> automatic 4.0m² recalculation
+  - arbitrary zone area
+  - invalid calibration rejection
+  - server overwrites fake client-derived values
+- frontend contract covers:
+  - vertex drag
+  - vertex add/remove
+  - manual metadata correction
+  - two-point calibration
+  - automatic area display
+  - arbitrary zone creation
+
+Safety:
+- metric area is never invented from raw pixel dimensions alone
+- browser-calculated area is feedback only; backend recalculation is authoritative
+- reviewed Annotation cannot be edited through the Draft edit API
+- a geometry or calibration change changes the resulting Human Reference evidence and downstream Benchmark SHA
+
+Verified checkpoint:
+- run: `37386057958` SUCCESS
+- backend pytest: 143 passed
+- migration parser smoke: PASS
+- frontend JavaScript syntax: PASS

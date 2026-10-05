@@ -6949,3 +6949,178 @@ def test_phase6_drawing_benchmark_hypothesis_export_is_stable_and_source_bound()
     )
     assert second.status_code==200
     assert second.json()==body
+
+
+
+def test_phase6_annotation_edit_recalculates_server_authoritative_area_and_zone():
+    login()
+    facility = client.post(
+        "/facilities",
+        json={"name":"Annotation面積再計算対象"},
+    ).json()
+    bid = facility["building_id"]
+
+    upload = client.post(
+        "/documents/upload",
+        files={"file":("area-plan.png",b"area-plan","image/png")},
+        data={"document_type":"drawing","building_id":bid},
+    ).json()
+    analysis = client.post(
+        f"/facilities/{bid}/drawing-analyses",
+        json={
+            "document_id":upload["document_id"],
+            "analysis_method":"manual",
+        },
+    ).json()
+    aid = analysis["drawing_analysis_id"]
+
+    created = client.post(
+        f"/drawing-analyses/{aid}/annotations",
+        json={
+            "coordinate_space":"pixel",
+            "page_dimensions":{
+                "1":{
+                    "width":1000,
+                    "height":800,
+                    "calibration":{
+                        "method":"two_point",
+                        "point_a":[0,0],
+                        "point_b":[100,0],
+                        "reference_length_m":2.0,
+                    },
+                }
+            },
+            "payload":{
+                "elements":[
+                    {
+                        "client_ref":"room-1",
+                        "page_no":1,
+                        "element_type":"room",
+                        "label":"Room",
+                        "geometry":{
+                            "points":[
+                                [0,0],[100,0],[100,50],[0,50]
+                            ]
+                        },
+                        "extracted_data":{"use_name":"room"},
+                        "derived_geometry":{
+                            "area_px2":999999,
+                            "area_m2":999999,
+                        },
+                    },
+                    {
+                        "client_ref":"zone-1",
+                        "page_no":1,
+                        "element_type":"zone",
+                        "label":"Zone A",
+                        "geometry":{
+                            "points":[
+                                [200,0],[250,0],[250,40],[200,40]
+                            ]
+                        },
+                        "extracted_data":{"use_name":"custom_zone"},
+                    },
+                ],
+                "equipment_candidates":[],
+                "fact_candidates":[],
+            },
+            "source_method":"manual",
+        },
+    )
+    assert created.status_code == 201
+    body = created.json()
+    ann_id = body["drawing_annotation_set_id"]
+
+    room = body["payload"]["elements"][0]
+    assert room["derived_geometry"]["area_px2"] == 5000.0
+    assert room["derived_geometry"]["area_m2"] == 2.0
+    assert body["page_dimensions"]["1"]["calibration"]["meters_per_pixel"] == 0.02
+
+    zone = body["payload"]["elements"][1]
+    assert zone["element_type"] == "zone"
+    assert zone["derived_geometry"]["area_px2"] == 2000.0
+    assert zone["derived_geometry"]["area_m2"] == 0.8
+
+    room["geometry"]["points"] = [
+        [0,0],[200,0],[200,50],[0,50]
+    ]
+    room["derived_geometry"] = {
+        "area_px2":1,
+        "area_m2":1,
+    }
+
+    updated = client.put(
+        f"/drawing-annotations/{ann_id}",
+        json={
+            "expected_version":body["version"],
+            "coordinate_space":"pixel",
+            "page_dimensions":body["page_dimensions"],
+            "payload":body["payload"],
+        },
+    )
+    assert updated.status_code == 200
+    updated_body = updated.json()
+    updated_room = updated_body["payload"]["elements"][0]
+    assert updated_room["derived_geometry"]["area_px2"] == 10000.0
+    assert updated_room["derived_geometry"]["area_m2"] == 4.0
+    assert updated_room["derived_geometry"]["calculation"] == "polygon_shoelace_v1"
+
+    reviewed = client.post(
+        f"/drawing-annotations/{ann_id}/review",
+        json={
+            "expected_version":updated_body["version"],
+            "status":"reviewed",
+        },
+    )
+    assert reviewed.status_code == 200
+    reviewed_body = reviewed.json()
+    assert reviewed_body["payload"]["elements"][0]["derived_geometry"]["area_m2"] == 4.0
+    assert reviewed_body["payload"]["elements"][1]["derived_geometry"]["area_m2"] == 0.8
+
+
+def test_phase6_annotation_rejects_invalid_scale_calibration():
+    login()
+    facility = client.post(
+        "/facilities",
+        json={"name":"Annotation縮尺不正対象"},
+    ).json()
+    bid = facility["building_id"]
+    upload = client.post(
+        "/documents/upload",
+        files={"file":("bad-scale.png",b"bad-scale","image/png")},
+        data={"document_type":"drawing","building_id":bid},
+    ).json()
+    aid = client.post(
+        f"/facilities/{bid}/drawing-analyses",
+        json={
+            "document_id":upload["document_id"],
+            "analysis_method":"manual",
+        },
+    ).json()["drawing_analysis_id"]
+
+    bad = client.post(
+        f"/drawing-analyses/{aid}/annotations",
+        json={
+            "coordinate_space":"pixel",
+            "page_dimensions":{
+                "1":{
+                    "width":100,
+                    "height":100,
+                    "calibration":{
+                        "method":"two_point",
+                        "point_a":[10,10],
+                        "point_b":[10,10],
+                        "reference_length_m":1.82,
+                    },
+                }
+            },
+            "payload":{
+                "elements":[],
+                "equipment_candidates":[],
+                "fact_candidates":[],
+            },
+            "source_method":"manual",
+        },
+    )
+    assert bad.status_code == 422
+    assert "points must differ" in str(bad.json())
