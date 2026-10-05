@@ -878,7 +878,7 @@ Safety:
 
 ## Phase 6 equipment requirement authoring batch
 
-Implemented on branch `phase6-equipment-authoring-batch`; CI verification pending:
+Implemented and CI-verified:
 - Migration 033 equipment requirement authoring batch persistence
 - official core legal Worklist batch SHA-256 binding
 - equipment_requirement candidate extraction from the verified Worklist
@@ -891,6 +891,12 @@ Implemented on branch `phase6-equipment-authoring-batch`; CI verification pendin
 - source hash drift immediately invalidates coverage
 - drawing consultation reports an explicit equipment Rule coverage warning while the batch is incomplete
 - CLI added for offline/production batch import
+
+Verified checkpoint:
+- run: `37289599466` SUCCESS
+- backend pytest: 118 passed
+- Migration 033 parser smoke: PASS
+- frontend JavaScript syntax: PASS
 
 Verified official Worklist evidence from run `37271954544`, artifact `11328598413`:
 - artifact digest: `sha256:b1364930c7acd6d74804cf2e67fcc65d889a94cfb715242b6c503ba55db00805`
