@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import itertools
 import json
 from pathlib import Path
@@ -383,6 +384,14 @@ def aggregate_results(results: list[dict]) -> dict:
     }
 
 
+def file_sha256(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
 def _read_json(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
@@ -419,12 +428,15 @@ def score_manifest(
             {
                 "recording_id": str(item.get("id") or f"recording-{index + 1}"),
                 "reference": str(item["reference"]),
+                "reference_sha256": file_sha256(ref_path),
                 "hypothesis": str(item["hypothesis"]),
+                "hypothesis_sha256": file_sha256(hyp_path),
                 **result,
             }
         )
     return {
         "benchmark_format": FORMAT_VERSION,
+        "manifest_sha256": file_sha256(manifest_path),
         "marker_tolerance_ms": tolerance,
         "speaker_mapping": "auto_overlap" if auto_map_speakers else "identity",
         "recordings": output,
@@ -458,10 +470,14 @@ def main() -> None:
         if not args.hypothesis:
             p.error("--hypothesis is required with --reference")
         tolerance = args.marker_tolerance_ms or 0
-        reference = _read_json(Path(args.reference))
-        hypothesis = _read_json(Path(args.hypothesis))
+        reference_path = Path(args.reference)
+        hypothesis_path = Path(args.hypothesis)
+        reference = _read_json(reference_path)
+        hypothesis = _read_json(hypothesis_path)
         result = {
             "benchmark_format": FORMAT_VERSION,
+            "reference_sha256": file_sha256(reference_path),
+            "hypothesis_sha256": file_sha256(hypothesis_path),
             "marker_tolerance_ms": tolerance,
             "speaker_mapping": "auto_overlap" if auto_map else "identity",
             **score_recording(
