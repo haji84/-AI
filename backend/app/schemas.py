@@ -724,3 +724,26 @@ class LegalRuleCoverageOut(BaseModel):
     approved_rule_count_by_domain: dict[str, int] = Field(default_factory=dict)
     exact_citation_count: int = 0
     note: str
+
+
+class SubmissionRequirementComparisonItemOut(BaseModel):
+    submission_type_code: str
+    submission_type_name: str | None = None
+    state: str
+    latest_submission_id: str | None = None
+    latest_submitted_at: str | None = None
+    rule_evidence: list[dict] = Field(default_factory=list)
+    detail: dict = Field(default_factory=dict)
+
+class FacilitySubmissionRequirementComplianceOut(BaseModel):
+    building_id: str
+    evaluation_id: str
+    evaluation_date: str
+    facility_version: int
+    matched_rule_count: int
+    actionable_rule_count: int
+    gap_candidate_count: int
+    manual_review_count: int
+    items: list[SubmissionRequirementComparisonItemOut] = Field(default_factory=list)
+    unmapped_rules: list[dict] = Field(default_factory=list)
+    note: str
