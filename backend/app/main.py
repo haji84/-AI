@@ -39,10 +39,11 @@ app.include_router(legal_rule_drafts.router)
 app.include_router(legal_review_queue.router)
 app.include_router(equipment.router)
 app.include_router(drawings.router)
+# Register static audio-benchmark paths before /fire-investigations/{case_id}.
+app.include_router(audio_benchmarks.router)
 app.include_router(fire_investigations.router)
 app.include_router(fire_report_exports.router)
 app.include_router(fire_photos.router)
-app.include_router(audio_benchmarks.router)
 app.include_router(unified_search.router)
 
 _ui = Path(__file__).resolve().parents[2] / "frontend"
