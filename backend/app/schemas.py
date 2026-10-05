@@ -747,3 +747,87 @@ class FacilitySubmissionRequirementComplianceOut(BaseModel):
     items: list[SubmissionRequirementComparisonItemOut] = Field(default_factory=list)
     unmapped_rules: list[dict] = Field(default_factory=list)
     note: str
+
+
+class EquipmentTypeCreate(BaseModel):
+    code: str = Field(min_length=1, max_length=150)
+    name: str = Field(min_length=1, max_length=300)
+    category: str | None = None
+    metadata: dict = Field(default_factory=dict)
+
+class EquipmentTypeOut(BaseModel):
+    equipment_type_id: str
+    code: str
+    name: str
+    category: str | None = None
+    active: bool
+    metadata: dict = Field(default_factory=dict)
+
+class FacilityEquipmentCreate(BaseModel):
+    equipment_type_code: str
+    floor_number: int | None = None
+    location_text: str | None = None
+    quantity: int | None = Field(default=None, ge=0)
+    operational_status: Literal["installed","removed","unknown"] = "installed"
+    verification_status: Literal["verified","unverified","legacy_only","ai_candidate"] = "verified"
+    source_kind: Literal["manual","submission","legacy","drawing_ai","import"] = "manual"
+    source_document_id: str | None = None
+    submission_id: str | None = None
+    installed_at: str | None = None
+    last_verified_at: str | None = None
+    notes: str | None = None
+
+class FacilityEquipmentPatch(BaseModel):
+    expected_version: int = Field(ge=1)
+    floor_number: int | None = None
+    location_text: str | None = None
+    quantity: int | None = Field(default=None, ge=0)
+    operational_status: Literal["installed","removed","unknown"] | None = None
+    verification_status: Literal["verified","unverified","legacy_only","ai_candidate"] | None = None
+    source_kind: Literal["manual","submission","legacy","drawing_ai","import"] | None = None
+    source_document_id: str | None = None
+    submission_id: str | None = None
+    installed_at: str | None = None
+    last_verified_at: str | None = None
+    notes: str | None = None
+
+class FacilityEquipmentOut(BaseModel):
+    facility_equipment_id: str
+    building_id: str
+    equipment_type_id: str
+    equipment_type_code: str
+    equipment_type_name: str
+    floor_number: int | None = None
+    location_text: str | None = None
+    quantity: int | None = None
+    operational_status: str
+    verification_status: str
+    source_kind: str
+    source_document_id: str | None = None
+    submission_id: str | None = None
+    installed_at: str | None = None
+    last_verified_at: str | None = None
+    notes: str | None = None
+    version: int
+
+class EquipmentRequirementComparisonItemOut(BaseModel):
+    equipment_type_code: str
+    equipment_type_name: str | None = None
+    state: str
+    verified_equipment_ids: list[str] = Field(default_factory=list)
+    evidence_equipment_ids: list[str] = Field(default_factory=list)
+    rule_evidence: list[dict] = Field(default_factory=list)
+    detail: dict = Field(default_factory=dict)
+
+class FacilityEquipmentRequirementComplianceOut(BaseModel):
+    building_id: str
+    evaluation_id: str
+    evaluation_date: str
+    facility_version: int
+    matched_rule_count: int
+    actionable_rule_count: int
+    gap_candidate_count: int
+    manual_review_count: int
+    items: list[EquipmentRequirementComparisonItemOut] = Field(default_factory=list)
+    unmapped_rules: list[dict] = Field(default_factory=list)
+    note: str
