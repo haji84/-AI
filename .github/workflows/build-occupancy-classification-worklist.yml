@@ -1,0 +1,56 @@
+name: build-occupancy-classification-worklist
+
+on:
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: egov-national-laws-all-xml
+          path: _occupancy/egov
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: haji84/-AI
+          run-id: 37240404083
+
+      - name: Extract 消防法施行令 別表第一
+        run: |
+          python scripts/build_occupancy_classification_worklist.py \
+            --root-dir _occupancy/egov \
+            --output _occupancy/results/occupancy-classification-worklist.json
+
+      - name: Show summary
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path("_occupancy/results/occupancy-classification-worklist.json")
+          data=json.loads(p.read_text(encoding="utf-8"))
+          print(json.dumps({
+              "law_title": data["law_title"],
+              "target_appendix": data["target_appendix"],
+              "source_xml_sha256": data["source_xml_sha256"],
+              "row_count": data["row_count"],
+              "policy": data["policy"],
+          }, ensure_ascii=False))
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: occupancy-classification-worklist
+          path: _occupancy/results/occupancy-classification-worklist.json
+          retention-days: 90
+          if-no-files-found: error

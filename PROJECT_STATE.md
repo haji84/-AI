@@ -660,3 +660,32 @@ Legal content Gate remains:
 - equipment requirement Rule set is not yet declared complete
 - equipment placement Rule set is not yet declared complete
 - production legal advice must not be claimed until Human-approved Rule coverage and production Host Gates are complete
+
+
+## Phase 6 occupancy classification Rule worklist
+
+Implemented and CI-verified:
+- exact target law title: 消防法施行令
+- exact target appendix prefix: 別表第一
+- e-Gov XML AppdxTable selection
+- TableRow / TableColumn structural extraction
+- source XML SHA-256
+- per-row SHA-256
+- Human review worklist output
+- proposed Rule code/name/conditions/outcome remain blank
+- no automatic Rule approval
+- no automatic classification Rule generation
+- workflow uses the previously verified e-Gov national-law artifact
+
+Verified checkpoint:
+- run: `37269627180` SUCCESS
+- backend pytest: 107 passed
+- migration parser smoke: PASS
+- frontend JavaScript syntax: PASS
+
+Next legal-authoring gate:
+1. run the worklist workflow on the verified official corpus
+2. Human reviews each Schedule 1 row
+3. Human authors classification conditions/outcomes
+4. create Draft Rule candidates with exact source evidence
+5. separate Human approval before consultation auto-classification can rely on them
