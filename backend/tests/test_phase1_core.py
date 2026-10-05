@@ -3834,3 +3834,80 @@ def test_phase9_audio_benchmark_v2_false_alarm_and_overlap_do_not_double_count()
     assert result["correct_speaker_ms"]<=1000
     assert result["speaker_confusion_ms"]+result["missed_ms"]<=1000
     assert result["false_alarm_ms"]==200
+
+
+def test_phase9_audio_benchmark_run_registry_is_idempotent_and_human_reviewed():
+    login()
+    result_payload={
+        "benchmark_format":"fire-ai-japanese-stt-benchmark-v2",
+        "manifest_sha256":"a"*64,
+        "marker_tolerance_ms":250,
+        "speaker_mapping":"auto_overlap",
+        "recordings":[
+            {
+                "recording_id":"case-001",
+                "metadata":{"environment":"quiet_room"},
+                "reference":"r.json",
+                "reference_sha256":"b"*64,
+                "hypothesis":"h.json",
+                "hypothesis_sha256":"c"*64,
+                "text":{"reference_chars":10,"hypothesis_chars":10,"substitutions":0,"insertions":0,"deletions":0,"errors":0,"cer":0},
+                "diarization":{"reference_ms":1000,"correct_speaker_ms":1000,"speaker_confusion_ms":0,"missed_ms":0,"false_alarm_ms":0,"speaker_error_ms":0,"speaker_error_rate":0,"speaker_mapping":{"S0":"A"},"speaker_mapping_mode":"auto_overlap"},
+                "uncertainty_markers":{"reference_markers":0,"hypothesis_markers":0,"true_positive":0,"false_positive":0,"false_negative":0,"precision":1,"recall":1,"f1":1,"tolerance_ms":250}
+            }
+        ],
+        "aggregate":{
+            "recording_count":1,
+            "text_micro":{"reference_chars":10,"substitutions":0,"insertions":0,"deletions":0,"errors":0,"cer":0},
+            "diarization_micro":{"reference_ms":1000,"correct_speaker_ms":1000,"speaker_confusion_ms":0,"missed_ms":0,"false_alarm_ms":0,"speaker_error_ms":0,"speaker_error_rate":0},
+            "uncertainty_markers_micro":{"true_positive":0,"false_positive":0,"false_negative":0,"precision":1,"recall":1,"f1":1}
+        },
+        "policy":"evidence only"
+    }
+
+    first=client.post("/fire-investigations/audio-benchmarks",json={
+        "dataset_label":"Baseline A",
+        "result_payload":result_payload
+    })
+    assert first.status_code==201
+    body=first.json()
+    bid=body["fire_audio_benchmark_run_id"]
+    assert body["review_status"]=="pending"
+    assert body["recording_count"]==1
+    assert len(body["result_sha256"])==64
+
+    duplicate=client.post("/fire-investigations/audio-benchmarks",json={
+        "dataset_label":"Duplicate label should not create another row",
+        "result_payload":result_payload
+    })
+    assert duplicate.status_code==201
+    assert duplicate.json()["fire_audio_benchmark_run_id"]==bid
+
+    reviewed=client.post(f"/fire-investigations/audio-benchmarks/{bid}/review",json={
+        "expected_version":1,
+        "human_decision":"accepted_baseline",
+        "review_notes":"Benchmark baseline accepted for comparison only."
+    })
+    assert reviewed.status_code==200
+    assert reviewed.json()["review_status"]=="reviewed"
+    assert reviewed.json()["human_decision"]=="accepted_baseline"
+    assert reviewed.json()["version"]==2
+
+    stale=client.post(f"/fire-investigations/audio-benchmarks/{bid}/review",json={
+        "expected_version":1,
+        "human_decision":"rejected_baseline"
+    })
+    assert stale.status_code==409
+
+    listed=client.get("/fire-investigations/audio-benchmarks")
+    assert listed.status_code==200
+    assert any(x["fire_audio_benchmark_run_id"]==bid for x in listed.json())
+
+
+def test_phase9_audio_benchmark_registry_rejects_unknown_format():
+    login()
+    bad=client.post("/fire-investigations/audio-benchmarks",json={
+        "dataset_label":"Bad format",
+        "result_payload":{"benchmark_format":"unknown-v99"}
+    })
+    assert bad.status_code==422
