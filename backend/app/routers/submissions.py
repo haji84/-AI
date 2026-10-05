@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from ..audit import write_audit
 from ..authz import require_permission
 from ..db import get_db
+from ..legal_requirement_engine import evaluate_approved_requirement_rules
 from ..models import (
     Document,
     EquipmentInspectionReport,
@@ -18,6 +19,7 @@ from ..models import (
     InspectionReportingProfile,
     Inspection,
     InspectionFinding,
+    RequirementEvaluation,
     Submission,
     SubmissionFile,
     SubmissionType,
@@ -26,6 +28,8 @@ from ..models import (
 from ..schemas import (
     FacilityComplianceStatusOut,
     FacilityDashboardOut,
+    FacilitySubmissionRequirementComplianceOut,
+    SubmissionRequirementComparisonItemOut,
     SubmissionCreate,
     SubmissionOut,
     SubmissionPatch,
@@ -129,6 +133,88 @@ def _sync_specialized(db: Session, row: Submission, type_code: str) -> None:
         item.submitted_at = row.submitted_at
         item.plan_version_label = p.get("plan_version_label")
         item.status = p.get("plan_status") or "submitted"
+
+
+def _legacy_submission_evidence(
+    db: Session,
+    building_id: str,
+    type_code: str,
+) -> dict | None:
+    if type_code == "equipment_inspection_report":
+        legacy = db.scalar(
+            select(EquipmentInspectionReport)
+            .where(
+                EquipmentInspectionReport.building_id == building_id,
+                EquipmentInspectionReport.source_kind == "legacy",
+            )
+            .order_by(EquipmentInspectionReport.created_at.desc())
+            .limit(1)
+        )
+        if legacy:
+            profile = db.get(InspectionReportingProfile, building_id)
+            return {
+                "kind": "legacy_equipment_inspection_record",
+                "submitted_at": legacy.submitted_at.isoformat() if legacy.submitted_at else None,
+                "raw_report_text": legacy.raw_report_text,
+                "next_due_at": profile.next_due_date.isoformat() if profile and profile.next_due_date else None,
+            }
+    elif type_code == "fire_manager_appointment":
+        legacy = db.scalar(
+            select(FireManagementAssignment)
+            .where(
+                FireManagementAssignment.building_id == building_id,
+                FireManagementAssignment.source_kind == "legacy",
+            )
+            .order_by(FireManagementAssignment.created_at.desc())
+            .limit(1)
+        )
+        if legacy:
+            return {
+                "kind": "legacy_fire_manager_record",
+                "manager_name": legacy.manager_name,
+                "appointment_submitted_at": (
+                    legacy.appointment_submitted_at.isoformat()
+                    if legacy.appointment_submitted_at
+                    else None
+                ),
+                "raw_submission_text": legacy.raw_submission_text,
+            }
+    elif type_code == "fire_plan":
+        legacy = db.scalar(
+            select(FirePlan)
+            .where(
+                FirePlan.building_id == building_id,
+                FirePlan.source_kind == "legacy",
+            )
+            .order_by(FirePlan.created_at.desc())
+            .limit(1)
+        )
+        if legacy:
+            return {
+                "kind": "legacy_fire_plan_record",
+                "submitted_at": legacy.submitted_at.isoformat() if legacy.submitted_at else None,
+                "raw_submission_text": legacy.raw_submission_text,
+            }
+    return None
+
+
+def _active_modern_submission(
+    db: Session,
+    *,
+    building_id: str,
+    submission_type_id: str,
+) -> Submission | None:
+    excluded = ("rejected", "withdrawn", "cancelled", "void")
+    return db.scalar(
+        select(Submission)
+        .where(
+            Submission.building_id == building_id,
+            Submission.submission_type_id == submission_type_id,
+            ~Submission.status.in_(excluded),
+        )
+        .order_by(Submission.received_at.desc(), Submission.created_at.desc())
+        .limit(1)
+    )
 
 
 @router.get("/submission-types", response_model=list[SubmissionTypeOut])
@@ -275,6 +361,224 @@ def patch_submission(
     write_audit(db, user_id=user.user_id, action="submission.update", entity_type="submission", entity_id=submission_id, before=before, after=out.model_dump(mode="json"))
     db.commit()
     return out
+
+
+@router.post(
+    "/facilities/{building_id}/submission-compliance/evaluate",
+    response_model=FacilitySubmissionRequirementComplianceOut,
+)
+def evaluate_submission_compliance(
+    building_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("submission.read")),
+):
+    facility = db.get(Facility, building_id)
+    if not facility:
+        raise HTTPException(status_code=404, detail="facility not found")
+
+    evaluation_date = date.today()
+    snapshot, results = evaluate_approved_requirement_rules(
+        db,
+        facility=facility,
+        domain="submission_requirement",
+        evaluation_date=evaluation_date,
+    )
+
+    evaluation = RequirementEvaluation(
+        building_id=building_id,
+        domain="submission_requirement",
+        evaluation_date=evaluation_date,
+        facility_version=facility.version,
+        input_snapshot=snapshot,
+        results=results,
+        status="candidate",
+        created_by=user.user_id,
+    )
+    db.add(evaluation)
+    db.flush()
+
+    groups: dict[str, dict] = {}
+    unmapped_rules: list[dict] = []
+    manual_review_count = 0
+    actionable_rule_count = 0
+
+    for result in results:
+        outcome = result.get("outcome") or {}
+        decision = outcome.get("decision")
+        type_code = outcome.get("submission_type_code")
+        comparison_mode = outcome.get("comparison_mode")
+
+        if decision != "required":
+            manual_review_count += 1
+            unmapped_rules.append(
+                {
+                    "rule_code": result.get("rule_code"),
+                    "reason": "decision_not_explicit_required",
+                    "decision": decision,
+                    "outcome": outcome,
+                }
+            )
+            continue
+        if not type_code:
+            manual_review_count += 1
+            unmapped_rules.append(
+                {
+                    "rule_code": result.get("rule_code"),
+                    "reason": "submission_type_code_missing",
+                    "outcome": outcome,
+                }
+            )
+            continue
+
+        st = db.scalar(
+            select(SubmissionType).where(
+                SubmissionType.code == type_code,
+                SubmissionType.active.is_(True),
+            )
+        )
+        if not st:
+            manual_review_count += 1
+            unmapped_rules.append(
+                {
+                    "rule_code": result.get("rule_code"),
+                    "reason": "submission_type_not_registered",
+                    "submission_type_code": type_code,
+                    "outcome": outcome,
+                }
+            )
+            continue
+
+        group = groups.setdefault(
+            type_code,
+            {
+                "submission_type": st,
+                "rules": [],
+                "comparison_modes": set(),
+            },
+        )
+        group["rules"].append(result)
+        group["comparison_modes"].add(comparison_mode)
+        if comparison_mode == "presence":
+            actionable_rule_count += 1
+
+    items: list[SubmissionRequirementComparisonItemOut] = []
+    gap_candidate_count = 0
+
+    for type_code, group in sorted(groups.items()):
+        st: SubmissionType = group["submission_type"]
+        rules = group["rules"]
+        modes = group["comparison_modes"]
+
+        if modes != {"presence"}:
+            manual_review_count += 1
+            items.append(
+                SubmissionRequirementComparisonItemOut(
+                    submission_type_code=type_code,
+                    submission_type_name=st.name,
+                    state="manual_review_required",
+                    rule_evidence=rules,
+                    detail={
+                        "comparison_modes": sorted(
+                            str(x) if x is not None else "(unset)" for x in modes
+                        ),
+                        "reason": "only explicit presence comparison is automated",
+                    },
+                )
+            )
+            continue
+
+        modern = _active_modern_submission(
+            db,
+            building_id=building_id,
+            submission_type_id=st.submission_type_id,
+        )
+        if modern:
+            items.append(
+                SubmissionRequirementComparisonItemOut(
+                    submission_type_code=type_code,
+                    submission_type_name=st.name,
+                    state="modern_submission_recorded",
+                    latest_submission_id=modern.submission_id,
+                    latest_submitted_at=(
+                        modern.submitted_at.isoformat()
+                        if modern.submitted_at
+                        else modern.received_at.date().isoformat()
+                    ),
+                    rule_evidence=rules,
+                    detail={
+                        "submission_status": modern.status,
+                        "comparison_mode": "presence",
+                    },
+                )
+            )
+            continue
+
+        legacy = _legacy_submission_evidence(db, building_id, type_code)
+        if legacy:
+            manual_review_count += 1
+            items.append(
+                SubmissionRequirementComparisonItemOut(
+                    submission_type_code=type_code,
+                    submission_type_name=st.name,
+                    state="legacy_evidence_only",
+                    rule_evidence=rules,
+                    detail={
+                        "comparison_mode": "presence",
+                        "legacy_evidence": legacy,
+                        "reason": "legacy ledger evidence is not promoted to a modern received submission",
+                    },
+                )
+            )
+            continue
+
+        gap_candidate_count += 1
+        items.append(
+            SubmissionRequirementComparisonItemOut(
+                submission_type_code=type_code,
+                submission_type_name=st.name,
+                state="missing_record_candidate",
+                rule_evidence=rules,
+                detail={
+                    "comparison_mode": "presence",
+                    "reason": "approved Rule explicitly requires a registered submission type and no modern submission record was found",
+                },
+            )
+        )
+
+    write_audit(
+        db,
+        user_id=user.user_id,
+        action="submission_compliance.evaluate",
+        entity_type="facility",
+        entity_id=building_id,
+        after={
+            "requirement_evaluation_id": evaluation.evaluation_id,
+            "matched_rule_count": len(results),
+            "actionable_rule_count": actionable_rule_count,
+            "gap_candidate_count": gap_candidate_count,
+            "manual_review_count": manual_review_count,
+        },
+    )
+    db.commit()
+
+    return FacilitySubmissionRequirementComplianceOut(
+        building_id=building_id,
+        evaluation_id=evaluation.evaluation_id,
+        evaluation_date=evaluation_date.isoformat(),
+        facility_version=facility.version,
+        matched_rule_count=len(results),
+        actionable_rule_count=actionable_rule_count,
+        gap_candidate_count=gap_candidate_count,
+        manual_review_count=manual_review_count,
+        items=items,
+        unmapped_rules=unmapped_rules,
+        note=(
+            "A missing_record_candidate is not a formal violation finding. "
+            "Only Approved Rules with decision=required, an explicit submission_type_code, "
+            "and comparison_mode=presence are automatically compared. "
+            "Legacy ledger evidence remains review-only."
+        ),
+    )
 
 
 @router.get("/facilities/{building_id}/dashboard", response_model=FacilityDashboardOut)
