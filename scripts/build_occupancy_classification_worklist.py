@@ -76,6 +76,10 @@ def _direct_column_sentences(column: ET.Element) -> list[dict]:
 
 def _table_rows(node: ET.Element) -> list[dict]:
     rows: list[dict] = []
+    appendix_num = node.attrib.get("Num") or node.attrib.get("Extract")
+    appendix_label = _first_descendant_text(node, "AppdxTableTitle")
+    appendix_stable = _norm(str(appendix_num or appendix_label)).replace("/", "-")
+    appendix_key = f"appendix_table:{appendix_stable}"
     for row in node.iter():
         if _lname(row.tag) != "TableRow":
             continue
@@ -91,6 +95,8 @@ def _table_rows(node: ET.Element) -> list[dict]:
             continue
         if not (item_label.startswith("（") and item_label.endswith("）")):
             continue
+        row_text = _text(row)
+        row_digest = hashlib.sha256(row_text.encode("utf-8")).hexdigest()[:16]
         rows.append(
             {
                 "item_label": item_label,
@@ -99,6 +105,8 @@ def _table_rows(node: ET.Element) -> list[dict]:
                     item_label,
                     " ".join(x["text"] for x in sentences),
                 ],
+                "row_text": row_text,
+                "row_provision_key": f"{appendix_key}/table_row:row-{row_digest}",
             }
         )
     return rows
@@ -253,6 +261,7 @@ def extract_schedule_one(data: bytes) -> dict:
             "cells": row["cells"],
             "sentences": row["sentences"],
             "classification_entries": entries,
+            "row_provision_key": row["row_provision_key"],
             "domain": "occupancy_classification",
             "human_review_status": "pending",
         }
