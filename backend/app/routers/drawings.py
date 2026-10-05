@@ -172,6 +172,12 @@ def _detail(db: Session, analysis: DrawingAnalysis) -> DrawingAnalysisDetailOut:
     )
 
 
+def _mark_analysis_analyzed(analysis: DrawingAnalysis) -> None:
+    if analysis.status == "pending":
+        analysis.status = "analyzed"
+        analysis.updated_at = datetime.now(timezone.utc)
+
+
 def _require_element(db: Session, analysis_id: str, element_id: str | None) -> DrawingElement | None:
     if not element_id:
         return None
@@ -217,7 +223,7 @@ def create_drawing_analysis(
     row = DrawingAnalysis(
         building_id=building_id,
         document_id=payload.document_id,
-        status="analyzed",
+        status="pending",
         analysis_method=payload.analysis_method,
         model_version=payload.model_version,
         page_count=payload.page_count,
@@ -266,6 +272,7 @@ def create_drawing_element(
         raise HTTPException(status_code=404, detail="drawing analysis not found")
     if analysis.status == "reviewed":
         raise HTTPException(status_code=409, detail="reviewed drawing analysis is locked")
+    _mark_analysis_analyzed(analysis)
     row = DrawingElement(
         drawing_analysis_id=analysis_id,
         page_no=payload.page_no,
@@ -310,6 +317,7 @@ def create_drawing_equipment_candidate(
         raise HTTPException(status_code=404, detail="drawing analysis not found")
     if analysis.status == "reviewed":
         raise HTTPException(status_code=409, detail="reviewed drawing analysis is locked")
+    _mark_analysis_analyzed(analysis)
     _require_element(db, analysis_id, payload.drawing_element_id)
 
     equipment_type_id = None
@@ -482,6 +490,7 @@ def create_drawing_fact_candidate(
         raise HTTPException(status_code=404, detail="drawing analysis not found")
     if analysis.status == "reviewed":
         raise HTTPException(status_code=409, detail="reviewed drawing analysis is locked")
+    _mark_analysis_analyzed(analysis)
     _require_element(db, analysis_id, payload.drawing_element_id)
     row = DrawingFactCandidate(
         drawing_analysis_id=analysis_id,
