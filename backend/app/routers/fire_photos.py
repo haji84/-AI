@@ -19,15 +19,21 @@ from ..fire_photo_metadata import (
 )
 from ..models import (
     Document,
+    DrawingAnalysis,
+    DrawingElement,
     FireInvestigationCase,
     FireInvestigationMedia,
     FirePhotoAnnotation,
+    FirePhotoPlanLink,
     FirePhotoProfile,
     User,
 )
 from ..schemas import (
     FireInvestigationMediaOut,
     FirePhotoAnnotationOut,
+    FirePhotoPlanLinkCreate,
+    FirePhotoPlanLinkOut,
+    FirePhotoPlanLinkReview,
     FirePhotoProfileOut,
     FirePhotoSearchItemOut,
 )
@@ -91,6 +97,34 @@ def _profile_out(row: FirePhotoProfile) -> FirePhotoProfileOut:
         analysis_version=row.analysis_version,
         analyzed_at=row.analyzed_at.isoformat(),
     )
+
+
+def _plan_link_out(row: FirePhotoPlanLink) -> FirePhotoPlanLinkOut:
+    return FirePhotoPlanLinkOut(
+        fire_photo_plan_link_id=row.fire_photo_plan_link_id,
+        fire_investigation_media_id=row.fire_investigation_media_id,
+        drawing_analysis_id=row.drawing_analysis_id,
+        drawing_element_id=row.drawing_element_id,
+        page_no=row.page_no,
+        floor_number=row.floor_number,
+        position=row.position or {},
+        label=row.label,
+        source_kind=row.source_kind,
+        confidence=row.confidence,
+        status=row.status,
+        version=row.version,
+    )
+
+
+def _validate_position(position: dict) -> None:
+    if not isinstance(position, dict):
+        raise HTTPException(status_code=422, detail="position must be an object")
+    for key in ("x", "y"):
+        if key not in position:
+            continue
+        value = position[key]
+        if not isinstance(value, (int, float)) or not 0 <= float(value) <= 1:
+            raise HTTPException(status_code=422, detail=f"position.{key} must be between 0 and 1")
 
 
 def _annotation_out(row: FirePhotoAnnotation) -> FirePhotoAnnotationOut:
@@ -379,3 +413,106 @@ def search_fire_photos(
         )
     )
     return out[: max(1, min(limit, 500))]
+
+
+@router.post("/media/{media_id}/plan-links", response_model=FirePhotoPlanLinkOut, status_code=201)
+def create_photo_plan_link(
+    media_id: str,
+    payload: FirePhotoPlanLinkCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("fire_investigation.update")),
+):
+    media = _require_photo_media(db, media_id)
+    case = _require_case(db, media.fire_investigation_case_id)
+    drawing = db.get(DrawingAnalysis, payload.drawing_analysis_id)
+    if not drawing:
+        raise HTTPException(status_code=404, detail="drawing analysis not found")
+    if case.building_id and drawing.building_id != case.building_id:
+        raise HTTPException(status_code=409, detail="drawing belongs to another facility")
+
+    if payload.drawing_element_id:
+        element = db.get(DrawingElement, payload.drawing_element_id)
+        if not element:
+            raise HTTPException(status_code=404, detail="drawing element not found")
+        if element.drawing_analysis_id != drawing.drawing_analysis_id:
+            raise HTTPException(status_code=409, detail="drawing element belongs to another analysis")
+
+    _validate_position(payload.position)
+    row = FirePhotoPlanLink(
+        fire_investigation_media_id=media_id,
+        drawing_analysis_id=drawing.drawing_analysis_id,
+        drawing_element_id=payload.drawing_element_id,
+        page_no=payload.page_no,
+        floor_number=payload.floor_number,
+        position=payload.position,
+        label=payload.label,
+        source_kind=payload.source_kind,
+        confidence=payload.confidence,
+        status="pending",
+        created_by=user.user_id,
+    )
+    db.add(row)
+    db.flush()
+    write_audit(
+        db,
+        user_id=user.user_id,
+        action="fire_photo.plan_link.create",
+        entity_type="fire_photo_plan_link",
+        entity_id=row.fire_photo_plan_link_id,
+        after=_plan_link_out(row).model_dump(mode="json"),
+        ai_used=payload.source_kind == "ai",
+    )
+    db.commit()
+    return _plan_link_out(row)
+
+
+@router.get("/media/{media_id}/plan-links", response_model=list[FirePhotoPlanLinkOut])
+def list_photo_plan_links(
+    media_id: str,
+    accepted_only: bool = False,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("fire_investigation.read")),
+):
+    _require_photo_media(db, media_id)
+    stmt = select(FirePhotoPlanLink).where(
+        FirePhotoPlanLink.fire_investigation_media_id == media_id
+    )
+    if accepted_only:
+        stmt = stmt.where(FirePhotoPlanLink.status == "accepted")
+    rows = db.scalars(stmt.order_by(FirePhotoPlanLink.created_at)).all()
+    return [_plan_link_out(x) for x in rows]
+
+
+@router.patch("/plan-links/{link_id}", response_model=FirePhotoPlanLinkOut)
+def review_photo_plan_link(
+    link_id: str,
+    payload: FirePhotoPlanLinkReview,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("fire_investigation.review")),
+):
+    row = db.get(FirePhotoPlanLink, link_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="photo plan link not found")
+    if row.version != payload.expected_version:
+        raise HTTPException(status_code=409, detail="photo plan link was updated")
+    if row.status != "pending":
+        raise HTTPException(status_code=409, detail="only pending photo plan links can be reviewed")
+
+    before = _plan_link_out(row).model_dump(mode="json")
+    row.status = payload.status
+    row.version += 1
+    row.reviewed_by = user.user_id
+    row.reviewed_at = datetime.now(timezone.utc)
+    row.updated_at = datetime.now(timezone.utc)
+    db.flush()
+    write_audit(
+        db,
+        user_id=user.user_id,
+        action=f"fire_photo.plan_link.{payload.status}",
+        entity_type="fire_photo_plan_link",
+        entity_id=row.fire_photo_plan_link_id,
+        before=before,
+        after=_plan_link_out(row).model_dump(mode="json"),
+    )
+    db.commit()
+    return _plan_link_out(row)
