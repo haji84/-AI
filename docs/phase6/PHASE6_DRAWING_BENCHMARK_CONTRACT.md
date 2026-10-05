@@ -132,3 +132,23 @@ Benchmark未実行でproduction-quality drawing AIとは表現しない。
 一方、Referenceが0件でもAIが候補を誤検出した場合はN/AではなくFalse Positiveとして評価する。
 
 これにより「評価対象が無かっただけ」を「精度100%」と誤表示しない。
+
+
+## Human Reference execution gate
+
+Human Referenceとして明示されたReferenceは、Human確認前にBenchmark実行へ使わない。
+
+対象:
+- `reference_format` が `fire-ai-drawing-human-reference...` で始まるReference
+
+実行可能条件:
+- `reference_status=human_accepted`
+- Draftが`human_gate.required=true`を持つ場合は、さらに`human_gate.accepted=true`
+- またはHuman Annotation APIからexportされた`human_review.status=reviewed`のReference
+
+`pending_human_acceptance`のReferenceをBaselineへ投入するとEvaluatorは失敗する。
+
+目的:
+- AI/Assistantが作ったGeometry Draftを自分自身の正解として採点しない
+- Human修正前のopen-plan境界やcirculation境界を正式な正解値にしない
+- accepted Reference SHAをBaseline Evidenceへ固定する
