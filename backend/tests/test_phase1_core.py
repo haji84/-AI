@@ -1522,3 +1522,102 @@ def test_phase5_4_supplementary_provisions_are_retained_but_deprioritized():
     notice=classify_provision_context("document_body:1","document_body")
     assert notice.context=="document_body"
     assert notice.score < 0
+
+
+def test_phase5_5_hash_bound_worklist_import_is_idempotent():
+    from app.legal_authoring_import import import_worklist
+    from app.models import (
+        LegalJurisdiction, LegalSource, LegalSourceDocument,
+        LegalSourceDocumentVersion, LegalProvision,
+        LegalProvisionReviewCandidate,
+    )
+
+    with SessionLocal() as db:
+        j=LegalJurisdiction(code="TEST-JUR-55-IMPORT",name="Test 5.5 import",jurisdiction_type="national")
+        db.add(j); db.flush()
+        s=LegalSource(
+            jurisdiction_id=j.jurisdiction_id,
+            source_code="test-source-55-import",
+            name="Test source 5.5 import",
+            source_type="test",
+            adapter_type="manual",
+            base_url="https://example.invalid/",
+        )
+        db.add(s); db.flush()
+        d=LegalSourceDocument(
+            legal_source_id=s.legal_source_id,
+            external_id="LAW55IMPORT",
+            document_type="law",
+            title="テスト法令5.5",
+        )
+        db.add(d); db.flush()
+        v=LegalSourceDocumentVersion(
+            legal_source_document_id=d.legal_source_document_id,
+            normalized_text="消防用設備等",
+            structured_content={},
+            sha256="4"*64,
+            structure_status="structured",
+            provision_count=1,
+        )
+        db.add(v); db.flush()
+        p=LegalProvision(
+            legal_source_document_version_id=v.legal_source_document_version_id,
+            provision_type="article",
+            provision_key="article:55",
+            sequence_no=1,
+            display_label="第五十五条",
+            body_text="消防用設備等に関するテスト",
+            content_sha256="5"*64,
+        )
+        db.add(p); db.commit()
+        pid=p.legal_provision_id
+
+    item={
+        "scope":"national",
+        "document_title":"テスト法令5.5",
+        "source_ref":"LAW55IMPORT_20261005/LAW55IMPORT_20261005.xml",
+        "priority_lane":"national_core",
+        "source_priority_score":20.0,
+        "provision_context":"main",
+        "context_priority_score":0.0,
+        "provision_key":"article:55",
+        "provision_content_sha256":"5"*64,
+        "hits":[{
+            "category":"equipment_requirement",
+            "score":8.25,
+            "reasons":["消防用設備×1"],
+        }],
+    }
+
+    with SessionLocal() as db:
+        dry=import_worklist(db,[item],allowed_categories={"equipment_requirement"},apply=False)
+        assert dry.inserted==1
+        assert db.scalar(select(func.count()).select_from(LegalProvisionReviewCandidate).where(
+            LegalProvisionReviewCandidate.legal_provision_id==pid
+        ))==0
+
+    with SessionLocal() as db:
+        applied=import_worklist(db,[item],allowed_categories={"equipment_requirement"},apply=True)
+        db.commit()
+        assert applied.inserted==1
+        row=db.scalar(select(LegalProvisionReviewCandidate).where(
+            LegalProvisionReviewCandidate.legal_provision_id==pid,
+            LegalProvisionReviewCandidate.category=="equipment_requirement",
+        ))
+        assert row is not None
+        assert row.priority_lane=="national_core"
+        assert row.relevance_score==8.25
+
+    with SessionLocal() as db:
+        again=import_worklist(db,[item],allowed_categories={"equipment_requirement"},apply=True)
+        db.commit()
+        assert again.unchanged==1
+        assert again.inserted==0
+
+    stale=dict(item)
+    stale["provision_content_sha256"]="6"*64
+    with SessionLocal() as db:
+        rejected=import_worklist(db,[stale],allowed_categories={"equipment_requirement"},apply=True)
+        db.commit()
+        assert rejected.stale_hash==1
+        assert rejected.updated_pending==0
