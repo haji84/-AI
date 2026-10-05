@@ -10,13 +10,442 @@
     "visible_floor": "1F"
   },
   "scope": {
-    "geometry_annotation_complete": false,
+    "geometry_annotation_complete": true,
+    "geometry_human_review_required": true,
     "symbol_annotation_complete": false,
     "equipment_annotation_complete": false,
     "facility_fact_annotation_complete": true,
-    "note": "This first reference item is intentionally limited to high-confidence facts visible in the printed area table. Geometry/symbol/equipment labels require a separate annotation pass."
+    "note": "Room geometry draft prepared from the supplied 1024x745 source image. It is not benchmark truth until Human acceptance. Wall-bounded rooms use stricter polygons; circulation/open-plan/service zones are marked approximate for Human correction."
   },
-  "elements": [],
+  "elements": [
+    {
+      "client_ref": "room-ub",
+      "page_no": 1,
+      "element_type": "room",
+      "label": "UB",
+      "floor_number": 1,
+      "geometry": {
+        "points": [
+          [
+            267,
+            193
+          ],
+          [
+            361,
+            193
+          ],
+          [
+            361,
+            282
+          ],
+          [
+            267,
+            282
+          ]
+        ]
+      },
+      "extracted_data": {
+        "use_name": "bathroom",
+        "module_size": "1616"
+      },
+      "reference_meta": {
+        "geometry_quality": "strict_wall_bounded",
+        "human_review_status": "pending"
+      }
+    },
+    {
+      "client_ref": "room-toilet",
+      "page_no": 1,
+      "element_type": "room",
+      "label": "トイレ",
+      "floor_number": 1,
+      "geometry": {
+        "points": [
+          [
+            267,
+            283
+          ],
+          [
+            361,
+            283
+          ],
+          [
+            361,
+            356
+          ],
+          [
+            267,
+            356
+          ]
+        ]
+      },
+      "extracted_data": {
+        "use_name": "toilet"
+      },
+      "reference_meta": {
+        "geometry_quality": "strict_wall_bounded",
+        "human_review_status": "pending"
+      }
+    },
+    {
+      "client_ref": "room-washroom-dressing",
+      "page_no": 1,
+      "element_type": "room",
+      "label": "洗面脱衣室",
+      "floor_number": 1,
+      "geometry": {
+        "points": [
+          [
+            362,
+            193
+          ],
+          [
+            445,
+            193
+          ],
+          [
+            445,
+            334
+          ],
+          [
+            362,
+            334
+          ]
+        ]
+      },
+      "extracted_data": {
+        "use_name": "washroom_dressing"
+      },
+      "reference_meta": {
+        "geometry_quality": "strict_wall_bounded",
+        "human_review_status": "pending"
+      }
+    },
+    {
+      "client_ref": "room-entrance",
+      "page_no": 1,
+      "element_type": "room",
+      "label": "玄関",
+      "floor_number": 1,
+      "geometry": {
+        "points": [
+          [
+            451,
+            193
+          ],
+          [
+            535,
+            193
+          ],
+          [
+            535,
+            314
+          ],
+          [
+            451,
+            314
+          ]
+        ]
+      },
+      "extracted_data": {
+        "use_name": "entrance"
+      },
+      "reference_meta": {
+        "geometry_quality": "circulation_approx",
+        "human_review_status": "pending"
+      }
+    },
+    {
+      "client_ref": "room-hall",
+      "page_no": 1,
+      "element_type": "room",
+      "label": "ホール",
+      "floor_number": 1,
+      "geometry": {
+        "points": [
+          [
+            362,
+            335
+          ],
+          [
+            445,
+            335
+          ],
+          [
+            445,
+            314
+          ],
+          [
+            535,
+            314
+          ],
+          [
+            535,
+            373
+          ],
+          [
+            362,
+            373
+          ]
+        ]
+      },
+      "extracted_data": {
+        "use_name": "hall"
+      },
+      "reference_meta": {
+        "geometry_quality": "circulation_approx",
+        "human_review_status": "pending"
+      }
+    },
+    {
+      "client_ref": "room-wic",
+      "page_no": 1,
+      "element_type": "room",
+      "label": "WIC",
+      "floor_number": 1,
+      "geometry": {
+        "points": [
+          [
+            535,
+            314
+          ],
+          [
+            625,
+            314
+          ],
+          [
+            625,
+            373
+          ],
+          [
+            535,
+            373
+          ]
+        ]
+      },
+      "extracted_data": {
+        "use_name": "walk_in_closet"
+      },
+      "reference_meta": {
+        "geometry_quality": "strict_wall_bounded",
+        "human_review_status": "pending"
+      }
+    },
+    {
+      "client_ref": "room-master-bedroom",
+      "page_no": 1,
+      "element_type": "room",
+      "label": "主寝室",
+      "floor_number": 1,
+      "geometry": {
+        "points": [
+          [
+            630,
+            193
+          ],
+          [
+            809,
+            193
+          ],
+          [
+            809,
+            373
+          ],
+          [
+            630,
+            373
+          ]
+        ]
+      },
+      "extracted_data": {
+        "use_name": "bedroom",
+        "area_m2": 10.34,
+        "tatami_equivalent": 6.3
+      },
+      "reference_meta": {
+        "geometry_quality": "strict_wall_bounded",
+        "human_review_status": "pending"
+      }
+    },
+    {
+      "client_ref": "room-tatami",
+      "page_no": 1,
+      "element_type": "room",
+      "label": "タタミコーナー",
+      "floor_number": 1,
+      "geometry": {
+        "points": [
+          [
+            267,
+            373
+          ],
+          [
+            362,
+            373
+          ],
+          [
+            362,
+            510
+          ],
+          [
+            267,
+            510
+          ]
+        ]
+      },
+      "extracted_data": {
+        "use_name": "tatami_area",
+        "area_m2": 4.97,
+        "tatami_equivalent": 3
+      },
+      "reference_meta": {
+        "geometry_quality": "open_plan_approx",
+        "human_review_status": "pending"
+      }
+    },
+    {
+      "client_ref": "room-living",
+      "page_no": 1,
+      "element_type": "room",
+      "label": "L",
+      "floor_number": 1,
+      "geometry": {
+        "points": [
+          [
+            362,
+            373
+          ],
+          [
+            609,
+            373
+          ],
+          [
+            609,
+            552
+          ],
+          [
+            362,
+            552
+          ]
+        ]
+      },
+      "extracted_data": {
+        "use_name": "living",
+        "area_m2": 13.25,
+        "tatami_equivalent": 8
+      },
+      "reference_meta": {
+        "geometry_quality": "open_plan_approx",
+        "human_review_status": "pending"
+      }
+    },
+    {
+      "client_ref": "room-dining",
+      "page_no": 1,
+      "element_type": "room",
+      "label": "D",
+      "floor_number": 1,
+      "geometry": {
+        "points": [
+          [
+            609,
+            373
+          ],
+          [
+            705,
+            373
+          ],
+          [
+            705,
+            552
+          ],
+          [
+            609,
+            552
+          ]
+        ]
+      },
+      "extracted_data": {
+        "use_name": "dining",
+        "area_m2": 9.94,
+        "tatami_equivalent": 6
+      },
+      "reference_meta": {
+        "geometry_quality": "open_plan_approx",
+        "human_review_status": "pending"
+      }
+    },
+    {
+      "client_ref": "room-kitchen",
+      "page_no": 1,
+      "element_type": "room",
+      "label": "K",
+      "floor_number": 1,
+      "geometry": {
+        "points": [
+          [
+            705,
+            373
+          ],
+          [
+            785,
+            373
+          ],
+          [
+            785,
+            552
+          ],
+          [
+            705,
+            552
+          ]
+        ]
+      },
+      "extracted_data": {
+        "use_name": "kitchen",
+        "area_m2": 9.94,
+        "tatami_equivalent": 6
+      },
+      "reference_meta": {
+        "geometry_quality": "open_plan_approx",
+        "human_review_status": "pending"
+      }
+    },
+    {
+      "client_ref": "room-pantry",
+      "page_no": 1,
+      "element_type": "room",
+      "label": "P",
+      "floor_number": 1,
+      "geometry": {
+        "points": [
+          [
+            704,
+            552
+          ],
+          [
+            808,
+            552
+          ],
+          [
+            808,
+            598
+          ],
+          [
+            704,
+            598
+          ]
+        ]
+      },
+      "extracted_data": {
+        "use_name": "pantry"
+      },
+      "reference_meta": {
+        "geometry_quality": "service_area_approx",
+        "human_review_status": "pending"
+      }
+    }
+  ],
   "equipment_candidates": [],
   "fact_candidates": [
     {
@@ -62,6 +491,36 @@
     },
     "total_floor_area_m2": 112.1,
     "construction_floor_area_m2": 137.42,
-    "building_area_m2": 85.61
+    "building_area_m2": 85.61,
+    "geometry_draft_summary": {
+      "element_count": 12,
+      "strict_wall_bounded": [
+        "UB",
+        "トイレ",
+        "洗面脱衣室",
+        "WIC",
+        "主寝室"
+      ],
+      "circulation_approx": [
+        "玄関",
+        "ホール"
+      ],
+      "open_plan_approx": [
+        "タタミコーナー",
+        "L",
+        "D",
+        "K"
+      ],
+      "service_area_approx": [
+        "P"
+      ]
+    }
+  },
+  "human_gate": {
+    "required": true,
+    "accepted": false,
+    "acceptance_note": null,
+    "accepted_by": null,
+    "accepted_at": null
   }
 }
