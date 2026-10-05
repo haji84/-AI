@@ -1171,3 +1171,34 @@ Safety:
 - UI cannot bypass backend classification, Rule coverage or response-review gates
 - equipment already present but unmatched is not presented as removable
 - stale reviewed consultation responses continue to be surfaced by backend response state
+
+
+## Phase 6 PDF visual Annotation
+
+Implemented on branch `phase6-pdf-visual-annotation`; CI verification pending:
+- drawing preview metadata API
+- original image documents remain direct visual previews
+- PDF drawings are rendered page-by-page to PNG with existing PyMuPDF dependency
+- adaptive PDF render scale caps longest preview edge at 3200px and scale at 2x
+- no new browser/CDN dependency is introduced
+- password-protected PDFs are explicitly rejected for visual preview
+- multi-page PDF page count and deterministic preview dimensions are exposed to the UI
+- page preview endpoint supports authenticated image/PDF drawing rendering
+- drawing workspace page selector added for multi-page drawings
+- Human room polygons are stored with the selected page_no
+- page_dimensions are stored independently per page
+- room overlays and equipment placement markers are filtered to the current page
+- PDF and image drawings now use the same visual Human Annotation workflow
+- two-page real PDF bytes regression verifies:
+  - page count
+  - deterministic rendered PNG dimensions
+  - PNG response
+  - page-specific preview dimensions
+  - out-of-range page rejection
+- frontend contract verifies PDF page Annotation wiring
+
+Safety / resource controls:
+- preview rendering is read-only and never rewrites the original drawing
+- managed storage path confinement is rechecked before rendering
+- adaptive render size limits large-format PDF memory growth
+- original Document SHA remains the authoritative source identity
