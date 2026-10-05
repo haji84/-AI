@@ -16,6 +16,7 @@ from ..models import (
     Document,
     Facility,
     FireCauseCandidate,
+    FireEvidenceComparisonCandidate,
     FireEvidenceSnapshot,
     FireInvestigationAIManifest,
     FireInvestigationCase,
@@ -32,6 +33,9 @@ from ..schemas import (
     FireAIManifestIngestOut,
     FireCauseCandidateCreate,
     FireCauseCandidateOut,
+    FireEvidenceComparisonAIManifest,
+    FireEvidenceComparisonOut,
+    FireEvidenceComparisonReview,
     FireEvidenceSnapshotCreate,
     FireEvidenceSnapshotOut,
     FireCauseCandidateReview,
@@ -59,6 +63,7 @@ from ..schemas import (
     FireTimelineEventOut,
     FireTimelineEventReview,
     FireTranscriptAIManifest,
+    FireTranscriptSearchItemOut,
     FireTranscriptSegmentCreate,
     FireTranscriptSegmentOut,
     FireTranscriptSegmentReview,
@@ -204,6 +209,55 @@ def _statement_out(row: FireStatementDraft) -> FireStatementDraftOut:
         status=row.status,
         version=row.version,
     )
+
+
+def _comparison_out(row: FireEvidenceComparisonCandidate) -> FireEvidenceComparisonOut:
+    return FireEvidenceComparisonOut(
+        fire_evidence_comparison_candidate_id=row.fire_evidence_comparison_candidate_id,
+        fire_investigation_case_id=row.fire_investigation_case_id,
+        issue_type=row.issue_type,
+        summary=row.summary,
+        left_ref=row.left_ref or {},
+        right_ref=row.right_ref or {},
+        evidence_refs=row.evidence_refs or [],
+        confidence=row.confidence,
+        extraction_method=row.extraction_method,
+        model_version=row.model_version,
+        status=row.status,
+        version=row.version,
+    )
+
+
+def _validate_case_evidence_ref(db: Session, case_id: str, ref) -> dict:
+    ref_type = ref.type if hasattr(ref, "type") else ref.get("type")
+    ref_id = ref.id if hasattr(ref, "id") else ref.get("id")
+    if not ref_type or not ref_id:
+        raise HTTPException(status_code=422, detail="evidence reference requires type and id")
+
+    if ref_type == "transcript_segment":
+        row = db.get(FireTranscriptSegment, ref_id)
+        if not row:
+            raise HTTPException(status_code=422, detail=f"transcript segment not found: {ref_id}")
+        media = db.get(FireInvestigationMedia, row.fire_investigation_media_id)
+        if not media or media.fire_investigation_case_id != case_id:
+            raise HTTPException(status_code=422, detail="transcript segment belongs to another case")
+        if row.review_status != "accepted":
+            raise HTTPException(status_code=409, detail="comparison may use only Human-accepted transcript segments")
+    elif ref_type == "statement":
+        row = db.get(FireStatementDraft, ref_id)
+        if not row or row.fire_investigation_case_id != case_id:
+            raise HTTPException(status_code=422, detail=f"reviewed statement not found in case: {ref_id}")
+        if row.status != "reviewed":
+            raise HTTPException(status_code=409, detail="comparison may use only Human-reviewed statements")
+    elif ref_type == "timeline_event":
+        row = db.get(FireTimelineEvent, ref_id)
+        if not row or row.fire_investigation_case_id != case_id:
+            raise HTTPException(status_code=422, detail=f"confirmed timeline event not found in case: {ref_id}")
+        if row.status != "confirmed":
+            raise HTTPException(status_code=409, detail="comparison may use only Human-confirmed timeline events")
+    else:
+        raise HTTPException(status_code=422, detail=f"unsupported evidence reference type: {ref_type}")
+    return {"type": ref_type, "id": ref_id}
 
 
 def _timeline_out(row: FireTimelineEvent) -> FireTimelineEventOut:
