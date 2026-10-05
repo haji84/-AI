@@ -2419,3 +2419,287 @@ def test_phase6_3_drawing_manifest_ingest_is_idempotent_and_version_guarded():
     changed["summary"]={"drawing_type":"changed"}
     stale=client.post(f"/drawing-analyses/{aid}/manifest",json=changed)
     assert stale.status_code==409
+
+
+def test_phase7_fire_investigation_human_gates_for_ai_evidence_cause_and_report():
+    login()
+
+    facility=client.post("/facilities",json={"name":"Phase7火災調査対象"}).json()
+    bid=facility["building_id"]
+
+    case=client.post("/fire-investigations",json={
+        "case_number":"FIRE-TEST-7-001",
+        "building_id":bid,
+        "title":"Phase7テスト火災",
+        "occurred_at":"2026-10-05T01:00:00+09:00",
+        "location_text":"テスト現場"
+    })
+    assert case.status_code==201
+    cb=case.json()
+    cid=cb["fire_investigation_case_id"]
+    assert cb["status"]=="draft"
+    assert cb["official_cause_text"] is None
+    assert cb["version"]==1
+
+    photo_doc=client.post(
+        "/documents/upload",
+        files={"file":("scene.jpg",b"photo-bytes","image/jpeg")},
+        data={"document_type":"fire_scene_photo"}
+    ).json()
+    audio_doc=client.post(
+        "/documents/upload",
+        files={"file":("interview.m4a",b"audio-bytes","audio/mp4")},
+        data={"document_type":"fire_interview_audio"}
+    ).json()
+
+    photo=client.post(f"/fire-investigations/{cid}/media",json={
+        "document_id":photo_doc["document_id"],
+        "media_type":"photo",
+        "sequence_no":1,
+        "location_label":"居室",
+        "floor_number":1
+    })
+    assert photo.status_code==201
+    pmid=photo.json()["fire_investigation_media_id"]
+
+    audio=client.post(f"/fire-investigations/{cid}/media",json={
+        "document_id":audio_doc["document_id"],
+        "media_type":"audio",
+        "sequence_no":2,
+        "location_label":"聞き取り"
+    })
+    assert audio.status_code==201
+    amid=audio.json()["fire_investigation_media_id"]
+
+    annotation=client.post(f"/fire-investigations/media/{pmid}/photo-annotations",json={
+        "description":"焼損範囲候補",
+        "tags":["焼損","壁面"],
+        "confidence":0.77,
+        "source_kind":"ai",
+        "model_version":"vision-test-v1"
+    })
+    assert annotation.status_code==201
+    ann=annotation.json()
+    assert ann["status"]=="pending"
+    assert ann["version"]==1
+
+    ann_reviewed=client.patch(f"/fire-investigations/photo-annotations/{ann['fire_photo_annotation_id']}",json={
+        "expected_version":1,
+        "status":"accepted"
+    })
+    assert ann_reviewed.status_code==200
+    assert ann_reviewed.json()["status"]=="accepted"
+    assert ann_reviewed.json()["version"]==2
+
+    segment=client.post(f"/fire-investigations/media/{amid}/transcript-segments",json={
+        "start_ms":0,
+        "end_ms":5000,
+        "speaker_label":"関係者A",
+        "text":"午前1時頃に煙に気付いた。",
+        "confidence":0.92,
+        "source_kind":"ai",
+        "model_version":"stt-test-v1"
+    })
+    assert segment.status_code==201
+    seg=segment.json()
+    assert seg["review_status"]=="pending"
+    assert seg["version"]==1
+
+    seg_reviewed=client.patch(f"/fire-investigations/transcript-segments/{seg['fire_transcript_segment_id']}",json={
+        "expected_version":1,
+        "status":"accepted"
+    })
+    assert seg_reviewed.status_code==200
+    assert seg_reviewed.json()["review_status"]=="accepted"
+    assert seg_reviewed.json()["version"]==2
+
+    statement=client.post(f"/fire-investigations/{cid}/statements",json={
+        "fire_investigation_media_id":amid,
+        "person_label":"関係者A",
+        "draft_text":"関係者Aは午前1時頃に煙に気付いた旨を述べた。",
+        "evidence_segment_ids":[seg["fire_transcript_segment_id"]],
+        "ai_generated":True,
+        "model_version":"statement-test-v1"
+    })
+    assert statement.status_code==201
+    st=statement.json()
+    assert st["status"]=="draft"
+    statement_review=client.patch(f"/fire-investigations/statements/{st['fire_statement_draft_id']}",json={
+        "expected_version":1,
+        "status":"reviewed"
+    })
+    assert statement_review.status_code==200
+    assert statement_review.json()["status"]=="reviewed"
+
+    timeline=client.post(f"/fire-investigations/{cid}/timeline",json={
+        "event_time":"2026-10-05T01:00:00+09:00",
+        "event_type":"observation",
+        "title":"煙を確認",
+        "description":"関係者Aの供述候補",
+        "source_refs":[{"type":"transcript_segment","id":seg["fire_transcript_segment_id"]}],
+        "confidence":0.8
+    })
+    assert timeline.status_code==201
+    tl=timeline.json()
+    assert tl["status"]=="candidate"
+    tl_review=client.patch(f"/fire-investigations/timeline/{tl['fire_timeline_event_id']}",json={
+        "expected_version":1,
+        "status":"confirmed"
+    })
+    assert tl_review.status_code==200
+    assert tl_review.json()["status"]=="confirmed"
+
+    cause=client.post(f"/fire-investigations/{cid}/cause-candidates",json={
+        "cause_category":"電気関係",
+        "cause_text":"電気配線から出火した可能性",
+        "hypothesis":{"kind":"test"},
+        "evidence_refs":[{"type":"photo_annotation","id":ann["fire_photo_annotation_id"]}],
+        "confidence":0.55,
+        "extraction_method":"ai",
+        "model_version":"cause-test-v1"
+    })
+    assert cause.status_code==201
+    cc=cause.json()
+    assert cc["status"]=="candidate"
+
+    blocked_cause=client.post(f"/fire-investigations/{cid}/official-cause",json={
+        "expected_case_version":1,
+        "cause_candidate_id":cc["fire_cause_candidate_id"]
+    })
+    assert blocked_cause.status_code==409
+
+    cause_review=client.patch(f"/fire-investigations/cause-candidates/{cc['fire_cause_candidate_id']}",json={
+        "expected_version":1,
+        "status":"reviewed"
+    })
+    assert cause_review.status_code==200
+    assert cause_review.json()["status"]=="reviewed"
+
+    approved_cause=client.post(f"/fire-investigations/{cid}/official-cause",json={
+        "expected_case_version":1,
+        "cause_candidate_id":cc["fire_cause_candidate_id"]
+    })
+    assert approved_cause.status_code==200
+    assert approved_cause.json()["official_cause_candidate_id"]==cc["fire_cause_candidate_id"]
+    assert approved_cause.json()["official_cause_text"]=="電気配線から出火した可能性"
+    assert approved_cause.json()["version"]==2
+
+    report=client.post(f"/fire-investigations/{cid}/report-drafts",json={
+        "report_type":"fire_investigation_report",
+        "narrative_text":"AI作成の報告書下書き",
+        "structured_content":{"summary":"test"},
+        "evidence_refs":[{"type":"cause_candidate","id":cc["fire_cause_candidate_id"]}],
+        "ai_generated":True,
+        "model_version":"report-test-v1"
+    })
+    assert report.status_code==201
+    rp=report.json()
+    assert rp["status"]=="draft"
+
+    blocked_report=client.post(f"/fire-investigations/report-drafts/{rp['fire_report_draft_id']}/approve",json={
+        "expected_version":1
+    })
+    assert blocked_report.status_code==409
+
+    reviewed_report=client.patch(f"/fire-investigations/report-drafts/{rp['fire_report_draft_id']}",json={
+        "expected_version":1,
+        "status":"reviewed"
+    })
+    assert reviewed_report.status_code==200
+    assert reviewed_report.json()["status"]=="reviewed"
+    assert reviewed_report.json()["version"]==2
+
+    approved_report=client.post(f"/fire-investigations/report-drafts/{rp['fire_report_draft_id']}/approve",json={
+        "expected_version":2
+    })
+    assert approved_report.status_code==200
+    assert approved_report.json()["status"]=="approved"
+    assert approved_report.json()["version"]==3
+
+    detail=client.get(f"/fire-investigations/{cid}")
+    assert detail.status_code==200
+    db=detail.json()
+    assert len(db["media"])==2
+    assert len(db["statements"])==1
+    assert len(db["timeline"])==1
+    assert len(db["cause_candidates"])==1
+    assert len(db["report_drafts"])==1
+
+
+def test_phase7_case_optimistic_lock_and_cross_case_evidence_guard():
+    login()
+
+    c1=client.post("/fire-investigations",json={
+        "case_number":"FIRE-TEST-7-A",
+        "title":"Case A"
+    })
+    c2=client.post("/fire-investigations",json={
+        "case_number":"FIRE-TEST-7-B",
+        "title":"Case B"
+    })
+    assert c1.status_code==201 and c2.status_code==201
+    a=c1.json()
+    b=c2.json()
+
+    updated=client.patch(f"/fire-investigations/{a['fire_investigation_case_id']}",json={
+        "expected_version":1,
+        "title":"Case A updated",
+        "status":"active"
+    })
+    assert updated.status_code==200
+    assert updated.json()["version"]==2
+
+    stale=client.patch(f"/fire-investigations/{a['fire_investigation_case_id']}",json={
+        "expected_version":1,
+        "location_text":"stale"
+    })
+    assert stale.status_code==409
+
+    audio_doc=client.post(
+        "/documents/upload",
+        files={"file":("case-b.m4a",b"audio-b","audio/mp4")},
+        data={"document_type":"fire_interview_audio"}
+    ).json()
+    media=client.post(f"/fire-investigations/{b['fire_investigation_case_id']}/media",json={
+        "document_id":audio_doc["document_id"],
+        "media_type":"audio"
+    }).json()
+    seg=client.post(f"/fire-investigations/media/{media['fire_investigation_media_id']}/transcript-segments",json={
+        "text":"Case B evidence",
+        "source_kind":"manual"
+    }).json()
+
+    cross=client.post(f"/fire-investigations/{a['fire_investigation_case_id']}/statements",json={
+        "person_label":"A",
+        "draft_text":"cross-case invalid",
+        "evidence_segment_ids":[seg["fire_transcript_segment_id"]]
+    })
+    assert cross.status_code==422
+
+
+def test_phase7_fire_investigation_roles_separate_review_from_approval():
+    from app.rbac_seed import seed_rbac
+
+    with SessionLocal() as db:
+        roles=seed_rbac(db)
+        db.commit()
+
+        investigator=roles["fire_investigator"]
+        investigator_codes=set(db.scalars(
+            select(Permission.code)
+            .join(RolePermission,RolePermission.permission_id==Permission.permission_id)
+            .where(RolePermission.role_id==investigator.role_id)
+        ).all())
+        assert "fire_investigation.review" in investigator_codes
+        assert "fire_investigation.update" in investigator_codes
+        assert "fire_investigation.approve" not in investigator_codes
+
+        approver=roles["fire_investigation_approver"]
+        approver_codes=set(db.scalars(
+            select(Permission.code)
+            .join(RolePermission,RolePermission.permission_id==Permission.permission_id)
+            .where(RolePermission.role_id==approver.role_id)
+        ).all())
+        assert "fire_investigation.approve" in approver_codes
+        assert "fire_investigation.update" not in approver_codes
+        assert "fire_investigation.create" not in approver_codes
