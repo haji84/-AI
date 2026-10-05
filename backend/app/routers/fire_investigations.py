@@ -1264,49 +1264,55 @@ def create_evidence_snapshot(
 ):
     case = _require_case(db, case_id)
 
-    accepted_media = db.scalars(
-        select(FireInvestigationMedia).where(
-            FireInvestigationMedia.fire_investigation_case_id == case_id,
-            FireInvestigationMedia.review_status == "accepted",
+    photo_rows = db.scalars(
+        select(FirePhotoAnnotation)
+        .join(
+            FireInvestigationMedia,
+            FireInvestigationMedia.fire_investigation_media_id
+            == FirePhotoAnnotation.fire_investigation_media_id,
         )
-    ).all()
-    media_ids = [x.fire_investigation_media_id for x in accepted_media]
-
-    photo_ids = list(db.scalars(
-        select(FirePhotoAnnotation.fire_photo_annotation_id)
         .where(
-            FirePhotoAnnotation.fire_investigation_media_id.in_(media_ids) if media_ids else False,
+            FireInvestigationMedia.fire_investigation_case_id == case_id,
             FirePhotoAnnotation.status == "accepted",
         )
         .order_by(FirePhotoAnnotation.fire_photo_annotation_id)
-    ).all()) if media_ids else []
+    ).all()
+    photo_ids = [x.fire_photo_annotation_id for x in photo_rows]
 
-    transcript_ids = list(db.scalars(
-        select(FireTranscriptSegment.fire_transcript_segment_id)
+    transcript_rows = db.scalars(
+        select(FireTranscriptSegment)
+        .join(
+            FireInvestigationMedia,
+            FireInvestigationMedia.fire_investigation_media_id
+            == FireTranscriptSegment.fire_investigation_media_id,
+        )
         .where(
-            FireTranscriptSegment.fire_investigation_media_id.in_(media_ids) if media_ids else False,
+            FireInvestigationMedia.fire_investigation_case_id == case_id,
             FireTranscriptSegment.review_status == "accepted",
         )
         .order_by(FireTranscriptSegment.fire_transcript_segment_id)
-    ).all()) if media_ids else []
+    ).all()
+    transcript_ids = [x.fire_transcript_segment_id for x in transcript_rows]
 
-    statement_ids = list(db.scalars(
-        select(FireStatementDraft.fire_statement_draft_id)
+    statement_rows = db.scalars(
+        select(FireStatementDraft)
         .where(
             FireStatementDraft.fire_investigation_case_id == case_id,
             FireStatementDraft.status == "reviewed",
         )
         .order_by(FireStatementDraft.fire_statement_draft_id)
-    ).all())
+    ).all()
+    statement_ids = [x.fire_statement_draft_id for x in statement_rows]
 
-    timeline_ids = list(db.scalars(
-        select(FireTimelineEvent.fire_timeline_event_id)
+    timeline_rows = db.scalars(
+        select(FireTimelineEvent)
         .where(
             FireTimelineEvent.fire_investigation_case_id == case_id,
             FireTimelineEvent.status == "confirmed",
         )
         .order_by(FireTimelineEvent.fire_timeline_event_id)
-    ).all())
+    ).all()
+    timeline_ids = [x.fire_timeline_event_id for x in timeline_rows]
 
     official_cause_id = case.official_cause_candidate_id
 
@@ -1316,15 +1322,27 @@ def create_evidence_snapshot(
             detail="no Human-accepted/reviewed/confirmed evidence is available for a snapshot",
         )
 
+    media_ids = {
+        *(x.fire_investigation_media_id for x in photo_rows),
+        *(x.fire_investigation_media_id for x in transcript_rows),
+        *(x.fire_investigation_media_id for x in statement_rows if x.fire_investigation_media_id),
+    }
     media_document_hashes: dict[str, dict] = {}
-    for media in accepted_media:
-        doc = db.get(Document, media.document_id)
-        if doc:
-            media_document_hashes[media.fire_investigation_media_id] = {
-                "document_id": doc.document_id,
-                "sha256": doc.sha256,
-                "media_type": media.media_type,
-            }
+    if media_ids:
+        media_rows = db.scalars(
+            select(FireInvestigationMedia).where(
+                FireInvestigationMedia.fire_investigation_media_id.in_(sorted(media_ids)),
+                FireInvestigationMedia.fire_investigation_case_id == case_id,
+            )
+        ).all()
+        for media in media_rows:
+            doc = db.get(Document, media.document_id)
+            if doc:
+                media_document_hashes[media.fire_investigation_media_id] = {
+                    "document_id": doc.document_id,
+                    "sha256": doc.sha256,
+                    "media_type": media.media_type,
+                }
 
     canonical = {
         "case_id": case_id,
