@@ -1044,7 +1044,7 @@ Next gate:
 
 ## Phase 6 equipment placement regression gate
 
-Implemented on branch `phase6-equipment-placement-regression`; CI verification pending:
+Implemented and CI-verified:
 - Migration 036 equipment placement regression case/run persistence
 - drawing consultation and regression now share one placement engine
 - Human-reviewed regression cases include:
@@ -1069,6 +1069,12 @@ Implemented on branch `phase6-equipment-placement-regression`; CI verification p
   1. official placement batch authoring coverage complete
   2. current regression PASS
   3. Human acceptance of that current PASS
+Verified checkpoint:
+- run: `37317066828` SUCCESS
+- backend pytest: 123 passed
+- Migration 036 parser smoke: PASS
+- frontend JavaScript syntax: PASS
+
 - E2E covers:
   - correct room targeting + Marker center + constraint match -> PASS
   - Human acceptance -> placement coverage complete
