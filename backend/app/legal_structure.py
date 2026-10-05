@@ -7,7 +7,7 @@ import re
 import xml.etree.ElementTree as ET
 
 
-PARSER_VERSION = "legal-structure-v1"
+PARSER_VERSION = "legal-structure-v2"
 
 STRUCTURAL_XML_TYPES = {
     "Preamble": "preamble",
@@ -35,6 +35,7 @@ STRUCTURAL_XML_TYPES = {
     "AppdxStyle": "form",
     "AppdxFig": "appendix_figure",
     "AppdxNote": "appendix_note",
+    "TableRow": "table_row",
 }
 
 LABEL_TAGS = {
@@ -172,6 +173,8 @@ def parse_egov_xml(data: bytes) -> list[ProvisionRecord]:
     records: list[ProvisionRecord] = []
     sequence = 0
 
+    used_keys: set[str] = set()
+
     def walk(node: ET.Element, parent_key: str | None, ancestry: list[str]) -> None:
         nonlocal sequence
         tag = _lname(node.tag)
@@ -183,9 +186,21 @@ def parse_egov_xml(data: bytes) -> list[ProvisionRecord]:
             label = _first_child_text(node, LABEL_TAGS.get(tag, []))
             heading = _first_child_text(node, HEADING_TAGS.get(tag, []))
             num = node.attrib.get("Num") or node.attrib.get("Extract")
-            stable = _norm(str(num or label or f"seq-{sequence + 1}")).replace("/", "-")
+            if tag == "TableRow":
+                row_text = _iter_text(node)
+                digest = hashlib.sha256(row_text.encode("utf-8")).hexdigest()[:16]
+                stable = f"row-{digest}"
+            else:
+                stable = _norm(str(num or label or f"seq-{sequence + 1}")).replace("/", "-")
             key_part = f"{ptype}:{stable}"
             key = "/".join([*ancestry, key_part])
+            if key in used_keys:
+                suffix = 2
+                base = key
+                while f"{base}#{suffix}" in used_keys:
+                    suffix += 1
+                key = f"{base}#{suffix}"
+            used_keys.add(key)
             sequence += 1
             records.append(
                 ProvisionRecord(
