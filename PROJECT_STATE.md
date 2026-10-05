@@ -292,3 +292,90 @@ Not yet a production-quality drawing AI claim:
 - real architectural drawing benchmark remains unexecuted
 - approved LAN PostgreSQL/physical-client Host Gate remains unexecuted
 
+## Phase 7 fire investigation foundation
+
+Implemented:
+- Migration 019 fire investigation Case/evidence model
+- original photo/audio/video/drawing Document linkage
+- photo annotations
+- transcript segments
+- statement Drafts
+- timeline candidates
+- fire-cause candidates
+- formal cause Human approval
+- report Drafts and Human approval
+- Migration 020 idempotent AI manifests
+- Migration 021 immutable Human-reviewed Evidence Snapshots
+- AI report provenance bound to Snapshot/Manifest
+- Migration 022 approved report -> registered official FormTemplate rendering/export
+- formal cause and formal report remain separate Human Gates
+
+Verified Evidence Snapshot checkpoint:
+- run 37253033331 SUCCESS
+- backend pytest: 76 passed
+- Migration 021 PASS
+- frontend JavaScript syntax PASS
+
+## Phase 8 fire photo intelligence
+
+Implemented:
+- Migration 023 photo profile/metadata/quality/duplicate foundation
+- exact SHA-256
+- perceptual hash
+- EXIF metadata
+- brightness/contrast/sharpness quality signals
+- photo search text
+- duplicate candidate support
+- Migration 024 Human-reviewed photo -> drawing position links
+- photo/drawing link is candidate until Human accepted
+- original photo Documents remain immutable
+
+## Phase 9 voice / statement intelligence
+
+Implemented:
+- Migration 025 transcript uncertainty/search/evidence comparison
+- Migration 026 evidence_comparison AI Manifest type
+- deterministic uncertainty markers
+- transcript text SHA-256
+- accepted transcript search
+- uncertain-only search
+- statement source-uncertainty propagation
+- explicit Human uncertainty confirmation before statement review
+- evidence comparison using Human-reviewed evidence only
+- comparison Manifest idempotency
+- pending/accepted/rejected comparison workflow
+- optimistic review conflict protection
+- canonical API consolidated under `/fire-investigations`
+- transcript search UI
+- uncertainty warning UI
+- evidence comparison review UI
+
+Last verified green Phase 9 checkpoint:
+- run 37254735014 SUCCESS
+- backend pytest: 83 passed
+- Migration 025: PASS
+- Migration 026: PASS
+- frontend JavaScript syntax: PASS
+
+Latest Phase 9 hardening currently includes:
+- accepted comparison must not mutate reviewed statement text
+- accepted comparison must not mutate confirmed timeline
+- accepted comparison must not create/select official cause
+
+Do not report the latest hardening/UI HEAD as final PASS until its current CI finishes.
+
+## Current next gates
+
+1. finish current Phase 9 HEAD CI and record final evidence
+2. real audio/STT benchmark with Japanese interview recordings
+3. speaker diarization accuracy benchmark
+4. uncertainty-marker precision/recall benchmark
+5. evidence-comparison usefulness/false-positive acceptance test
+6. approved LAN PostgreSQL migrations through 026
+7. backup/restore after Migration 026
+8. HTTPS physical LAN clients
+9. two-client concurrent E2E
+10. continue Human legal Rule authoring / production legal Host Gates
+
+Do not claim production-quality STT, legal completeness, formal compliance, or production Host readiness until those gates are executed.
+
