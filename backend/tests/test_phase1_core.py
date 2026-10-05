@@ -1747,3 +1747,111 @@ def test_phase5_6_rule_coverage_endpoint_is_counts_not_percentage():
     assert isinstance(body["approved_rule_count_by_domain"]["equipment_requirement"], int)
     assert isinstance(body["exact_citation_count"], int)
     assert "not a percentage" in body["note"]
+
+
+def test_phase5_7_submission_compliance_uses_only_explicit_approved_presence_rules():
+    login()
+
+    type_code="test_presence_submission_57"
+    created_type=client.post("/submission-types",json={
+        "code":type_code,
+        "name":"テストPresence届出57",
+        "category":"test",
+        "requires_document":False,
+        "rules":{"dashboard":False}
+    })
+    assert created_type.status_code==201
+
+    periodic_code="test_periodic_submission_57"
+    created_periodic=client.post("/submission-types",json={
+        "code":periodic_code,
+        "name":"テスト周期届出57",
+        "category":"test",
+        "requires_document":False,
+        "rules":{"dashboard":False}
+    })
+    assert created_periodic.status_code==201
+
+    facility=client.post("/facilities",json={
+        "name":"Phase5.7対象",
+        "detail":{"classification_code":"SUB-57"}
+    })
+    assert facility.status_code==201
+    bid=facility.json()["building_id"]
+
+    rule=client.post("/legal-rules",json={
+        "rule_code":"TEST-SUB-PRESENCE-57",
+        "name":"Presence届出Rule57",
+        "domain":"submission_requirement"
+    })
+    assert rule.status_code==201
+    rid=rule.json()["rule_id"]
+    rv=client.post(f"/legal-rules/{rid}/versions",json={
+        "version_no":1,
+        "effective_from":"2026-01-01",
+        "conditions":{"all":[{"field":"classification_code","op":"eq","value":"SUB-57"}]},
+        "outcome":{
+            "decision":"required",
+            "submission_type_code":type_code,
+            "comparison_mode":"presence"
+        },
+        "source_reference":"TEST SOURCE 57"
+    })
+    assert rv.status_code==201
+    approved=client.post(
+        f"/legal-rules/versions/{rv.json()['legal_rule_version_id']}/approve",
+        json={"expected_version":1}
+    )
+    assert approved.status_code==200
+
+    periodic_rule=client.post("/legal-rules",json={
+        "rule_code":"TEST-SUB-PERIODIC-57",
+        "name":"Periodic届出Rule57",
+        "domain":"submission_requirement"
+    })
+    assert periodic_rule.status_code==201
+    prv=client.post(f"/legal-rules/{periodic_rule.json()['rule_id']}/versions",json={
+        "version_no":1,
+        "effective_from":"2026-01-01",
+        "conditions":{"all":[{"field":"classification_code","op":"eq","value":"SUB-57"}]},
+        "outcome":{
+            "decision":"required",
+            "submission_type_code":periodic_code,
+            "comparison_mode":"periodic"
+        },
+        "source_reference":"TEST SOURCE 57 PERIODIC"
+    })
+    assert prv.status_code==201
+    assert client.post(
+        f"/legal-rules/versions/{prv.json()['legal_rule_version_id']}/approve",
+        json={"expected_version":1}
+    ).status_code==200
+
+    first=client.post(f"/facilities/{bid}/submission-compliance/evaluate")
+    assert first.status_code==200
+    body=first.json()
+    presence=next(x for x in body["items"] if x["submission_type_code"]==type_code)
+    periodic=next(x for x in body["items"] if x["submission_type_code"]==periodic_code)
+    assert presence["state"]=="missing_record_candidate"
+    assert periodic["state"]=="manual_review_required"
+    assert body["gap_candidate_count"]>=1
+    assert body["manual_review_count"]>=1
+    assert "not a formal violation" in body["note"]
+
+    received=client.post("/submissions",json={
+        "building_id":bid,
+        "submission_type_code":type_code,
+        "official_number":"5701",
+        "submitted_at":"2026-10-05",
+        "submitted_by":"テスト提出者",
+        "payload_data":{},
+        "document_ids":[]
+    })
+    assert received.status_code==201
+
+    second=client.post(f"/facilities/{bid}/submission-compliance/evaluate")
+    assert second.status_code==200
+    body2=second.json()
+    presence2=next(x for x in body2["items"] if x["submission_type_code"]==type_code)
+    assert presence2["state"]=="modern_submission_recorded"
+    assert presence2["latest_submission_id"]==received.json()["submission_id"]
