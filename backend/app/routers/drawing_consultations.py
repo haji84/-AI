@@ -11,6 +11,7 @@ from ..authz import require_permission
 from ..db import get_db
 from ..equipment_authoring_batch import equipment_requirement_batch_coverage
 from ..equipment_placement_batch import equipment_placement_batch_coverage
+from ..equipment_placement_engine import evaluate_placement_candidates
 from ..occupancy_authoring_workbench import occupancy_rule_coverage
 from ..legal_requirement_engine import (
     approved_rule_count,
@@ -238,136 +239,6 @@ def _missing_fields(
                 }
             )
     return rows
-
-
-def _geometry_center(geometry: dict) -> dict | None:
-    if not isinstance(geometry, dict):
-        return None
-    try:
-        if all(k in geometry for k in ("x", "y", "width", "height")):
-            return {
-                "x": float(geometry["x"]) + float(geometry["width"]) / 2,
-                "y": float(geometry["y"]) + float(geometry["height"]) / 2,
-            }
-        if all(k in geometry for k in ("x1", "y1", "x2", "y2")):
-            return {
-                "x": (float(geometry["x1"]) + float(geometry["x2"])) / 2,
-                "y": (float(geometry["y1"]) + float(geometry["y2"])) / 2,
-            }
-        bbox = geometry.get("bbox")
-        if isinstance(bbox, list) and len(bbox) == 4:
-            return {
-                "x": float(bbox[0]) + float(bbox[2]) / 2,
-                "y": float(bbox[1]) + float(bbox[3]) / 2,
-            }
-        points = geometry.get("points")
-        if isinstance(points, list) and points:
-            coords = []
-            for point in points:
-                if isinstance(point, dict) and "x" in point and "y" in point:
-                    coords.append((float(point["x"]), float(point["y"])))
-                elif isinstance(point, (list, tuple)) and len(point) >= 2:
-                    coords.append((float(point[0]), float(point[1])))
-            if coords:
-                return {
-                    "x": sum(x for x, _ in coords) / len(coords),
-                    "y": sum(y for _, y in coords) / len(coords),
-                }
-    except (TypeError, ValueError):
-        return None
-    return None
-
-
-def _placement_candidates(
-    db: Session,
-    *,
-    consultation: DrawingConsultation,
-    annotation: DrawingAnnotationSet,
-    required_equipment: list[dict],
-    evaluation_date: date,
-) -> list[dict]:
-    results: list[dict] = []
-    rooms = [
-        x
-        for x in (annotation.payload or {}).get("elements", [])
-        if isinstance(x, dict) and str(x.get("element_type") or "") == "room"
-    ]
-
-    for equipment in required_equipment:
-        code = equipment.get("equipment_type_code")
-        snapshot = {
-            **(consultation.input_snapshot or {}),
-            "classification_code": consultation.confirmed_classification_code,
-            "equipment_type_code": code,
-        }
-        rules = evaluate_approved_rules_for_snapshot(
-            db,
-            snapshot=snapshot,
-            domain="equipment_placement",
-            evaluation_date=evaluation_date,
-        )
-        if not rules:
-            results.append(
-                {
-                    "equipment_type_code": code,
-                    "state": "approved_placement_rule_missing",
-                    "markers": [],
-                    "constraints": [],
-                    "note": "No effective Approved placement Rule matched. Do not auto-place this equipment.",
-                }
-            )
-            continue
-
-        markers: list[dict] = []
-        constraints: list[dict] = []
-        for rule in rules:
-            outcome = rule.get("outcome") or {}
-            mode = outcome.get("placement_mode") or "manual_with_constraints"
-            constraints.append(
-                {
-                    "rule_code": rule.get("rule_code"),
-                    "legal_rule_version_id": rule.get("legal_rule_version_id"),
-                    "placement_mode": mode,
-                    "constraints": outcome.get("constraints") or {},
-                    "citations": rule.get("citations") or [],
-                    "source_reference": rule.get("source_reference"),
-                }
-            )
-            if mode != "room_candidate":
-                continue
-            target = outcome.get("target_room_use")
-            targets = set(target if isinstance(target, list) else [target] if target else [])
-            for room in rooms:
-                extracted = room.get("extracted_data") or {}
-                use_name = str(extracted.get("use_name") or "") if isinstance(extracted, dict) else ""
-                if targets and use_name not in targets:
-                    continue
-                center = _geometry_center(room.get("geometry") or {})
-                if not center:
-                    continue
-                markers.append(
-                    {
-                        "page_no": room.get("page_no", 1),
-                        "floor_number": room.get("floor_number"),
-                        "room_ref": room.get("client_ref"),
-                        "room_label": room.get("label"),
-                        "room_use": use_name or None,
-                        "geometry": center,
-                        "status": "candidate",
-                        "source_rule_version_id": rule.get("legal_rule_version_id"),
-                    }
-                )
-
-        results.append(
-            {
-                "equipment_type_code": code,
-                "state": "placement_candidate" if markers else "manual_placement_with_constraints",
-                "markers": markers,
-                "constraints": constraints,
-                "note": "Placement remains a Human-reviewed candidate and is not an approved design.",
-            }
-        )
-    return results
 
 
 @router.get(
@@ -720,11 +591,16 @@ def evaluate_required_equipment(
         analysis_id=row.drawing_analysis_id,
         annotation_id=row.drawing_annotation_set_id,
     )
-    placement = _placement_candidates(
+    placement = evaluate_placement_candidates(
         db,
-        consultation=row,
-        annotation=annotation,
-        required_equipment=required,
+        input_snapshot=row.input_snapshot or {},
+        classification_code=row.confirmed_classification_code,
+        rooms=(annotation.payload or {}).get("elements", []),
+        equipment_type_codes=[
+            str(x["equipment_type_code"])
+            for x in required
+            if x.get("equipment_type_code")
+        ],
         evaluation_date=evaluation_date,
     )
 

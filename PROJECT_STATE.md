@@ -1040,3 +1040,50 @@ Next gate:
 3. add Human-reviewed placement regression cases
 4. test Rule constraints/room targeting/marker generation
 5. require a current Human-accepted regression PASS before placement coverage_complete=true
+
+
+## Phase 6 equipment placement regression gate
+
+Implemented and CI-verified:
+- Migration 036 equipment placement regression case/run persistence
+- drawing consultation and regression now share one placement engine
+- Human-reviewed regression cases include:
+  - input snapshot / confirmed classification
+  - Human-reviewed room geometry and room-use labels
+  - target equipment codes
+  - expected placement state
+  - expected room refs
+  - expected Rule constraint payloads
+- placement regression validates:
+  - placement_candidate / manual_with_constraints / approved_rule_missing state
+  - exact target room refs
+  - generated Marker center against Human-reviewed room geometry
+  - exact Rule constraint payloads
+- regression run preserves matched placement Rule/citation evidence
+- PASS still requires separate Human acceptance
+- placement Rule engine fingerprint is bound to every accepted run
+- reviewed placement test-suite fingerprint is bound to every accepted run
+- any Approved/effective placement Rule change invalidates old accepted evidence
+- any reviewed regression case add/change invalidates old accepted evidence
+- final placement coverage requires:
+  1. official placement batch authoring coverage complete
+  2. current regression PASS
+  3. Human acceptance of that current PASS
+Verified checkpoint:
+- run: `37317066828` SUCCESS
+- backend pytest: 123 passed
+- Migration 036 parser smoke: PASS
+- frontend JavaScript syntax: PASS
+
+- E2E covers:
+  - correct room targeting + Marker center + constraint match -> PASS
+  - Human acceptance -> placement coverage complete
+  - reviewed case added -> previous acceptance becomes stale
+  - wrong expected room -> Marker mismatch -> regression FAIL
+  - failed run cannot be Human-accepted
+  - source provision hash drift invalidates authoring/final coverage
+
+Safety:
+- Regression truth is Human-reviewed.
+- Regression does not alter Rule conditions, placement constraints or drawing annotations.
+- A stale PASS cannot survive Rule, room-test or source-provision changes.
