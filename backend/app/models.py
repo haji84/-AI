@@ -1191,10 +1191,40 @@ class FireInvestigationMedia(Base):
     )
 
 
+class FireInvestigationAIManifest(Base):
+    __tablename__ = "fire_investigation_ai_manifests"
+    fire_investigation_ai_manifest_id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True, default=uuid_str)
+    fire_investigation_case_id: Mapped[str] = mapped_column(
+        ForeignKey("fire_investigation_cases.fire_investigation_case_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    fire_investigation_media_id: Mapped[str | None] = mapped_column(
+        ForeignKey("fire_investigation_media.fire_investigation_media_id", ondelete="CASCADE"),
+        index=True,
+    )
+    scope_key: Mapped[str] = mapped_column(String(200), nullable=False)
+    manifest_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    manifest_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    model_version: Mapped[str | None] = mapped_column(String(200))
+    payload_metadata: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    created_by: Mapped[str | None] = mapped_column(ForeignKey("app_users.user_id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    __table_args__ = (
+        UniqueConstraint(
+            "scope_key",
+            "manifest_type",
+            "manifest_sha256",
+            name="uq_fire_ai_manifest",
+        ),
+    )
+
+
 class FirePhotoAnnotation(Base):
     __tablename__ = "fire_photo_annotations"
     fire_photo_annotation_id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True, default=uuid_str)
     fire_investigation_media_id: Mapped[str] = mapped_column(ForeignKey("fire_investigation_media.fire_investigation_media_id", ondelete="CASCADE"), nullable=False, index=True)
+    source_manifest_id: Mapped[str | None] = mapped_column(ForeignKey("fire_investigation_ai_manifests.fire_investigation_ai_manifest_id"), index=True)
     description: Mapped[str | None] = mapped_column(Text)
     tags: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     map_position: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
@@ -1212,6 +1242,7 @@ class FireTranscriptSegment(Base):
     __tablename__ = "fire_transcript_segments"
     fire_transcript_segment_id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True, default=uuid_str)
     fire_investigation_media_id: Mapped[str] = mapped_column(ForeignKey("fire_investigation_media.fire_investigation_media_id", ondelete="CASCADE"), nullable=False, index=True)
+    source_manifest_id: Mapped[str | None] = mapped_column(ForeignKey("fire_investigation_ai_manifests.fire_investigation_ai_manifest_id"), index=True)
     start_ms: Mapped[int | None] = mapped_column(Integer)
     end_ms: Mapped[int | None] = mapped_column(Integer)
     speaker_label: Mapped[str | None] = mapped_column(String(200))
@@ -1232,6 +1263,7 @@ class FireStatementDraft(Base):
     fire_statement_draft_id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True, default=uuid_str)
     fire_investigation_case_id: Mapped[str] = mapped_column(ForeignKey("fire_investigation_cases.fire_investigation_case_id", ondelete="CASCADE"), nullable=False, index=True)
     fire_investigation_media_id: Mapped[str | None] = mapped_column(ForeignKey("fire_investigation_media.fire_investigation_media_id", ondelete="SET NULL"))
+    source_manifest_id: Mapped[str | None] = mapped_column(ForeignKey("fire_investigation_ai_manifests.fire_investigation_ai_manifest_id"), index=True)
     person_label: Mapped[str | None] = mapped_column(String(300))
     draft_text: Mapped[str] = mapped_column(Text, nullable=False)
     evidence_segment_ids: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
