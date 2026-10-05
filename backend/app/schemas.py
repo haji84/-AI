@@ -1648,3 +1648,28 @@ class OccupancyCatalogReadinessRequest(BaseModel):
 
 class OccupancyCatalogReadinessOut(BaseModel):
     readiness: dict
+
+
+class OccupancyAuthoringBulkConditionItem(BaseModel):
+    draft_id: str
+    expected_version: int = Field(ge=1)
+    proposed_conditions: dict
+    rationale: str | None = None
+
+class OccupancyAuthoringBulkConditionRequest(BaseModel):
+    source_xml_sha256: str = Field(min_length=64, max_length=64)
+    updates: list[OccupancyAuthoringBulkConditionItem] = Field(min_length=1)
+    apply: bool = False
+
+class OccupancyAuthoringWorklistOut(BaseModel):
+    source_xml_sha256: str | None = None
+    expected_classification_count: int
+    allowed_condition_fields: list[str]
+    summary: dict
+    items: list
+
+class OccupancyAuthoringBulkConditionOut(BaseModel):
+    result: dict
+
+class OccupancyRuleCoverageOut(BaseModel):
+    coverage: dict

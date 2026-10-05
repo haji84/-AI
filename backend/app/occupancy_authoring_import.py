@@ -223,6 +223,7 @@ def import_occupancy_catalog(
                 "entry_sha256": entry["entry_sha256"],
                 "row_provision_key": entry["row_provision_key"],
                 "conditions_authoring_status": "required",
+                "catalog_entry_count": len(entries),
             },
             created_by=created_by,
         )
