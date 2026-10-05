@@ -231,6 +231,7 @@ def bulk_author_occupancy_conditions(
 
     results = []
     errors = 0
+    seen_draft_ids: set[str] = set()
     for item in updates:
         draft_id = str(item.get("draft_id") or "")
         row = by_id.get(draft_id)
@@ -240,6 +241,12 @@ def bulk_author_occupancy_conditions(
             "valid": False,
             "error": None,
         }
+        if draft_id in seen_draft_ids:
+            result["error"] = "duplicate draft_id in bulk authoring request"
+            errors += 1
+            results.append(result)
+            continue
+        seen_draft_ids.add(draft_id)
         if row is None:
             result["error"] = "draft is not in the selected occupancy catalog batch"
             errors += 1
@@ -415,11 +422,15 @@ def occupancy_rule_coverage(
         {code for code in unique_codes if codes.count(code) > 1}
     )
 
-    catalog_sizes = {
-        int((item.get("generation_context") or {}).get("catalog_entry_count"))
-        for item in items
-        if (item.get("generation_context") or {}).get("catalog_entry_count") is not None
-    }
+    catalog_sizes: set[int] = set()
+    for item in items:
+        raw_size = (item.get("generation_context") or {}).get("catalog_entry_count")
+        if raw_size is None:
+            continue
+        try:
+            catalog_sizes.add(int(raw_size))
+        except (TypeError, ValueError):
+            catalog_sizes.add(-1)
     catalog_batch_valid = catalog_sizes == {EXPECTED_OCCUPANCY_CLASSIFICATION_COUNT}
 
     complete = (
