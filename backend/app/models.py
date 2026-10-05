@@ -1563,3 +1563,27 @@ class DrawingBenchmarkRun(Base):
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
+class DrawingAnnotationSet(Base):
+    __tablename__ = "drawing_annotation_sets"
+    drawing_annotation_set_id: Mapped[str] = mapped_column(
+        Uuid(as_uuid=False), primary_key=True, default=uuid_str
+    )
+    drawing_analysis_id: Mapped[str] = mapped_column(
+        ForeignKey("drawing_analyses.drawing_analysis_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    annotation_kind: Mapped[str] = mapped_column(String(50), nullable=False, default="human_reference")
+    coordinate_space: Mapped[str] = mapped_column(String(30), nullable=False, default="pixel")
+    page_dimensions: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    payload: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    source_method: Mapped[str] = mapped_column(String(30), nullable=False, default="manual")
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="draft", index=True)
+    version: Mapped[int] = mapped_column(BigInteger, nullable=False, default=1)
+    created_by: Mapped[str | None] = mapped_column(ForeignKey("app_users.user_id"))
+    reviewed_by: Mapped[str | None] = mapped_column(ForeignKey("app_users.user_id"))
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)

@@ -4207,3 +4207,142 @@ def test_phase6_drawing_benchmark_registry_preserves_na_metrics():
     assert metrics["symbol_accuracy"]["applicable"] is False
     assert metrics["equipment_f1"]["delta_right_minus_left"] is None
     assert metrics["equipment_f1"]["applicable"] is False
+
+
+def test_phase6_human_annotation_seed_edit_review_and_export():
+    login()
+    facility=client.post("/facilities",json={"name":"Human Annotation対象"}).json()
+    bid=facility["building_id"]
+    upload=client.post(
+        "/documents/upload",
+        files={"file":("annotation-plan.png",b"annotation-plan","image/png")},
+        data={"document_type":"drawing","building_id":bid},
+    ).json()
+
+    analysis=client.post(f"/facilities/{bid}/drawing-analyses",json={
+        "document_id":upload["document_id"],
+        "analysis_method":"ai",
+        "model_version":"vision-seed-v1",
+    })
+    assert analysis.status_code==201
+    aid=analysis.json()["drawing_analysis_id"]
+
+    manifest=client.post(f"/drawing-analyses/{aid}/manifest",json={
+        "expected_version":1,
+        "model_version":"vision-seed-v1",
+        "page_count":1,
+        "elements":[{
+            "client_ref":"room-ai-1",
+            "page_no":1,
+            "element_type":"room",
+            "label":"LDK?",
+            "geometry":{"x":100,"y":100,"width":300,"height":200},
+            "extracted_data":{"use_name":"living_dining_kitchen"},
+            "confidence":0.75,
+        }],
+        "equipment_candidates":[],
+        "fact_candidates":[{
+            "drawing_element_ref":"room-ai-1",
+            "target_path":"detail.total_floor_area",
+            "proposed_value":{"value":112.1},
+        }],
+    })
+    assert manifest.status_code==200
+    assert manifest.json()["analysis"]["version"]==2
+
+    seed=client.post(f"/drawing-analyses/{aid}/annotations/seed",json={
+        "expected_analysis_version":2,
+        "coordinate_space":"pixel",
+        "page_dimensions":{"1":{"width":1024,"height":745}},
+    })
+    assert seed.status_code==201
+    seeded=seed.json()
+    ann_id=seeded["drawing_annotation_set_id"]
+    assert seeded["source_method"]=="ai_seed"
+    assert seeded["status"]=="draft"
+    assert len(seeded["payload"]["elements"])==1
+
+    corrected_payload={
+        "elements":[{
+            "client_ref":"room-ldk",
+            "page_no":1,
+            "element_type":"room",
+            "label":"LDK",
+            "floor_number":1,
+            "geometry":{"points":[[100,100],[400,100],[400,300],[100,300]]},
+            "extracted_data":{"use_name":"living_dining_kitchen"},
+        }],
+        "equipment_candidates":[],
+        "fact_candidates":[{
+            "drawing_element_ref":"room-ldk",
+            "target_path":"detail.total_floor_area",
+            "proposed_value":{"value":112.1},
+        }],
+    }
+    updated=client.put(f"/drawing-annotations/{ann_id}",json={
+        "expected_version":1,
+        "coordinate_space":"pixel",
+        "page_dimensions":{"1":{"width":1024,"height":745}},
+        "payload":corrected_payload,
+    })
+    assert updated.status_code==200
+    assert updated.json()["version"]==2
+
+    blocked_export=client.get(f"/drawing-annotations/{ann_id}/benchmark-reference")
+    assert blocked_export.status_code==409
+
+    reviewed=client.post(f"/drawing-annotations/{ann_id}/review",json={
+        "expected_version":2,
+        "status":"reviewed",
+    })
+    assert reviewed.status_code==200
+    assert reviewed.json()["status"]=="reviewed"
+    assert reviewed.json()["version"]==3
+
+    exported=client.get(f"/drawing-annotations/{ann_id}/benchmark-reference")
+    assert exported.status_code==200
+    body=exported.json()
+    assert body["reference_format"]=="fire-ai-drawing-human-reference-v1"
+    assert body["source"]["sha256"]==upload["sha256"]
+    assert body["elements"][0]["label"]=="LDK"
+    assert body["elements"][0]["extracted_data"]["use_name"]=="living_dining_kitchen"
+
+
+def test_phase6_human_annotation_review_rejects_room_without_geometry_or_use():
+    login()
+    facility=client.post("/facilities",json={"name":"Human Annotation validation対象"}).json()
+    bid=facility["building_id"]
+    upload=client.post(
+        "/documents/upload",
+        files={"file":("bad-annotation.png",b"bad-annotation","image/png")},
+        data={"document_type":"drawing","building_id":bid},
+    ).json()
+    aid=client.post(f"/facilities/{bid}/drawing-analyses",json={
+        "document_id":upload["document_id"],
+        "analysis_method":"manual",
+    }).json()["drawing_analysis_id"]
+
+    ann=client.post(f"/drawing-analyses/{aid}/annotations",json={
+        "coordinate_space":"pixel",
+        "page_dimensions":{"1":{"width":100,"height":100}},
+        "payload":{
+            "elements":[{
+                "client_ref":"bad-room",
+                "page_no":1,
+                "element_type":"room",
+                "geometry":{},
+                "extracted_data":{},
+            }],
+            "equipment_candidates":[],
+            "fact_candidates":[],
+        },
+        "source_method":"manual",
+    })
+    assert ann.status_code==201
+    ann_id=ann.json()["drawing_annotation_set_id"]
+
+    review=client.post(f"/drawing-annotations/{ann_id}/review",json={
+        "expected_version":1,
+        "status":"reviewed",
+    })
+    assert review.status_code==422
