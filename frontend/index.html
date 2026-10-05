@@ -25,7 +25,7 @@ table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid #e4e8ec;
 </style>
 </head>
 <body>
-<header><strong>消防業務 Local AI</strong><span class="pill active">Phase 8</span><span class="muted">対象物・査察・届出・法令・図面・火災調査・写真AI</span><span class="grow"></span><button id="fireInvestigationBtn" class="btn hidden" onclick="openFireInvestigations()">火災調査</button><button id="legalReviewBtn" class="btn hidden" onclick="openLegalReview()">法令レビュー</button><button id="logoutBtn" class="btn hidden" onclick="logout()">ログアウト</button></header>
+<header><strong>消防業務 Local AI</strong><span class="pill active">Phase 9</span><span class="muted">対象物・査察・届出・法令・図面・火災調査・写真・音声供述AI</span><span class="grow"></span><button id="fireInvestigationBtn" class="btn hidden" onclick="openFireInvestigations()">火災調査</button><button id="legalReviewBtn" class="btn hidden" onclick="openLegalReview()">法令レビュー</button><button id="logoutBtn" class="btn hidden" onclick="logout()">ログアウト</button></header>
 
 <section id="loginView" class="loginBox card">
 <h1>ログイン</h1>
@@ -565,6 +565,7 @@ async function openFireCase(id){
     fireState.detail=d;
     await loadFireCases();
     renderFireCase(d);
+    await loadFireEvidenceComparisons();
   }catch(e){$('fireCaseDetail').innerHTML='<div class="conflict">Caseを取得できません: '+esc(e.message)+'</div>'}
 }
 function fireCauseActions(x,caseVersion){
@@ -597,10 +598,76 @@ function renderFireCase(d){
     (c.official_cause_text?'<div class="notice"><b>正式原因</b><div>'+esc(c.official_cause_text)+'</div></div>':'<div class="muted">正式原因は未承認です。</div>')+
     '<div class="row" style="margin-top:10px"><button class="btn primary" onclick="triggerFireMediaUpload(\'photo\')">＋ 写真原本</button><button class="btn" onclick="triggerFireMediaUpload(\'audio\')">＋ 音声原本</button><button class="btn" onclick="createManualFireCause()">＋ 原因候補</button><button class="btn" onclick="createFireReportDraft()">＋ 報告Draft</button></div></div>'+
     '<div id="fireEvidencePanel"></div>'+
+    '<div class="card"><div class="row"><div class="sectionTitle grow">音声・供述インテリジェンス</div><button class="btn" onclick="loadFireEvidenceComparisons()">証拠比較を更新</button></div>'+
+    '<div class="notice">検索・比較は調査支援です。不確実表現は原文のまま保持し、比較候補を承認しても正式供述・確定タイムライン・火災原因は自動変更しません。</div>'+
+    '<div class="row"><input id="fireTranscriptSearchQ" placeholder="文字起こしを検索" style="min-width:220px" onkeydown="if(event.key===\'Enter\')searchFireTranscripts()"><input id="fireTranscriptSpeaker" placeholder="話者" style="max-width:140px"><label class="row"><input id="fireTranscriptUncertainOnly" type="checkbox">不確実箇所のみ</label><button class="btn" onclick="searchFireTranscripts()">検索</button></div>'+
+    '<div id="fireTranscriptSearchResults" class="muted" style="margin-top:8px">検索語を入力してください。</div>'+
+    '<div class="sectionTitle" style="margin-top:14px">証拠比較候補</div><div id="fireEvidenceComparisons" class="muted">読み込み中…</div></div>'+
     '<div class="card"><div class="row"><div class="sectionTitle grow">証拠原本</div><input id="firePhotoSearchQ" placeholder="写真を自然文検索" style="max-width:240px" onkeydown="if(event.key===\'Enter\')searchFirePhotos()"><button class="btn" onclick="searchFirePhotos()">写真検索</button><button class="btn" onclick="showFirePhotoDuplicates()">重複候補</button></div>'+mediaHtml+'</div>'+
     '<div class="grid2"><div class="card"><div class="sectionTitle">供述Draft</div>'+statementHtml+'</div><div class="card"><div class="sectionTitle">タイムライン</div>'+timelineHtml+'</div></div>'+
     '<div class="grid2"><div class="card"><div class="sectionTitle">火災原因候補</div>'+causeHtml+'</div><div class="card"><div class="sectionTitle">報告書Draft</div>'+reportHtml+'</div></div>';
 }
+function fireUncertaintyText(markers){
+  return (markers||[]).map(x=>x.text||x.type).filter(Boolean).join(' / ');
+}
+async function searchFireTranscripts(){
+  if(!fireState.caseId)return;
+  const box=$('fireTranscriptSearchResults');
+  const q=$('fireTranscriptSearchQ').value.trim();
+  if(!q){box.innerHTML='<span class="muted">検索語を入力してください。</span>';return}
+  const p=new URLSearchParams({q,accepted_only:'true',limit:'100'});
+  const speaker=$('fireTranscriptSpeaker').value.trim();
+  if(speaker)p.set('speaker_label',speaker);
+  if($('fireTranscriptUncertainOnly').checked)p.set('uncertain_only','true');
+  box.innerHTML='検索中…';
+  try{
+    const rows=await api('/fire-investigations/'+fireState.caseId+'/transcript-search?'+p);
+    box.innerHTML=rows.map(x=>{
+      const s=x.segment||{};
+      const uncertainty=fireUncertaintyText(s.uncertainty_markers);
+      return '<div class="history"><div class="row"><b>'+esc(s.speaker_label||'話者未設定')+'</b><span class="pill">Score '+esc(x.search_score)+'</span>'+(uncertainty?'<span class="pill">不確実表現あり</span>':'')+'</div>'+
+        '<div class="muted">'+esc(Math.round((s.start_ms||0)/1000))+'秒〜'+esc(Math.round((s.end_ms||0)/1000))+'秒</div>'+
+        '<div class="value">'+esc(s.text||'')+'</div>'+
+        (uncertainty?'<div class="notice">不確実表現: '+esc(uncertainty)+'</div>':'')+
+        '<div class="muted">Segment '+esc(s.fire_transcript_segment_id||'')+'</div></div>';
+    }).join('')||'<div class="muted">該当する確認済み文字起こしはありません。</div>';
+  }catch(e){box.innerHTML='<div class="conflict">文字起こし検索に失敗: '+esc(e.message)+'</div>'}
+}
+function fireEvidenceRefText(ref){
+  if(!ref)return '－';
+  if(ref.type==='transcript_segment')return '文字起こし: '+(ref.speaker_label||'話者未設定')+' / '+(ref.text||'');
+  if(ref.type==='statement')return '供述: '+(ref.person_label||'人物未設定')+' / '+(ref.text||'');
+  if(ref.type==='timeline_event')return 'タイムライン: '+(ref.title||'')+' / '+(ref.event_time_text||ref.event_time||'');
+  return (ref.type||'Evidence')+': '+(ref.id||'');
+}
+async function loadFireEvidenceComparisons(){
+  if(!fireState.caseId)return;
+  const box=$('fireEvidenceComparisons');
+  if(!box)return;
+  box.innerHTML='読み込み中…';
+  try{
+    const rows=await api('/fire-investigations/'+fireState.caseId+'/evidence-comparisons?limit=100');
+    box.innerHTML=rows.map(x=>{
+      const actions=x.status==='pending'
+        ? '<button class="btn primary" onclick="reviewFireEvidenceComparison(\''+x.fire_evidence_comparison_candidate_id+'\','+x.version+',\'accepted\')">確認済み</button> <button class="btn" onclick="reviewFireEvidenceComparison(\''+x.fire_evidence_comparison_candidate_id+'\','+x.version+',\'rejected\')">却下</button>'
+        : '';
+      const uncertainty=[...(x.left_ref?.uncertainty_markers||[]),...(x.right_ref?.uncertainty_markers||[]),...(x.left_ref?.source_uncertainty_markers||[]),...(x.right_ref?.source_uncertainty_markers||[])];
+      return '<div class="history"><div class="row"><b>'+esc(x.issue_type)+'</b><span class="pill">'+esc(x.status)+'</span><span class="muted">信頼度 '+esc(x.confidence==null?'－':Math.round(x.confidence*100)+'%')+'</span></div>'+
+        '<div class="value">'+esc(x.summary)+'</div>'+
+        '<div class="muted">'+esc(fireEvidenceRefText(x.left_ref))+'</div>'+
+        '<div class="muted">'+esc(fireEvidenceRefText(x.right_ref))+'</div>'+
+        (uncertainty.length?'<div class="notice">参照Evidenceに不確実表現があります。比較結果を事実確定として扱わないでください。</div>':'')+
+        '<div class="row" style="margin-top:8px">'+actions+'</div></div>';
+    }).join('')||'<div class="muted">証拠比較候補なし</div>';
+  }catch(e){box.innerHTML='<div class="conflict">証拠比較候補を取得できません: '+esc(e.message)+'</div>'}
+}
+async function reviewFireEvidenceComparison(id,version,status){
+  try{
+    await api('/fire-investigations/evidence-comparisons/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:version,status})});
+    await loadFireEvidenceComparisons();
+  }catch(e){alert('証拠比較を更新できません: '+e.message)}
+}
+
 function triggerFireMediaUpload(type){
   if(!fireState.caseId)return;
   fireState.mediaType=type;
