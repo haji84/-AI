@@ -1509,6 +1509,34 @@ function removeDrawingRoom(index){
   else if(Number.isInteger(state.drawingEditElementIndex)&&state.drawingEditElementIndex>index)state.drawingEditElementIndex-=1;
   recalcDrawingLocalMetrics();renderDrawingWorkspace();
 }
+async function importDrawingReferenceDraftFile(ev){
+  const input=ev?.target,file=input?.files?.[0];if(!file)return;
+  try{
+    const text=await file.text();
+    const reference=JSON.parse(text);
+    const analysisId=state.drawingWorkspace?.analysis?.drawing_analysis_id;
+    if(!analysisId)throw new Error('DrawingAnalysisが選択されていません');
+    const row=await api('/drawing-analyses/'+analysisId+'/annotations/import-reference',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({reference})
+    });
+    state.drawingAnnotation=row;
+    state.drawingEditElementIndex=null;
+    state.drawingSelectedVertexIndex=null;
+    state.drawingPageNo=1;
+    await refreshDrawingWorkspace();
+  }catch(e){
+    alert('Reference Draftを読み込めません: '+e.message);
+  }finally{
+    if(input)input.value='';
+  }
+}
+function chooseDrawingReferenceDraft(){
+  const input=$('drawingReferenceImportFile');
+  if(input)input.click();
+}
+
 async function seedDrawingAnnotation(){
   try{
     const a=state.drawingWorkspace.analysis,dim=drawingWorkspaceDimensions();
@@ -1651,7 +1679,7 @@ function renderDrawingWorkspace(){
   }
   let annHtml='';
   if(!ann){
-    annHtml='<div class="card"><div class="sectionTitle">Human Annotation</div><div class="notice">AI解析結果は正解データではありません。下書きを作り、部屋位置・部屋名・用途をHuman確認してください。</div><div class="row"><button class="btn primary" onclick="seedDrawingAnnotation()">AI解析から下書き</button><button class="btn" onclick="createEmptyDrawingAnnotation()">空の下書き</button></div></div>';
+    annHtml='<div class="card"><div class="sectionTitle">Human Annotation</div><div class="notice">AI解析結果は正解データではありません。下書きを作り、部屋位置・部屋名・用途をHuman確認してください。</div><input id="drawingReferenceImportFile" class="hidden" type="file" accept=".json,application/json" onchange="importDrawingReferenceDraftFile(event)"><div class="row"><button class="btn primary" onclick="seedDrawingAnnotation()">AI解析から下書き</button><button class="btn" onclick="createEmptyDrawingAnnotation()">空の下書き</button><button class="btn" onclick="chooseDrawingReferenceDraft()">Reference Draft JSONを読み込む</button></div><div class="muted">Importは原本SHA-256一致が必須。元JSONが承認済みでも必ずDraftとして読み込み、再度Human確認します。</div></div>';
   }else{
     const regions=(ann.payload?.elements||[]).map((x,i)=>({x,i})).filter(z=>['room','zone'].includes(z.x.element_type));
     const roomList=regions.length?regions.map(z=>{
@@ -1662,7 +1690,7 @@ function renderDrawingWorkspace(){
     const cal=pageMeta.calibration;
     const calText=cal?.meters_per_pixel?'縮尺校正済み：1px = '+Number(cal.meters_per_pixel).toFixed(6)+'m':'縮尺未設定：面積はpx²表示';
     annHtml='<div class="card"><div class="row"><div class="sectionTitle grow">Human Annotation</div><span class="pill '+(ann.status==='reviewed'?'active':'')+'">'+esc(drawingWorkspaceStatusLabel(ann.status))+'</span></div>'+
-      '<div class="row">'+annSelect+'</div>'+
+      '<input id="drawingReferenceImportFile" class="hidden" type="file" accept=".json,application/json" onchange="importDrawingReferenceDraftFile(event)"><div class="row">'+annSelect+'<button class="btn" onclick="chooseDrawingReferenceDraft()">別Reference Draftを読み込む</button></div>'+
       (ann.status==='draft'?'<div class="grid3" style="margin-top:8px"><div class="field"><label>追加種別</label><select id="humanElementType" onchange="state.drawingNewElementType=this.value"><option value="room">部屋</option><option value="zone">任意区画</option></select></div><div class="field"><label>区画名</label><input id="humanRoomLabel" placeholder="例：主寝室 / 防火区画A"></div><div class="field"><label>用途コード</label><input id="humanRoomUse" placeholder="例：bedroom"></div></div><div class="field" style="margin-top:8px"><label>階</label><input id="humanRoomFloor" type="number" value="1"></div>'+
       (isVisual?'<div class="row" style="margin-top:8px"><button class="btn primary" onclick="startDrawingRoom()">区画追加</button><button class="btn" onclick="undoDrawingPoint()">1点戻す</button><button class="btn" onclick="finishDrawingRoom()">追加確定</button><button class="btn" onclick="cancelDrawingRoom()">描画取消</button></div><div class="muted">区画追加：原図の角を順にクリック→追加確定。既存区画は選択すると頂点をドラッグ修正できます。</div>':'')+
       '<div class="notice" style="margin-top:8px"><div class="row"><b class="grow">面積・縮尺</b><span class="muted">'+esc(calText)+'</span></div><div class="row"><button class="btn" onclick="startDrawingCalibration()">2点で縮尺校正</button>'+(cal?'<button class="btn" onclick="clearDrawingCalibration()">縮尺解除</button>':'')+'<button class="btn" onclick="applySelectedDrawingMeta()">選択区画へ名称・用途を反映</button><button class="btn" onclick="addDrawingVertex()">頂点追加</button><button class="btn" onclick="removeDrawingVertex()">選択頂点を削除</button></div><div id="drawingSelectedMetrics" class="drawingMetric">区画を選択してください</div><div class="muted">縮尺校正：図面上の既知寸法の両端を2点クリックし、実寸(m)を入力。以後、頂点修正のたびに㎡を自動再計算します。</div></div>'+
