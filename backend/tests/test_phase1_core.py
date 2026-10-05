@@ -1622,3 +1622,114 @@ def test_phase5_5_hash_bound_worklist_import_is_idempotent():
         db.commit()
         assert rejected.stale_hash==1
         assert rejected.updated_pending==0
+
+
+def test_phase5_5_review_queue_summary_search_and_priority_filter():
+    from app.models import (
+        LegalJurisdiction, LegalSource, LegalSourceDocument,
+        LegalSourceDocumentVersion, LegalProvision,
+        LegalProvisionReviewCandidate,
+    )
+    login()
+    with SessionLocal() as db:
+        j=LegalJurisdiction(code="TEST-JUR-55-SUMMARY",name="Test 5.5 summary",jurisdiction_type="national")
+        db.add(j); db.flush()
+        s=LegalSource(
+            jurisdiction_id=j.jurisdiction_id,
+            source_code="test-source-55-summary",
+            name="Test source 5.5 summary",
+            source_type="test",
+            adapter_type="manual",
+            base_url="https://example.invalid/",
+        )
+        db.add(s); db.flush()
+        d=LegalSourceDocument(
+            legal_source_id=s.legal_source_id,
+            external_id="LAW55SUMMARY",
+            document_type="law",
+            title="テスト集計55法令",
+        )
+        db.add(d); db.flush()
+        v=LegalSourceDocumentVersion(
+            legal_source_document_id=d.legal_source_document_id,
+            normalized_text="テスト",
+            structured_content={},
+            sha256="7"*64,
+            structure_status="structured",
+            provision_count=2,
+        )
+        db.add(v); db.flush()
+        p1=LegalProvision(
+            legal_source_document_version_id=v.legal_source_document_version_id,
+            provision_type="article",
+            provision_key="article:55-summary-1",
+            sequence_no=1,
+            display_label="第五十五条",
+            body_text="消防用設備等",
+            content_sha256="8"*64,
+        )
+        p2=LegalProvision(
+            legal_source_document_version_id=v.legal_source_document_version_id,
+            provision_type="paragraph",
+            provision_key="article:55-summary-2/paragraph:1",
+            sequence_no=2,
+            display_label="1",
+            body_text="届出を提出する",
+            content_sha256="9"*64,
+        )
+        db.add_all([p1,p2]); db.flush()
+        q1=LegalProvisionReviewCandidate(
+            legal_provision_id=p1.legal_provision_id,
+            category="equipment_requirement",
+            relevance_score=8.0,
+            priority_lane="national_core",
+            source_priority_score=20.0,
+            provision_context="main",
+            context_priority_score=0,
+            reasons=[],
+            extraction_method="deterministic",
+            model_version="test",
+            status="pending",
+        )
+        q2=LegalProvisionReviewCandidate(
+            legal_provision_id=p2.legal_provision_id,
+            category="submission_requirement",
+            relevance_score=6.0,
+            priority_lane="national_core",
+            source_priority_score=20.0,
+            provision_context="main",
+            context_priority_score=0,
+            reasons=[],
+            extraction_method="deterministic",
+            model_version="test",
+            status="reviewed",
+        )
+        db.add_all([q1,q2]); db.commit()
+
+    summary=client.get("/legal-review-queue/summary",params={"q":"テスト集計55"})
+    assert summary.status_code==200
+    body=summary.json()
+    assert body["total"]==2
+    assert body["by_status"]["pending"]==1
+    assert body["by_status"]["reviewed"]==1
+    assert body["by_category"]["equipment_requirement"]==1
+    assert body["by_category"]["submission_requirement"]==1
+
+    pending=client.get("/legal-review-queue",params={
+        "q":"テスト集計55",
+        "queue_status":"pending",
+        "min_review_priority":25,
+        "limit":50,
+        "offset":0,
+    })
+    assert pending.status_code==200
+    assert len(pending.json())==1
+    assert pending.json()[0]["category"]=="equipment_requirement"
+
+    too_high=client.get("/legal-review-queue",params={
+        "q":"テスト集計55",
+        "queue_status":"",
+        "min_review_priority":29,
+    })
+    assert too_high.status_code==200
+    assert too_high.json()==[]
