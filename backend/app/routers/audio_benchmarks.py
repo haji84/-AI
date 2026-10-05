@@ -13,6 +13,7 @@ from ..authz import require_permission
 from ..db import get_db
 from ..models import FireAudioBenchmarkRun, User
 from ..schemas import (
+    FireAudioBenchmarkComparisonOut,
     FireAudioBenchmarkRunCreate,
     FireAudioBenchmarkRunOut,
     FireAudioBenchmarkRunReview,
@@ -55,6 +56,21 @@ def _validate_result(payload: dict) -> tuple[str, str | None, int]:
     return fmt, manifest_sha, recording_count
 
 
+def _metric_triplet(payload: dict) -> dict:
+    aggregate = payload.get("aggregate")
+    if isinstance(aggregate, dict):
+        return {
+            "cer": float((aggregate.get("text_micro") or {}).get("cer", 0)),
+            "speaker_error_rate": float((aggregate.get("diarization_micro") or {}).get("speaker_error_rate", 0)),
+            "uncertainty_f1": float((aggregate.get("uncertainty_markers_micro") or {}).get("f1", 0)),
+        }
+    return {
+        "cer": float((payload.get("text") or {}).get("cer", 0)),
+        "speaker_error_rate": float((payload.get("diarization") or {}).get("speaker_error_rate", 0)),
+        "uncertainty_f1": float((payload.get("uncertainty_markers") or {}).get("f1", 0)),
+    }
+
+
 def _out(row: FireAudioBenchmarkRun) -> FireAudioBenchmarkRunOut:
     return FireAudioBenchmarkRunOut(
         fire_audio_benchmark_run_id=row.fire_audio_benchmark_run_id,
@@ -70,6 +86,53 @@ def _out(row: FireAudioBenchmarkRun) -> FireAudioBenchmarkRunOut:
         version=row.version,
         created_at=row.created_at.isoformat(),
         reviewed_at=row.reviewed_at.isoformat() if row.reviewed_at else None,
+    )
+
+
+@router.get("/compare", response_model=FireAudioBenchmarkComparisonOut)
+def compare_audio_benchmarks(
+    left_id: str,
+    right_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("fire_investigation.read")),
+):
+    left = db.get(FireAudioBenchmarkRun, left_id)
+    right = db.get(FireAudioBenchmarkRun, right_id)
+    if not left or not right:
+        raise HTTPException(status_code=404, detail="audio benchmark run not found")
+    lm = _metric_triplet(left.result_payload or {})
+    rm = _metric_triplet(right.result_payload or {})
+    return FireAudioBenchmarkComparisonOut(
+        left_id=left.fire_audio_benchmark_run_id,
+        right_id=right.fire_audio_benchmark_run_id,
+        left_dataset_label=left.dataset_label,
+        right_dataset_label=right.dataset_label,
+        left_review_status=left.review_status,
+        right_review_status=right.review_status,
+        metrics={
+            "cer": {
+                "left": lm["cer"],
+                "right": rm["cer"],
+                "delta_right_minus_left": rm["cer"] - lm["cer"],
+                "lower_is_better": True,
+            },
+            "speaker_error_rate": {
+                "left": lm["speaker_error_rate"],
+                "right": rm["speaker_error_rate"],
+                "delta_right_minus_left": rm["speaker_error_rate"] - lm["speaker_error_rate"],
+                "lower_is_better": True,
+            },
+            "uncertainty_f1": {
+                "left": lm["uncertainty_f1"],
+                "right": rm["uncertainty_f1"],
+                "delta_right_minus_left": rm["uncertainty_f1"] - lm["uncertainty_f1"],
+                "higher_is_better": True,
+            },
+        },
+        note=(
+            "Metric deltas show benchmark movement only. Dataset composition and recording metadata "
+            "must be comparable before treating a delta as a model-quality change."
+        ),
     )
 
 
