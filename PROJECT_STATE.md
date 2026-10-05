@@ -1171,3 +1171,36 @@ Safety:
 - UI cannot bypass backend classification, Rule coverage or response-review gates
 - equipment already present but unmatched is not presented as removable
 - stale reviewed consultation responses continue to be surfaced by backend response state
+
+
+## Phase 6 PDF drawing Human Annotation
+
+Implemented on branch `phase6-pdf-annotation-preview`; CI verification pending:
+- deterministic PDF page preview renderer using existing PyMuPDF dependency
+- no new runtime dependency added
+- PDF preview version: `drawing-pdf-preview-v1`
+- PDF pages are rendered as bounded PNG previews with max dimension 2400px
+- preview metadata API exposes page count and deterministic pixel dimensions
+- page preview API returns PNG plus page number / dimensions / preview-version headers
+- ETag is bound to source document SHA, page number, preview version and rendered dimensions
+- image drawing preview metadata preserves original pixel coordinates
+- drawing consultation UI now supports page navigation for multi-page PDF drawings
+- PDF pages use the same SVG Human Annotation overlay used for image drawings
+- room polygons persist the correct `page_no`
+- Annotation `page_dimensions` are stored per page
+- only current-page room polygons and equipment placement markers are drawn
+- AI-seeded and manual Annotation flows preserve multi-page dimensions
+- backend E2E covers:
+  - two-page PDF detection
+  - PNG render for page 1 and page 2
+  - out-of-range page rejection
+  - deterministic preview headers
+  - image original pixel-space metadata
+  - PDF-only page-preview route guard
+- frontend contract test protects preview-info, page-preview, page navigation and page_no wiring
+
+Safety:
+- the original PDF remains the source document and is not overwritten
+- rendered PNG is a derived preview only
+- Human Annotation stores source page number and preview pixel dimensions
+- AI output still does not become Human Reference without explicit review
