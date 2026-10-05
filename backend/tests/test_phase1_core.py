@@ -4346,3 +4346,266 @@ def test_phase6_human_annotation_review_rejects_room_without_geometry_or_use():
         "status":"reviewed",
     })
     assert review.status_code==422
+
+
+
+def test_phase6_drawing_consultation_requires_classification_before_equipment():
+    login()
+
+    equipment_type=client.post("/equipment-types",json={
+        "code":"consult-test-extinguisher",
+        "name":"相談用テスト消火設備",
+        "category":"test",
+        "metadata":{}
+    })
+    assert equipment_type.status_code==201
+
+    classification_rule=client.post("/legal-rules",json={
+        "rule_code":"TEST-OCC-ASSEMBLY",
+        "name":"相談用テスト用途分類",
+        "domain":"occupancy_classification",
+        "description":"unit test only"
+    })
+    assert classification_rule.status_code==201
+    classification_rule_id=classification_rule.json()["rule_id"]
+
+    classification_version=client.post(
+        f"/legal-rules/{classification_rule_id}/versions",
+        json={
+            "version_no":1,
+            "effective_from":"2026-01-01",
+            "conditions":{"all":[{"field":"primary_use","op":"eq","value":"test_assembly"}]},
+            "outcome":{
+                "decision":"classification_candidate",
+                "classification_code":"TEST-A",
+                "classification_label":"テスト集会用途"
+            },
+            "source_reference":"unit-test-classification-source"
+        }
+    )
+    assert classification_version.status_code==201
+    classification_version_id=classification_version.json()["legal_rule_version_id"]
+    approved=client.post(
+        f"/legal-rules/versions/{classification_version_id}/approve",
+        json={"expected_version":1}
+    )
+    assert approved.status_code==200
+
+    equipment_rule=client.post("/legal-rules",json={
+        "rule_code":"TEST-EQ-A",
+        "name":"相談用テスト設備要件",
+        "domain":"equipment_requirement",
+        "description":"unit test only"
+    })
+    assert equipment_rule.status_code==201
+    equipment_rule_id=equipment_rule.json()["rule_id"]
+    equipment_version=client.post(
+        f"/legal-rules/{equipment_rule_id}/versions",
+        json={
+            "version_no":1,
+            "effective_from":"2026-01-01",
+            "conditions":{"all":[{"field":"classification_code","op":"eq","value":"TEST-A"}]},
+            "outcome":{
+                "decision":"required",
+                "equipment_type_code":"consult-test-extinguisher",
+                "comparison_mode":"presence"
+            },
+            "source_reference":"unit-test-equipment-source"
+        }
+    )
+    assert equipment_version.status_code==201
+    equipment_version_id=equipment_version.json()["legal_rule_version_id"]
+    assert client.post(
+        f"/legal-rules/versions/{equipment_version_id}/approve",
+        json={"expected_version":1}
+    ).status_code==200
+
+    placement_rule=client.post("/legal-rules",json={
+        "rule_code":"TEST-PLACE-A",
+        "name":"相談用テスト配置要件",
+        "domain":"equipment_placement",
+        "description":"unit test only"
+    })
+    assert placement_rule.status_code==201
+    placement_rule_id=placement_rule.json()["rule_id"]
+    placement_version=client.post(
+        f"/legal-rules/{placement_rule_id}/versions",
+        json={
+            "version_no":1,
+            "effective_from":"2026-01-01",
+            "conditions":{"all":[
+                {"field":"classification_code","op":"eq","value":"TEST-A"},
+                {"field":"equipment_type_code","op":"eq","value":"consult-test-extinguisher"}
+            ]},
+            "outcome":{
+                "equipment_type_code":"consult-test-extinguisher",
+                "placement_mode":"room_candidate",
+                "target_room_use":["assembly_room"],
+                "constraints":{"unit_test":True}
+            },
+            "source_reference":"unit-test-placement-source"
+        }
+    )
+    assert placement_version.status_code==201
+    placement_version_id=placement_version.json()["legal_rule_version_id"]
+    assert client.post(
+        f"/legal-rules/versions/{placement_version_id}/approve",
+        json={"expected_version":1}
+    ).status_code==200
+
+    facility=client.post("/facilities",json={"name":"図面相談Gate対象"}).json()
+    bid=facility["building_id"]
+    upload=client.post(
+        "/documents/upload",
+        files={"file":("consult-plan.png",b"consult-plan","image/png")},
+        data={"document_type":"drawing","building_id":bid}
+    ).json()
+    analysis=client.post(f"/facilities/{bid}/drawing-analyses",json={
+        "document_id":upload["document_id"],
+        "analysis_method":"manual"
+    })
+    assert analysis.status_code==201
+    aid=analysis.json()["drawing_analysis_id"]
+
+    annotation=client.post(f"/drawing-analyses/{aid}/annotations",json={
+        "coordinate_space":"pixel",
+        "page_dimensions":{"1":{"width":1000,"height":800}},
+        "source_method":"manual",
+        "payload":{
+            "elements":[{
+                "client_ref":"room-1",
+                "page_no":1,
+                "floor_number":1,
+                "element_type":"room",
+                "label":"集会室",
+                "geometry":{"points":[[0,0],[100,0],[100,100],[0,100]]},
+                "extracted_data":{"use_name":"assembly_room"}
+            }],
+            "equipment_candidates":[],
+            "fact_candidates":[{
+                "target_path":"detail.total_floor_area",
+                "proposed_value":{"value":500.0}
+            }]
+        }
+    })
+    assert annotation.status_code==201
+    ann_id=annotation.json()["drawing_annotation_set_id"]
+    reviewed=client.post(f"/drawing-annotations/{ann_id}/review",json={
+        "expected_version":1,
+        "status":"reviewed"
+    })
+    assert reviewed.status_code==200
+
+    consultation=client.post(f"/drawing-analyses/{aid}/consultations",json={
+        "drawing_annotation_set_id":ann_id,
+        "answers":{"primary_use":"test_assembly"}
+    })
+    assert consultation.status_code==201
+    cid=consultation.json()["drawing_consultation_id"]
+    assert consultation.json()["status"]=="draft"
+
+    blocked=client.post(f"/drawing-consultations/{cid}/equipment/evaluate",json={
+        "expected_version":1,
+        "evaluation_date":"2026-10-05"
+    })
+    assert blocked.status_code==409
+    assert "classification" in str(blocked.json()).lower()
+
+    classified=client.post(f"/drawing-consultations/{cid}/classify",json={
+        "expected_version":1,
+        "evaluation_date":"2026-10-05"
+    })
+    assert classified.status_code==200
+    classified_body=classified.json()
+    assert classified_body["status"]=="classification_candidate"
+    assert len(classified_body["classification_results"])==1
+    candidate=classified_body["classification_results"][0]
+    assert candidate["outcome"]["classification_code"]=="TEST-A"
+
+    confirmed=client.post(f"/drawing-consultations/{cid}/classification/confirm",json={
+        "expected_version":2,
+        "classification_code":"TEST-A",
+        "classification_label":"テスト集会用途",
+        "candidate_rule_version_id":candidate["legal_rule_version_id"],
+        "review_note":"Human confirmed test classification"
+    })
+    assert confirmed.status_code==200
+    assert confirmed.json()["status"]=="classified"
+    assert confirmed.json()["confirmed_classification_code"]=="TEST-A"
+
+    evaluated=client.post(f"/drawing-consultations/{cid}/equipment/evaluate",json={
+        "expected_version":3,
+        "evaluation_date":"2026-10-05"
+    })
+    assert evaluated.status_code==200
+    body=evaluated.json()
+    assert body["status"]=="equipment_evaluated"
+    required=body["equipment_results"][0]["required"]
+    assert len(required)==1
+    assert required[0]["equipment_type_code"]=="consult-test-extinguisher"
+    assert required[0]["state"]=="required_candidate"
+
+    placement=body["placement_results"]
+    assert len(placement)==1
+    assert placement[0]["state"]=="placement_candidate"
+    assert len(placement[0]["markers"])==1
+    marker=placement[0]["markers"][0]
+    assert marker["room_ref"]=="room-1"
+    assert marker["geometry"]["x"]==50.0
+    assert marker["geometry"]["y"]==50.0
+    assert marker["status"]=="candidate"
+
+
+def test_phase6_manual_classification_requires_human_note():
+    login()
+    facility=client.post("/facilities",json={"name":"手動項判定対象"}).json()
+    bid=facility["building_id"]
+    upload=client.post(
+        "/documents/upload",
+        files={"file":("manual-classify.png",b"manual-classify","image/png")},
+        data={"document_type":"drawing","building_id":bid}
+    ).json()
+    aid=client.post(f"/facilities/{bid}/drawing-analyses",json={
+        "document_id":upload["document_id"],
+        "analysis_method":"manual"
+    }).json()["drawing_analysis_id"]
+    ann=client.post(f"/drawing-analyses/{aid}/annotations",json={
+        "payload":{
+            "elements":[{
+                "client_ref":"room-1",
+                "page_no":1,
+                "element_type":"room",
+                "label":"用途未確定室",
+                "geometry":{"x":0,"y":0,"width":10,"height":10},
+                "extracted_data":{"use_name":"unknown_use"}
+            }],
+            "equipment_candidates":[],
+            "fact_candidates":[]
+        }
+    }).json()
+    ann_id=ann["drawing_annotation_set_id"]
+    assert client.post(f"/drawing-annotations/{ann_id}/review",json={
+        "expected_version":1,
+        "status":"reviewed"
+    }).status_code==200
+    consultation=client.post(f"/drawing-analyses/{aid}/consultations",json={
+        "drawing_annotation_set_id":ann_id,
+        "answers":{}
+    }).json()
+    cid=consultation["drawing_consultation_id"]
+
+    blocked=client.post(f"/drawing-consultations/{cid}/classification/confirm",json={
+        "expected_version":1,
+        "classification_code":"MANUAL-X",
+        "classification_label":"手動分類"
+    })
+    assert blocked.status_code==422
+
+    confirmed=client.post(f"/drawing-consultations/{cid}/classification/confirm",json={
+        "expected_version":1,
+        "classification_code":"MANUAL-X",
+        "classification_label":"手動分類",
+        "review_note":"担当者が資料と聞き取りで手動確定"
+    })
+    assert confirmed.status_code==200
+    assert confirmed.json()["confirmed_classification_rule_version_id"] is None
