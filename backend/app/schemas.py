@@ -1728,3 +1728,15 @@ class OccupancyRegressionRunOut(BaseModel):
     version: int
     created_at: str
     reviewed_at: str | None = None
+
+
+class EquipmentRequirementBatchImportRequest(BaseModel):
+    items: list[dict] = Field(min_length=1)
+    source_metadata: dict = Field(default_factory=dict)
+    apply: bool = False
+
+class EquipmentRequirementBatchImportOut(BaseModel):
+    result: dict
+
+class EquipmentRequirementBatchCoverageOut(BaseModel):
+    coverage: dict
