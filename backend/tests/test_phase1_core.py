@@ -5958,3 +5958,167 @@ def test_phase6_equipment_requirement_batch_coverage_tracks_ignore_and_approved_
     assert stale["counts"]["stale_source"] == 1
     assert stale["coverage_complete"] is False
     assert any("stale source" in x for x in stale["blockers"])
+
+
+
+def test_phase6_equipment_regression_detects_over_requirement_and_blocks_acceptance():
+    from datetime import date
+    from app.models import (
+        EquipmentRequirementAuthoringBatch,
+        EquipmentRequirementBatchCandidate,
+        LegalJurisdiction,
+        LegalProvision,
+        LegalProvisionReviewCandidate,
+        LegalRule,
+        LegalRuleVersion,
+        LegalSource,
+        LegalSourceDocument,
+        LegalSourceDocumentVersion,
+    )
+
+    login()
+
+    for code in ["expected-eq","unexpected-eq"]:
+        assert client.post("/equipment-types", json={
+            "code":code,
+            "name":code,
+            "category":"test",
+            "metadata":{}
+        }).status_code == 201
+
+    worklist_sha = "ab"*32
+    with SessionLocal() as db:
+        jurisdiction = LegalJurisdiction(
+            code="TEST-EQ-REG-OVER",
+            name="国",
+            jurisdiction_type="national",
+        )
+        db.add(jurisdiction); db.flush()
+        source = LegalSource(
+            jurisdiction_id=jurisdiction.jurisdiction_id,
+            source_code="eq-reg-over-source",
+            name="Equipment regression over source",
+            source_type="law",
+            adapter_type="manual",
+            base_url="https://example.invalid/",
+        )
+        db.add(source); db.flush()
+        document = LegalSourceDocument(
+            legal_source_id=source.legal_source_id,
+            external_id="336CO0000000037",
+            document_type="cabinet_order",
+            title="消防法施行令",
+        )
+        db.add(document); db.flush()
+        version = LegalSourceDocumentVersion(
+            legal_source_document_id=document.legal_source_document_id,
+            normalized_text="設備回帰試験",
+            structured_content={},
+            sha256="ac"*32,
+            structure_status="structured",
+            structure_parser_version="legal-structure-v2",
+            provision_count=1,
+        )
+        db.add(version); db.flush()
+        provision = LegalProvision(
+            legal_source_document_version_id=version.legal_source_document_version_id,
+            provision_type="article",
+            provision_key="article:設備回帰",
+            sequence_no=1,
+            body_text="設備回帰",
+            content_sha256="ad"*32,
+        )
+        db.add(provision); db.flush()
+        candidate = LegalProvisionReviewCandidate(
+            legal_provision_id=provision.legal_provision_id,
+            category="equipment_requirement",
+            relevance_score=1.0,
+            reasons=[],
+            extraction_method="deterministic",
+            status="ignored",
+        )
+        db.add(candidate); db.flush()
+        batch = EquipmentRequirementAuthoringBatch(
+            worklist_sha256=worklist_sha,
+            worklist_item_count=1,
+            expected_candidate_count=1,
+            import_version="equipment-requirement-batch-v1",
+            source_metadata={"fixture":"over-requirement"},
+        )
+        db.add(batch); db.flush()
+        db.add(EquipmentRequirementBatchCandidate(
+            equipment_requirement_authoring_batch_id=
+                batch.equipment_requirement_authoring_batch_id,
+            legal_provision_review_candidate_id=
+                candidate.legal_provision_review_candidate_id,
+            provision_content_sha256=provision.content_sha256,
+        ))
+
+        for idx, eq_code in enumerate(["expected-eq","unexpected-eq"], start=1):
+            rule = LegalRule(
+                rule_code=f"TEST-OVER-{idx}",
+                name=f"Over requirement {idx}",
+                domain="equipment_requirement",
+                active=True,
+            )
+            db.add(rule); db.flush()
+            db.add(LegalRuleVersion(
+                rule_id=rule.rule_id,
+                version_no=1,
+                effective_from=date(2026,1,1),
+                conditions={
+                    "all":[{"field":"classification_code","op":"eq","value":"OVER-USE"}]
+                },
+                outcome={
+                    "decision":"required",
+                    "equipment_type_code":eq_code,
+                    "comparison_mode":"presence",
+                },
+                source_reference="unit-test",
+                status="approved",
+            ))
+        db.commit()
+
+    case = client.post(
+        "/equipment-regression/cases",
+        json={
+            "worklist_sha256":worklist_sha,
+            "name":"過剰設備検出",
+            "input_snapshot":{"classification_code":"OVER-USE"},
+            "expected_equipment_type_codes":["expected-eq"],
+        },
+    )
+    assert case.status_code == 201
+    case_id = case.json()["equipment_requirement_test_case_id"]
+    assert client.post(
+        f"/equipment-regression/cases/{case_id}/review",
+        json={"expected_version":1,"status":"reviewed"},
+    ).status_code == 200
+
+    run = client.post(
+        "/equipment-regression/runs",
+        json={
+            "worklist_sha256":worklist_sha,
+            "evaluation_date":"2026-10-05",
+        },
+    )
+    assert run.status_code == 201
+    body = run.json()
+    assert body["failed_case_count"] == 1
+    assert body["over_requirement_case_count"] == 1
+    assert body["under_requirement_case_count"] == 0
+    assert body["result_payload"]["overall_pass"] is False
+    case_result = body["result_payload"]["cases"][0]
+    assert case_result["actual_equipment_type_codes"] == ["expected-eq","unexpected-eq"]
+    assert case_result["unexpected_equipment"] == ["unexpected-eq"]
+
+    blocked = client.post(
+        f"/equipment-regression/runs/{body['equipment_requirement_test_run_id']}/review",
+        json={
+            "expected_version":1,
+            "human_decision":"accepted_regression",
+            "review_notes":"Must be blocked",
+        },
+    )
+    assert blocked.status_code == 409
+    assert "did not pass" in str(blocked.json())
