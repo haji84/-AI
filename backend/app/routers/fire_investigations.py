@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -13,6 +15,7 @@ from ..models import (
     Document,
     Facility,
     FireCauseCandidate,
+    FireInvestigationAIManifest,
     FireInvestigationCase,
     FireInvestigationMedia,
     FirePhotoAnnotation,
@@ -24,6 +27,7 @@ from ..models import (
     User,
 )
 from ..schemas import (
+    FireAIManifestIngestOut,
     FireCauseCandidateCreate,
     FireCauseCandidateOut,
     FireCauseCandidateReview,
@@ -34,6 +38,7 @@ from ..schemas import (
     FireInvestigationMediaCreate,
     FireInvestigationMediaOut,
     FireOfficialCauseApprove,
+    FirePhotoAIManifest,
     FirePhotoAnnotationCreate,
     FirePhotoAnnotationOut,
     FirePhotoAnnotationReview,
@@ -41,12 +46,14 @@ from ..schemas import (
     FireReportDraftCreate,
     FireReportDraftOut,
     FireReportDraftReview,
+    FireStatementAIManifest,
     FireStatementDraftCreate,
     FireStatementDraftOut,
     FireStatementDraftReview,
     FireTimelineEventCreate,
     FireTimelineEventOut,
     FireTimelineEventReview,
+    FireTranscriptAIManifest,
     FireTranscriptSegmentCreate,
     FireTranscriptSegmentOut,
     FireTranscriptSegmentReview,
@@ -65,6 +72,48 @@ def _dt(value: str | None) -> datetime | None:
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=timezone.utc)
     return parsed
+
+
+def _manifest_hash(payload) -> str:
+    raw = json.dumps(
+        payload.model_dump(mode="json"),
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def _manifest_out(
+    row: FireInvestigationAIManifest,
+    *,
+    created: bool,
+    derived_ids: list[str],
+) -> FireAIManifestIngestOut:
+    return FireAIManifestIngestOut(
+        fire_investigation_ai_manifest_id=row.fire_investigation_ai_manifest_id,
+        manifest_type=row.manifest_type,
+        manifest_sha256=row.manifest_sha256,
+        model_version=row.model_version,
+        created=created,
+        derived_ids=derived_ids,
+    )
+
+
+def _existing_manifest(
+    db: Session,
+    *,
+    scope_key: str,
+    manifest_type: str,
+    manifest_sha256: str,
+) -> FireInvestigationAIManifest | None:
+    return db.scalar(
+        select(FireInvestigationAIManifest).where(
+            FireInvestigationAIManifest.scope_key == scope_key,
+            FireInvestigationAIManifest.manifest_type == manifest_type,
+            FireInvestigationAIManifest.manifest_sha256 == manifest_sha256,
+        )
+    )
 
 
 def _case_out(row: FireInvestigationCase) -> FireInvestigationCaseOut:
@@ -442,6 +491,81 @@ def list_media(
     return [_media_out(x) for x in rows]
 
 
+@router.post(
+    "/media/{media_id}/photo-ai-manifest",
+    response_model=FireAIManifestIngestOut,
+)
+def ingest_photo_ai_manifest(
+    media_id: str,
+    payload: FirePhotoAIManifest,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("fire_investigation.update")),
+):
+    media = _require_media(db, media_id, "photo")
+    digest = _manifest_hash(payload)
+    scope_key = f"media:{media_id}"
+    existing = _existing_manifest(
+        db,
+        scope_key=scope_key,
+        manifest_type="photo_analysis",
+        manifest_sha256=digest,
+    )
+    if existing:
+        ids = list(db.scalars(
+            select(FirePhotoAnnotation.fire_photo_annotation_id).where(
+                FirePhotoAnnotation.source_manifest_id == existing.fire_investigation_ai_manifest_id
+            )
+        ).all())
+        return _manifest_out(existing, created=False, derived_ids=ids)
+
+    manifest = FireInvestigationAIManifest(
+        fire_investigation_case_id=media.fire_investigation_case_id,
+        fire_investigation_media_id=media_id,
+        scope_key=scope_key,
+        manifest_type="photo_analysis",
+        manifest_sha256=digest,
+        model_version=payload.model_version,
+        payload_metadata=payload.payload_metadata,
+        created_by=user.user_id,
+    )
+    db.add(manifest)
+    db.flush()
+
+    ids: list[str] = []
+    for item in payload.annotations:
+        row = FirePhotoAnnotation(
+            fire_investigation_media_id=media_id,
+            source_manifest_id=manifest.fire_investigation_ai_manifest_id,
+            description=item.description,
+            tags=item.tags,
+            map_position=item.map_position,
+            confidence=item.confidence,
+            source_kind="ai",
+            model_version=payload.model_version,
+            status="pending",
+        )
+        db.add(row)
+        db.flush()
+        ids.append(row.fire_photo_annotation_id)
+
+    write_audit(
+        db,
+        user_id=user.user_id,
+        action="fire_investigation.photo_ai_manifest.ingest",
+        entity_type="fire_investigation_ai_manifest",
+        entity_id=manifest.fire_investigation_ai_manifest_id,
+        after={
+            "manifest_sha256": digest,
+            "media_id": media_id,
+            "annotation_count": len(ids),
+        },
+        ai_used=True,
+        ai_model_version=payload.model_version,
+    )
+    db.commit()
+    return _manifest_out(manifest, created=True, derived_ids=ids)
+
+
 @router.post("/media/{media_id}/photo-annotations", response_model=FirePhotoAnnotationOut, status_code=201)
 def create_photo_annotation(
     media_id: str,
@@ -521,6 +645,86 @@ def review_photo_annotation(
     row = db.get(FirePhotoAnnotation, annotation_id)
     db.commit()
     return _photo_out(row)
+
+
+@router.post(
+    "/media/{media_id}/transcript-ai-manifest",
+    response_model=FireAIManifestIngestOut,
+)
+def ingest_transcript_ai_manifest(
+    media_id: str,
+    payload: FireTranscriptAIManifest,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("fire_investigation.update")),
+):
+    media = _require_media(db, media_id, "audio")
+    for item in payload.segments:
+        if item.start_ms is not None and item.end_ms is not None and item.end_ms < item.start_ms:
+            raise HTTPException(status_code=422, detail="end_ms must be >= start_ms")
+
+    digest = _manifest_hash(payload)
+    scope_key = f"media:{media_id}"
+    existing = _existing_manifest(
+        db,
+        scope_key=scope_key,
+        manifest_type="transcript",
+        manifest_sha256=digest,
+    )
+    if existing:
+        ids = list(db.scalars(
+            select(FireTranscriptSegment.fire_transcript_segment_id).where(
+                FireTranscriptSegment.source_manifest_id == existing.fire_investigation_ai_manifest_id
+            ).order_by(FireTranscriptSegment.start_ms, FireTranscriptSegment.created_at)
+        ).all())
+        return _manifest_out(existing, created=False, derived_ids=ids)
+
+    manifest = FireInvestigationAIManifest(
+        fire_investigation_case_id=media.fire_investigation_case_id,
+        fire_investigation_media_id=media_id,
+        scope_key=scope_key,
+        manifest_type="transcript",
+        manifest_sha256=digest,
+        model_version=payload.model_version,
+        payload_metadata=payload.payload_metadata,
+        created_by=user.user_id,
+    )
+    db.add(manifest)
+    db.flush()
+
+    ids: list[str] = []
+    for item in payload.segments:
+        row = FireTranscriptSegment(
+            fire_investigation_media_id=media_id,
+            source_manifest_id=manifest.fire_investigation_ai_manifest_id,
+            start_ms=item.start_ms,
+            end_ms=item.end_ms,
+            speaker_label=item.speaker_label,
+            text=item.text,
+            confidence=item.confidence,
+            source_kind="ai",
+            model_version=payload.model_version,
+            review_status="pending",
+        )
+        db.add(row)
+        db.flush()
+        ids.append(row.fire_transcript_segment_id)
+
+    write_audit(
+        db,
+        user_id=user.user_id,
+        action="fire_investigation.transcript_ai_manifest.ingest",
+        entity_type="fire_investigation_ai_manifest",
+        entity_id=manifest.fire_investigation_ai_manifest_id,
+        after={
+            "manifest_sha256": digest,
+            "media_id": media_id,
+            "segment_count": len(ids),
+        },
+        ai_used=True,
+        ai_model_version=payload.model_version,
+    )
+    db.commit()
+    return _manifest_out(manifest, created=True, derived_ids=ids)
 
 
 @router.post("/media/{media_id}/transcript-segments", response_model=FireTranscriptSegmentOut, status_code=201)
@@ -606,6 +810,111 @@ def review_transcript_segment(
     row = db.get(FireTranscriptSegment, segment_id)
     db.commit()
     return _segment_out(row)
+
+
+@router.post(
+    "/{case_id}/statement-ai-manifest",
+    response_model=FireAIManifestIngestOut,
+)
+def ingest_statement_ai_manifest(
+    case_id: str,
+    payload: FireStatementAIManifest,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("fire_investigation.update")),
+):
+    _require_case(db, case_id)
+    digest = _manifest_hash(payload)
+    scope_key = f"case:{case_id}"
+    existing = _existing_manifest(
+        db,
+        scope_key=scope_key,
+        manifest_type="statement_draft",
+        manifest_sha256=digest,
+    )
+    if existing:
+        ids = list(db.scalars(
+            select(FireStatementDraft.fire_statement_draft_id).where(
+                FireStatementDraft.source_manifest_id == existing.fire_investigation_ai_manifest_id
+            ).order_by(FireStatementDraft.created_at)
+        ).all())
+        return _manifest_out(existing, created=False, derived_ids=ids)
+
+    validated: list[tuple[object, list[FireTranscriptSegment]]] = []
+    for item in payload.statements:
+        if not item.evidence_segment_ids:
+            raise HTTPException(
+                status_code=422,
+                detail="AI statement draft requires at least one accepted transcript segment",
+            )
+        selected_media = None
+        if item.fire_investigation_media_id:
+            selected_media = _require_media(db, item.fire_investigation_media_id, "audio")
+            if selected_media.fire_investigation_case_id != case_id:
+                raise HTTPException(status_code=422, detail="statement media belongs to another case")
+        segments: list[FireTranscriptSegment] = []
+        for segment_id in item.evidence_segment_ids:
+            segment = db.get(FireTranscriptSegment, segment_id)
+            if not segment:
+                raise HTTPException(status_code=422, detail=f"evidence segment not found: {segment_id}")
+            media = db.get(FireInvestigationMedia, segment.fire_investigation_media_id)
+            if not media or media.fire_investigation_case_id != case_id:
+                raise HTTPException(status_code=422, detail="evidence segment belongs to another case")
+            if segment.review_status != "accepted":
+                raise HTTPException(
+                    status_code=409,
+                    detail="AI statement draft can use only Human-accepted transcript segments",
+                )
+            if selected_media and segment.fire_investigation_media_id != selected_media.fire_investigation_media_id:
+                raise HTTPException(status_code=422, detail="evidence segment does not belong to selected audio media")
+            segments.append(segment)
+        validated.append((item, segments))
+
+    manifest = FireInvestigationAIManifest(
+        fire_investigation_case_id=case_id,
+        scope_key=scope_key,
+        manifest_type="statement_draft",
+        manifest_sha256=digest,
+        model_version=payload.model_version,
+        payload_metadata=payload.payload_metadata,
+        created_by=user.user_id,
+    )
+    db.add(manifest)
+    db.flush()
+
+    ids: list[str] = []
+    for item, _segments in validated:
+        row = FireStatementDraft(
+            fire_investigation_case_id=case_id,
+            fire_investigation_media_id=item.fire_investigation_media_id,
+            source_manifest_id=manifest.fire_investigation_ai_manifest_id,
+            person_label=item.person_label,
+            draft_text=item.draft_text,
+            evidence_segment_ids=item.evidence_segment_ids,
+            ai_generated=True,
+            model_version=payload.model_version,
+            status="draft",
+            created_by=user.user_id,
+        )
+        db.add(row)
+        db.flush()
+        ids.append(row.fire_statement_draft_id)
+
+    write_audit(
+        db,
+        user_id=user.user_id,
+        action="fire_investigation.statement_ai_manifest.ingest",
+        entity_type="fire_investigation_ai_manifest",
+        entity_id=manifest.fire_investigation_ai_manifest_id,
+        after={
+            "manifest_sha256": digest,
+            "case_id": case_id,
+            "statement_count": len(ids),
+        },
+        ai_used=True,
+        ai_model_version=payload.model_version,
+    )
+    db.commit()
+    return _manifest_out(manifest, created=True, derived_ids=ids)
 
 
 @router.post("/{case_id}/statements", response_model=FireStatementDraftOut, status_code=201)
