@@ -1740,3 +1740,60 @@ class EquipmentRequirementBatchImportOut(BaseModel):
 
 class EquipmentRequirementBatchCoverageOut(BaseModel):
     coverage: dict
+
+
+class EquipmentRegressionCaseCreate(BaseModel):
+    worklist_sha256: str = Field(min_length=64, max_length=64)
+    name: str = Field(min_length=1, max_length=300)
+    input_snapshot: dict
+    expected_equipment_type_codes: list[str] = Field(default_factory=list)
+    notes: str | None = None
+
+class EquipmentRegressionCaseUpdate(BaseModel):
+    expected_version: int = Field(ge=1)
+    name: str = Field(min_length=1, max_length=300)
+    input_snapshot: dict
+    expected_equipment_type_codes: list[str] = Field(default_factory=list)
+    notes: str | None = None
+
+class EquipmentRegressionCaseReview(BaseModel):
+    expected_version: int = Field(ge=1)
+    status: Literal["reviewed","rejected"]
+
+class EquipmentRegressionCaseOut(BaseModel):
+    equipment_requirement_test_case_id: str
+    worklist_sha256: str
+    name: str
+    input_snapshot: dict
+    expected_equipment_type_codes: list[str]
+    notes: str | None = None
+    status: str
+    version: int
+    created_at: str
+    reviewed_at: str | None = None
+
+class EquipmentRegressionRunCreate(BaseModel):
+    worklist_sha256: str = Field(min_length=64, max_length=64)
+    evaluation_date: str | None = None
+
+class EquipmentRegressionRunReview(BaseModel):
+    expected_version: int = Field(ge=1)
+    human_decision: Literal["accepted_regression","rejected_regression"]
+    review_notes: str | None = None
+
+class EquipmentRegressionRunOut(BaseModel):
+    equipment_requirement_test_run_id: str
+    worklist_sha256: str
+    result_sha256: str
+    case_count: int
+    passed_case_count: int
+    failed_case_count: int
+    over_requirement_case_count: int
+    under_requirement_case_count: int
+    result_payload: dict
+    review_status: str
+    human_decision: str | None = None
+    review_notes: str | None = None
+    version: int
+    created_at: str
+    reviewed_at: str | None = None
