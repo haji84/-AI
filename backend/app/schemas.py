@@ -1564,6 +1564,9 @@ class DrawingAnnotationSetCreate(BaseModel):
     payload: dict = Field(default_factory=dict)
     source_method: Literal["manual","ai_seed","import"] = "manual"
 
+class DrawingAnnotationReferenceImport(BaseModel):
+    reference: dict
+
 class DrawingAnnotationSeedCreate(BaseModel):
     expected_analysis_version: int = Field(ge=1)
     coordinate_space: Literal["pixel","normalized"] = "pixel"
