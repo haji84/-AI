@@ -280,7 +280,8 @@ def _aggregate(drawings: list[dict], iou_threshold: float) -> dict:
     geometry = _prf(gtp, gfp, gfn)
     geometry["iou_threshold"] = iou_threshold
     weighted_iou = sum(
-        x["metrics"]["geometry_detection"]["mean_iou"] * x["metrics"]["geometry_detection"]["true_positive"]
+        (x["metrics"]["geometry_detection"]["mean_iou"] or 0.0)
+        * x["metrics"]["geometry_detection"]["true_positive"]
         for x in drawings
     )
     geometry["mean_iou"] = weighted_iou / gtp if gtp else None
