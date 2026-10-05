@@ -3086,3 +3086,52 @@ def test_phase7_4_approved_report_renders_registered_excel_template_without_modi
     assert case_after.status_code==200
     assert case_after.json()["case"]["final_report_document_id"]==exp["output_document_id"]
     assert case_after.json()["case"]["version"]==2
+
+
+def test_phase7_4_docx_renderer_preserves_source_and_rejects_split_placeholder(tmp_path):
+    from docx import Document as WordDocument
+    from app.official_form_renderer import (
+        TemplateRenderError,
+        render_template,
+        sha256_file,
+    )
+
+    source=tmp_path/"template.docx"
+    output=tmp_path/"output.docx"
+    doc=WordDocument()
+    doc.add_paragraph("正式様式原本")
+    p=doc.add_paragraph()
+    p.add_run("番号: {{case_number}}")
+    doc.save(source)
+
+    before=sha256_file(source)
+    manifest=render_template(
+        source,
+        output,
+        {"case_number":{"placeholder":"{{case_number}}"}},
+        {"case_number":"FIRE-DOCX-74"},
+    )
+    assert manifest["format"]=="docx"
+    assert manifest["applied"][0]["occurrences"]==1
+    assert sha256_file(source)==before
+
+    rendered=WordDocument(output)
+    assert any("番号: FIRE-DOCX-74" in p.text for p in rendered.paragraphs)
+    assert any("正式様式原本" in p.text for p in rendered.paragraphs)
+
+    split_source=tmp_path/"split.docx"
+    split_output=tmp_path/"split-out.docx"
+    split=WordDocument()
+    p=split.add_paragraph()
+    p.add_run("{{case_")
+    p.add_run("number}}")
+    split.save(split_source)
+
+    with pytest.raises(TemplateRenderError,match="spans multiple runs"):
+        render_template(
+            split_source,
+            split_output,
+            {"case_number":{"placeholder":"{{case_number}}"}},
+            {"case_number":"FIRE-DOCX-74"},
+        )
+    assert not split_output.exists()
