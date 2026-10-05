@@ -30,14 +30,19 @@ def test_phase6_drawing_consultation_workspace_is_wired_to_human_gates():
     assert not missing, f"Phase 6 drawing consultation UI wiring missing: {missing}"
 
 
-def test_phase6_drawing_consultation_workspace_keeps_pdf_visual_annotation_guard():
+def test_phase6_drawing_consultation_workspace_supports_pdf_page_annotation():
     html = (
         Path(__file__).resolve().parents[2]
         / "frontend"
         / "index.html"
     ).read_text(encoding="utf-8")
 
-    assert "PDF原本は閲覧できます" in html
-    assert "直接ポリゴンAnnotationは画像原本で利用できます" in html
+    assert "/preview-info" in html
+    assert "/pages/" in html
+    assert "/preview" in html
+    assert "changeDrawingWorkspacePage" in html
+    assert "pageCount>1" in html
+    assert "page_no:page" in html
+    assert "Number(x.page_no||1)!==currentPage" in html
     assert "AI解析結果は正解データではありません" in html
     assert "Human確認済みにする" in html
