@@ -1633,3 +1633,18 @@ class OccupancyCatalogImportOut(BaseModel):
     apply: bool
     stats: dict
     note: str
+
+
+class LegalStructureRebuildRequest(BaseModel):
+    expected_sha256: str | None = Field(default=None, min_length=64, max_length=64)
+    force: bool = False
+
+class LegalStructureRebuildOut(BaseModel):
+    changed: bool
+    result: dict
+
+class OccupancyCatalogReadinessRequest(BaseModel):
+    catalog: dict
+
+class OccupancyCatalogReadinessOut(BaseModel):
+    readiness: dict
