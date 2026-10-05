@@ -239,6 +239,12 @@ Latest verified project-checks checkpoint:
 
 ## Next slice
 
+1. Phase 7 fire investigation case management, photos, audio/statements and report drafting
+2. real drawing-model benchmark and symbol/geometry acceptance tests
+3. continue legal Rule authoring and production Host Gates
+
+<!-- superseded Phase 5.7 list retained in history -->
+
 1. compare Approved submission-requirement Rules against actual submission records
 2. report missing-submission candidates only when an Approved Rule explicitly requires that submission
 3. build installed-equipment registry
@@ -249,3 +255,40 @@ Latest verified project-checks checkpoint:
 8. then connect Phase 6 drawing analysis to the same requirement engine
 
 Do not report Rule completeness or production legal compliance until Human-approved Rules and production Host Gates are complete.
+
+## Phase 6 drawing analysis foundation
+
+Code-complete and CI-verified.
+
+Implemented:
+- Migration 017 drawing analyses/elements/equipment candidates/fact candidates
+- Migration 018 fact application metadata
+- drawing.read / drawing.analyze / drawing.review RBAC
+- drawing upload status: pending
+- normalized Local AI result Manifest
+- idempotent Manifest SHA-256
+- drawing element candidates
+- equipment candidates
+- Facility fact candidates
+- Human accept/reject
+- accepted equipment -> FacilityEquipment ai_candidate only
+- independent verification required before verified
+- accepted fact -> strict target-path Allowlist
+- Facility optimistic lock on fact application
+- exact source drawing Document linkage
+- drawing review completion only after pending candidates are cleared
+- facility UI for drawing upload/list/review
+- equipment Rule comparison keeps AI/legacy/unverified evidence non-authoritative
+
+Phase 6 verification:
+- GitHub Actions run: 37251037051 SUCCESS
+- backend pytest: 70 passed
+- Migration 017: PASS
+- Migration 018: PASS
+- frontend JS syntax: PASS
+
+Not yet a production-quality drawing AI claim:
+- Local Vision model accuracy E2E remains unexecuted
+- real architectural drawing benchmark remains unexecuted
+- approved LAN PostgreSQL/physical-client Host Gate remains unexecuted
+
