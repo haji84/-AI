@@ -46,14 +46,21 @@ def test_phase6_occupancy_worklist_extracts_schedule_one_table_rows():
     assert result["law_title"] == "消防法施行令"
     assert result["target_appendix"].startswith("別表第一")
     assert result["row_count"] == 3
+    assert result["classification_entry_count"] == 7
     assert result["rows"][0]["cells"] == ["項", "防火対象物"]
     assert result["rows"][1]["cells"] == ["（一）", "テスト用途A"]
     assert result["rows"][1]["domain"] == "occupancy_classification"
+    assert len(result["rows"][1]["classification_entries"]) == 4
+    assert result["rows"][1]["classification_entries"][0]["classification_code"] == "（一）イ"
+    assert result["rows"][1]["classification_entries"][0]["proposed_outcome"]["decision"] == "classification_candidate"
+    assert result["rows"][1]["classification_entries"][0]["proposed_conditions"] == {}
+    assert result["rows"][2]["classification_entries"][1]["classification_code"] == "（二）ロ"
     assert result["rows"][1]["human_review_status"] == "pending"
-    assert result["rows"][1]["proposed_conditions"] == {}
+    assert result["rows"][1]["classification_entries"][0]["conditions_authoring_status"] == "required"
     assert len(result["rows"][1]["row_sha256"]) == 64
     assert result["policy"]["auto_approve"] is False
-    assert result["policy"]["auto_classification_rule"] is False
+    assert result["policy"]["auto_conditions"] is False
+    assert result["policy"]["classification_identity_from_official_table"] is True
 
 
 def test_phase6_occupancy_worklist_rejects_wrong_law_and_missing_schedule():
