@@ -944,6 +944,17 @@ class DrawingFactCandidateOut(BaseModel):
 class DrawingAnalysisReview(BaseModel):
     expected_version: int = Field(ge=1)
 
+class DrawingPreviewInfoOut(BaseModel):
+    drawing_analysis_id: str
+    document_id: str
+    original_filename: str
+    mime_type: str | None = None
+    preview_mode: Literal["image_direct","pdf_pages","unsupported"]
+    page_count: int
+    pages: list[dict] = Field(default_factory=list)
+    render_scale_policy: str | None = None
+
+
 class DrawingAnalysisDetailOut(BaseModel):
     analysis: DrawingAnalysisOut
     elements: list[DrawingElementOut] = Field(default_factory=list)

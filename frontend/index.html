@@ -207,7 +207,7 @@ table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid #e4e8ec;
 
 <script>
 const $=id=>document.getElementById(id);
-const state={offset:0,limit:50,total:0,selected:null,detail:null,mode:null,draft:null,drawings:[],drawingAnalysisId:null,drawingDetail:null,drawingWorkspace:null,drawingDoc:null,drawingAnnotations:[],drawingAnnotation:null,drawingConsultations:[],drawingConsultation:null,drawingResponse:null,drawingPageWidth:0,drawingPageHeight:0,drawingDrawPoints:[],drawingDrawActive:false};
+const state={offset:0,limit:50,total:0,selected:null,detail:null,mode:null,draft:null,drawings:[],drawingAnalysisId:null,drawingDetail:null,drawingWorkspace:null,drawingDoc:null,drawingPreviewInfo:null,drawingPageNo:1,drawingAnnotations:[],drawingAnnotation:null,drawingConsultations:[],drawingConsultation:null,drawingResponse:null,drawingPageWidth:0,drawingPageHeight:0,drawingDrawPoints:[],drawingDrawActive:false};
 const legalReviewState={offset:0,limit:50,total:0};
 const fireState={caseId:null,detail:null,mediaType:null};
 const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
@@ -1200,20 +1200,23 @@ function drawingAnswerLabel(k){
 }
 function closeDrawingWorkspace(){
   $('drawingWorkspaceModal').classList.add('hidden');
-  state.drawingWorkspace=null;state.drawingDoc=null;state.drawingAnnotations=[];state.drawingAnnotation=null;
+  state.drawingWorkspace=null;state.drawingDoc=null;state.drawingPreviewInfo=null;state.drawingPageNo=1;state.drawingAnnotations=[];state.drawingAnnotation=null;
   state.drawingConsultations=[];state.drawingConsultation=null;state.drawingResponse=null;
   state.drawingDrawPoints=[];state.drawingDrawActive=false;state.drawingPageWidth=0;state.drawingPageHeight=0;
 }
 async function openDrawingWorkspace(id){
   try{
     const analysis=await api('/drawing-analyses/'+id);
-    const [doc,annotations,consultations]=await Promise.all([
+    const [doc,previewInfo,annotations,consultations]=await Promise.all([
       api('/documents/'+analysis.analysis.document_id),
+      api('/drawing-analyses/'+id+'/preview-info'),
       api('/drawing-analyses/'+id+'/annotations'),
       api('/drawing-analyses/'+id+'/consultations')
     ]);
     state.drawingWorkspace=analysis;
     state.drawingDoc=doc;
+    state.drawingPreviewInfo=previewInfo;
+    if(!state.drawingPageNo||state.drawingPageNo>previewInfo.page_count)state.drawingPageNo=1;
     state.drawingAnnotations=annotations||[];
     const currentAnnId=state.drawingAnnotation?.drawing_annotation_set_id;
     state.drawingAnnotation=(annotations||[]).find(x=>x.drawing_annotation_set_id===currentAnnId)
@@ -1250,7 +1253,21 @@ function selectDrawingConsultation(id){
 function drawingWorkspaceImageLoaded(img){
   state.drawingPageWidth=img.naturalWidth||state.drawingPageWidth||1024;
   state.drawingPageHeight=img.naturalHeight||state.drawingPageHeight||768;
+  const ann=state.drawingAnnotation;
+  if(ann&&ann.status==='draft'){
+    ann.page_dimensions=ann.page_dimensions||{};
+    const page=String(state.drawingPageNo||1);
+    if(!ann.page_dimensions[page])ann.page_dimensions[page]={width:state.drawingPageWidth,height:state.drawingPageHeight};
+  }
   renderDrawingOverlay();
+}
+function changeDrawingWorkspacePage(page){
+  const count=state.drawingPreviewInfo?.page_count||1;
+  const n=Math.max(1,Math.min(count,Number(page)||1));
+  state.drawingPageNo=n;state.drawingDrawPoints=[];state.drawingDrawActive=false;
+  const info=(state.drawingPreviewInfo?.pages||[]).find(x=>Number(x.page_no)===n);
+  if(info){state.drawingPageWidth=Number(info.width)||0;state.drawingPageHeight=Number(info.height)||0}
+  renderDrawingWorkspace();
 }
 function drawingGeometryPoints(g){
   if(!g||typeof g!=='object')return[];
@@ -1261,9 +1278,11 @@ function drawingGeometryPoints(g){
   return[];
 }
 function drawingWorkspaceDimensions(){
+  const page=state.drawingPageNo||1;
   const dims=state.drawingAnnotation?.page_dimensions||{};
-  const one=dims['1']||dims[1]||{};
-  return {w:Number(one.width)||state.drawingPageWidth||1024,h:Number(one.height)||state.drawingPageHeight||768};
+  const own=dims[String(page)]||dims[page]||{};
+  const info=(state.drawingPreviewInfo?.pages||[]).find(x=>Number(x.page_no)===Number(page))||{};
+  return {w:Number(own.width)||Number(info.width)||state.drawingPageWidth||1024,h:Number(own.height)||Number(info.height)||state.drawingPageHeight||768};
 }
 function renderDrawingOverlay(){
   const svg=$('drawingOverlay');if(!svg)return;
@@ -1271,8 +1290,9 @@ function renderDrawingOverlay(){
   svg.classList.toggle('editing',!!state.drawingDrawActive);
   const elements=state.drawingAnnotation?.payload?.elements||[];
   let html='';
+  const currentPage=Number(state.drawingPageNo||1);
   elements.forEach((x,i)=>{
-    if(x.element_type!=='room')return;
+    if(x.element_type!=='room'||Number(x.page_no||1)!==currentPage)return;
     const pts=drawingGeometryPoints(x.geometry);
     if(pts.length<3)return;
     const pointText=pts.map(p=>p[0]+','+p[1]).join(' ');
@@ -1282,6 +1302,7 @@ function renderDrawingOverlay(){
   });
   const markers=state.drawingResponse?.overlay_markers||[];
   markers.forEach(m=>{
+    if(Number(m.page_no||1)!==currentPage)return;
     const x=Number(m.geometry?.x),y=Number(m.geometry?.y);if(!Number.isFinite(x)||!Number.isFinite(y))return;
     html+='<circle cx="'+x+'" cy="'+y+'" r="8" fill="#fff" stroke="#8c2323" stroke-width="3"/>';
     html+='<text x="'+(x+11)+'" y="'+(y-8)+'" font-size="13" fill="#8c2323">'+esc(m.equipment_type_code||'設備')+'</text>';
@@ -1313,8 +1334,9 @@ function finishDrawingRoom(){
   const floorRaw=$('humanRoomFloor')?.value.trim()||'';
   const floor=floorRaw===''?null:Number(floorRaw);
   const ann=state.drawingAnnotation;ann.payload=ann.payload||{};ann.payload.elements=ann.payload.elements||[];
-  ann.payload.elements.push({client_ref:'room-human-'+Date.now(),page_no:1,element_type:'room',label:label||null,floor_number:Number.isFinite(floor)?floor:null,geometry:{points:state.drawingDrawPoints.map(p=>[p[0],p[1]])},extracted_data:{use_name:use||null}});
-  const dim=drawingWorkspaceDimensions();ann.page_dimensions=ann.page_dimensions||{};ann.page_dimensions['1']={width:dim.w,height:dim.h};
+  const page=Number(state.drawingPageNo||1);
+  ann.payload.elements.push({client_ref:'room-human-'+Date.now(),page_no:page,element_type:'room',label:label||null,floor_number:Number.isFinite(floor)?floor:null,geometry:{points:state.drawingDrawPoints.map(p=>[p[0],p[1]])},extracted_data:{use_name:use||null}});
+  const dim=drawingWorkspaceDimensions();ann.page_dimensions=ann.page_dimensions||{};ann.page_dimensions[String(page)]={width:dim.w,height:dim.h};
   state.drawingDrawActive=false;state.drawingDrawPoints=[];renderDrawingWorkspace();
 }
 function removeDrawingRoom(index){
@@ -1324,14 +1346,14 @@ function removeDrawingRoom(index){
 async function seedDrawingAnnotation(){
   try{
     const a=state.drawingWorkspace.analysis,dim=drawingWorkspaceDimensions();
-    const row=await api('/drawing-analyses/'+a.drawing_analysis_id+'/annotations/seed',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_analysis_version:a.version,coordinate_space:'pixel',page_dimensions:{'1':{width:dim.w,height:dim.h}}})});
+    const row=await api('/drawing-analyses/'+a.drawing_analysis_id+'/annotations/seed',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_analysis_version:a.version,coordinate_space:'pixel',page_dimensions:{[String(state.drawingPageNo||1)]:{width:dim.w,height:dim.h}}})});
     state.drawingAnnotation=row;await refreshDrawingWorkspace();
   }catch(e){alert('Annotation下書きを作れません: '+e.message)}
 }
 async function createEmptyDrawingAnnotation(){
   try{
     const a=state.drawingWorkspace.analysis,dim=drawingWorkspaceDimensions();
-    const row=await api('/drawing-analyses/'+a.drawing_analysis_id+'/annotations',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({coordinate_space:'pixel',page_dimensions:{'1':{width:dim.w,height:dim.h}},payload:{elements:[],equipment_candidates:[],fact_candidates:[]},source_method:'manual'})});
+    const row=await api('/drawing-analyses/'+a.drawing_analysis_id+'/annotations',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({coordinate_space:'pixel',page_dimensions:{[String(state.drawingPageNo||1)]:{width:dim.w,height:dim.h}},payload:{elements:[],equipment_candidates:[],fact_candidates:[]},source_method:'manual'})});
     state.drawingAnnotation=row;await refreshDrawingWorkspace();
   }catch(e){alert('空のAnnotationを作れません: '+e.message)}
 }
@@ -1451,13 +1473,13 @@ function renderDrawingResponse(r){
 function renderDrawingWorkspace(){
   const a=state.drawingWorkspace?.analysis,doc=state.drawingDoc,ann=state.drawingAnnotation,consult=state.drawingConsultation;
   if(!a||!doc){$('drawingWorkspaceBody').innerHTML='<div class="empty">読み込み中</div>';return}
-  const isImage=(doc.mime_type||'').startsWith('image/'),isPdf=(doc.mime_type||'')==='application/pdf'||/\.pdf$/i.test(doc.original_filename||'');
+  const previewInfo=state.drawingPreviewInfo||{},previewMode=previewInfo.preview_mode||'unsupported',pageCount=previewInfo.page_count||1,currentPage=state.drawingPageNo||1;
+  const isVisual=previewMode==='image_direct'||previewMode==='pdf_pages';
   const annSelect=state.drawingAnnotations.length?'<select onchange="selectDrawingAnnotation(this.value)">'+state.drawingAnnotations.map(x=>'<option value="'+esc(x.drawing_annotation_set_id)+'" '+(ann?.drawing_annotation_set_id===x.drawing_annotation_set_id?'selected':'')+'>'+esc(drawingWorkspaceStatusLabel(x.status))+' / v'+esc(x.version)+' / '+esc(x.source_method)+'</option>').join('')+'</select>':'';
+  const pageNav=pageCount>1?'<div class="row" style="margin-bottom:8px"><b>ページ</b><select onchange="changeDrawingWorkspacePage(this.value)">'+Array.from({length:pageCount},(_,i)=>'<option value="'+(i+1)+'" '+(currentPage===i+1?'selected':'')+'>'+(i+1)+' / '+pageCount+'</option>').join('')+'</select><span class="muted">'+esc(previewInfo.render_scale_policy||'')+'</span></div>':'';
   let preview='';
-  if(isImage){
-    preview='<div class="drawingStage"><img id="drawingWorkspaceImage" src="/documents/'+encodeURIComponent(doc.document_id)+'/download" onload="drawingWorkspaceImageLoaded(this)"><svg id="drawingOverlay" class="drawingOverlay" onclick="drawingOverlayClick(event)"></svg></div>';
-  }else if(isPdf){
-    preview='<div class="drawingStage"><object data="/documents/'+encodeURIComponent(doc.document_id)+'/download" type="application/pdf"></object></div><div class="notice">PDF原本は閲覧できます。画面上での直接ポリゴンAnnotationは画像原本で利用できます。AI Seedの部屋ラベル・用途は右側で保持できます。</div>';
+  if(isVisual){
+    preview=pageNav+'<div class="drawingStage"><img id="drawingWorkspaceImage" src="/drawing-analyses/'+encodeURIComponent(a.drawing_analysis_id)+'/pages/'+encodeURIComponent(currentPage)+'/preview" onload="drawingWorkspaceImageLoaded(this)"><svg id="drawingOverlay" class="drawingOverlay" onclick="drawingOverlayClick(event)"></svg></div>';
   }else{
     preview='<div class="empty">この形式は画面プレビュー対象外です。原本を別タブで確認してください。</div>';
   }
@@ -1466,11 +1488,11 @@ function renderDrawingWorkspace(){
     annHtml='<div class="card"><div class="sectionTitle">Human Annotation</div><div class="notice">AI解析結果は正解データではありません。下書きを作り、部屋位置・部屋名・用途をHuman確認してください。</div><div class="row"><button class="btn primary" onclick="seedDrawingAnnotation()">AI解析から下書き</button><button class="btn" onclick="createEmptyDrawingAnnotation()">空の下書き</button></div></div>';
   }else{
     const rooms=(ann.payload?.elements||[]).map((x,i)=>({x,i})).filter(z=>z.x.element_type==='room');
-    const roomList=rooms.length?rooms.map(z=>'<div class="drawingRoomRow"><div><b>'+esc(z.x.label||z.x.extracted_data?.use_name||'名称未設定')+'</b><div class="muted">用途 '+esc(z.x.extracted_data?.use_name||'－')+' / 階 '+esc(z.x.floor_number??'－')+'</div></div>'+(ann.status==='draft'?'<button class="btn danger" onclick="removeDrawingRoom('+z.i+')">削除</button>':'')+'</div>').join(''):'<div class="muted">部屋Annotationなし</div>';
+    const roomList=rooms.length?rooms.map(z=>'<div class="drawingRoomRow"><div><b>'+esc(z.x.label||z.x.extracted_data?.use_name||'名称未設定')+'</b><div class="muted">頁 '+esc(z.x.page_no||1)+' / 用途 '+esc(z.x.extracted_data?.use_name||'－')+' / 階 '+esc(z.x.floor_number??'－')+'</div></div>'+(ann.status==='draft'?'<button class="btn danger" onclick="removeDrawingRoom('+z.i+')">削除</button>':'')+'</div>').join(''):'<div class="muted">部屋Annotationなし</div>';
     annHtml='<div class="card"><div class="row"><div class="sectionTitle grow">Human Annotation</div><span class="pill '+(ann.status==='reviewed'?'active':'')+'">'+esc(drawingWorkspaceStatusLabel(ann.status))+'</span></div>'+
       '<div class="row">'+annSelect+'</div>'+
       (ann.status==='draft'?'<div class="grid3" style="margin-top:8px"><div class="field"><label>部屋名</label><input id="humanRoomLabel" placeholder="例：主寝室"></div><div class="field"><label>用途コード</label><input id="humanRoomUse" placeholder="例：bedroom"></div><div class="field"><label>階</label><input id="humanRoomFloor" type="number" value="1"></div></div>'+
-      (isImage?'<div class="row" style="margin-top:8px"><button class="btn primary" onclick="startDrawingRoom()">部屋を囲う</button><button class="btn" onclick="undoDrawingPoint()">1点戻す</button><button class="btn" onclick="finishDrawingRoom()">この部屋を確定</button><button class="btn" onclick="cancelDrawingRoom()">描画取消</button></div><div class="muted">「部屋を囲う」→原図の角を順にクリック→「この部屋を確定」。</div>':'')+
+      (isVisual?'<div class="row" style="margin-top:8px"><button class="btn primary" onclick="startDrawingRoom()">部屋を囲う</button><button class="btn" onclick="undoDrawingPoint()">1点戻す</button><button class="btn" onclick="finishDrawingRoom()">この部屋を確定</button><button class="btn" onclick="cancelDrawingRoom()">描画取消</button></div><div class="muted">「部屋を囲う」→原図の角を順にクリック→「この部屋を確定」。</div>':'')+
       '<div class="drawingRoomList" style="margin-top:8px">'+roomList+'</div><div class="row" style="margin-top:8px"><button class="btn" onclick="saveDrawingAnnotation()">下書き保存</button><button class="btn primary" onclick="reviewDrawingAnnotation()">Human確認済みにする</button></div>':
       '<div class="drawingRoomList" style="margin-top:8px">'+roomList+'</div><div class="notice">確認済みAnnotationはBenchmark Referenceと相談入力に使用できます。</div>')+
       '</div>';
