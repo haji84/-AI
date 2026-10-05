@@ -6744,3 +6744,86 @@ def test_phase6_consultation_response_review_becomes_stale_when_annotation_chang
     assert rereviewed.json()["answer_state"]=="reviewed"
     assert rereviewed.json()["review_current"] is True
     assert rereviewed.json()["response_sha256"]==stale_body["response_sha256"]
+
+
+
+def test_phase6_pdf_drawing_preview_info_and_page_png():
+    import fitz
+
+    login()
+    pdf = fitz.open()
+    p1 = pdf.new_page(width=400, height=200)
+    p1.insert_text((20, 40), "Drawing page 1")
+    p2 = pdf.new_page(width=300, height=500)
+    p2.insert_text((20, 40), "Drawing page 2")
+    raw = pdf.tobytes()
+    pdf.close()
+
+    facility = client.post(
+        "/facilities",
+        json={"name": "PDF図面Annotation対象"},
+    ).json()
+    bid = facility["building_id"]
+
+    upload = client.post(
+        "/documents/upload",
+        files={
+            "file": (
+                "two-page-plan.pdf",
+                raw,
+                "application/pdf",
+            )
+        },
+        data={"document_type": "drawing", "building_id": bid},
+    )
+    assert upload.status_code == 201
+    doc = upload.json()
+
+    analysis = client.post(
+        f"/facilities/{bid}/drawing-analyses",
+        json={
+            "document_id": doc["document_id"],
+            "analysis_method": "manual",
+        },
+    )
+    assert analysis.status_code == 201
+    aid = analysis.json()["drawing_analysis_id"]
+
+    info = client.get(
+        f"/drawing-analyses/{aid}/preview-info"
+    )
+    assert info.status_code == 200
+    body = info.json()
+    assert body["preview_mode"] == "pdf_pages"
+    assert body["page_count"] == 2
+    assert len(body["pages"]) == 2
+    assert body["pages"][0]["page_no"] == 1
+    assert body["pages"][0]["width"] == 800
+    assert body["pages"][0]["height"] == 400
+    assert body["pages"][1]["page_no"] == 2
+    assert body["pages"][1]["width"] == 600
+    assert body["pages"][1]["height"] == 1000
+    assert "3200" in body["render_scale_policy"]
+
+    preview = client.get(
+        f"/drawing-analyses/{aid}/pages/1/preview"
+    )
+    assert preview.status_code == 200
+    assert preview.headers["content-type"].startswith(
+        "image/png"
+    )
+    assert preview.content[:8] == b"\x89PNG\r\n\x1a\n"
+    assert preview.headers["x-drawing-page-width"] == "800"
+    assert preview.headers["x-drawing-page-height"] == "400"
+
+    second = client.get(
+        f"/drawing-analyses/{aid}/pages/2/preview"
+    )
+    assert second.status_code == 200
+    assert second.headers["x-drawing-page-width"] == "600"
+    assert second.headers["x-drawing-page-height"] == "1000"
+
+    missing = client.get(
+        f"/drawing-analyses/{aid}/pages/3/preview"
+    )
+    assert missing.status_code == 404
