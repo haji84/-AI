@@ -30,6 +30,11 @@ table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid #e4e8ec;
 .drawingStage object{display:block;width:100%;height:72vh;min-height:520px}
 .drawingOverlay{position:absolute;inset:0;width:100%;height:100%;pointer-events:auto}
 .drawingOverlay.editing{cursor:crosshair}
+.drawingOverlay.vertexEditing{cursor:move}
+.drawingVertexHandle{cursor:grab;touch-action:none}
+.drawingVertexHandle:active{cursor:grabbing}
+.drawingRoomRow.selected{border-color:#183b5b;box-shadow:0 0 0 2px rgba(24,59,91,.12)}
+.drawingMetric{font-variant-numeric:tabular-nums}
 .drawingRoomList{display:grid;gap:6px;max-height:220px;overflow:auto}
 .drawingRoomRow{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;padding:8px;border:1px solid #e1e6eb;border-radius:8px;background:#fff}
 .drawingCoverage{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
@@ -207,7 +212,7 @@ table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid #e4e8ec;
 
 <script>
 const $=id=>document.getElementById(id);
-const state={offset:0,limit:50,total:0,selected:null,detail:null,mode:null,draft:null,drawings:[],drawingAnalysisId:null,drawingDetail:null,drawingWorkspace:null,drawingDoc:null,drawingPreviewInfo:null,drawingPageNo:1,drawingAnnotations:[],drawingAnnotation:null,drawingConsultations:[],drawingConsultation:null,drawingResponse:null,drawingPageWidth:0,drawingPageHeight:0,drawingDrawPoints:[],drawingDrawActive:false};
+const state={offset:0,limit:50,total:0,selected:null,detail:null,mode:null,draft:null,drawings:[],drawingAnalysisId:null,drawingDetail:null,drawingWorkspace:null,drawingDoc:null,drawingPreviewInfo:null,drawingPageNo:1,drawingAnnotations:[],drawingAnnotation:null,drawingConsultations:[],drawingConsultation:null,drawingResponse:null,drawingPageWidth:0,drawingPageHeight:0,drawingDrawPoints:[],drawingDrawActive:false,drawingEditElementIndex:null,drawingSelectedVertexIndex:null,drawingDragVertexIndex:null,drawingDragPointerId:null,drawingCalibrationMode:false,drawingCalibrationPoints:[],drawingNewElementType:'room'};
 const legalReviewState={offset:0,limit:50,total:0};
 const fireState={caseId:null,detail:null,mediaType:null};
 const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
@@ -1202,7 +1207,7 @@ function closeDrawingWorkspace(){
   $('drawingWorkspaceModal').classList.add('hidden');
   state.drawingWorkspace=null;state.drawingDoc=null;state.drawingPreviewInfo=null;state.drawingPageNo=1;state.drawingAnnotations=[];state.drawingAnnotation=null;
   state.drawingConsultations=[];state.drawingConsultation=null;state.drawingResponse=null;
-  state.drawingDrawPoints=[];state.drawingDrawActive=false;state.drawingPageWidth=0;state.drawingPageHeight=0;
+  state.drawingDrawPoints=[];state.drawingDrawActive=false;state.drawingEditElementIndex=null;state.drawingSelectedVertexIndex=null;state.drawingDragVertexIndex=null;state.drawingDragPointerId=null;state.drawingCalibrationMode=false;state.drawingCalibrationPoints=[];state.drawingNewElementType='room';state.drawingPageWidth=0;state.drawingPageHeight=0;
 }
 async function openDrawingWorkspace(id){
   try{
@@ -1242,7 +1247,7 @@ async function refreshDrawingWorkspace(){
 }
 function selectDrawingAnnotation(id){
   state.drawingAnnotation=(state.drawingAnnotations||[]).find(x=>x.drawing_annotation_set_id===id)||null;
-  state.drawingDrawPoints=[];state.drawingDrawActive=false;renderDrawingWorkspace();
+  state.drawingDrawPoints=[];state.drawingDrawActive=false;state.drawingEditElementIndex=null;state.drawingSelectedVertexIndex=null;state.drawingDragVertexIndex=null;state.drawingCalibrationMode=false;state.drawingCalibrationPoints=[];renderDrawingWorkspace();
 }
 function selectDrawingConsultation(id){
   state.drawingConsultation=(state.drawingConsultations||[]).find(x=>x.drawing_consultation_id===id)||null;
@@ -1277,6 +1282,131 @@ function drawingGeometryPoints(g){
   if(['x1','y1','x2','y2'].every(k=>g[k]!==undefined)){return[[Number(g.x1),Number(g.y1)],[Number(g.x2),Number(g.y1)],[Number(g.x2),Number(g.y2)],[Number(g.x1),Number(g.y2)]]}
   return[];
 }
+
+function drawingPolygonAreaPx2(points){
+  if(!Array.isArray(points)||points.length<3)return 0;
+  let sum=0;
+  points.forEach((p,i)=>{const q=points[(i+1)%points.length];sum+=Number(p[0])*Number(q[1])-Number(q[0])*Number(p[1])});
+  return Math.abs(sum)/2;
+}
+function drawingPolygonPerimeterPx(points){
+  if(!Array.isArray(points)||points.length<2)return 0;
+  let sum=0;
+  points.forEach((p,i)=>{const q=points[(i+1)%points.length];sum+=Math.hypot(Number(q[0])-Number(p[0]),Number(q[1])-Number(p[1]))});
+  return sum;
+}
+function drawingPageMeta(pageNo=state.drawingPageNo||1){
+  const ann=state.drawingAnnotation;ann.page_dimensions=ann?.page_dimensions||{};
+  return ann?.page_dimensions?.[String(pageNo)]||ann?.page_dimensions?.[pageNo]||null;
+}
+function drawingMetersPerPixel(pageNo=state.drawingPageNo||1){
+  const cal=drawingPageMeta(pageNo)?.calibration;
+  const v=Number(cal?.meters_per_pixel);
+  if(Number.isFinite(v)&&v>0)return v;
+  if(cal?.method==='two_point'&&Array.isArray(cal.point_a)&&Array.isArray(cal.point_b)){
+    const d=Math.hypot(Number(cal.point_b[0])-Number(cal.point_a[0]),Number(cal.point_b[1])-Number(cal.point_a[1]));
+    const m=Number(cal.reference_length_m);
+    if(d>0&&m>0)return m/d;
+  }
+  return null;
+}
+function drawingLocalMetrics(element){
+  const pts=drawingGeometryPoints(element?.geometry||{});
+  if(pts.length<3)return null;
+  const areaPx=drawingPolygonAreaPx2(pts),perimPx=drawingPolygonPerimeterPx(pts),mpp=drawingMetersPerPixel(Number(element.page_no||1));
+  return {
+    area_px2:areaPx,
+    perimeter_px:perimPx,
+    area_m2:mpp?areaPx*mpp*mpp:null,
+    perimeter_m:mpp?perimPx*mpp:null,
+    calibration_status:mpp?'calibrated':'uncalibrated',
+    meters_per_pixel:mpp
+  };
+}
+function drawingMetricLabel(element){
+  const m=drawingLocalMetrics(element)||element?.derived_geometry;
+  if(!m)return '面積未計算';
+  if(m.area_m2!==null&&m.area_m2!==undefined)return Number(m.area_m2).toFixed(2)+'㎡';
+  return Number(m.area_px2||0).toFixed(0)+'px²（縮尺未設定）';
+}
+function recalcDrawingLocalMetrics(){
+  const ann=state.drawingAnnotation;if(!ann?.payload?.elements)return;
+  ann.payload.elements.forEach(x=>{const m=drawingLocalMetrics(x);if(m)x.derived_geometry={...m,calculation:'polygon_shoelace_v1'}});
+}
+function drawingPointerPosition(ev,svg){
+  const rect=svg.getBoundingClientRect(),dim=drawingWorkspaceDimensions();
+  return [
+    Math.round(Math.max(0,Math.min(dim.w,(ev.clientX-rect.left)/rect.width*dim.w))*10)/10,
+    Math.round(Math.max(0,Math.min(dim.h,(ev.clientY-rect.top)/rect.height*dim.h))*10)/10
+  ];
+}
+function selectDrawingElement(index,ev){
+  if(ev){ev.stopPropagation()}
+  if(state.drawingAnnotation?.status!=='draft')return;
+  state.drawingEditElementIndex=Number(index);state.drawingSelectedVertexIndex=null;state.drawingDrawActive=false;renderDrawingWorkspace();
+}
+function beginDrawingVertexDrag(ev,elementIndex,vertexIndex){
+  if(state.drawingAnnotation?.status!=='draft')return;
+  ev.preventDefault();ev.stopPropagation();
+  state.drawingEditElementIndex=Number(elementIndex);
+  state.drawingSelectedVertexIndex=Number(vertexIndex);
+  state.drawingDragVertexIndex=Number(vertexIndex);
+  state.drawingDragPointerId=ev.pointerId;
+  const svg=ev.currentTarget.ownerSVGElement;
+  try{svg.setPointerCapture(ev.pointerId)}catch{}
+}
+function drawingOverlayPointerMove(ev){
+  if(state.drawingDragVertexIndex===null||state.drawingEditElementIndex===null)return;
+  const svg=ev.currentTarget;
+  const element=state.drawingAnnotation?.payload?.elements?.[state.drawingEditElementIndex];if(!element)return;
+  const pts=drawingGeometryPoints(element.geometry);if(pts.length<3)return;
+  pts[state.drawingDragVertexIndex]=drawingPointerPosition(ev,svg);
+  element.geometry={points:pts};
+  recalcDrawingLocalMetrics();renderDrawingOverlay();renderDrawingSelectedMetrics();
+}
+function endDrawingVertexDrag(ev){
+  if(state.drawingDragVertexIndex===null)return;
+  try{ev.currentTarget.releasePointerCapture(state.drawingDragPointerId)}catch{}
+  state.drawingDragVertexIndex=null;state.drawingDragPointerId=null;
+  recalcDrawingLocalMetrics();renderDrawingWorkspace();
+}
+function addDrawingVertex(){
+  const idx=state.drawingEditElementIndex,element=state.drawingAnnotation?.payload?.elements?.[idx];if(!element)return;
+  const pts=drawingGeometryPoints(element.geometry);if(pts.length<3)return;
+  let start=Number.isInteger(state.drawingSelectedVertexIndex)?state.drawingSelectedVertexIndex:0;
+  if(!Number.isInteger(state.drawingSelectedVertexIndex)){
+    let best=-1;
+    pts.forEach((p,i)=>{const q=pts[(i+1)%pts.length],d=Math.hypot(q[0]-p[0],q[1]-p[1]);if(d>best){best=d;start=i}});
+  }
+  const end=(start+1)%pts.length,q=pts[end],p=pts[start],mid=[Math.round((p[0]+q[0])/2*10)/10,Math.round((p[1]+q[1])/2*10)/10];
+  pts.splice(end,0,mid);element.geometry={points:pts};state.drawingSelectedVertexIndex=end;recalcDrawingLocalMetrics();renderDrawingWorkspace();
+}
+function removeDrawingVertex(){
+  const idx=state.drawingEditElementIndex,vi=state.drawingSelectedVertexIndex,element=state.drawingAnnotation?.payload?.elements?.[idx];if(!element||!Number.isInteger(vi))return;
+  const pts=drawingGeometryPoints(element.geometry);if(pts.length<=3){alert('区画は最低3頂点必要です。');return}
+  pts.splice(vi,1);element.geometry={points:pts};state.drawingSelectedVertexIndex=null;recalcDrawingLocalMetrics();renderDrawingWorkspace();
+}
+function renderDrawingSelectedMetrics(){
+  const box=$('drawingSelectedMetrics');if(!box)return;
+  const e=state.drawingAnnotation?.payload?.elements?.[state.drawingEditElementIndex];
+  box.textContent=e?drawingMetricLabel(e):'区画を選択してください';
+}
+function startDrawingCalibration(){
+  if(state.drawingAnnotation?.status!=='draft')return;
+  state.drawingCalibrationMode=true;state.drawingCalibrationPoints=[];state.drawingDrawActive=false;state.drawingEditElementIndex=null;renderDrawingOverlay();
+}
+function cancelDrawingCalibration(){state.drawingCalibrationMode=false;state.drawingCalibrationPoints=[];renderDrawingOverlay()}
+function setDrawingCalibration(points,referenceLengthM){
+  const ann=state.drawingAnnotation,page=String(state.drawingPageNo||1),dim=drawingWorkspaceDimensions();
+  ann.page_dimensions=ann.page_dimensions||{};ann.page_dimensions[page]=ann.page_dimensions[page]||{width:dim.w,height:dim.h};
+  const d=Math.hypot(points[1][0]-points[0][0],points[1][1]-points[0][1]);
+  ann.page_dimensions[page].calibration={method:'two_point',point_a:points[0],point_b:points[1],reference_length_m:referenceLengthM,pixel_distance:d,meters_per_pixel:referenceLengthM/d};
+  recalcDrawingLocalMetrics();
+}
+function clearDrawingCalibration(){
+  const ann=state.drawingAnnotation,page=String(state.drawingPageNo||1);if(ann?.page_dimensions?.[page])delete ann.page_dimensions[page].calibration;
+  state.drawingCalibrationMode=false;state.drawingCalibrationPoints=[];recalcDrawingLocalMetrics();renderDrawingWorkspace();
+}
 function drawingWorkspaceDimensions(){
   const page=state.drawingPageNo||1;
   const dims=state.drawingAnnotation?.page_dimensions||{};
@@ -1287,18 +1417,24 @@ function drawingWorkspaceDimensions(){
 function renderDrawingOverlay(){
   const svg=$('drawingOverlay');if(!svg)return;
   const {w,h}=drawingWorkspaceDimensions();svg.setAttribute('viewBox','0 0 '+w+' '+h);
-  svg.classList.toggle('editing',!!state.drawingDrawActive);
+  svg.classList.toggle('editing',!!state.drawingDrawActive||!!state.drawingCalibrationMode);
+  svg.classList.toggle('vertexEditing',state.drawingDragVertexIndex!==null);
   const elements=state.drawingAnnotation?.payload?.elements||[];
   let html='';
   const currentPage=Number(state.drawingPageNo||1);
   elements.forEach((x,i)=>{
-    if(x.element_type!=='room'||Number(x.page_no||1)!==currentPage)return;
+    if(!['room','zone'].includes(x.element_type)||Number(x.page_no||1)!==currentPage)return;
     const pts=drawingGeometryPoints(x.geometry);
     if(pts.length<3)return;
+    const selected=i===state.drawingEditElementIndex;
     const pointText=pts.map(p=>p[0]+','+p[1]).join(' ');
     const cx=pts.reduce((a,p)=>a+p[0],0)/pts.length,cy=pts.reduce((a,p)=>a+p[1],0)/pts.length;
-    html+='<polygon points="'+esc(pointText)+'" fill="rgba(24,59,91,.12)" stroke="#183b5b" stroke-width="2"/>';
-    html+='<text x="'+cx+'" y="'+cy+'" text-anchor="middle" font-size="14" fill="#183b5b">'+esc(x.label||x.extracted_data?.use_name||('Room '+(i+1)))+'</text>';
+    const stroke=selected?'#8c2323':'#183b5b',fill=selected?'rgba(140,35,35,.12)':'rgba(24,59,91,.12)';
+    html+='<polygon points="'+esc(pointText)+'" fill="'+fill+'" stroke="'+stroke+'" stroke-width="'+(selected?3:2)+'" onclick="selectDrawingElement('+i+',event)"/>';
+    html+='<text x="'+cx+'" y="'+cy+'" text-anchor="middle" font-size="14" fill="'+stroke+'">'+esc(x.label||x.extracted_data?.use_name||('区画 '+(i+1)))+'</text>';
+    if(selected&&state.drawingAnnotation?.status==='draft'){
+      pts.forEach((p,vi)=>{const active=vi===state.drawingSelectedVertexIndex;html+='<circle class="drawingVertexHandle" cx="'+p[0]+'" cy="'+p[1]+'" r="'+(active?7:5)+'" fill="'+(active?'#8c2323':'#fff')+'" stroke="#8c2323" stroke-width="2" onpointerdown="beginDrawingVertexDrag(event,'+i+','+vi+')"/>'});
+    }
   });
   const markers=state.drawingResponse?.overlay_markers||[];
   markers.forEach(m=>{
@@ -1307,6 +1443,11 @@ function renderDrawingOverlay(){
     html+='<circle cx="'+x+'" cy="'+y+'" r="8" fill="#fff" stroke="#8c2323" stroke-width="3"/>';
     html+='<text x="'+(x+11)+'" y="'+(y-8)+'" font-size="13" fill="#8c2323">'+esc(m.equipment_type_code||'設備')+'</text>';
   });
+  if(state.drawingCalibrationPoints.length){
+    const pts=state.drawingCalibrationPoints;
+    if(pts.length===2)html+='<line x1="'+pts[0][0]+'" y1="'+pts[0][1]+'" x2="'+pts[1][0]+'" y2="'+pts[1][1]+'" stroke="#7b4a12" stroke-width="3"/>';
+    pts.forEach(p=>{html+='<circle cx="'+p[0]+'" cy="'+p[1]+'" r="6" fill="#ffcf66" stroke="#7b4a12" stroke-width="2"/>'});
+  }
   if(state.drawingDrawPoints.length){
     const pt=state.drawingDrawPoints.map(p=>p[0]+','+p[1]).join(' ');
     html+='<polyline points="'+esc(pt)+'" fill="rgba(140,35,35,.08)" stroke="#8c2323" stroke-width="2" stroke-dasharray="6 4"/>';
@@ -1315,27 +1456,38 @@ function renderDrawingOverlay(){
   svg.innerHTML=html;
 }
 function drawingOverlayClick(ev){
+  const svg=ev.currentTarget;
+  if(state.drawingCalibrationMode){
+    const point=drawingPointerPosition(ev,svg);state.drawingCalibrationPoints.push(point);
+    if(state.drawingCalibrationPoints.length===2){
+      const raw=prompt('この2点間の実寸をメートルで入力してください 例：1.82','1.82');
+      const length=Number(raw);
+      if(Number.isFinite(length)&&length>0){setDrawingCalibration([...state.drawingCalibrationPoints],length);state.drawingCalibrationMode=false;state.drawingCalibrationPoints=[];renderDrawingWorkspace()}
+      else{alert('0より大きい実寸(m)を入力してください。');state.drawingCalibrationPoints=[]}
+    }
+    renderDrawingOverlay();return;
+  }
   if(!state.drawingDrawActive)return;
-  const svg=ev.currentTarget,rect=svg.getBoundingClientRect(),dim=drawingWorkspaceDimensions();
-  const x=Math.max(0,Math.min(dim.w,(ev.clientX-rect.left)/rect.width*dim.w));
-  const y=Math.max(0,Math.min(dim.h,(ev.clientY-rect.top)/rect.height*dim.h));
-  state.drawingDrawPoints.push([Math.round(x*10)/10,Math.round(y*10)/10]);renderDrawingOverlay();
+  state.drawingDrawPoints.push(drawingPointerPosition(ev,svg));renderDrawingOverlay();
 }
-function startDrawingRoom(){
+function startDrawingRoom(type){
   if(!state.drawingAnnotation||state.drawingAnnotation.status!=='draft')return;
-  state.drawingDrawActive=true;state.drawingDrawPoints=[];renderDrawingOverlay();
+  state.drawingNewElementType=type||$('humanElementType')?.value||'room';
+  state.drawingEditElementIndex=null;state.drawingSelectedVertexIndex=null;state.drawingCalibrationMode=false;state.drawingDrawActive=true;state.drawingDrawPoints=[];renderDrawingOverlay();
 }
 function undoDrawingPoint(){state.drawingDrawPoints.pop();renderDrawingOverlay()}
 function cancelDrawingRoom(){state.drawingDrawActive=false;state.drawingDrawPoints=[];renderDrawingOverlay()}
 function finishDrawingRoom(){
-  if(state.drawingDrawPoints.length<3){alert('部屋は3点以上で囲ってください。');return}
+  if(state.drawingDrawPoints.length<3){alert('区画は3点以上で囲ってください。');return}
   const label=$('humanRoomLabel')?.value.trim()||'';const use=$('humanRoomUse')?.value.trim()||'';
-  if(!label&&!use){alert('部屋名または部屋用途を入力してください。');return}
+  if(!label&&!use){alert('区画名または用途を入力してください。');return}
   const floorRaw=$('humanRoomFloor')?.value.trim()||'';
   const floor=floorRaw===''?null:Number(floorRaw);
   const ann=state.drawingAnnotation;ann.payload=ann.payload||{};ann.payload.elements=ann.payload.elements||[];
   const page=Number(state.drawingPageNo||1);
-  ann.payload.elements.push({client_ref:'room-human-'+Date.now(),page_no:page,element_type:'room',label:label||null,floor_number:Number.isFinite(floor)?floor:null,geometry:{points:state.drawingDrawPoints.map(p=>[p[0],p[1]])},extracted_data:{use_name:use||null}});
+  const elementType=state.drawingNewElementType||'room';
+  ann.payload.elements.push({client_ref:elementType+'-human-'+Date.now(),page_no:page,element_type:elementType,label:label||null,floor_number:Number.isFinite(floor)?floor:null,geometry:{points:state.drawingDrawPoints.map(p=>[p[0],p[1]])},extracted_data:{use_name:use||null}});
+  recalcDrawingLocalMetrics();
   const dim=drawingWorkspaceDimensions();ann.page_dimensions=ann.page_dimensions||{};ann.page_dimensions[String(page)]={width:dim.w,height:dim.h};
   state.drawingDrawActive=false;state.drawingDrawPoints=[];renderDrawingWorkspace();
 }
