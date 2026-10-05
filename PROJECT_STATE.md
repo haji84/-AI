@@ -1129,3 +1129,45 @@ Safety:
 - existing unmatched equipment is not interpreted as removable
 - stale Human review cannot survive changes to current evidence
 - legal Coverage completeness remains dependent on current Human-accepted regression evidence
+
+
+## Phase 6 drawing consultation UI
+
+Implemented and CI-verified:
+- facility drawing review now exposes a dedicated Human Annotation / consultation workspace
+- original drawing document preview
+- image drawings support direct polygon room annotation on top of the original drawing
+- room annotation captures Human room label, room-use code and floor number
+- seeded AI room geometry remains a Draft until Human review
+- empty manual Human Reference drafts are supported
+- draft Annotation save / Human review flow
+- reviewed Annotation can start a drawing consultation
+- consultation input form covers the supported occupancy/equipment Rule facts
+- classify action saves current answers then evaluates current Approved occupancy Rules
+- Human can confirm one Rule-backed classification candidate
+- manual classification remains available only through the backend Human-note gate
+- confirmed classification can evaluate required equipment and placement candidates
+- unified consultation response is rendered with:
+  - classification
+  - required/additional equipment actions
+  - placement state
+  - current coverage for classification / requirement / placement
+  - unresolved questions
+  - legal citations
+  - response SHA-256
+- response Human review button is shown only when backend says reviewable
+- accepted placement markers are rendered over the original image drawing
+- PDF originals remain viewable, but direct polygon Annotation is explicitly guarded to image originals in this slice
+- frontend contract tests protect critical Human-gate/API wiring
+
+Verified checkpoint:
+- run: `37321895072` SUCCESS
+- backend pytest: 126 passed
+- migration parser smoke: PASS
+- frontend JavaScript syntax: PASS
+
+Safety:
+- AI seed is never labeled as Human truth before review
+- UI cannot bypass backend classification, Rule coverage or response-review gates
+- equipment already present but unmatched is not presented as removable
+- stale reviewed consultation responses continue to be surfaced by backend response state
