@@ -3790,8 +3790,8 @@ def test_phase9_audio_benchmark_v2_speaker_mapping_tolerance_and_aggregate(tmp_p
     manifest={
         "marker_tolerance_ms":50,
         "recordings":[
-            {"id":"case-1","reference":"r1.json","hypothesis":"h1.json"},
-            {"id":"case-2","reference":"r2.json","hypothesis":"h2.json"},
+            {"id":"case-1","metadata":{"environment":"quiet_room","speaker_count":1},"reference":"r1.json","hypothesis":"h1.json"},
+            {"id":"case-2","metadata":{"environment":"field_like","speaker_count":1},"reference":"r2.json","hypothesis":"h2.json"},
         ],
     }
     manifest_path=tmp_path/"manifest.json"
@@ -3802,6 +3802,8 @@ def test_phase9_audio_benchmark_v2_speaker_mapping_tolerance_and_aggregate(tmp_p
     assert len(result["manifest_sha256"])==64
     assert all(len(x["reference_sha256"])==64 for x in result["recordings"])
     assert all(len(x["hypothesis_sha256"])==64 for x in result["recordings"])
+    assert result["recordings"][0]["metadata"]["environment"]=="quiet_room"
+    assert result["recordings"][1]["metadata"]["environment"]=="field_like"
     assert result["aggregate"]["recording_count"]==2
     assert result["aggregate"]["text_micro"]["reference_chars"]==8
     assert result["aggregate"]["text_micro"]["errors"]==1
