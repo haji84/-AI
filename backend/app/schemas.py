@@ -1066,6 +1066,11 @@ class FirePhotoAnnotationOut(BaseModel):
     source_kind: str
     model_version: str | None = None
     status: str
+    version: int
+
+class FirePhotoAnnotationReview(BaseModel):
+    expected_version: int = Field(ge=1)
+    status: Literal["accepted","rejected"]
 
 class FireTranscriptSegmentCreate(BaseModel):
     start_ms: int | None = Field(default=None, ge=0)
@@ -1087,6 +1092,11 @@ class FireTranscriptSegmentOut(BaseModel):
     source_kind: str
     model_version: str | None = None
     review_status: str
+    version: int
+
+class FireTranscriptSegmentReview(BaseModel):
+    expected_version: int = Field(ge=1)
+    status: Literal["accepted","rejected"]
 
 class FireStatementDraftCreate(BaseModel):
     fire_investigation_media_id: str | None = None
