@@ -2703,3 +2703,156 @@ def test_phase7_fire_investigation_roles_separate_review_from_approval():
         assert "fire_investigation.approve" in approver_codes
         assert "fire_investigation.update" not in approver_codes
         assert "fire_investigation.create" not in approver_codes
+
+
+def test_phase7_1_ai_manifests_are_idempotent_and_statement_uses_only_accepted_transcript():
+    login()
+    case=client.post("/fire-investigations",json={
+        "case_number":"FIRE-TEST-71",
+        "title":"Phase7.1 Manifest"
+    }).json()
+    cid=case["fire_investigation_case_id"]
+
+    photo_doc=client.post(
+        "/documents/upload",
+        files={"file":("manifest-photo.jpg",b"manifest-photo","image/jpeg")},
+        data={"document_type":"fire_scene_photo"}
+    ).json()
+    audio_doc=client.post(
+        "/documents/upload",
+        files={"file":("manifest-audio.m4a",b"manifest-audio","audio/mp4")},
+        data={"document_type":"fire_interview_audio"}
+    ).json()
+
+    photo=client.post(f"/fire-investigations/{cid}/media",json={
+        "document_id":photo_doc["document_id"],
+        "media_type":"photo"
+    }).json()
+    audio=client.post(f"/fire-investigations/{cid}/media",json={
+        "document_id":audio_doc["document_id"],
+        "media_type":"audio"
+    }).json()
+    pmid=photo["fire_investigation_media_id"]
+    amid=audio["fire_investigation_media_id"]
+
+    photo_manifest={
+        "model_version":"photo-ai-test-v1",
+        "payload_metadata":{"source":"unit-test"},
+        "annotations":[{
+            "description":"焼損箇所候補",
+            "tags":["焼損"],
+            "map_position":{"x":0.4,"y":0.6},
+            "confidence":0.81
+        }]
+    }
+    p1=client.post(f"/fire-investigations/media/{pmid}/photo-ai-manifest",json=photo_manifest)
+    assert p1.status_code==200
+    pb=p1.json()
+    assert pb["created"] is True
+    assert len(pb["derived_ids"])==1
+    p2=client.post(f"/fire-investigations/media/{pmid}/photo-ai-manifest",json=photo_manifest)
+    assert p2.status_code==200
+    assert p2.json()["created"] is False
+    assert p2.json()["fire_investigation_ai_manifest_id"]==pb["fire_investigation_ai_manifest_id"]
+    assert p2.json()["derived_ids"]==pb["derived_ids"]
+
+    annotations=client.get(f"/fire-investigations/media/{pmid}/photo-annotations")
+    assert annotations.status_code==200
+    assert len(annotations.json())==1
+    assert annotations.json()[0]["status"]=="pending"
+
+    transcript_manifest={
+        "model_version":"stt-test-v2",
+        "payload_metadata":{"language":"ja"},
+        "segments":[{
+            "start_ms":0,
+            "end_ms":3500,
+            "speaker_label":"関係者B",
+            "text":"コンセント付近から煙が見えた。",
+            "confidence":0.9
+        },{
+            "start_ms":3500,
+            "end_ms":7000,
+            "speaker_label":"関係者B",
+            "text":"その後すぐに外へ避難した。",
+            "confidence":0.88
+        }]
+    }
+    t1=client.post(f"/fire-investigations/media/{amid}/transcript-ai-manifest",json=transcript_manifest)
+    assert t1.status_code==200
+    tb=t1.json()
+    assert tb["created"] is True
+    assert len(tb["derived_ids"])==2
+    t2=client.post(f"/fire-investigations/media/{amid}/transcript-ai-manifest",json=transcript_manifest)
+    assert t2.status_code==200
+    assert t2.json()["created"] is False
+    assert t2.json()["derived_ids"]==tb["derived_ids"]
+
+    segments=client.get(f"/fire-investigations/media/{amid}/transcript-segments")
+    assert segments.status_code==200
+    assert len(segments.json())==2
+    assert all(x["review_status"]=="pending" for x in segments.json())
+    first_segment=segments.json()[0]
+
+    statement_manifest={
+        "model_version":"statement-ai-test-v1",
+        "payload_metadata":{"source":"accepted-transcript-only"},
+        "statements":[{
+            "fire_investigation_media_id":amid,
+            "person_label":"関係者B",
+            "draft_text":"関係者Bはコンセント付近から煙を認め、直後に避難した旨を述べた。",
+            "evidence_segment_ids":[first_segment["fire_transcript_segment_id"]]
+        }]
+    }
+    blocked=client.post(f"/fire-investigations/{cid}/statement-ai-manifest",json=statement_manifest)
+    assert blocked.status_code==409
+
+    accepted=client.patch(
+        f"/fire-investigations/transcript-segments/{first_segment['fire_transcript_segment_id']}",
+        json={"expected_version":1,"status":"accepted"}
+    )
+    assert accepted.status_code==200
+
+    s1=client.post(f"/fire-investigations/{cid}/statement-ai-manifest",json=statement_manifest)
+    assert s1.status_code==200
+    sb=s1.json()
+    assert sb["created"] is True
+    assert len(sb["derived_ids"])==1
+    s2=client.post(f"/fire-investigations/{cid}/statement-ai-manifest",json=statement_manifest)
+    assert s2.status_code==200
+    assert s2.json()["created"] is False
+    assert s2.json()["derived_ids"]==sb["derived_ids"]
+
+    detail=client.get(f"/fire-investigations/{cid}")
+    assert detail.status_code==200
+    statements=detail.json()["statements"]
+    assert len(statements)==1
+    assert statements[0]["ai_generated"] is True
+    assert statements[0]["status"]=="draft"
+    assert statements[0]["evidence_segment_ids"]==[first_segment["fire_transcript_segment_id"]]
+
+
+def test_phase7_1_transcript_manifest_rejects_invalid_segment_range():
+    login()
+    case=client.post("/fire-investigations",json={"title":"Phase7.1 invalid range"}).json()
+    doc=client.post(
+        "/documents/upload",
+        files={"file":("bad-audio.m4a",b"bad-audio","audio/mp4")},
+        data={"document_type":"fire_interview_audio"}
+    ).json()
+    media=client.post(f"/fire-investigations/{case['fire_investigation_case_id']}/media",json={
+        "document_id":doc["document_id"],
+        "media_type":"audio"
+    }).json()
+    r=client.post(
+        f"/fire-investigations/media/{media['fire_investigation_media_id']}/transcript-ai-manifest",
+        json={
+            "model_version":"stt-bad",
+            "segments":[{
+                "start_ms":5000,
+                "end_ms":1000,
+                "text":"invalid"
+            }]
+        }
+    )
+    assert r.status_code==422
