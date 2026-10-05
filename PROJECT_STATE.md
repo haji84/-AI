@@ -1133,7 +1133,7 @@ Safety:
 
 ## Phase 6 drawing consultation UI
 
-Implemented on branch `phase6-drawing-consultation-ui`; CI verification pending:
+Implemented and CI-verified:
 - facility drawing review now exposes a dedicated Human Annotation / consultation workspace
 - original drawing document preview
 - image drawings support direct polygon room annotation on top of the original drawing
@@ -1159,6 +1159,12 @@ Implemented on branch `phase6-drawing-consultation-ui`; CI verification pending:
 - accepted placement markers are rendered over the original image drawing
 - PDF originals remain viewable, but direct polygon Annotation is explicitly guarded to image originals in this slice
 - frontend contract tests protect critical Human-gate/API wiring
+
+Verified checkpoint:
+- run: `37321895072` SUCCESS
+- backend pytest: 126 passed
+- migration parser smoke: PASS
+- frontend JavaScript syntax: PASS
 
 Safety:
 - AI seed is never labeled as Human truth before review
