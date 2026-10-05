@@ -3538,3 +3538,171 @@ def test_phase9_uncertainty_marker_positions_are_deterministic():
     for marker in markers:
         assert text[marker["start"]:marker["end"]]==marker["text"]
     assert transcript_text_sha256(text)==transcript_text_sha256(text)
+
+
+def test_phase9_1_transcript_uncertainty_search_statement_gate_and_evidence_comparison():
+    login()
+    case=client.post("/fire-investigations",json={
+        "case_number":"FIRE-TEST-9-001",
+        "title":"Phase9音声供述テスト"
+    })
+    assert case.status_code==201
+    cid=case.json()["fire_investigation_case_id"]
+
+    audio=client.post(
+        "/documents/upload",
+        files={"file":("phase9.m4a",b"phase9-audio","audio/mp4")},
+        data={"document_type":"fire_interview_audio"}
+    )
+    assert audio.status_code==201
+    media=client.post(f"/fire-investigations/{cid}/media",json={
+        "document_id":audio.json()["document_id"],
+        "media_type":"audio",
+        "sequence_no":1
+    })
+    assert media.status_code==201
+    mid=media.json()["fire_investigation_media_id"]
+
+    manifest=client.post(f"/fire-investigations/media/{mid}/transcript-ai-manifest",json={
+        "model_version":"stt-test-v9",
+        "payload_metadata":{"source":"unit-test"},
+        "segments":[
+            {
+                "start_ms":0,
+                "end_ms":5000,
+                "speaker_label":"関係者A",
+                "text":"たぶん10時頃に煙を見たと思います。",
+                "confidence":0.82
+            },
+            {
+                "start_ms":6000,
+                "end_ms":9000,
+                "speaker_label":"関係者A",
+                "text":"玄関から外へ出ました。",
+                "confidence":0.95
+            }
+        ]
+    })
+    assert manifest.status_code==200
+    ids=manifest.json()["derived_ids"]
+    assert len(ids)==2
+
+    segments=client.get(f"/fire-investigations/media/{mid}/transcript-segments")
+    assert segments.status_code==200
+    rows=segments.json()
+    uncertain=next(x for x in rows if x["fire_transcript_segment_id"]==ids[0])
+    certain=next(x for x in rows if x["fire_transcript_segment_id"]==ids[1])
+    assert uncertain["uncertainty_markers"]
+    types={x["type"] for x in uncertain["uncertainty_markers"]}
+    assert {"probability","approximation","belief"}.issubset(types)
+    assert uncertain["text_sha256"]
+
+    for row in (uncertain,certain):
+        accepted=client.patch(
+            f"/fire-investigations/transcript-segments/{row['fire_transcript_segment_id']}",
+            json={"expected_version":1,"status":"accepted"}
+        )
+        assert accepted.status_code==200
+
+    search=client.get(f"/fire-investigations/{cid}/transcript-search",params={
+        "q":"煙",
+        "uncertain_only":"true"
+    })
+    assert search.status_code==200
+    assert len(search.json())==1
+    assert search.json()[0]["segment"]["fire_transcript_segment_id"]==uncertain["fire_transcript_segment_id"]
+
+    statement_manifest=client.post(f"/fire-investigations/{cid}/statement-ai-manifest",json={
+        "model_version":"statement-test-v9",
+        "payload_metadata":{"source":"unit-test"},
+        "statements":[{
+            "fire_investigation_media_id":mid,
+            "person_label":"関係者A",
+            "draft_text":"関係者Aは、10時頃に煙を見た可能性がある旨を述べた。",
+            "evidence_segment_ids":[uncertain["fire_transcript_segment_id"]]
+        }]
+    })
+    assert statement_manifest.status_code==200
+    statement_id=statement_manifest.json()["derived_ids"][0]
+
+    detail=client.get(f"/fire-investigations/{cid}")
+    assert detail.status_code==200
+    statement=next(x for x in detail.json()["statements"] if x["fire_statement_draft_id"]==statement_id)
+    assert statement["source_uncertainty_markers"]
+    assert "たぶん" in statement["source_uncertainty_markers"]
+    assert statement["uncertainty_reviewed"] is False
+
+    blocked=client.patch(f"/fire-investigations/statements/{statement_id}",json={
+        "expected_version":1,
+        "status":"reviewed",
+        "uncertainty_reviewed":False
+    })
+    assert blocked.status_code==409
+
+    reviewed=client.patch(f"/fire-investigations/statements/{statement_id}",json={
+        "expected_version":1,
+        "status":"reviewed",
+        "uncertainty_reviewed":True
+    })
+    assert reviewed.status_code==200
+    assert reviewed.json()["uncertainty_reviewed"] is True
+
+    timeline=client.post(f"/fire-investigations/{cid}/timeline",json={
+        "event_time_text":"10時頃",
+        "event_type":"observation",
+        "title":"煙を確認",
+        "description":"供述に基づく候補",
+        "source_refs":[{"type":"transcript_segment","id":uncertain["fire_transcript_segment_id"]}],
+        "confidence":0.8
+    })
+    assert timeline.status_code==201
+    tl=timeline.json()
+    confirmed=client.patch(f"/fire-investigations/timeline/{tl['fire_timeline_event_id']}",json={
+        "expected_version":1,
+        "status":"confirmed"
+    })
+    assert confirmed.status_code==200
+
+    comparison_payload={
+        "model_version":"compare-test-v9",
+        "payload_metadata":{"source":"unit-test"},
+        "comparisons":[{
+            "issue_type":"time_difference",
+            "summary":"供述時刻とタイムライン記録を照合する必要がある。",
+            "left_ref":{"type":"transcript_segment","id":uncertain["fire_transcript_segment_id"]},
+            "right_ref":{"type":"timeline_event","id":tl["fire_timeline_event_id"]},
+            "evidence_refs":[{"type":"statement","id":statement_id}],
+            "confidence":0.7
+        }]
+    }
+    comp=client.post(f"/fire-investigations/{cid}/evidence-comparison-ai-manifest",json=comparison_payload)
+    assert comp.status_code==200
+    cb=comp.json()
+    assert cb["created"] is True
+    assert len(cb["derived_ids"])==1
+    comp_id=cb["derived_ids"][0]
+
+    comp_repeat=client.post(f"/fire-investigations/{cid}/evidence-comparison-ai-manifest",json=comparison_payload)
+    assert comp_repeat.status_code==200
+    assert comp_repeat.json()["created"] is False
+    assert comp_repeat.json()["derived_ids"]==[comp_id]
+
+    listed=client.get(f"/fire-investigations/{cid}/evidence-comparisons")
+    assert listed.status_code==200
+    candidate=next(x for x in listed.json() if x["fire_evidence_comparison_candidate_id"]==comp_id)
+    assert candidate["status"]=="pending"
+    assert candidate["issue_type"]=="time_difference"
+
+    accepted_comp=client.patch(f"/fire-investigations/evidence-comparisons/{comp_id}",json={
+        "expected_version":1,
+        "status":"accepted"
+    })
+    assert accepted_comp.status_code==200
+    assert accepted_comp.json()["status"]=="accepted"
+    assert accepted_comp.json()["version"]==2
+
+    stale=client.patch(f"/fire-investigations/evidence-comparisons/{comp_id}",json={
+        "expected_version":1,
+        "status":"rejected"
+    })
+    assert stale.status_code==409
