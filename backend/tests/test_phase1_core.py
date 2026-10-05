@@ -4521,6 +4521,12 @@ def test_phase6_drawing_consultation_requires_classification_before_equipment():
     assert len(classified_body["classification_results"])==1
     candidate=classified_body["classification_results"][0]
     assert candidate["outcome"]["classification_code"]=="TEST-A"
+    coverage_warnings=[
+        x for x in classified_body["missing_information"]
+        if x.get("field")=="occupancy_classification_rule_coverage"
+    ]
+    assert len(coverage_warnings)==1
+    assert coverage_warnings[0]["coverage"]["approved_effective_count"]==0
 
     confirmed=client.post(f"/drawing-consultations/{cid}/classification/confirm",json={
         "expected_version":2,
