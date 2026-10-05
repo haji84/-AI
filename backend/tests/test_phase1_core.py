@@ -3799,6 +3799,9 @@ def test_phase9_audio_benchmark_v2_speaker_mapping_tolerance_and_aggregate(tmp_p
 
     result=mod.score_manifest(manifest_path)
     assert result["benchmark_format"]=="fire-ai-japanese-stt-benchmark-v2"
+    assert len(result["manifest_sha256"])==64
+    assert all(len(x["reference_sha256"])==64 for x in result["recordings"])
+    assert all(len(x["hypothesis_sha256"])==64 for x in result["recordings"])
     assert result["aggregate"]["recording_count"]==2
     assert result["aggregate"]["text_micro"]["reference_chars"]==8
     assert result["aggregate"]["text_micro"]["errors"]==1
