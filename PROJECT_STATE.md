@@ -474,3 +474,22 @@ Next executable external step:
 5. register result in benchmark-run registry
 6. Human accepts/rejects Baseline
 7. set acceptance thresholds only after Baseline review
+
+
+## Phase 9 evidence-comparison benchmark v1
+
+Implemented on branch `phase9-evidence-comparison-benchmark-v1`; CI verification pending:
+- exact Human Reference vs Local AI candidate comparison
+- left/right evidence order normalization
+- duplicate prediction false-positive accounting
+- Precision / Recall / F1
+- false-positive / false-negative candidate evidence
+- per-issue-type metrics
+- multi-case micro aggregation
+- Reference / Hypothesis / Manifest SHA-256 provenance
+- benchmark contract and regression tests
+
+Human Gate remains explicit:
+- no production acceptance threshold is hard-coded
+- real Human-labeled investigation cases are still required
+- production-quality evidence-comparison accuracy must not be claimed until the real dataset is benchmarked and Human acceptance thresholds are set
