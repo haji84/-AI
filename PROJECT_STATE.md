@@ -366,8 +366,7 @@ Do not report the latest hardening/UI HEAD as final PASS until its current CI fi
 
 ## Current next gates
 
-1. finish current Phase 9 HEAD CI and record final evidence
-2. real audio/STT benchmark with Japanese interview recordings
+1. real audio/STT benchmark with Japanese interview recordings
 3. speaker diarization accuracy benchmark
 4. uncertainty-marker precision/recall benchmark
 5. evidence-comparison usefulness/false-positive acceptance test
@@ -378,4 +377,35 @@ Do not report the latest hardening/UI HEAD as final PASS until its current CI fi
 10. continue Human legal Rule authoring / production legal Host Gates
 
 Do not claim production-quality STT, legal completeness, formal compliance, or production Host readiness until those gates are executed.
+
+## Phase 10 permission-aware unified search
+
+Implemented and CI-verified:
+- global permission-aware search API
+- `search.use` gate
+- per-module read-permission enforcement
+- facilities / inspections / submissions / equipment / drawings
+- fire investigation cases
+- accepted transcripts only
+- reviewed statements only
+- accepted photo annotations only
+- legal documents / legal Rules
+- documents / contracts / templates / change requests
+- deterministic lexical scoring
+- provenance/navigation metadata
+- query SHA-256 audit without raw-query persistence
+- global search UI and module filters
+- emergency personal records intentionally excluded
+
+Verified checkpoint:
+- commit: `9482d2fd83978446be236f696a30dccdaf117c43`
+- run: `37255300365` SUCCESS
+- backend pytest: 85 passed
+- migrations 001-026 parser smoke: PASS
+- frontend JS syntax: PASS
+
+Not yet production claims:
+- semantic/vector retrieval quality benchmark
+- production PostgreSQL latency/load benchmark
+- approved LAN physical-client search E2E
 
