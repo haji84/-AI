@@ -90,3 +90,27 @@ def test_phase6_annotation_overlay_has_pointer_drag_handlers():
     assert 'onpointermove="drawingOverlayPointerMove(event)"' in html
     assert 'onpointerup="endDrawingVertexDrag(event)"' in html
     assert 'class="drawingVertexHandle"' in html
+
+
+
+def test_phase6_reference_draft_import_ui_is_wired_to_editable_annotation():
+    html = (
+        Path(__file__).resolve().parents[2]
+        / "frontend"
+        / "index.html"
+    ).read_text(encoding="utf-8")
+
+    required_fragments = [
+        "Reference Draft JSONを読み込む",
+        "別Reference Draftを読み込む",
+        'id="drawingReferenceImportFile"',
+        "importDrawingReferenceDraftFile(event)",
+        "chooseDrawingReferenceDraft()",
+        "/annotations/import-reference",
+        "JSON.parse(text)",
+        "state.drawingEditElementIndex=null",
+        "state.drawingSelectedVertexIndex=null",
+        "原本SHA-256一致が必須",
+    ]
+    missing = [x for x in required_fragments if x not in html]
+    assert not missing, f"Reference Draft import UI wiring missing: {missing}"
