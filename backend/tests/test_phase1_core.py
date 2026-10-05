@@ -2340,3 +2340,82 @@ def test_phase6_1_drawing_fact_rejects_stale_facility_and_unapproved_target_path
         "expected_facility_version":2
     })
     assert rejected.status_code==422
+
+
+def test_phase6_3_drawing_manifest_ingest_is_idempotent_and_version_guarded():
+    login()
+    facility=client.post("/facilities",json={"name":"Phase6.3 Manifest対象"}).json()
+    bid=facility["building_id"]
+    upload=client.post(
+        "/documents/upload",
+        files={"file":("manifest-plan.pdf",b"manifest-plan","application/pdf")},
+        data={"document_type":"drawing"}
+    ).json()
+    analysis=client.post(f"/facilities/{bid}/drawing-analyses",json={
+        "document_id":upload["document_id"],
+        "analysis_method":"ai"
+    })
+    assert analysis.status_code==201
+    aid=analysis.json()["drawing_analysis_id"]
+    assert analysis.json()["status"]=="pending"
+    assert analysis.json()["version"]==1
+
+    manifest={
+        "expected_version":1,
+        "model_version":"local-vision-test-v1",
+        "page_count":1,
+        "confidence":0.93,
+        "summary":{"drawing_type":"floor_plan"},
+        "evidence":{"source":"unit-test"},
+        "elements":[{
+            "client_ref":"symbol-1",
+            "page_no":1,
+            "element_type":"equipment_symbol",
+            "label":"自火報",
+            "floor_number":1,
+            "geometry":{"x":1,"y":2},
+            "extracted_data":{"symbol":"FA"},
+            "confidence":0.94
+        }],
+        "equipment_candidates":[{
+            "drawing_element_ref":"symbol-1",
+            "suggested_equipment_type_code":"automatic_fire_alarm",
+            "suggested_label":"自動火災報知設備",
+            "floor_number":1,
+            "location_text":"1階",
+            "quantity":1,
+            "confidence":0.94
+        }],
+        "fact_candidates":[{
+            "drawing_element_ref":"symbol-1",
+            "target_path":"detail.total_floor_area",
+            "proposed_value":{"value":999.5},
+            "confidence":0.75,
+            "evidence":{"page":1}
+        }]
+    }
+
+    first=client.post(f"/drawing-analyses/{aid}/manifest",json=manifest)
+    assert first.status_code==200
+    body=first.json()
+    assert body["analysis"]["status"]=="analyzed"
+    assert body["analysis"]["version"]==2
+    assert body["analysis"]["model_version"]=="local-vision-test-v1"
+    assert len(body["elements"])==1
+    assert len(body["equipment_candidates"])==1
+    assert len(body["fact_candidates"])==1
+    assert body["equipment_candidates"][0]["drawing_element_id"]==body["elements"][0]["drawing_element_id"]
+    assert body["fact_candidates"][0]["drawing_element_id"]==body["elements"][0]["drawing_element_id"]
+
+    repeated=client.post(f"/drawing-analyses/{aid}/manifest",json=manifest)
+    assert repeated.status_code==200
+    body2=repeated.json()
+    assert body2["analysis"]["version"]==2
+    assert len(body2["elements"])==1
+    assert len(body2["equipment_candidates"])==1
+    assert len(body2["fact_candidates"])==1
+
+    changed=dict(manifest)
+    changed["summary"]={"drawing_type":"changed"}
+    stale=client.post(f"/drawing-analyses/{aid}/manifest",json=changed)
+    assert stale.status_code==409
