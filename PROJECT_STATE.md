@@ -751,7 +751,7 @@ Applicability conditions remain Human-authored.
 
 ## Phase 6 occupancy authoring skeleton import
 
-Implemented on branch `phase6-occupancy-authoring-import`; CI verification pending:
+Implemented and CI-verified:
 - official occupancy catalog dry-run/apply importer
 - exact target law ID/title verification
 - source XML SHA must match stored LegalSourceDocumentVersion
@@ -766,6 +766,12 @@ Implemented on branch `phase6-occupancy-authoring-import`; CI verification pendi
 - public arbitrary Draft creation rules remain unchanged
 - existing Human review gate rejects empty conditions
 - promoted Rule Version still requires separate Human approval
+
+Verified checkpoint:
+- run: `37272900566` SUCCESS
+- backend pytest: 113 passed
+- migration parser smoke: PASS
+- frontend JavaScript syntax: PASS
 
 Next gate:
 1. ensure the stored official source version is restructured with legal-structure-v2
