@@ -1374,3 +1374,28 @@ class FireReportDraft(Base):
     approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
+class FireReportExport(Base):
+    __tablename__ = "fire_report_exports"
+    fire_report_export_id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True, default=uuid_str)
+    fire_report_draft_id: Mapped[str] = mapped_column(
+        ForeignKey("fire_report_drafts.fire_report_draft_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    form_template_id: Mapped[str] = mapped_column(ForeignKey("form_templates.form_template_id"), nullable=False)
+    template_document_id: Mapped[str] = mapped_column(ForeignKey("documents.document_id"), nullable=False)
+    template_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    report_draft_version: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    request_sha256: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    output_format: Mapped[str] = mapped_column(String(30), nullable=False)
+    field_values: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    render_manifest: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    output_document_id: Mapped[str | None] = mapped_column(ForeignKey("documents.document_id"), index=True)
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="rendered", index=True)
+    error_detail: Mapped[str | None] = mapped_column(Text)
+    created_by: Mapped[str | None] = mapped_column(ForeignKey("app_users.user_id"))
+    verified_by: Mapped[str | None] = mapped_column(ForeignKey("app_users.user_id"))
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
