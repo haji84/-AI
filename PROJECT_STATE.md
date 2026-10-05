@@ -840,3 +840,37 @@ Safety:
 - Workbench accelerates Human authoring but does not generate legal applicability conditions
 - Rule review, promotion and approval remain separate Human gates
 - partial Rule coverage never presents itself as a complete automatic classification system
+
+
+## Phase 6 occupancy classification regression gate
+
+Implemented and CI-verified:
+- Migration 032 regression test case / run persistence
+- Human-authored regression test cases with Draft -> Review/Reject workflow
+- reviewed cases require exactly one expected classification code
+- reviewed cases may use only consultation facts supported by the occupancy condition engine
+- Draft/rejected cases are excluded from regression runs
+- regression evaluates current Human-authored conditions across all reviewed cases
+- exact-match PASS, missed expected classifications, unexpected matches and ambiguous multi-hit cases are reported
+- exact duplicate condition groups mapping to different classification codes are reported
+- regression run result is SHA-256 idempotent and persisted
+- PASS result still requires separate Human acceptance
+- failed/stale runs cannot be accepted
+- authoring-condition fingerprint is stored in each run
+- reviewed test-suite fingerprint is stored in each run
+- any condition change invalidates the accepted regression gate
+- any reviewed regression case add/change invalidates the accepted regression gate
+- occupancy Rule coverage_complete now requires a current Human-accepted passing regression run in addition to 35/35 Approved Rules
+- E2E covers 35/35 Approved -> incomplete without regression -> PASS+Human accept -> complete -> reviewed case change -> incomplete
+- E2E covers ambiguous double-hit -> regression FAIL -> Human acceptance blocked
+
+Verified checkpoint:
+- run: `37279357089` SUCCESS
+- backend pytest: 117 passed
+- Migration 032 parser smoke: PASS
+- frontend JavaScript syntax: PASS
+
+Safety:
+- regression cases and expected answers are Human-reviewed truth, not AI-generated truth
+- regression acceptance does not modify Rule conditions or legal classifications
+- current fingerprints prevent reuse of stale validation evidence

@@ -1673,3 +1673,58 @@ class OccupancyAuthoringBulkConditionOut(BaseModel):
 
 class OccupancyRuleCoverageOut(BaseModel):
     coverage: dict
+
+
+class OccupancyRegressionCaseCreate(BaseModel):
+    source_xml_sha256: str = Field(min_length=64, max_length=64)
+    name: str = Field(min_length=1, max_length=300)
+    input_snapshot: dict
+    expected_classification_codes: list[str] = Field(min_length=1)
+    notes: str | None = None
+
+class OccupancyRegressionCaseUpdate(BaseModel):
+    expected_version: int = Field(ge=1)
+    name: str = Field(min_length=1, max_length=300)
+    input_snapshot: dict
+    expected_classification_codes: list[str] = Field(min_length=1)
+    notes: str | None = None
+
+class OccupancyRegressionCaseReview(BaseModel):
+    expected_version: int = Field(ge=1)
+    status: Literal["reviewed","rejected"]
+
+class OccupancyRegressionCaseOut(BaseModel):
+    occupancy_classification_test_case_id: str
+    source_xml_sha256: str
+    name: str
+    input_snapshot: dict
+    expected_classification_codes: list[str]
+    notes: str | None = None
+    status: str
+    version: int
+    created_at: str
+    reviewed_at: str | None = None
+
+class OccupancyRegressionRunCreate(BaseModel):
+    source_xml_sha256: str = Field(min_length=64, max_length=64)
+
+class OccupancyRegressionRunReview(BaseModel):
+    expected_version: int = Field(ge=1)
+    human_decision: Literal["accepted_regression","rejected_regression"]
+    review_notes: str | None = None
+
+class OccupancyRegressionRunOut(BaseModel):
+    occupancy_classification_test_run_id: str
+    source_xml_sha256: str
+    result_sha256: str
+    case_count: int
+    passed_case_count: int
+    failed_case_count: int
+    ambiguous_case_count: int
+    result_payload: dict
+    review_status: str
+    human_decision: str | None = None
+    review_notes: str | None = None
+    version: int
+    created_at: str
+    reviewed_at: str | None = None

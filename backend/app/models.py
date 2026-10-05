@@ -1624,3 +1624,45 @@ class DrawingConsultation(Base):
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
+class OccupancyClassificationTestCase(Base):
+    __tablename__ = "occupancy_classification_test_cases"
+    occupancy_classification_test_case_id: Mapped[str] = mapped_column(
+        Uuid(as_uuid=False), primary_key=True, default=uuid_str
+    )
+    source_xml_sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(300), nullable=False)
+    input_snapshot: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    expected_classification_codes: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    notes: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="draft", index=True)
+    version: Mapped[int] = mapped_column(BigInteger, nullable=False, default=1)
+    created_by: Mapped[str | None] = mapped_column(ForeignKey("app_users.user_id"))
+    reviewed_by: Mapped[str | None] = mapped_column(ForeignKey("app_users.user_id"))
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
+class OccupancyClassificationTestRun(Base):
+    __tablename__ = "occupancy_classification_test_runs"
+    occupancy_classification_test_run_id: Mapped[str] = mapped_column(
+        Uuid(as_uuid=False), primary_key=True, default=uuid_str
+    )
+    source_xml_sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    result_sha256: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
+    case_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    passed_case_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    failed_case_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    ambiguous_case_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    result_payload: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    review_status: Mapped[str] = mapped_column(String(30), nullable=False, default="pending", index=True)
+    human_decision: Mapped[str | None] = mapped_column(String(30))
+    review_notes: Mapped[str | None] = mapped_column(Text)
+    version: Mapped[int] = mapped_column(BigInteger, nullable=False, default=1)
+    created_by: Mapped[str | None] = mapped_column(ForeignKey("app_users.user_id"))
+    reviewed_by: Mapped[str | None] = mapped_column(ForeignKey("app_users.user_id"))
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)

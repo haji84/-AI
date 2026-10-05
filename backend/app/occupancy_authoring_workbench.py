@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timezone
+import hashlib
+import json
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -13,6 +15,8 @@ from .models import (
     LegalRuleDraftCandidate,
     LegalRuleDraftCitation,
     LegalRuleVersion,
+    OccupancyClassificationTestRun,
+    OccupancyClassificationTestCase,
 )
 from .occupancy_authoring_import import IMPORT_VERSION
 
@@ -313,6 +317,78 @@ def bulk_author_occupancy_conditions(
     }
 
 
+
+def occupancy_authoring_fingerprint(
+    db: Session,
+    *,
+    source_xml_sha256: str,
+) -> str | None:
+    worklist = build_occupancy_authoring_worklist(
+        db,
+        source_xml_sha256=source_xml_sha256,
+    )
+    items = worklist["items"]
+    if not items:
+        return None
+    payload = [
+        {
+            "classification_code": item["classification_code"],
+            "proposed_rule_code": item["proposed_rule_code"],
+            "proposed_conditions": item["proposed_conditions"],
+            "source_xml_sha256": item["source_xml_sha256"],
+            "generation_context": {
+                "entry_sha256": (item.get("generation_context") or {}).get("entry_sha256"),
+                "row_provision_key": (item.get("generation_context") or {}).get("row_provision_key"),
+                "catalog_entry_count": (item.get("generation_context") or {}).get("catalog_entry_count"),
+            },
+        }
+        for item in sorted(items, key=lambda x: x.get("classification_code") or "")
+    ]
+    raw = json.dumps(
+        payload,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(raw).hexdigest()
+
+
+def occupancy_test_suite_fingerprint(
+    db: Session,
+    *,
+    source_xml_sha256: str,
+) -> str | None:
+    rows = db.scalars(
+        select(OccupancyClassificationTestCase)
+        .where(
+            OccupancyClassificationTestCase.source_xml_sha256 == source_xml_sha256,
+            OccupancyClassificationTestCase.status == "reviewed",
+        )
+        .order_by(
+            OccupancyClassificationTestCase.name,
+            OccupancyClassificationTestCase.created_at,
+        )
+    ).all()
+    if not rows:
+        return None
+    payload = [
+        {
+            "test_case_id": row.occupancy_classification_test_case_id,
+            "version": row.version,
+            "name": row.name,
+            "input_snapshot": row.input_snapshot or {},
+            "expected_classification_codes": row.expected_classification_codes or [],
+        }
+        for row in rows
+    ]
+    raw = json.dumps(
+        payload,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(raw).hexdigest()
+
 def occupancy_rule_coverage(
     db: Session,
     *,
@@ -433,8 +509,43 @@ def occupancy_rule_coverage(
             catalog_sizes.add(-1)
     catalog_batch_valid = catalog_sizes == {EXPECTED_OCCUPANCY_CLASSIFICATION_COUNT}
 
+    current_authoring_fingerprint = (
+        occupancy_authoring_fingerprint(db, source_xml_sha256=selected_sha)
+        if selected_sha
+        else None
+    )
+    accepted_runs = []
+    if selected_sha:
+        accepted_runs = db.scalars(
+            select(OccupancyClassificationTestRun)
+            .where(
+                OccupancyClassificationTestRun.source_xml_sha256 == selected_sha,
+                OccupancyClassificationTestRun.review_status == "reviewed",
+                OccupancyClassificationTestRun.human_decision == "accepted_regression",
+            )
+            .order_by(OccupancyClassificationTestRun.reviewed_at.desc())
+        ).all()
+    current_test_suite_fingerprint = (
+        occupancy_test_suite_fingerprint(db, source_xml_sha256=selected_sha)
+        if selected_sha
+        else None
+    )
+    matching_accepted_run = next(
+        (
+            run for run in accepted_runs
+            if (run.result_payload or {}).get("authoring_fingerprint")
+            == current_authoring_fingerprint
+            and (run.result_payload or {}).get("test_suite_fingerprint")
+            == current_test_suite_fingerprint
+            and bool((run.result_payload or {}).get("overall_pass"))
+        ),
+        None,
+    )
+    regression_gate_passed = matching_accepted_run is not None
+
     complete = (
         selected_sha is not None
+        and regression_gate_passed
         and catalog_batch_valid
         and len(items) == EXPECTED_OCCUPANCY_CLASSIFICATION_COUNT
         and len(unique_codes) == EXPECTED_OCCUPANCY_CLASSIFICATION_COUNT
@@ -447,6 +558,10 @@ def occupancy_rule_coverage(
     blockers = []
     if selected_sha is None:
         blockers.append("official occupancy authoring batch is not imported")
+    if selected_sha is not None and not regression_gate_passed:
+        blockers.append(
+            "accepted regression run is missing or stale for the current authoring/test-suite fingerprints"
+        )
     if not catalog_batch_valid:
         blockers.append(
             f"catalog batch size marker is not the verified {EXPECTED_OCCUPANCY_CLASSIFICATION_COUNT}: {sorted(catalog_sizes)}"
@@ -473,6 +588,14 @@ def occupancy_rule_coverage(
     return {
         "source_xml_sha256": selected_sha,
         "evaluation_date": evaluation_date.isoformat(),
+        "current_authoring_fingerprint": current_authoring_fingerprint,
+        "current_test_suite_fingerprint": current_test_suite_fingerprint,
+        "regression_gate_passed": regression_gate_passed,
+        "accepted_regression_run_id": (
+            matching_accepted_run.occupancy_classification_test_run_id
+            if matching_accepted_run
+            else None
+        ),
         "expected_classification_count": EXPECTED_OCCUPANCY_CLASSIFICATION_COUNT,
         "catalog_batch_valid": catalog_batch_valid,
         "catalog_batch_size_markers": sorted(catalog_sizes),
