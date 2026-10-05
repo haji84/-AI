@@ -6,9 +6,9 @@ from sqlalchemy.orm import Session
 
 from .db import get_db
 from .settings import settings
-from .routers import auth, facilities, documents, extensions, templates, contracts, inspections, submissions, intake, legal_rules, legal_sources, legal_rule_drafts, legal_review_queue, equipment, drawings, fire_investigations, fire_report_exports
+from .routers import auth, facilities, documents, extensions, templates, contracts, inspections, submissions, intake, legal_rules, legal_sources, legal_rule_drafts, legal_review_queue, equipment, drawings, fire_investigations, fire_report_exports, fire_photos
 
-app = FastAPI(title=settings.app_name, version="0.9.0")
+app = FastAPI(title=settings.app_name, version="0.10.0")
 
 
 @app.get("/health")
@@ -20,7 +20,7 @@ def health(response: Response, db: Session = Depends(get_db)):
         db.rollback()
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
         database = "unavailable"
-    return {"status": "ok" if database == "ok" else "degraded", "phase": 7, "database": database, "ai_required": False}
+    return {"status": "ok" if database == "ok" else "degraded", "phase": 8, "database": database, "ai_required": False}
 
 
 app.include_router(auth.router)
@@ -41,6 +41,7 @@ app.include_router(equipment.router)
 app.include_router(drawings.router)
 app.include_router(fire_investigations.router)
 app.include_router(fire_report_exports.router)
+app.include_router(fire_photos.router)
 
 _ui = Path(__file__).resolve().parents[2] / "frontend"
 if _ui.exists():
