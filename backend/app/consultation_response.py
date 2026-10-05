@@ -543,6 +543,7 @@ def build_consultation_response_package(
     return {
         **core,
         "answer_state": state,
+        "reviewable": base_state == "review_ready",
         "response_sha256": response_sha,
         "saved_response_sha256": saved_sha,
         "review_current": saved_review_current,
