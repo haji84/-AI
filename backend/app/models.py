@@ -1399,3 +1399,38 @@ class FireReportExport(Base):
     verified_by: Mapped[str | None] = mapped_column(ForeignKey("app_users.user_id"))
     verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+class FirePhotoProfile(Base):
+    __tablename__ = "fire_photo_profiles"
+    fire_photo_profile_id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True, default=uuid_str)
+    fire_investigation_media_id: Mapped[str] = mapped_column(
+        ForeignKey("fire_investigation_media.fire_investigation_media_id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+    photo_number: Mapped[int | None] = mapped_column(Integer)
+    image_width: Mapped[int | None] = mapped_column(Integer)
+    image_height: Mapped[int | None] = mapped_column(Integer)
+    orientation: Mapped[int | None] = mapped_column(Integer)
+    exif_captured_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    camera_make: Mapped[str | None] = mapped_column(Text)
+    camera_model: Mapped[str | None] = mapped_column(Text)
+    exif_metadata: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    exact_sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    perceptual_hash: Mapped[str | None] = mapped_column(String(64), index=True)
+    duplicate_of_media_id: Mapped[str | None] = mapped_column(
+        ForeignKey("fire_investigation_media.fire_investigation_media_id", ondelete="SET NULL"),
+        index=True,
+    )
+    duplicate_distance: Mapped[int | None] = mapped_column(Integer)
+    brightness_score: Mapped[float | None] = mapped_column(Float)
+    contrast_score: Mapped[float | None] = mapped_column(Float)
+    sharpness_score: Mapped[float | None] = mapped_column(Float)
+    quality_flags: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    search_text: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    analysis_version: Mapped[str] = mapped_column(String(80), nullable=False, default="photo-metadata-v1")
+    analyzed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
