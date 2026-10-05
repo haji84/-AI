@@ -1303,7 +1303,7 @@ Verified checkpoint:
 
 ## Phase 6 Annotation editing / automatic area calculation
 
-Implemented on branch `phase6-annotation-edit-area`; CI verification pending:
+Implemented and CI-verified:
 - existing Draft room/zone polygons can be selected and edited by dragging vertices
 - selected polygon vertices can be added or deleted with a minimum 3-vertex guard
 - existing region label / use code / floor can be corrected manually
@@ -1350,3 +1350,9 @@ Safety:
 - browser-calculated area is feedback only; backend recalculation is authoritative
 - reviewed Annotation cannot be edited through the Draft edit API
 - a geometry or calibration change changes the resulting Human Reference evidence and downstream Benchmark SHA
+
+Verified checkpoint:
+- run: `37386057958` SUCCESS
+- backend pytest: 143 passed
+- migration parser smoke: PASS
+- frontend JavaScript syntax: PASS
