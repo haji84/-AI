@@ -3076,6 +3076,11 @@ def test_phase7_4_approved_report_renders_registered_excel_template_without_modi
         assert out_ws["B3"].value=="正式様式出力テスト"
         assert out_ws["B4"].value=="Human確認済み報告本文"
 
+    downloaded=client.get(f"/documents/{exp['output_document_id']}/download")
+    assert downloaded.status_code==200
+    assert downloaded.content
+    assert downloaded.content[:2]==b"PK"
+
     verified=client.post(f"/fire-investigations/report-exports/{exp['fire_report_export_id']}/verify",json={
         "expected_case_version":1
     })
