@@ -808,3 +808,29 @@ Target production flow:
 4. require ready=true and 35 exact provision matches
 5. import the verified 35 pending authoring skeletons
 6. Human-authored applicability conditions remain required before review/promotion/approval
+
+
+## Phase 6 occupancy authoring workbench
+
+Implemented on branch `phase6-occupancy-authoring-workbench`; CI verification pending:
+- official 35-entry occupancy authoring Worklist API
+- classification code / label / official row citation / current conditions visible in one response
+- condition state: blank / valid / invalid
+- allowed condition fields are restricted to consultation facts the system can actually collect
+- bulk condition authoring supports Dry-run and atomic Apply
+- optimistic version checks per Draft
+- duplicate Draft IDs in one bulk request are rejected
+- one invalid item blocks the whole Apply
+- classification identity, outcome, citations, review status and approval status cannot be changed by bulk condition authoring
+- occupancy Rule coverage engine tracks 35 unique classifications
+- coverage requires verified catalog batch-size marker
+- coverage requires valid conditions for all 35
+- coverage requires promoted Rule citations to still be present in the same source Version
+- coverage requires all 35 Rule Versions to be Approved, active and effective
+- drawing consultation surfaces an explicit coverage warning until coverage_complete=true
+- E2E covers atomic bulk authoring and 35/35 Approved coverage completion
+
+Safety:
+- Workbench accelerates Human authoring but does not generate legal applicability conditions
+- Rule review, promotion and approval remain separate Human gates
+- partial Rule coverage never presents itself as a complete automatic classification system
