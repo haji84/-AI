@@ -1,0 +1,963 @@
+from __future__ import annotations
+
+from datetime import datetime, timezone
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import or_, select, update
+from sqlalchemy.orm import Session
+
+from ..audit import write_audit
+from ..authz import require_permission
+from ..db import get_db
+from ..models import (
+    Document,
+    Facility,
+    FireCauseCandidate,
+    FireInvestigationCase,
+    FireInvestigationMedia,
+    FirePhotoAnnotation,
+    FireReportDraft,
+    FireStatementDraft,
+    FireTimelineEvent,
+    FireTranscriptSegment,
+    FormTemplate,
+    User,
+)
+from ..schemas import (
+    FireCauseCandidateCreate,
+    FireCauseCandidateOut,
+    FireCauseCandidateReview,
+    FireInvestigationCaseCreate,
+    FireInvestigationCaseDetailOut,
+    FireInvestigationCaseOut,
+    FireInvestigationCasePatch,
+    FireInvestigationMediaCreate,
+    FireInvestigationMediaOut,
+    FireOfficialCauseApprove,
+    FirePhotoAnnotationCreate,
+    FirePhotoAnnotationOut,
+    FirePhotoAnnotationReview,
+    FireReportDraftApprove,
+    FireReportDraftCreate,
+    FireReportDraftOut,
+    FireReportDraftReview,
+    FireStatementDraftCreate,
+    FireStatementDraftOut,
+    FireStatementDraftReview,
+    FireTimelineEventCreate,
+    FireTimelineEventOut,
+    FireTimelineEventReview,
+    FireTranscriptSegmentCreate,
+    FireTranscriptSegmentOut,
+    FireTranscriptSegmentReview,
+)
+
+router = APIRouter(prefix="/fire-investigations", tags=["fire-investigations"])
+
+
+def _dt(value: str | None) -> datetime | None:
+    if value in (None, ""):
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=f"invalid datetime: {value}") from exc
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
+
+
+def _case_out(row: FireInvestigationCase) -> FireInvestigationCaseOut:
+    return FireInvestigationCaseOut(
+        fire_investigation_case_id=row.fire_investigation_case_id,
+        case_number=row.case_number,
+        building_id=row.building_id,
+        title=row.title,
+        occurred_at=row.occurred_at.isoformat() if row.occurred_at else None,
+        location_text=row.location_text,
+        status=row.status,
+        official_cause_text=row.official_cause_text,
+        official_cause_candidate_id=row.official_cause_candidate_id,
+        final_report_document_id=row.final_report_document_id,
+        version=row.version,
+        cause_approved_by=row.cause_approved_by,
+        cause_approved_at=row.cause_approved_at.isoformat() if row.cause_approved_at else None,
+        created_at=row.created_at.isoformat(),
+    )
+
+
+def _media_out(row: FireInvestigationMedia) -> FireInvestigationMediaOut:
+    return FireInvestigationMediaOut(
+        fire_investigation_media_id=row.fire_investigation_media_id,
+        fire_investigation_case_id=row.fire_investigation_case_id,
+        document_id=row.document_id,
+        media_type=row.media_type,
+        sequence_no=row.sequence_no,
+        captured_at=row.captured_at.isoformat() if row.captured_at else None,
+        location_label=row.location_label,
+        floor_number=row.floor_number,
+        notes=row.notes,
+        review_status=row.review_status,
+        ai_metadata=row.ai_metadata or {},
+    )
+
+
+def _photo_out(row: FirePhotoAnnotation) -> FirePhotoAnnotationOut:
+    return FirePhotoAnnotationOut(
+        fire_photo_annotation_id=row.fire_photo_annotation_id,
+        fire_investigation_media_id=row.fire_investigation_media_id,
+        description=row.description,
+        tags=row.tags or [],
+        map_position=row.map_position or {},
+        confidence=row.confidence,
+        source_kind=row.source_kind,
+        model_version=row.model_version,
+        status=row.status,
+        version=row.version,
+    )
+
+
+def _segment_out(row: FireTranscriptSegment) -> FireTranscriptSegmentOut:
+    return FireTranscriptSegmentOut(
+        fire_transcript_segment_id=row.fire_transcript_segment_id,
+        fire_investigation_media_id=row.fire_investigation_media_id,
+        start_ms=row.start_ms,
+        end_ms=row.end_ms,
+        speaker_label=row.speaker_label,
+        text=row.text,
+        confidence=row.confidence,
+        source_kind=row.source_kind,
+        model_version=row.model_version,
+        review_status=row.review_status,
+        version=row.version,
+    )
+
+
+def _statement_out(row: FireStatementDraft) -> FireStatementDraftOut:
+    return FireStatementDraftOut(
+        fire_statement_draft_id=row.fire_statement_draft_id,
+        fire_investigation_case_id=row.fire_investigation_case_id,
+        fire_investigation_media_id=row.fire_investigation_media_id,
+        person_label=row.person_label,
+        draft_text=row.draft_text,
+        evidence_segment_ids=row.evidence_segment_ids or [],
+        ai_generated=row.ai_generated,
+        model_version=row.model_version,
+        status=row.status,
+        version=row.version,
+    )
+
+
+def _timeline_out(row: FireTimelineEvent) -> FireTimelineEventOut:
+    return FireTimelineEventOut(
+        fire_timeline_event_id=row.fire_timeline_event_id,
+        fire_investigation_case_id=row.fire_investigation_case_id,
+        event_time=row.event_time.isoformat() if row.event_time else None,
+        event_time_text=row.event_time_text,
+        event_type=row.event_type,
+        title=row.title,
+        description=row.description,
+        source_refs=row.source_refs or [],
+        confidence=row.confidence,
+        status=row.status,
+        version=row.version,
+    )
+
+
+def _cause_out(row: FireCauseCandidate) -> FireCauseCandidateOut:
+    return FireCauseCandidateOut(
+        fire_cause_candidate_id=row.fire_cause_candidate_id,
+        fire_investigation_case_id=row.fire_investigation_case_id,
+        cause_category=row.cause_category,
+        cause_text=row.cause_text,
+        hypothesis=row.hypothesis or {},
+        evidence_refs=row.evidence_refs or [],
+        confidence=row.confidence,
+        extraction_method=row.extraction_method,
+        model_version=row.model_version,
+        status=row.status,
+        version=row.version,
+    )
+
+
+def _report_out(row: FireReportDraft) -> FireReportDraftOut:
+    return FireReportDraftOut(
+        fire_report_draft_id=row.fire_report_draft_id,
+        fire_investigation_case_id=row.fire_investigation_case_id,
+        report_type=row.report_type,
+        form_template_id=row.form_template_id,
+        narrative_text=row.narrative_text,
+        structured_content=row.structured_content or {},
+        evidence_refs=row.evidence_refs or [],
+        ai_generated=row.ai_generated,
+        model_version=row.model_version,
+        status=row.status,
+        version=row.version,
+    )
+
+
+def _case_detail(db: Session, row: FireInvestigationCase) -> FireInvestigationCaseDetailOut:
+    media = db.scalars(
+        select(FireInvestigationMedia)
+        .where(FireInvestigationMedia.fire_investigation_case_id == row.fire_investigation_case_id)
+        .order_by(FireInvestigationMedia.sequence_no, FireInvestigationMedia.created_at)
+    ).all()
+    statements = db.scalars(
+        select(FireStatementDraft)
+        .where(FireStatementDraft.fire_investigation_case_id == row.fire_investigation_case_id)
+        .order_by(FireStatementDraft.created_at)
+    ).all()
+    timeline = db.scalars(
+        select(FireTimelineEvent)
+        .where(FireTimelineEvent.fire_investigation_case_id == row.fire_investigation_case_id)
+        .order_by(FireTimelineEvent.event_time, FireTimelineEvent.created_at)
+    ).all()
+    causes = db.scalars(
+        select(FireCauseCandidate)
+        .where(FireCauseCandidate.fire_investigation_case_id == row.fire_investigation_case_id)
+        .order_by(FireCauseCandidate.created_at)
+    ).all()
+    reports = db.scalars(
+        select(FireReportDraft)
+        .where(FireReportDraft.fire_investigation_case_id == row.fire_investigation_case_id)
+        .order_by(FireReportDraft.created_at)
+    ).all()
+    return FireInvestigationCaseDetailOut(
+        case=_case_out(row),
+        media=[_media_out(x) for x in media],
+        statements=[_statement_out(x) for x in statements],
+        timeline=[_timeline_out(x) for x in timeline],
+        cause_candidates=[_cause_out(x) for x in causes],
+        report_drafts=[_report_out(x) for x in reports],
+    )
+
+
+def _require_case(db: Session, case_id: str) -> FireInvestigationCase:
+    row = db.get(FireInvestigationCase, case_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="fire investigation case not found")
+    return row
+
+
+def _require_media(db: Session, media_id: str, media_type: str | None = None) -> FireInvestigationMedia:
+    row = db.get(FireInvestigationMedia, media_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="fire investigation media not found")
+    if media_type and row.media_type != media_type:
+        raise HTTPException(status_code=422, detail=f"media must be {media_type}")
+    return row
+
+
+@router.get("", response_model=list[FireInvestigationCaseOut])
+def list_cases(
+    q: str | None = None,
+    case_status: str | None = None,
+    building_id: str | None = None,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("fire_investigation.read")),
+):
+    stmt = select(FireInvestigationCase)
+    if q:
+        needle = f"%{q}%"
+        stmt = stmt.where(
+            or_(
+                FireInvestigationCase.title.ilike(needle),
+                FireInvestigationCase.case_number.ilike(needle),
+                FireInvestigationCase.location_text.ilike(needle),
+            )
+        )
+    if case_status:
+        stmt = stmt.where(FireInvestigationCase.status == case_status)
+    if building_id:
+        stmt = stmt.where(FireInvestigationCase.building_id == building_id)
+    rows = db.scalars(
+        stmt.order_by(FireInvestigationCase.occurred_at.desc(), FireInvestigationCase.created_at.desc())
+        .limit(max(1, min(limit, 500)))
+    ).all()
+    return [_case_out(x) for x in rows]
+
+
+@router.post("", response_model=FireInvestigationCaseOut, status_code=201)
+def create_case(
+    payload: FireInvestigationCaseCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("fire_investigation.create")),
+):
+    if payload.building_id and not db.get(Facility, payload.building_id):
+        raise HTTPException(status_code=422, detail="building_id not found")
+    if payload.case_number and db.scalar(
+        select(FireInvestigationCase).where(FireInvestigationCase.case_number == payload.case_number)
+    ):
+        raise HTTPException(status_code=409, detail="case_number already exists")
+    row = FireInvestigationCase(
+        case_number=payload.case_number,
+        building_id=payload.building_id,
+        title=payload.title,
+        occurred_at=_dt(payload.occurred_at),
+        location_text=payload.location_text,
+        status="draft",
+        created_by=user.user_id,
+        updated_by=user.user_id,
+    )
+    db.add(row)
+    db.flush()
+    write_audit(
+        db,
+        user_id=user.user_id,
+        action="fire_investigation.create",
+        entity_type="fire_investigation_case",
+        entity_id=row.fire_investigation_case_id,
+        after=_case_out(row).model_dump(mode="json"),
+    )
+    db.commit()
+    return _case_out(row)
+
+
+@router.get("/{case_id}", response_model=FireInvestigationCaseDetailOut)
+def get_case(
+    case_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("fire_investigation.read")),
+):
+    return _case_detail(db, _require_case(db, case_id))
+
+
+@router.patch("/{case_id}", response_model=FireInvestigationCaseOut)
+def patch_case(
+    case_id: str,
+    payload: FireInvestigationCasePatch,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("fire_investigation.update")),
+):
+    current = _require_case(db, case_id)
+    before = _case_out(current).model_dump(mode="json")
+    values = payload.model_dump(exclude_unset=True, exclude={"expected_version"})
+    if "occurred_at" in values:
+        values["occurred_at"] = _dt(values["occurred_at"])
+    if "building_id" in values and values["building_id"] and not db.get(Facility, values["building_id"]):
+        raise HTTPException(status_code=422, detail="building_id not found")
+    if "case_number" in values and values["case_number"]:
+        duplicate = db.scalar(
+            select(FireInvestigationCase).where(
+                FireInvestigationCase.case_number == values["case_number"],
+                FireInvestigationCase.fire_investigation_case_id != case_id,
+            )
+        )
+        if duplicate:
+            raise HTTPException(status_code=409, detail="case_number already exists")
+    values["version"] = payload.expected_version + 1
+    values["updated_by"] = user.user_id
+    values["updated_at"] = datetime.now(timezone.utc)
+    result = db.execute(
+        update(FireInvestigationCase)
+        .where(
+            FireInvestigationCase.fire_investigation_case_id == case_id,
+            FireInvestigationCase.version == payload.expected_version,
+        )
+        .values(**values)
+    )
+    if result.rowcount != 1:
+        db.rollback()
+        latest = db.get(FireInvestigationCase, case_id)
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"message": "case was updated by another user", "current": _case_out(latest).model_dump(mode="json") if latest else None},
+        )
+    row = db.get(FireInvestigationCase, case_id)
+    out = _case_out(row)
+    write_audit(
+        db,
+        user_id=user.user_id,
+        action="fire_investigation.update",
+        entity_type="fire_investigation_case",
+        entity_id=case_id,
+        before=before,
+        after=out.model_dump(mode="json"),
+    )
+    db.commit()
+    return out
+
+
+@router.post("/{case_id}/media", response_model=FireInvestigationMediaOut, status_code=201)
+def add_media(
+    case_id: str,
+    payload: FireInvestigationMediaCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("fire_investigation.create")),
+):
+    case = _require_case(db, case_id)
+    doc = db.get(Document, payload.document_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="document not found")
+    if case.building_id and doc.building_id and doc.building_id != case.building_id:
+        raise HTTPException(status_code=409, detail="document belongs to another facility")
+    if case.building_id and not doc.building_id:
+        doc.building_id = case.building_id
+    if db.scalar(
+        select(FireInvestigationMedia).where(
+            FireInvestigationMedia.fire_investigation_case_id == case_id,
+            FireInvestigationMedia.document_id == payload.document_id,
+        )
+    ):
+        raise HTTPException(status_code=409, detail="document already linked to this case")
+    row = FireInvestigationMedia(
+        fire_investigation_case_id=case_id,
+        document_id=payload.document_id,
+        media_type=payload.media_type,
+        sequence_no=payload.sequence_no,
+        captured_at=_dt(payload.captured_at),
+        location_label=payload.location_label,
+        floor_number=payload.floor_number,
+        notes=payload.notes,
+        ai_metadata=payload.ai_metadata,
+        created_by=user.user_id,
+    )
+    db.add(row)
+    db.flush()
+    write_audit(
+        db,
+        user_id=user.user_id,
+        action="fire_investigation.media.add",
+        entity_type="fire_investigation_media",
+        entity_id=row.fire_investigation_media_id,
+        after=_media_out(row).model_dump(mode="json"),
+    )
+    db.commit()
+    return _media_out(row)
+
+
+@router.get("/{case_id}/media", response_model=list[FireInvestigationMediaOut])
+def list_media(
+    case_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("fire_investigation.read")),
+):
+    _require_case(db, case_id)
+    rows = db.scalars(
+        select(FireInvestigationMedia)
+        .where(FireInvestigationMedia.fire_investigation_case_id == case_id)
+        .order_by(FireInvestigationMedia.sequence_no, FireInvestigationMedia.created_at)
+    ).all()
+    return [_media_out(x) for x in rows]
+
+
+@router.post("/media/{media_id}/photo-annotations", response_model=FirePhotoAnnotationOut, status_code=201)
+def create_photo_annotation(
+    media_id: str,
+    payload: FirePhotoAnnotationCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("fire_investigation.update")),
+):
+    _require_media(db, media_id, "photo")
+    row = FirePhotoAnnotation(
+        fire_investigation_media_id=media_id,
+        description=payload.description,
+        tags=payload.tags,
+        map_position=payload.map_position,
+        confidence=payload.confidence,
+        source_kind=payload.source_kind,
+        model_version=payload.model_version,
+        status="pending",
+    )
+    db.add(row)
+    db.flush()
+    write_audit(
+        db,
+        user_id=user.user_id,
+        action="fire_investigation.photo_annotation.create",
+        entity_type="fire_photo_annotation",
+        entity_id=row.fire_photo_annotation_id,
+        after=_photo_out(row).model_dump(mode="json"),
+        ai_used=payload.source_kind == "ai",
+        ai_model_version=payload.model_version,
+    )
+    db.commit()
+    return _photo_out(row)
+
+
+@router.patch("/photo-annotations/{annotation_id}", response_model=FirePhotoAnnotationOut)
+def review_photo_annotation(
+    annotation_id: str,
+    payload: FirePhotoAnnotationReview,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("fire_investigation.review")),
+):
+    row = db.get(FirePhotoAnnotation, annotation_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="photo annotation not found")
+    result = db.execute(
+        update(FirePhotoAnnotation)
+        .where(
+            FirePhotoAnnotation.fire_photo_annotation_id == annotation_id,
+            FirePhotoAnnotation.version == payload.expected_version,
+            FirePhotoAnnotation.status == "pending",
+        )
+        .values(
+            status=payload.status,
+            version=payload.expected_version + 1,
+            reviewed_by=user.user_id,
+            reviewed_at=datetime.now(timezone.utc),
+        )
+    )
+    if result.rowcount != 1:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="photo annotation was updated or already reviewed")
+    row = db.get(FirePhotoAnnotation, annotation_id)
+    db.commit()
+    return _photo_out(row)
+
+
+@router.post("/media/{media_id}/transcript-segments", response_model=FireTranscriptSegmentOut, status_code=201)
+def create_transcript_segment(
+    media_id: str,
+    payload: FireTranscriptSegmentCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("fire_investigation.update")),
+):
+    _require_media(db, media_id, "audio")
+    if payload.start_ms is not None and payload.end_ms is not None and payload.end_ms < payload.start_ms:
+        raise HTTPException(status_code=422, detail="end_ms must be >= start_ms")
+    row = FireTranscriptSegment(
+        fire_investigation_media_id=media_id,
+        start_ms=payload.start_ms,
+        end_ms=payload.end_ms,
+        speaker_label=payload.speaker_label,
+        text=payload.text,
+        confidence=payload.confidence,
+        source_kind=payload.source_kind,
+        model_version=payload.model_version,
+        review_status="pending",
+    )
+    db.add(row)
+    db.flush()
+    write_audit(
+        db,
+        user_id=user.user_id,
+        action="fire_investigation.transcript.create",
+        entity_type="fire_transcript_segment",
+        entity_id=row.fire_transcript_segment_id,
+        after=_segment_out(row).model_dump(mode="json"),
+        ai_used=payload.source_kind == "ai",
+        ai_model_version=payload.model_version,
+    )
+    db.commit()
+    return _segment_out(row)
+
+
+@router.get("/media/{media_id}/transcript-segments", response_model=list[FireTranscriptSegmentOut])
+def list_transcript_segments(
+    media_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("fire_investigation.read")),
+):
+    _require_media(db, media_id, "audio")
+    rows = db.scalars(
+        select(FireTranscriptSegment)
+        .where(FireTranscriptSegment.fire_investigation_media_id == media_id)
+        .order_by(FireTranscriptSegment.start_ms, FireTranscriptSegment.created_at)
+    ).all()
+    return [_segment_out(x) for x in rows]
+
+
+@router.patch("/transcript-segments/{segment_id}", response_model=FireTranscriptSegmentOut)
+def review_transcript_segment(
+    segment_id: str,
+    payload: FireTranscriptSegmentReview,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("fire_investigation.review")),
+):
+    row = db.get(FireTranscriptSegment, segment_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="transcript segment not found")
+    result = db.execute(
+        update(FireTranscriptSegment)
+        .where(
+            FireTranscriptSegment.fire_transcript_segment_id == segment_id,
+            FireTranscriptSegment.version == payload.expected_version,
+            FireTranscriptSegment.review_status == "pending",
+        )
+        .values(
+            review_status=payload.status,
+            version=payload.expected_version + 1,
+            reviewed_by=user.user_id,
+            reviewed_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+        )
+    )
+    if result.rowcount != 1:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="transcript segment was updated or already reviewed")
+    row = db.get(FireTranscriptSegment, segment_id)
+    db.commit()
+    return _segment_out(row)
+
+
+@router.post("/{case_id}/statements", response_model=FireStatementDraftOut, status_code=201)
+def create_statement_draft(
+    case_id: str,
+    payload: FireStatementDraftCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("fire_investigation.update")),
+):
+    _require_case(db, case_id)
+    if payload.fire_investigation_media_id:
+        media = _require_media(db, payload.fire_investigation_media_id)
+        if media.fire_investigation_case_id != case_id:
+            raise HTTPException(status_code=422, detail="statement media belongs to another case")
+    for segment_id in payload.evidence_segment_ids:
+        segment = db.get(FireTranscriptSegment, segment_id)
+        if not segment:
+            raise HTTPException(status_code=422, detail=f"evidence segment not found: {segment_id}")
+        media = db.get(FireInvestigationMedia, segment.fire_investigation_media_id)
+        if not media or media.fire_investigation_case_id != case_id:
+            raise HTTPException(status_code=422, detail="evidence segment belongs to another case")
+    row = FireStatementDraft(
+        fire_investigation_case_id=case_id,
+        fire_investigation_media_id=payload.fire_investigation_media_id,
+        person_label=payload.person_label,
+        draft_text=payload.draft_text,
+        evidence_segment_ids=payload.evidence_segment_ids,
+        ai_generated=payload.ai_generated,
+        model_version=payload.model_version,
+        status="draft",
+        created_by=user.user_id,
+    )
+    db.add(row)
+    db.flush()
+    write_audit(
+        db,
+        user_id=user.user_id,
+        action="fire_investigation.statement.create",
+        entity_type="fire_statement_draft",
+        entity_id=row.fire_statement_draft_id,
+        after=_statement_out(row).model_dump(mode="json"),
+        ai_used=payload.ai_generated,
+        ai_model_version=payload.model_version,
+    )
+    db.commit()
+    return _statement_out(row)
+
+
+@router.patch("/statements/{statement_id}", response_model=FireStatementDraftOut)
+def review_statement_draft(
+    statement_id: str,
+    payload: FireStatementDraftReview,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("fire_investigation.review")),
+):
+    row = db.get(FireStatementDraft, statement_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="statement draft not found")
+    result = db.execute(
+        update(FireStatementDraft)
+        .where(
+            FireStatementDraft.fire_statement_draft_id == statement_id,
+            FireStatementDraft.version == payload.expected_version,
+            FireStatementDraft.status == "draft",
+        )
+        .values(
+            status=payload.status,
+            version=payload.expected_version + 1,
+            reviewed_by=user.user_id,
+            reviewed_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+        )
+    )
+    if result.rowcount != 1:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="statement draft was updated or already reviewed")
+    row = db.get(FireStatementDraft, statement_id)
+    db.commit()
+    return _statement_out(row)
+
+
+@router.post("/{case_id}/timeline", response_model=FireTimelineEventOut, status_code=201)
+def create_timeline_event(
+    case_id: str,
+    payload: FireTimelineEventCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("fire_investigation.update")),
+):
+    _require_case(db, case_id)
+    row = FireTimelineEvent(
+        fire_investigation_case_id=case_id,
+        event_time=_dt(payload.event_time),
+        event_time_text=payload.event_time_text,
+        event_type=payload.event_type,
+        title=payload.title,
+        description=payload.description,
+        source_refs=payload.source_refs,
+        confidence=payload.confidence,
+        status="candidate",
+        created_by=user.user_id,
+    )
+    db.add(row)
+    db.flush()
+    db.commit()
+    return _timeline_out(row)
+
+
+@router.patch("/timeline/{event_id}", response_model=FireTimelineEventOut)
+def review_timeline_event(
+    event_id: str,
+    payload: FireTimelineEventReview,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("fire_investigation.review")),
+):
+    row = db.get(FireTimelineEvent, event_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="timeline event not found")
+    result = db.execute(
+        update(FireTimelineEvent)
+        .where(
+            FireTimelineEvent.fire_timeline_event_id == event_id,
+            FireTimelineEvent.version == payload.expected_version,
+            FireTimelineEvent.status == "candidate",
+        )
+        .values(
+            status=payload.status,
+            version=payload.expected_version + 1,
+            reviewed_by=user.user_id,
+            reviewed_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+        )
+    )
+    if result.rowcount != 1:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="timeline event was updated or already reviewed")
+    row = db.get(FireTimelineEvent, event_id)
+    db.commit()
+    return _timeline_out(row)
+
+
+@router.post("/{case_id}/cause-candidates", response_model=FireCauseCandidateOut, status_code=201)
+def create_cause_candidate(
+    case_id: str,
+    payload: FireCauseCandidateCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("fire_investigation.update")),
+):
+    _require_case(db, case_id)
+    row = FireCauseCandidate(
+        fire_investigation_case_id=case_id,
+        cause_category=payload.cause_category,
+        cause_text=payload.cause_text,
+        hypothesis=payload.hypothesis,
+        evidence_refs=payload.evidence_refs,
+        confidence=payload.confidence,
+        extraction_method=payload.extraction_method,
+        model_version=payload.model_version,
+        status="candidate",
+        created_by=user.user_id,
+    )
+    db.add(row)
+    db.flush()
+    write_audit(
+        db,
+        user_id=user.user_id,
+        action="fire_investigation.cause_candidate.create",
+        entity_type="fire_cause_candidate",
+        entity_id=row.fire_cause_candidate_id,
+        after=_cause_out(row).model_dump(mode="json"),
+        ai_used=payload.extraction_method == "ai",
+        ai_model_version=payload.model_version,
+    )
+    db.commit()
+    return _cause_out(row)
+
+
+@router.patch("/cause-candidates/{candidate_id}", response_model=FireCauseCandidateOut)
+def review_cause_candidate(
+    candidate_id: str,
+    payload: FireCauseCandidateReview,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("fire_investigation.review")),
+):
+    row = db.get(FireCauseCandidate, candidate_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="cause candidate not found")
+    result = db.execute(
+        update(FireCauseCandidate)
+        .where(
+            FireCauseCandidate.fire_cause_candidate_id == candidate_id,
+            FireCauseCandidate.version == payload.expected_version,
+            FireCauseCandidate.status == "candidate",
+        )
+        .values(
+            status=payload.status,
+            version=payload.expected_version + 1,
+            reviewed_by=user.user_id,
+            reviewed_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+        )
+    )
+    if result.rowcount != 1:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="cause candidate was updated or already reviewed")
+    row = db.get(FireCauseCandidate, candidate_id)
+    db.commit()
+    return _cause_out(row)
+
+
+@router.post("/{case_id}/official-cause", response_model=FireInvestigationCaseOut)
+def approve_official_cause(
+    case_id: str,
+    payload: FireOfficialCauseApprove,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("fire_investigation.approve")),
+):
+    case = _require_case(db, case_id)
+    candidate = db.get(FireCauseCandidate, payload.cause_candidate_id)
+    if not candidate or candidate.fire_investigation_case_id != case_id:
+        raise HTTPException(status_code=422, detail="cause candidate does not belong to case")
+    if candidate.status != "reviewed":
+        raise HTTPException(status_code=409, detail="cause candidate must be Human-reviewed before official approval")
+    result = db.execute(
+        update(FireInvestigationCase)
+        .where(
+            FireInvestigationCase.fire_investigation_case_id == case_id,
+            FireInvestigationCase.version == payload.expected_case_version,
+        )
+        .values(
+            official_cause_text=candidate.cause_text,
+            official_cause_candidate_id=candidate.fire_cause_candidate_id,
+            cause_approved_by=user.user_id,
+            cause_approved_at=datetime.now(timezone.utc),
+            version=payload.expected_case_version + 1,
+            updated_by=user.user_id,
+            updated_at=datetime.now(timezone.utc),
+        )
+    )
+    if result.rowcount != 1:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="case was updated before official cause approval")
+    row = db.get(FireInvestigationCase, case_id)
+    write_audit(
+        db,
+        user_id=user.user_id,
+        action="fire_investigation.official_cause.approve",
+        entity_type="fire_investigation_case",
+        entity_id=case_id,
+        after={
+            "official_cause_candidate_id": candidate.fire_cause_candidate_id,
+            "official_cause_text": candidate.cause_text,
+            "case_version": row.version,
+        },
+    )
+    db.commit()
+    return _case_out(row)
+
+
+@router.post("/{case_id}/report-drafts", response_model=FireReportDraftOut, status_code=201)
+def create_report_draft(
+    case_id: str,
+    payload: FireReportDraftCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("fire_investigation.update")),
+):
+    _require_case(db, case_id)
+    if payload.form_template_id and not db.get(FormTemplate, payload.form_template_id):
+        raise HTTPException(status_code=422, detail="form_template_id not found")
+    row = FireReportDraft(
+        fire_investigation_case_id=case_id,
+        report_type=payload.report_type,
+        form_template_id=payload.form_template_id,
+        narrative_text=payload.narrative_text,
+        structured_content=payload.structured_content,
+        evidence_refs=payload.evidence_refs,
+        ai_generated=payload.ai_generated,
+        model_version=payload.model_version,
+        status="draft",
+        created_by=user.user_id,
+    )
+    db.add(row)
+    db.flush()
+    write_audit(
+        db,
+        user_id=user.user_id,
+        action="fire_investigation.report_draft.create",
+        entity_type="fire_report_draft",
+        entity_id=row.fire_report_draft_id,
+        after=_report_out(row).model_dump(mode="json"),
+        ai_used=payload.ai_generated,
+        ai_model_version=payload.model_version,
+    )
+    db.commit()
+    return _report_out(row)
+
+
+@router.patch("/report-drafts/{draft_id}", response_model=FireReportDraftOut)
+def review_report_draft(
+    draft_id: str,
+    payload: FireReportDraftReview,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("fire_investigation.review")),
+):
+    row = db.get(FireReportDraft, draft_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="report draft not found")
+    result = db.execute(
+        update(FireReportDraft)
+        .where(
+            FireReportDraft.fire_report_draft_id == draft_id,
+            FireReportDraft.version == payload.expected_version,
+            FireReportDraft.status == "draft",
+        )
+        .values(
+            status=payload.status,
+            version=payload.expected_version + 1,
+            reviewed_by=user.user_id,
+            reviewed_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+        )
+    )
+    if result.rowcount != 1:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="report draft was updated or already reviewed")
+    row = db.get(FireReportDraft, draft_id)
+    db.commit()
+    return _report_out(row)
+
+
+@router.post("/report-drafts/{draft_id}/approve", response_model=FireReportDraftOut)
+def approve_report_draft(
+    draft_id: str,
+    payload: FireReportDraftApprove,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("fire_investigation.approve")),
+):
+    row = db.get(FireReportDraft, draft_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="report draft not found")
+    if row.status != "reviewed":
+        raise HTTPException(status_code=409, detail="report draft must be Human-reviewed before approval")
+    result = db.execute(
+        update(FireReportDraft)
+        .where(
+            FireReportDraft.fire_report_draft_id == draft_id,
+            FireReportDraft.version == payload.expected_version,
+            FireReportDraft.status == "reviewed",
+        )
+        .values(
+            status="approved",
+            version=payload.expected_version + 1,
+            approved_by=user.user_id,
+            approved_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+        )
+    )
+    if result.rowcount != 1:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="report draft was updated before approval")
+    row = db.get(FireReportDraft, draft_id)
+    write_audit(
+        db,
+        user_id=user.user_id,
+        action="fire_investigation.report.approve",
+        entity_type="fire_report_draft",
+        entity_id=draft_id,
+        after=_report_out(row).model_dump(mode="json"),
+    )
+    db.commit()
+    return _report_out(row)
