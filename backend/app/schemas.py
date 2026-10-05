@@ -1906,3 +1906,17 @@ class DrawingConsultationResponseOut(BaseModel):
     review_stale: bool
     reviewed_at: str | None = None
     response_review_notes: str | None = None
+
+
+class DrawingPreviewPageOut(BaseModel):
+    page_no: int
+    width: int
+    height: int
+
+class DrawingPreviewInfoOut(BaseModel):
+    drawing_analysis_id: str
+    document_id: str
+    preview_kind: Literal["pdf","image","unsupported"]
+    preview_version: str | None = None
+    page_count: int
+    pages: list[DrawingPreviewPageOut] = Field(default_factory=list)
