@@ -3140,3 +3140,125 @@ def test_phase7_4_docx_renderer_preserves_source_and_rejects_split_placeholder(t
             {"case_number":"FIRE-DOCX-74"},
         )
     assert not split_output.exists()
+
+
+def test_phase8_fire_photo_metadata_duplicate_and_search(tmp_path):
+    from io import BytesIO
+    from PIL import Image as PILImage
+    from app.settings import settings
+
+    login()
+    old_root=settings.storage_root
+    settings.storage_root=str(tmp_path)
+    try:
+        facility=client.post("/facilities",json={"name":"Phase8写真対象"}).json()
+        bid=facility["building_id"]
+        case=client.post("/fire-investigations",json={
+            "case_number":"FIRE-PHOTO-8-001",
+            "building_id":bid,
+            "title":"Phase8写真テスト"
+        })
+        assert case.status_code==201
+        cid=case.json()["fire_investigation_case_id"]
+
+        image=PILImage.new("RGB",(1200,900),(95,110,125))
+        for x in range(100,1100,100):
+            for y in range(100,800):
+                image.putpixel((x,y),(210,80,40))
+        buf=BytesIO()
+        image.save(buf,format="JPEG",quality=92)
+        photo_bytes=buf.getvalue()
+
+        def upload_and_link(name,seq):
+            doc=client.post(
+                "/documents/upload",
+                files={"file":(name,photo_bytes,"image/jpeg")},
+                data={"document_type":"fire_scene_photo","building_id":bid},
+            )
+            assert doc.status_code==201
+            db=doc.json()
+            media=client.post(f"/fire-investigations/{cid}/media",json={
+                "document_id":db["document_id"],
+                "media_type":"photo",
+                "sequence_no":seq,
+                "location_label":"出火室",
+            })
+            assert media.status_code==201
+            return db,media.json()
+
+        doc1,media1=upload_and_link("scene-001.jpg",1)
+        a1=client.post(f"/fire-photos/media/{media1['fire_investigation_media_id']}/analyze")
+        assert a1.status_code==200
+        p1=a1.json()
+        assert p1["photo_number"]==1
+        assert p1["image_width"]==1200 and p1["image_height"]==900
+        assert p1["exact_sha256"]==doc1["sha256"]
+        assert p1["analysis_version"]=="photo-metadata-v1"
+        assert p1["duplicate_of_media_id"] is None
+
+        # Analysis is derived-only: source document hash remains identical.
+        doc1_after=client.get(f"/documents/{doc1['document_id']}")
+        assert doc1_after.status_code==200
+        assert doc1_after.json()["sha256"]==doc1["sha256"]
+
+        # Re-analysis updates the same one-to-one profile rather than duplicating it.
+        a1_again=client.post(f"/fire-photos/media/{media1['fire_investigation_media_id']}/analyze")
+        assert a1_again.status_code==200
+        assert a1_again.json()["fire_photo_profile_id"]==p1["fire_photo_profile_id"]
+
+        doc2,media2=upload_and_link("scene-copy.jpg",2)
+        a2=client.post(f"/fire-photos/media/{media2['fire_investigation_media_id']}/analyze")
+        assert a2.status_code==200
+        p2=a2.json()
+        assert p2["exact_sha256"]==doc2["sha256"]==doc1["sha256"]
+        assert p2["duplicate_of_media_id"]==media1["fire_investigation_media_id"]
+        assert p2["duplicate_distance"]==0
+
+        duplicates=client.get(f"/fire-photos/cases/{cid}/duplicates")
+        assert duplicates.status_code==200
+        assert any(
+            x["media"]["fire_investigation_media_id"]==media2["fire_investigation_media_id"]
+            for x in duplicates.json()
+        )
+
+        annotation=client.post(
+            f"/fire-investigations/media/{media1['fire_investigation_media_id']}/photo-annotations",
+            json={
+                "description":"壁面の焼損とコンセント周辺を確認",
+                "tags":["焼損","コンセント","壁面"],
+                "confidence":0.8,
+                "source_kind":"ai",
+                "model_version":"phase8-test",
+            },
+        )
+        assert annotation.status_code==201
+        ann=annotation.json()
+        accepted=client.patch(
+            f"/fire-investigations/photo-annotations/{ann['fire_photo_annotation_id']}",
+            json={"expected_version":1,"status":"accepted"},
+        )
+        assert accepted.status_code==200
+
+        search=client.get(f"/fire-photos/cases/{cid}/search",params={"q":"コンセント 焼損"})
+        assert search.status_code==200
+        assert search.json()
+        assert search.json()[0]["media"]["fire_investigation_media_id"]==media1["fire_investigation_media_id"]
+        assert search.json()[0]["search_score"]==2
+        assert len(search.json()[0]["accepted_annotations"])==1
+    finally:
+        settings.storage_root=old_root
+
+
+def test_phase8_perceptual_hash_distance_is_deterministic():
+    from PIL import Image as PILImage
+    from app.fire_photo_metadata import dhash_hex, hamming_distance_hex
+
+    a=PILImage.new("RGB",(100,100),"white")
+    b=PILImage.new("RGB",(100,100),"white")
+    for y in range(20,80):
+        a.putpixel((50,y),(0,0,0))
+        b.putpixel((50,y),(0,0,0))
+    ha=dhash_hex(a)
+    hb=dhash_hex(b)
+    assert ha==hb
+    assert hamming_distance_hex(ha,hb)==0
