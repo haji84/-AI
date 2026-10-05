@@ -1341,3 +1341,32 @@ class FirePhotoSearchItemOut(BaseModel):
     profile: FirePhotoProfileOut | None = None
     accepted_annotations: list[FirePhotoAnnotationOut] = Field(default_factory=list)
     search_score: int = 0
+
+
+class FirePhotoPlanLinkCreate(BaseModel):
+    drawing_analysis_id: str
+    drawing_element_id: str | None = None
+    page_no: int | None = Field(default=None, ge=1)
+    floor_number: int | None = None
+    position: dict = Field(default_factory=dict)
+    label: str | None = None
+    source_kind: Literal["manual","ai","import"] = "manual"
+    confidence: float | None = Field(default=None, ge=0, le=1)
+
+class FirePhotoPlanLinkReview(BaseModel):
+    expected_version: int = Field(ge=1)
+    status: Literal["accepted","rejected"]
+
+class FirePhotoPlanLinkOut(BaseModel):
+    fire_photo_plan_link_id: str
+    fire_investigation_media_id: str
+    drawing_analysis_id: str
+    drawing_element_id: str | None = None
+    page_no: int | None = None
+    floor_number: int | None = None
+    position: dict
+    label: str | None = None
+    source_kind: str
+    confidence: float | None = None
+    status: str
+    version: int
