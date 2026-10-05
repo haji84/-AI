@@ -3354,3 +3354,109 @@ def test_phase8_photo_metadata_duplicate_detection_and_search():
     low_res=client.get(f"/fire-investigations/{cid}/photo-search",params={"quality_flag":"low_resolution"})
     assert low_res.status_code==200
     assert len(low_res.json())==2
+
+
+def test_phase8_1_photo_plan_link_requires_same_facility_and_human_review():
+    login()
+
+    facility=client.post("/facilities",json={"name":"Phase8.1写真リンク対象"}).json()
+    bid=facility["building_id"]
+    other=client.post("/facilities",json={"name":"Phase8.1別対象"}).json()
+
+    case=client.post("/fire-investigations",json={
+        "case_number":"FIRE-PHOTO-LINK-8-001",
+        "building_id":bid,
+        "title":"Phase8.1写真位置リンク"
+    })
+    assert case.status_code==201
+    cid=case.json()["fire_investigation_case_id"]
+
+    photo_doc=client.post(
+        "/documents/upload",
+        files={"file":("plan-photo.jpg",b"not-real-image-needed-for-link-test","image/jpeg")},
+        data={"document_type":"fire_scene_photo","building_id":bid},
+    ).json()
+    photo=client.post(f"/fire-investigations/{cid}/media",json={
+        "document_id":photo_doc["document_id"],
+        "media_type":"photo",
+        "sequence_no":1,
+    })
+    assert photo.status_code==201
+    pmid=photo.json()["fire_investigation_media_id"]
+
+    drawing_doc=client.post(
+        "/documents/upload",
+        files={"file":("drawing.pdf",b"drawing-bytes","application/pdf")},
+        data={"document_type":"drawing","building_id":bid},
+    ).json()
+    drawing=client.post(f"/facilities/{bid}/drawing-analyses",json={
+        "document_id":drawing_doc["document_id"],
+        "analysis_method":"manual",
+        "summary":{"kind":"floor-plan"}
+    })
+    assert drawing.status_code==201
+    aid=drawing.json()["drawing_analysis_id"]
+
+    wrong_doc=client.post(
+        "/documents/upload",
+        files={"file":("wrong.pdf",b"wrong-drawing","application/pdf")},
+        data={"document_type":"drawing","building_id":other["building_id"]},
+    ).json()
+    wrong=client.post(f"/facilities/{other['building_id']}/drawing-analyses",json={
+        "document_id":wrong_doc["document_id"],
+        "analysis_method":"manual"
+    })
+    assert wrong.status_code==201
+
+    wrong_link=client.post(f"/fire-photos/media/{pmid}/plan-links",json={
+        "drawing_analysis_id":wrong.json()["drawing_analysis_id"],
+        "page_no":1,
+        "position":{"x":0.3,"y":0.4},
+        "source_kind":"ai",
+        "confidence":0.7,
+    })
+    assert wrong_link.status_code==409
+
+    bad_position=client.post(f"/fire-photos/media/{pmid}/plan-links",json={
+        "drawing_analysis_id":aid,
+        "page_no":1,
+        "position":{"x":1.5,"y":0.4},
+        "source_kind":"manual",
+    })
+    assert bad_position.status_code==422
+
+    created=client.post(f"/fire-photos/media/{pmid}/plan-links",json={
+        "drawing_analysis_id":aid,
+        "page_no":1,
+        "floor_number":1,
+        "position":{"x":0.32,"y":0.44},
+        "label":"出火室北側から撮影",
+        "source_kind":"ai",
+        "confidence":0.72,
+    })
+    assert created.status_code==201
+    link=created.json()
+    assert link["status"]=="pending"
+    assert link["version"]==1
+
+    accepted_before=client.get(f"/fire-photos/media/{pmid}/plan-links",params={"accepted_only":"true"})
+    assert accepted_before.status_code==200
+    assert accepted_before.json()==[]
+
+    reviewed=client.patch(f"/fire-photos/plan-links/{link['fire_photo_plan_link_id']}",json={
+        "expected_version":1,
+        "status":"accepted"
+    })
+    assert reviewed.status_code==200
+    assert reviewed.json()["status"]=="accepted"
+    assert reviewed.json()["version"]==2
+
+    accepted_after=client.get(f"/fire-photos/media/{pmid}/plan-links",params={"accepted_only":"true"})
+    assert accepted_after.status_code==200
+    assert len(accepted_after.json())==1
+
+    stale=client.patch(f"/fire-photos/plan-links/{link['fire_photo_plan_link_id']}",json={
+        "expected_version":1,
+        "status":"rejected"
+    })
+    assert stale.status_code==409
