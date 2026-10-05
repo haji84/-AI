@@ -49,6 +49,27 @@ def _sha256_path(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def _source_sha(payload: dict) -> str | None:
+    source = payload.get("source")
+    if not isinstance(source, dict):
+        return None
+    value = source.get("sha256")
+    return str(value).strip() if value else None
+
+
+def _require_same_source_drawing(
+    reference: dict,
+    hypothesis: dict,
+) -> None:
+    ref_sha = _source_sha(reference)
+    hyp_sha = _source_sha(hypothesis)
+    if ref_sha and hyp_sha and ref_sha != hyp_sha:
+        raise ValueError(
+            "Reference/Hypothesis source drawing SHA-256 mismatch: "
+            f"{ref_sha} != {hyp_sha}"
+        )
+
+
 def _rows(payload: dict, key: str) -> list[dict]:
     value = payload.get(key, [])
     if not isinstance(value, list):
@@ -294,6 +315,7 @@ def score_pair(reference_path: Path, hypothesis_path: Path, *, drawing_id: str |
     reference = _load_json(reference_path)
     _require_human_accepted_reference(reference)
     hypothesis = _load_json(hypothesis_path)
+    _require_same_source_drawing(reference, hypothesis)
     return {
         "drawing_id": drawing_id or reference_path.stem,
         "metadata": metadata or {},
