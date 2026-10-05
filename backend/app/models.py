@@ -569,9 +569,6 @@ class Submission(Base):
     created_by: Mapped[str | None] = mapped_column(ForeignKey("app_users.user_id"))
     reviewed_by: Mapped[str | None] = mapped_column(ForeignKey("app_users.user_id"))
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    applied_by: Mapped[str | None] = mapped_column(ForeignKey("app_users.user_id"))
-    applied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    applied_facility_version: Mapped[int | None] = mapped_column(BigInteger)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
 
@@ -1141,5 +1138,8 @@ class DrawingFactCandidate(Base):
     version: Mapped[int] = mapped_column(BigInteger, nullable=False, default=1)
     reviewed_by: Mapped[str | None] = mapped_column(ForeignKey("app_users.user_id"))
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    applied_by: Mapped[str | None] = mapped_column(ForeignKey("app_users.user_id"))
+    applied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    applied_facility_version: Mapped[int | None] = mapped_column(BigInteger)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
