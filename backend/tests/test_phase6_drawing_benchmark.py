@@ -133,3 +133,61 @@ def test_phase6_drawing_benchmark_manifest_micro_aggregate_and_hashes(tmp_path):
     assert result["aggregate"]["geometry_detection"]["false_negative"] == 1
     assert result["aggregate"]["geometry_detection"]["recall"] == 0.5
     assert result["aggregate"]["geometry_detection"]["mean_iou"] == 1.0
+
+
+
+def test_phase6_drawing_benchmark_empty_optional_targets_are_not_fake_perfect_scores():
+    mod = _mod()
+    reference = {
+        "elements": [
+            {
+                "client_ref": "room-1",
+                "page_no": 1,
+                "element_type": "room",
+                "geometry": {"x": 0, "y": 0, "width": 100, "height": 100},
+            }
+        ],
+        "equipment_candidates": [],
+        "fact_candidates": [],
+    }
+    hypothesis = {
+        "elements": [
+            {
+                "client_ref": "room-a",
+                "page_no": 1,
+                "element_type": "room",
+                "geometry": {"x": 0, "y": 0, "width": 100, "height": 100},
+            }
+        ],
+        "equipment_candidates": [],
+        "fact_candidates": [],
+    }
+    result = mod.score_drawing(reference, hypothesis, 0.5)
+
+    assert result["geometry_detection"]["f1"] == 1.0
+    assert result["symbol_classification"]["accuracy"] is None
+    assert result["symbol_classification"]["applicable"] is False
+    assert result["equipment_candidates"]["f1"] is None
+    assert result["equipment_candidates"]["applicable"] is False
+    assert result["fact_candidates"]["f1"] is None
+    assert result["fact_candidates"]["applicable"] is False
+
+
+def test_phase6_drawing_benchmark_false_positive_only_category_is_not_na():
+    mod = _mod()
+    result = mod.score_drawing(
+        {"elements": [], "equipment_candidates": []},
+        {
+            "elements": [],
+            "equipment_candidates": [
+                {"suggested_equipment_type_code": "sprinkler", "floor_number": 1}
+            ],
+        },
+        0.5,
+    )
+    equipment = result["equipment_candidates"]
+    assert equipment["applicable"] is True
+    assert equipment["false_positive"] == 1
+    assert equipment["precision"] == 0.0
+    assert equipment["recall"] is None
+    assert equipment["f1"] == 0.0
