@@ -1464,3 +1464,14 @@ class FireAudioBenchmarkRunOut(BaseModel):
     version: int
     created_at: str
     reviewed_at: str | None = None
+
+
+class FireAudioBenchmarkComparisonOut(BaseModel):
+    left_id: str
+    right_id: str
+    left_dataset_label: str
+    right_dataset_label: str
+    left_review_status: str
+    right_review_status: str
+    metrics: dict
+    note: str
