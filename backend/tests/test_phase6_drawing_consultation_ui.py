@@ -22,8 +22,8 @@ def test_phase6_drawing_consultation_workspace_is_wired_to_human_gates():
         "/equipment/evaluate",
         "/response",
         "/response/review",
-        "equipment_placement_rule_coverage",
-        "add_candidate",
+        "drawingCoverageHtml(r.coverage||{})",
+        "r.equipment_actions||[]",
         "review_stale",
     ]
     missing = [x for x in required_fragments if x not in html]
