@@ -3911,3 +3911,43 @@ def test_phase9_audio_benchmark_registry_rejects_unknown_format():
         "result_payload":{"benchmark_format":"unknown-v99"}
     })
     assert bad.status_code==422
+
+
+def test_phase9_audio_benchmark_comparison_reports_metric_deltas_only():
+    login()
+
+    def payload(cer, der, f1, marker):
+        return {
+            "benchmark_format":"fire-ai-japanese-stt-benchmark-v2",
+            "manifest_sha256":marker*64,
+            "recordings":[],
+            "aggregate":{
+                "recording_count":2,
+                "text_micro":{"cer":cer},
+                "diarization_micro":{"speaker_error_rate":der},
+                "uncertainty_markers_micro":{"f1":f1}
+            }
+        }
+
+    left=client.post("/fire-investigations/audio-benchmarks",json={
+        "dataset_label":"Model A",
+        "result_payload":payload(0.20,0.30,0.60,"d")
+    })
+    right=client.post("/fire-investigations/audio-benchmarks",json={
+        "dataset_label":"Model B",
+        "result_payload":payload(0.10,0.20,0.80,"e")
+    })
+    assert left.status_code==201 and right.status_code==201
+
+    compared=client.get("/fire-investigations/audio-benchmarks/compare",params={
+        "left_id":left.json()["fire_audio_benchmark_run_id"],
+        "right_id":right.json()["fire_audio_benchmark_run_id"],
+    })
+    assert compared.status_code==200
+    body=compared.json()
+    assert round(body["metrics"]["cer"]["delta_right_minus_left"],6)==-0.1
+    assert round(body["metrics"]["speaker_error_rate"]["delta_right_minus_left"],6)==-0.1
+    assert round(body["metrics"]["uncertainty_f1"]["delta_right_minus_left"],6)==0.2
+    assert body["metrics"]["cer"]["lower_is_better"] is True
+    assert body["metrics"]["uncertainty_f1"]["higher_is_better"] is True
+    assert "Dataset composition" in body["note"]
