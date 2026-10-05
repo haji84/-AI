@@ -349,7 +349,7 @@ def create_rule_draft_from_review_candidate(
         raise HTTPException(status_code=409, detail="review candidate must be reviewed before Rule draft creation")
     if row.legal_rule_draft_candidate_id:
         raise HTTPException(status_code=409, detail="Rule draft already created from this review candidate")
-    if row.category not in {"equipment_requirement", "submission_requirement"}:
+    if row.category not in {"equipment_requirement", "equipment_placement", "submission_requirement"}:
         raise HTTPException(
             status_code=409,
             detail="review category is not directly promotable to the current requirement Rule engine",
