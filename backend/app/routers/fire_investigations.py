@@ -961,6 +961,225 @@ def review_transcript_segment(
     return _segment_out(row)
 
 
+@router.get("/{case_id}/transcript-search", response_model=list[FireTranscriptSearchItemOut])
+def search_case_transcripts(
+    case_id: str,
+    q: str,
+    speaker_label: str | None = None,
+    accepted_only: bool = True,
+    uncertain_only: bool = False,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("fire_investigation.read")),
+):
+    _require_case(db, case_id)
+    query=(q or "").strip().lower()
+    if not query:
+        return []
+    terms=[x for x in query.replace("、"," ").replace(","," ").split() if x]
+    medias=db.scalars(
+        select(FireInvestigationMedia).where(
+            FireInvestigationMedia.fire_investigation_case_id==case_id,
+            FireInvestigationMedia.media_type=="audio",
+        )
+    ).all()
+    media_by_id={x.fire_investigation_media_id:x for x in medias}
+    if not media_by_id:
+        return []
+
+    stmt=select(FireTranscriptSegment).where(
+        FireTranscriptSegment.fire_investigation_media_id.in_(list(media_by_id))
+    )
+    if accepted_only:
+        stmt=stmt.where(FireTranscriptSegment.review_status=="accepted")
+    if speaker_label:
+        stmt=stmt.where(FireTranscriptSegment.speaker_label.ilike(f"%{speaker_label}%"))
+    rows=db.scalars(
+        stmt.order_by(
+            FireTranscriptSegment.fire_investigation_media_id,
+            FireTranscriptSegment.start_ms,
+            FireTranscriptSegment.created_at,
+        )
+    ).all()
+
+    out=[]
+    for row in rows:
+        if uncertain_only and not (row.uncertainty_markers or []):
+            continue
+        haystack=(row.search_text or transcript_search_text(
+            speaker_label=row.speaker_label,
+            text=row.text,
+        )).lower()
+        score=sum(haystack.count(term) for term in terms)
+        if score<=0:
+            continue
+        out.append(
+            FireTranscriptSearchItemOut(
+                segment=_segment_out(row),
+                media=_media_out(media_by_id[row.fire_investigation_media_id]),
+                search_score=score,
+            )
+        )
+    out.sort(key=lambda x:(-x.search_score,x.segment.start_ms or 0))
+    return out[:max(1,min(limit,500))]
+
+
+@router.post(
+    "/{case_id}/evidence-comparison-ai-manifest",
+    response_model=FireAIManifestIngestOut,
+)
+def ingest_evidence_comparison_manifest(
+    case_id: str,
+    payload: FireEvidenceComparisonAIManifest,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("fire_investigation.update")),
+):
+    _require_case(db, case_id)
+    validated=[]
+    for item in payload.comparisons:
+        left=_validate_case_evidence_ref(db,case_id,item.left_ref)
+        right=_validate_case_evidence_ref(db,case_id,item.right_ref)
+        if left==right:
+            raise HTTPException(status_code=422,detail="comparison left_ref and right_ref must differ")
+        refs=[_validate_case_evidence_ref(db,case_id,x) for x in item.evidence_refs]
+        validated.append((item,left,right,refs))
+
+    digest=_manifest_hash(payload)
+    scope_key=f"case:{case_id}:evidence-comparison"
+    existing=_existing_manifest(
+        db,
+        scope_key=scope_key,
+        manifest_type="evidence_comparison",
+        manifest_sha256=digest,
+    )
+    if existing:
+        ids=list(db.scalars(
+            select(FireEvidenceComparisonCandidate.fire_evidence_comparison_candidate_id)
+            .where(
+                FireEvidenceComparisonCandidate.source_manifest_id
+                == existing.fire_investigation_ai_manifest_id
+            )
+            .order_by(FireEvidenceComparisonCandidate.created_at)
+        ).all())
+        return _manifest_out(existing,created=False,derived_ids=ids)
+
+    manifest=FireInvestigationAIManifest(
+        fire_investigation_case_id=case_id,
+        scope_key=scope_key,
+        manifest_type="evidence_comparison",
+        manifest_sha256=digest,
+        model_version=payload.model_version,
+        payload_metadata=payload.payload_metadata,
+        created_by=user.user_id,
+    )
+    db.add(manifest)
+    db.flush()
+
+    ids=[]
+    for item,left,right,refs in validated:
+        row=FireEvidenceComparisonCandidate(
+            fire_investigation_case_id=case_id,
+            source_manifest_id=manifest.fire_investigation_ai_manifest_id,
+            issue_type=item.issue_type,
+            summary=item.summary,
+            left_ref=left,
+            right_ref=right,
+            evidence_refs=refs,
+            confidence=item.confidence,
+            extraction_method="ai",
+            model_version=payload.model_version,
+            status="pending",
+            created_by=user.user_id,
+        )
+        db.add(row)
+        db.flush()
+        ids.append(row.fire_evidence_comparison_candidate_id)
+
+    write_audit(
+        db,
+        user_id=user.user_id,
+        action="fire_investigation.evidence_comparison_ai_manifest.ingest",
+        entity_type="fire_investigation_ai_manifest",
+        entity_id=manifest.fire_investigation_ai_manifest_id,
+        after={
+            "case_id":case_id,
+            "manifest_sha256":digest,
+            "comparison_count":len(ids),
+        },
+        ai_used=True,
+        ai_model_version=payload.model_version,
+    )
+    db.commit()
+    return _manifest_out(manifest,created=True,derived_ids=ids)
+
+
+@router.get("/{case_id}/evidence-comparisons", response_model=list[FireEvidenceComparisonOut])
+def list_evidence_comparisons(
+    case_id: str,
+    comparison_status: str | None = None,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("fire_investigation.read")),
+):
+    _require_case(db,case_id)
+    stmt=select(FireEvidenceComparisonCandidate).where(
+        FireEvidenceComparisonCandidate.fire_investigation_case_id==case_id
+    )
+    if comparison_status:
+        stmt=stmt.where(FireEvidenceComparisonCandidate.status==comparison_status)
+    rows=db.scalars(
+        stmt.order_by(
+            FireEvidenceComparisonCandidate.status,
+            FireEvidenceComparisonCandidate.created_at.desc(),
+        ).limit(max(1,min(limit,500)))
+    ).all()
+    return [_comparison_out(x) for x in rows]
+
+
+@router.patch(
+    "/evidence-comparisons/{candidate_id}",
+    response_model=FireEvidenceComparisonOut,
+)
+def review_evidence_comparison(
+    candidate_id: str,
+    payload: FireEvidenceComparisonReview,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("fire_investigation.review")),
+):
+    row=db.get(FireEvidenceComparisonCandidate,candidate_id)
+    if not row:
+        raise HTTPException(status_code=404,detail="evidence comparison candidate not found")
+    result=db.execute(
+        update(FireEvidenceComparisonCandidate)
+        .where(
+            FireEvidenceComparisonCandidate.fire_evidence_comparison_candidate_id==candidate_id,
+            FireEvidenceComparisonCandidate.version==payload.expected_version,
+            FireEvidenceComparisonCandidate.status=="pending",
+        )
+        .values(
+            status=payload.status,
+            version=payload.expected_version+1,
+            reviewed_by=user.user_id,
+            reviewed_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+        )
+    )
+    if result.rowcount!=1:
+        db.rollback()
+        raise HTTPException(status_code=409,detail="evidence comparison was updated or already reviewed")
+    row=db.get(FireEvidenceComparisonCandidate,candidate_id)
+    write_audit(
+        db,
+        user_id=user.user_id,
+        action=f"fire_investigation.evidence_comparison.{payload.status}",
+        entity_type="fire_evidence_comparison_candidate",
+        entity_id=candidate_id,
+        after=_comparison_out(row).model_dump(mode="json"),
+    )
+    db.commit()
+    return _comparison_out(row)
+
+
 @router.post(
     "/{case_id}/statement-ai-manifest",
     response_model=FireAIManifestIngestOut,
