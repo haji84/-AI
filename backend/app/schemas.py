@@ -1214,3 +1214,46 @@ class FireInvestigationCaseDetailOut(BaseModel):
     timeline: list[FireTimelineEventOut] = Field(default_factory=list)
     cause_candidates: list[FireCauseCandidateOut] = Field(default_factory=list)
     report_drafts: list[FireReportDraftOut] = Field(default_factory=list)
+
+
+class FirePhotoAIAnnotationInput(BaseModel):
+    description: str | None = None
+    tags: list[str] = Field(default_factory=list)
+    map_position: dict = Field(default_factory=dict)
+    confidence: float | None = Field(default=None, ge=0, le=1)
+
+class FirePhotoAIManifest(BaseModel):
+    model_version: str = Field(min_length=1, max_length=200)
+    payload_metadata: dict = Field(default_factory=dict)
+    annotations: list[FirePhotoAIAnnotationInput] = Field(default_factory=list)
+
+class FireTranscriptAISegmentInput(BaseModel):
+    start_ms: int | None = Field(default=None, ge=0)
+    end_ms: int | None = Field(default=None, ge=0)
+    speaker_label: str | None = None
+    text: str = Field(min_length=1)
+    confidence: float | None = Field(default=None, ge=0, le=1)
+
+class FireTranscriptAIManifest(BaseModel):
+    model_version: str = Field(min_length=1, max_length=200)
+    payload_metadata: dict = Field(default_factory=dict)
+    segments: list[FireTranscriptAISegmentInput] = Field(default_factory=list)
+
+class FireStatementAIInput(BaseModel):
+    fire_investigation_media_id: str | None = None
+    person_label: str | None = None
+    draft_text: str = Field(min_length=1)
+    evidence_segment_ids: list[str] = Field(default_factory=list)
+
+class FireStatementAIManifest(BaseModel):
+    model_version: str = Field(min_length=1, max_length=200)
+    payload_metadata: dict = Field(default_factory=dict)
+    statements: list[FireStatementAIInput] = Field(default_factory=list)
+
+class FireAIManifestIngestOut(BaseModel):
+    fire_investigation_ai_manifest_id: str
+    manifest_type: str
+    manifest_sha256: str
+    model_version: str | None = None
+    created: bool
+    derived_ids: list[str] = Field(default_factory=list)
