@@ -2,6 +2,11 @@ name: build-occupancy-classification-worklist
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/build_occupancy_classification_worklist.py"
+      - ".github/workflows/build-occupancy-classification-worklist.yml"
 
 permissions:
   actions: read
@@ -26,31 +31,46 @@ jobs:
           repository: haji84/-AI
           run-id: 37240404083
 
-      - name: Extract 消防法施行令 別表第一
+      - name: Extract and validate 消防法施行令 別表第一
         run: |
           python scripts/build_occupancy_classification_worklist.py \
             --root-dir _occupancy/egov \
-            --output _occupancy/results/occupancy-classification-worklist.json
+            --output _occupancy/results/occupancy-classification-worklist.json \
+            --catalog-output _occupancy/results/occupancy-classification-catalog.json \
+            --validate-current-shape
 
       - name: Show summary
         run: |
           python - <<'PY'
           import json
           from pathlib import Path
-          p=Path("_occupancy/results/occupancy-classification-worklist.json")
-          data=json.loads(p.read_text(encoding="utf-8"))
+          work=json.loads(
+              Path("_occupancy/results/occupancy-classification-worklist.json").read_text(encoding="utf-8")
+          )
+          catalog=json.loads(
+              Path("_occupancy/results/occupancy-classification-catalog.json").read_text(encoding="utf-8")
+          )
           print(json.dumps({
-              "law_title": data["law_title"],
-              "target_appendix": data["target_appendix"],
-              "source_xml_sha256": data["source_xml_sha256"],
-              "row_count": data["row_count"],
-              "policy": data["policy"],
+              "law_title": work["law_title"],
+              "law_number": work["law_number"],
+              "target_appendix": work["target_appendix"],
+              "source_xml_sha256": work["source_xml_sha256"],
+              "row_count": work["row_count"],
+              "classification_entry_count": work["classification_entry_count"],
+              "catalog_entry_count": catalog["classification_entry_count"],
+              "sample_codes": [
+                  x["classification_code"]
+                  for x in catalog["entries"][:8]
+              ],
+              "policy": work["policy"],
           }, ensure_ascii=False))
           PY
 
       - uses: actions/upload-artifact@v4
         with:
           name: occupancy-classification-worklist
-          path: _occupancy/results/occupancy-classification-worklist.json
+          path: |
+            _occupancy/results/occupancy-classification-worklist.json
+            _occupancy/results/occupancy-classification-catalog.json
           retention-days: 90
           if-no-files-found: error
