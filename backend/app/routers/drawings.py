@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from datetime import datetime, timezone
 from decimal import Decimal
 
@@ -26,6 +28,7 @@ from ..schemas import (
     DrawingAnalysisCreate,
     DrawingAnalysisDetailOut,
     DrawingAnalysisOut,
+    DrawingAnalysisResultManifest,
     DrawingAnalysisReview,
     DrawingElementCreate,
     DrawingElementOut,
@@ -85,6 +88,12 @@ def _validated_fact_value(target_path: str, proposed: dict):
     raise HTTPException(status_code=422, detail="unsupported drawing fact target type")
 
 
+
+
+def _manifest_sha256(payload: DrawingAnalysisResultManifest) -> str:
+    body = payload.model_dump(mode="json", exclude={"expected_version"})
+    raw = json.dumps(body, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
 def _analysis_out(row: DrawingAnalysis) -> DrawingAnalysisOut:
@@ -253,6 +262,156 @@ def create_drawing_analysis(
     )
     db.commit()
     return _analysis_out(row)
+
+
+@router.post(
+    "/drawing-analyses/{analysis_id}/manifest",
+    response_model=DrawingAnalysisDetailOut,
+)
+def ingest_drawing_analysis_manifest(
+    analysis_id: str,
+    payload: DrawingAnalysisResultManifest,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("drawing.analyze")),
+):
+    analysis = db.get(DrawingAnalysis, analysis_id)
+    if not analysis:
+        raise HTTPException(status_code=404, detail="drawing analysis not found")
+
+    manifest_hash = _manifest_sha256(payload)
+    current_evidence = dict(analysis.evidence or {})
+    if current_evidence.get("manifest_sha256") == manifest_hash:
+        return _detail(db, analysis)
+
+    if analysis.version != payload.expected_version:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "message": "drawing analysis was updated",
+                "current_version": analysis.version,
+            },
+        )
+    if analysis.status != "pending":
+        raise HTTPException(
+            status_code=409,
+            detail="a different analysis result is already attached; create a new analysis Version instead",
+        )
+
+    element_refs: dict[str, DrawingElement] = {}
+    for item in payload.elements:
+        if item.client_ref:
+            if item.client_ref in element_refs:
+                raise HTTPException(status_code=422, detail=f"duplicate drawing element ref: {item.client_ref}")
+        row = DrawingElement(
+            drawing_analysis_id=analysis_id,
+            page_no=item.page_no,
+            element_type=item.element_type,
+            label=item.label,
+            floor_number=item.floor_number,
+            geometry=item.geometry,
+            extracted_data=item.extracted_data,
+            confidence=item.confidence,
+            source_kind="ai",
+            review_status="pending",
+        )
+        db.add(row)
+        db.flush()
+        if item.client_ref:
+            element_refs[item.client_ref] = row
+
+    for item in payload.equipment_candidates:
+        element_id = None
+        if item.drawing_element_ref:
+            element = element_refs.get(item.drawing_element_ref)
+            if not element:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"unknown drawing_element_ref: {item.drawing_element_ref}",
+                )
+            element_id = element.drawing_element_id
+
+        equipment_type_id = None
+        if item.suggested_equipment_type_code:
+            et = db.scalar(
+                select(EquipmentType).where(
+                    EquipmentType.code == item.suggested_equipment_type_code,
+                    EquipmentType.active.is_(True),
+                )
+            )
+            if et:
+                equipment_type_id = et.equipment_type_id
+
+        db.add(
+            DrawingEquipmentCandidate(
+                drawing_analysis_id=analysis_id,
+                drawing_element_id=element_id,
+                equipment_type_id=equipment_type_id,
+                suggested_equipment_type_code=item.suggested_equipment_type_code,
+                suggested_label=item.suggested_label,
+                floor_number=item.floor_number,
+                location_text=item.location_text,
+                quantity=item.quantity,
+                confidence=item.confidence,
+                status="pending",
+            )
+        )
+
+    for item in payload.fact_candidates:
+        element_id = None
+        if item.drawing_element_ref:
+            element = element_refs.get(item.drawing_element_ref)
+            if not element:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"unknown drawing_element_ref: {item.drawing_element_ref}",
+                )
+            element_id = element.drawing_element_id
+        db.add(
+            DrawingFactCandidate(
+                drawing_analysis_id=analysis_id,
+                drawing_element_id=element_id,
+                target_path=item.target_path,
+                proposed_value=item.proposed_value,
+                confidence=item.confidence,
+                evidence=item.evidence,
+                status="pending",
+            )
+        )
+
+    analysis.status = "analyzed"
+    analysis.model_version = payload.model_version or analysis.model_version
+    analysis.page_count = payload.page_count
+    analysis.confidence = payload.confidence
+    analysis.summary = payload.summary
+    analysis.evidence = {
+        **payload.evidence,
+        "manifest_sha256": manifest_hash,
+        "manifest_schema": "drawing-analysis-result-v1",
+    }
+    analysis.version += 1
+    analysis.updated_at = datetime.now(timezone.utc)
+
+    db.flush()
+    write_audit(
+        db,
+        user_id=user.user_id,
+        action="drawing_analysis.manifest_ingest",
+        entity_type="drawing_analysis",
+        entity_id=analysis.drawing_analysis_id,
+        after={
+            "manifest_sha256": manifest_hash,
+            "model_version": analysis.model_version,
+            "page_count": analysis.page_count,
+            "element_count": len(payload.elements),
+            "equipment_candidate_count": len(payload.equipment_candidates),
+            "fact_candidate_count": len(payload.fact_candidates),
+            "analysis_version": analysis.version,
+        },
+        ai_used=True,
+        ai_model_version=analysis.model_version,
+    )
+    db.commit()
+    return _detail(db, analysis)
 
 
 @router.get("/drawing-analyses/{analysis_id}", response_model=DrawingAnalysisDetailOut)
