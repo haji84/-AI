@@ -5040,3 +5040,350 @@ def test_phase6_restructure_then_occupancy_catalog_readiness():
     assert readiness["ready"] is True
     assert readiness["would_insert_count"] == 0
     assert readiness["existing_pending_skeleton_count"] == 1
+
+
+
+def test_phase6_occupancy_authoring_worklist_bulk_conditions_are_atomic():
+    from app.models import (
+        LegalJurisdiction,
+        LegalProvision,
+        LegalRuleDraftCandidate,
+        LegalRuleDraftCitation,
+        LegalSource,
+        LegalSourceDocument,
+        LegalSourceDocumentVersion,
+    )
+
+    login()
+    source_sha = "6" * 64
+    with SessionLocal() as db:
+        jurisdiction = LegalJurisdiction(
+            code="TEST-AUTHORING-WORKBENCH",
+            name="国",
+            jurisdiction_type="national",
+        )
+        db.add(jurisdiction); db.flush()
+        source = LegalSource(
+            jurisdiction_id=jurisdiction.jurisdiction_id,
+            source_code="authoring-workbench-source",
+            name="Authoring workbench source",
+            source_type="law",
+            adapter_type="manual",
+            base_url="https://example.invalid/",
+        )
+        db.add(source); db.flush()
+        document = LegalSourceDocument(
+            legal_source_id=source.legal_source_id,
+            external_id="336CO0000000037",
+            document_type="cabinet_order",
+            title="消防法施行令",
+        )
+        db.add(document); db.flush()
+        version = LegalSourceDocumentVersion(
+            legal_source_document_id=document.legal_source_document_id,
+            normalized_text="別表第一",
+            structured_content={},
+            sha256=source_sha,
+            structure_status="structured",
+            structure_parser_version="legal-structure-v2",
+            provision_count=1,
+        )
+        db.add(version); db.flush()
+        provision = LegalProvision(
+            legal_source_document_version_id=version.legal_source_document_version_id,
+            provision_type="table_row",
+            provision_key="appendix_table:1/table_row:authoring",
+            sequence_no=1,
+            body_text="（三） イ 待合、料理店その他これらに類するもの ロ 飲食店",
+            content_sha256="7" * 64,
+        )
+        db.add(provision); db.flush()
+
+        draft_ids = []
+        for idx, (code, label) in enumerate([
+            ("（三）イ", "待合、料理店その他これらに類するもの"),
+            ("（三）ロ", "飲食店"),
+        ], start=1):
+            draft = LegalRuleDraftCandidate(
+                source_legal_document_version_id=version.legal_source_document_version_id,
+                domain="occupancy_classification",
+                proposed_rule_code=f"OCC-S1-R03-E{idx:02d}",
+                proposed_name=f"令別表第一 {code}",
+                proposed_conditions={},
+                proposed_outcome={
+                    "decision":"classification_candidate",
+                    "classification_code":code,
+                    "classification_label":label,
+                },
+                extraction_method="deterministic",
+                model_version="occupancy-authoring-import-v1",
+                generation_context={
+                    "source_xml_sha256":source_sha,
+                    "classification_code":code,
+                    "classification_label":label,
+                    "conditions_authoring_status":"required",
+                    "catalog_entry_count":35,
+                },
+                status="pending",
+            )
+            db.add(draft); db.flush()
+            db.add(LegalRuleDraftCitation(
+                legal_rule_draft_candidate_id=draft.legal_rule_draft_candidate_id,
+                legal_provision_id=provision.legal_provision_id,
+                citation_role="primary",
+            ))
+            draft_ids.append(draft.legal_rule_draft_candidate_id)
+        db.commit()
+
+    worklist = client.get(
+        "/legal-rule-drafts/occupancy-authoring/worklist",
+        params={"source_xml_sha256":source_sha},
+    )
+    assert worklist.status_code == 200
+    body = worklist.json()
+    assert body["summary"]["skeleton_count"] == 2
+    assert body["summary"]["blank_condition_count"] == 2
+    assert "primary_use" in body["allowed_condition_fields"]
+
+    invalid_updates = [
+        {
+            "draft_id":draft_ids[0],
+            "expected_version":1,
+            "proposed_conditions":{
+                "all":[{"field":"primary_use","op":"eq","value":"restaurant_like"}]
+            },
+            "rationale":"Human-authored test condition",
+        },
+        {
+            "draft_id":draft_ids[1],
+            "expected_version":1,
+            "proposed_conditions":{
+                "all":[{"field":"classification_code","op":"eq","value":"（三）ロ"}]
+            },
+        },
+    ]
+    dry = client.post(
+        "/legal-rule-drafts/occupancy-authoring/conditions",
+        json={
+            "source_xml_sha256":source_sha,
+            "updates":invalid_updates,
+            "apply":False,
+        },
+    )
+    assert dry.status_code == 200
+    assert dry.json()["result"]["error_count"] == 1
+
+    blocked = client.post(
+        "/legal-rule-drafts/occupancy-authoring/conditions",
+        json={
+            "source_xml_sha256":source_sha,
+            "updates":invalid_updates,
+            "apply":True,
+        },
+    )
+    assert blocked.status_code == 200
+    assert blocked.json()["result"]["applied"] is False
+    assert blocked.json()["result"]["updated_count"] == 0
+
+    unchanged = client.get(
+        "/legal-rule-drafts/occupancy-authoring/worklist",
+        params={"source_xml_sha256":source_sha},
+    ).json()
+    assert unchanged["summary"]["blank_condition_count"] == 2
+
+    valid_updates = [
+        {
+            "draft_id":draft_ids[0],
+            "expected_version":1,
+            "proposed_conditions":{
+                "all":[{"field":"primary_use","op":"eq","value":"restaurant_like"}]
+            },
+        },
+        {
+            "draft_id":draft_ids[1],
+            "expected_version":1,
+            "proposed_conditions":{
+                "all":[{"field":"primary_use","op":"eq","value":"restaurant"}]
+            },
+        },
+    ]
+    applied = client.post(
+        "/legal-rule-drafts/occupancy-authoring/conditions",
+        json={
+            "source_xml_sha256":source_sha,
+            "updates":valid_updates,
+            "apply":True,
+        },
+    )
+    assert applied.status_code == 200
+    assert applied.json()["result"]["applied"] is True
+    assert applied.json()["result"]["updated_count"] == 2
+
+    authored = client.get(
+        "/legal-rule-drafts/occupancy-authoring/worklist",
+        params={"source_xml_sha256":source_sha},
+    ).json()
+    assert authored["summary"]["valid_condition_count"] == 2
+    assert authored["summary"]["blank_condition_count"] == 0
+    assert all(x["version"] == 2 for x in authored["items"])
+    assert all(x["draft_status"] == "pending" for x in authored["items"])
+
+    coverage = client.get(
+        "/legal-rule-drafts/occupancy-authoring/coverage",
+        params={
+            "source_xml_sha256":source_sha,
+            "evaluation_date":"2026-10-05",
+        },
+    )
+    assert coverage.status_code == 200
+    cov = coverage.json()["coverage"]
+    assert cov["coverage_complete"] is False
+    assert cov["catalog_batch_valid"] is True
+    assert cov["skeleton_count"] == 2
+    assert cov["valid_condition_count"] == 2
+    assert cov["approved_effective_count"] == 0
+
+
+def test_phase6_occupancy_coverage_only_completes_at_35_approved_rules():
+    from datetime import date
+    from app.models import (
+        LegalJurisdiction,
+        LegalProvision,
+        LegalRule,
+        LegalRuleCitation,
+        LegalRuleDraftCandidate,
+        LegalRuleDraftCitation,
+        LegalRuleVersion,
+        LegalSource,
+        LegalSourceDocument,
+        LegalSourceDocumentVersion,
+    )
+
+    login()
+    source_sha = "8" * 64
+    with SessionLocal() as db:
+        jurisdiction = LegalJurisdiction(
+            code="TEST-COVERAGE-COMPLETE",
+            name="国",
+            jurisdiction_type="national",
+        )
+        db.add(jurisdiction); db.flush()
+        source = LegalSource(
+            jurisdiction_id=jurisdiction.jurisdiction_id,
+            source_code="coverage-complete-source",
+            name="Coverage complete source",
+            source_type="law",
+            adapter_type="manual",
+            base_url="https://example.invalid/",
+        )
+        db.add(source); db.flush()
+        document = LegalSourceDocument(
+            legal_source_id=source.legal_source_id,
+            external_id="336CO0000000037",
+            document_type="cabinet_order",
+            title="消防法施行令",
+        )
+        db.add(document); db.flush()
+        version = LegalSourceDocumentVersion(
+            legal_source_document_id=document.legal_source_document_id,
+            normalized_text="別表第一",
+            structured_content={},
+            sha256=source_sha,
+            structure_status="structured",
+            structure_parser_version="legal-structure-v2",
+            provision_count=1,
+        )
+        db.add(version); db.flush()
+        provision = LegalProvision(
+            legal_source_document_version_id=version.legal_source_document_version_id,
+            provision_type="table_row",
+            provision_key="appendix_table:1/table_row:coverage",
+            sequence_no=1,
+            body_text="coverage test row",
+            content_sha256="9" * 64,
+        )
+        db.add(provision); db.flush()
+
+        for idx in range(1, 36):
+            code = f"TEST-{idx:02d}"
+            conditions = {
+                "all":[{"field":"primary_use","op":"eq","value":f"use-{idx:02d}"}]
+            }
+            rule = LegalRule(
+                rule_code=f"OCC-COVERAGE-{idx:02d}",
+                name=f"Coverage {code}",
+                domain="occupancy_classification",
+                active=True,
+            )
+            db.add(rule); db.flush()
+            rv = LegalRuleVersion(
+                rule_id=rule.rule_id,
+                version_no=1,
+                effective_from=date(2026,1,1),
+                conditions=conditions,
+                outcome={
+                    "decision":"classification_candidate",
+                    "classification_code":code,
+                    "classification_label":f"用途{idx:02d}",
+                },
+                source_legal_document_version_id=version.legal_source_document_version_id,
+                source_reference="coverage-test",
+                status="approved",
+            )
+            db.add(rv); db.flush()
+            db.add(LegalRuleCitation(
+                legal_rule_version_id=rv.legal_rule_version_id,
+                legal_provision_id=provision.legal_provision_id,
+                citation_role="primary",
+                cited_text_snapshot="coverage test row",
+            ))
+
+            draft = LegalRuleDraftCandidate(
+                source_legal_document_version_id=version.legal_source_document_version_id,
+                domain="occupancy_classification",
+                proposed_rule_code=f"OCC-S1-R{idx:02d}-E01",
+                proposed_name=f"令別表第一 {code}",
+                proposed_conditions=conditions,
+                proposed_outcome={
+                    "decision":"classification_candidate",
+                    "classification_code":code,
+                    "classification_label":f"用途{idx:02d}",
+                },
+                extraction_method="deterministic",
+                model_version="occupancy-authoring-import-v1",
+                generation_context={
+                    "source_xml_sha256":source_sha,
+                    "classification_code":code,
+                    "classification_label":f"用途{idx:02d}",
+                    "conditions_authoring_status":"required",
+                    "catalog_entry_count":35,
+                },
+                status="promoted",
+                promoted_rule_id=rule.rule_id,
+                promoted_rule_version_id=rv.legal_rule_version_id,
+            )
+            db.add(draft); db.flush()
+            db.add(LegalRuleDraftCitation(
+                legal_rule_draft_candidate_id=draft.legal_rule_draft_candidate_id,
+                legal_provision_id=provision.legal_provision_id,
+                citation_role="primary",
+            ))
+        db.commit()
+
+    coverage = client.get(
+        "/legal-rule-drafts/occupancy-authoring/coverage",
+        params={
+            "source_xml_sha256":source_sha,
+            "evaluation_date":"2026-10-05",
+        },
+    )
+    assert coverage.status_code == 200
+    cov = coverage.json()["coverage"]
+    assert cov["catalog_batch_valid"] is True
+    assert cov["skeleton_count"] == 35
+    assert cov["unique_classification_count"] == 35
+    assert cov["valid_condition_count"] == 35
+    assert cov["valid_promoted_citation_count"] == 35
+    assert cov["approved_effective_count"] == 35
+    assert cov["coverage_complete"] is True
+    assert cov["blockers"] == []
