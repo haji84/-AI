@@ -5391,5 +5391,95 @@ def test_phase6_occupancy_coverage_only_completes_at_35_approved_rules():
     assert cov["valid_condition_count"] == 35
     assert cov["valid_promoted_citation_count"] == 35
     assert cov["approved_effective_count"] == 35
+    assert cov["regression_gate_passed"] is False
+    assert cov["coverage_complete"] is False
+    assert any("regression" in x for x in cov["blockers"])
+
+    case = client.post(
+        "/occupancy-regression/cases",
+        json={
+            "source_xml_sha256":source_sha,
+            "name":"TEST-01 正常分類",
+            "input_snapshot":{"primary_use":"use-01"},
+            "expected_classification_codes":["TEST-01"],
+            "notes":"Human-authored regression fixture",
+        },
+    )
+    assert case.status_code == 201
+    case_id = case.json()["occupancy_classification_test_case_id"]
+
+    reviewed_case = client.post(
+        f"/occupancy-regression/cases/{case_id}/review",
+        json={"expected_version":1,"status":"reviewed"},
+    )
+    assert reviewed_case.status_code == 200
+    assert reviewed_case.json()["status"] == "reviewed"
+
+    run = client.post(
+        "/occupancy-regression/runs",
+        json={"source_xml_sha256":source_sha},
+    )
+    assert run.status_code == 201
+    run_body = run.json()
+    assert run_body["case_count"] == 1
+    assert run_body["passed_case_count"] == 1
+    assert run_body["failed_case_count"] == 0
+    assert run_body["ambiguous_case_count"] == 0
+    assert run_body["result_payload"]["overall_pass"] is True
+    assert len(run_body["result_payload"]["authoring_fingerprint"]) == 64
+    assert len(run_body["result_payload"]["test_suite_fingerprint"]) == 64
+    run_id = run_body["occupancy_classification_test_run_id"]
+
+    accepted = client.post(
+        f"/occupancy-regression/runs/{run_id}/review",
+        json={
+            "expected_version":1,
+            "human_decision":"accepted_regression",
+            "review_notes":"Human accepted current regression suite",
+        },
+    )
+    assert accepted.status_code == 200
+    assert accepted.json()["human_decision"] == "accepted_regression"
+
+    coverage = client.get(
+        "/legal-rule-drafts/occupancy-authoring/coverage",
+        params={
+            "source_xml_sha256":source_sha,
+            "evaluation_date":"2026-10-05",
+        },
+    )
+    assert coverage.status_code == 200
+    cov = coverage.json()["coverage"]
+    assert cov["regression_gate_passed"] is True
+    assert cov["accepted_regression_run_id"] == run_id
     assert cov["coverage_complete"] is True
     assert cov["blockers"] == []
+
+    second_case = client.post(
+        "/occupancy-regression/cases",
+        json={
+            "source_xml_sha256":source_sha,
+            "name":"TEST-02 正常分類",
+            "input_snapshot":{"primary_use":"use-02"},
+            "expected_classification_codes":["TEST-02"],
+        },
+    )
+    assert second_case.status_code == 201
+    second_id = second_case.json()["occupancy_classification_test_case_id"]
+    assert client.post(
+        f"/occupancy-regression/cases/{second_id}/review",
+        json={"expected_version":1,"status":"reviewed"},
+    ).status_code == 200
+
+    stale = client.get(
+        "/legal-rule-drafts/occupancy-authoring/coverage",
+        params={
+            "source_xml_sha256":source_sha,
+            "evaluation_date":"2026-10-05",
+        },
+    )
+    assert stale.status_code == 200
+    stale_cov = stale.json()["coverage"]
+    assert stale_cov["regression_gate_passed"] is False
+    assert stale_cov["coverage_complete"] is False
+    assert stale_cov["current_test_suite_fingerprint"] != run_body["result_payload"]["test_suite_fingerprint"]
