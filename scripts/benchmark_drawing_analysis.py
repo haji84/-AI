@@ -14,6 +14,28 @@ def _load_json(path: Path):
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def _require_human_accepted_reference(payload: dict) -> None:
+    fmt = payload.get("reference_format")
+    if not isinstance(fmt, str) or not fmt.startswith(
+        "fire-ai-drawing-human-reference"
+    ):
+        return
+
+    status = str(payload.get("reference_status") or "").strip()
+    human_review = payload.get("human_review")
+    reviewed_export = bool(
+        isinstance(human_review, dict)
+        and human_review.get("status") == "reviewed"
+    )
+    accepted = status == "human_accepted" or reviewed_export
+    if not accepted:
+        raise ValueError(
+            "Human-accepted drawing reference is required before benchmark "
+            "execution; current reference_status="
+            f"{status or 'missing'}"
+        )
+
+
 def _sha256_path(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
@@ -261,6 +283,7 @@ def score_drawing(reference_payload: dict, hypothesis_payload: dict, iou_thresho
 
 def score_pair(reference_path: Path, hypothesis_path: Path, *, drawing_id: str | None = None, metadata: dict | None = None, iou_threshold: float = 0.5) -> dict:
     reference = _load_json(reference_path)
+    _require_human_accepted_reference(reference)
     hypothesis = _load_json(hypothesis_path)
     return {
         "drawing_id": drawing_id or reference_path.stem,
