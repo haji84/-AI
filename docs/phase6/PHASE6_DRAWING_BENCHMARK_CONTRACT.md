@@ -112,3 +112,23 @@ python scripts/benchmark_drawing_analysis.py \
 - 図面種別、画質、縮尺、スキャン/写真条件のCoverage
 
 Benchmark未実行でproduction-quality drawing AIとは表現しない。
+
+
+## N/A semantics
+
+実図面によっては評価対象が存在しないカテゴリがある。
+
+例:
+- 住宅平面図に評価対象の消防設備記号が存在しない
+- ReferenceにもHypothesisにもequipment candidateが存在しない
+- Referenceにsymbol codeが付与されていない
+
+この場合は満点ではない。
+
+- TP=0 / FP=0 / FN=0 のカテゴリは `applicable=false`
+- Precision / Recall / F1 またはAccuracyは `null`
+- 比較APIも片側がN/Aならdeltaを `null` にする
+
+一方、Referenceが0件でもAIが候補を誤検出した場合はN/AではなくFalse Positiveとして評価する。
+
+これにより「評価対象が無かっただけ」を「精度100%」と誤表示しない。
