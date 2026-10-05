@@ -4,10 +4,10 @@
 
 ## Current green checkpoint
 
-GitHub Actions run: `37256577150`
+GitHub Actions run: `37257011265`
 Conclusion: SUCCESS
 
-- backend pytest: 88 passed
+- backend pytest: 91 passed
 - Phase 9 audio benchmark v2 tests: PASS
 - migrations parser smoke: PASS
 - frontend JavaScript syntax: PASS
@@ -84,3 +84,32 @@ No production-quality STT claim is allowed until a real Japanese audio Dataset i
 7. Human Gate sets acceptance thresholds after seeing the Baseline.
 
 Until this gate is executed, do not report production-quality STT/diarization or validated uncertainty-marker accuracy.
+
+
+## Persistent Benchmark Run Registry verified
+
+Migration 027:
+- `fire_audio_benchmark_runs`
+
+Verified:
+- Benchmark v2 result registration
+- canonical result JSON SHA-256
+- duplicate result idempotency
+- Dataset label / Manifest SHA / recording count persistence
+- pending Human Review state
+- Human baseline decision:
+  - accepted_baseline
+  - rejected_baseline
+- optimistic review conflict protection
+- benchmark-run list API
+- baseline comparison API
+- CER delta
+- Speaker Error Rate delta
+- uncertainty-marker F1 delta
+- dataset-comparability caution in comparison result
+- static benchmark routes registered before dynamic fire-investigation case routes
+
+Safety:
+- accepted_baseline is comparison-baseline approval only
+- it does not mean STT production-quality PASS
+- Benchmark Run review does not mutate transcript, statement, timeline, cause, or report state
