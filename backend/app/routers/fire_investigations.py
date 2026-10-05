@@ -349,6 +349,11 @@ def _case_detail(db: Session, row: FireInvestigationCase) -> FireInvestigationCa
         .where(FireReportDraft.fire_investigation_case_id == row.fire_investigation_case_id)
         .order_by(FireReportDraft.created_at)
     ).all()
+    snapshots = db.scalars(
+        select(FireEvidenceSnapshot)
+        .where(FireEvidenceSnapshot.fire_investigation_case_id == row.fire_investigation_case_id)
+        .order_by(FireEvidenceSnapshot.created_at.desc())
+    ).all()
     return FireInvestigationCaseDetailOut(
         case=_case_out(row),
         media=[_media_out(x) for x in media],
@@ -356,6 +361,7 @@ def _case_detail(db: Session, row: FireInvestigationCase) -> FireInvestigationCa
         timeline=[_timeline_out(x) for x in timeline],
         cause_candidates=[_cause_out(x) for x in causes],
         report_drafts=[_report_out(x) for x in reports],
+        evidence_snapshots=[_evidence_snapshot_out(x).model_dump(mode="json") for x in snapshots],
     )
 
 
