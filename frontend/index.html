@@ -135,9 +135,19 @@ table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid #e4e8ec;
 </div>
 </div>
 
+
+<input id="drawingFileInput" class="hidden" type="file" accept=".pdf,.png,.jpg,.jpeg" onchange="uploadDrawingFile(event)">
+
+<div id="drawingReviewModal" class="modalWrap hidden" style="z-index:65">
+<div class="modal" style="width:min(1000px,96vw)">
+<div class="modalHead"><b>図面解析レビュー</b><span class="grow"></span><button class="btn" onclick="closeDrawingAnalysis()">閉じる</button></div>
+<div class="modalBody"><div id="drawingReviewBody"></div></div>
+</div>
+</div>
+
 <script>
 const $=id=>document.getElementById(id);
-const state={offset:0,limit:50,total:0,selected:null,detail:null,mode:null,draft:null};
+const state={offset:0,limit:50,total:0,selected:null,detail:null,mode:null,draft:null,drawings:[],drawingAnalysisId:null,drawingDetail:null};
 const legalReviewState={offset:0,limit:50,total:0};
 const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
 const val=v=>(v===null||v===undefined||v==='')?'－':esc(v);
@@ -149,13 +159,18 @@ async function logout(){try{await fetch('/auth/logout',{method:'POST'})}catch{}l
 async function loadFacilities(offset=state.offset){state.offset=Math.max(0,offset);const p=new URLSearchParams({offset:state.offset,limit:state.limit,sort_by:$('sortBy').value,sort_dir:$('sortDir').value});if($('searchQ').value.trim())p.set('q',$('searchQ').value.trim());if($('statusFilter').value)p.set('status_filter',$('statusFilter').value);try{const d=await api('/facilities?'+p);state.total=d.total;renderList(d.items)}catch(e){if(e.status===401){location.reload();return}$('facilityList').innerHTML='<div class="empty">一覧を取得できません</div>'}}
 function renderList(items){$('listSummary').textContent=`${state.total}件`;const current=state.selected?.building_id;$('facilityList').innerHTML=items.map(x=>`<div class="facilityItem ${x.building_id===current?'selected':''}" onclick="selectFacility('${x.building_id}')"><b>${esc(x.name)}</b><div class="meta">${esc(x.address||'所在地未登録')}</div><div class="meta">整理番号 ${esc(x.legacy_serial_no||'－')} ・ ${x.status==='active'?'使用中':'廃止'}</div></div>`).join('')||'<div class="empty">該当なし</div>';const page=Math.floor(state.offset/state.limit)+1,totalPages=Math.max(1,Math.ceil(state.total/state.limit));$('pageInfo').textContent=`${page} / ${totalPages}`;$('prevBtn').disabled=state.offset===0;$('nextBtn').disabled=state.offset+state.limit>=state.total}
 function changePage(dir){loadFacilities(state.offset+dir*state.limit)}
+function drawingStatusLabel(status){
+  return ({pending:'解析待ち',analyzed:'候補あり',reviewed:'レビュー済み',failed:'解析失敗'})[status]||status;
+}
 
-async function selectFacility(id){try{const [d,h,l,dash,ins,subs,equipment]=await Promise.all([api(`/facilities/${id}/detail`),api(`/facilities/${id}/history`),api(`/facilities/${id}/legacy-review`),api(`/facilities/${id}/dashboard`),api(`/inspections?building_id=${id}`),api(`/submissions?building_id=${id}`),api(`/facilities/${id}/equipment`)]);state.selected=d.facility;state.detail=d;state.dashboard=dash;state.inspections=ins;state.submissions=subs;state.equipment=equipment;renderDetail(d,h,l,dash,ins,subs,equipment);await loadFacilities(state.offset)}catch(e){alert('対象物を取得できません: '+e.message)}}
-function renderDetail(d,history,legacy,dash={},inspections=[],submissions=[],equipment=[]){$('noSelection').classList.add('hidden');$('detailView').classList.remove('hidden');const f=d.facility,x=d.detail||{},c=d.contact||{},floors=d.floors||[];const st=Object.fromEntries((dash.submission_statuses||[]).map(x=>[x.code,x]));const badge=(code,label)=>{const a=st[code],ok=a&&a.state!=='not_submitted';return `<div class="field"><label>${esc(label)}</label><div class="value"><span class="pill ${ok?'active':''}">${ok?'提出記録あり':'登録確認なし・要否未判定'}</span>${a?.latest_submitted_at?` <span class="muted">${esc(a.latest_submitted_at)}</span>`:''}</div></div>`};$('detailView').innerHTML=`<div class="card"><div class="hero"><div class="grow"><h1>${esc(f.name)}</h1><div class="muted">${esc(f.address||'所在地未登録')} ・ 整理番号 ${esc(f.legacy_serial_no||'－')} ・ Version ${f.version}</div></div><span class="pill ${f.status==='active'?'active':''}">${f.status==='active'?'使用中':'廃止'}</span></div><div class="toolbar" style="margin-top:12px"><button class="btn primary" onclick="openEdit()" ${f.status!=='active'?'disabled':''}>編集</button>${f.status==='active'?`<button class="btn danger" onclick="changeFacilityState('abolish')">廃止</button>`:`<button class="btn" onclick="changeFacilityState('restore')">復元</button>`}</div></div>
+
+async function selectFacility(id){try{const [d,h,l,dash,ins,subs,equipment,drawings]=await Promise.all([api(`/facilities/${id}/detail`),api(`/facilities/${id}/history`),api(`/facilities/${id}/legacy-review`),api(`/facilities/${id}/dashboard`),api(`/inspections?building_id=${id}`),api(`/submissions?building_id=${id}`),api(`/facilities/${id}/equipment`),api(`/facilities/${id}/drawing-analyses`)]);state.selected=d.facility;state.detail=d;state.dashboard=dash;state.inspections=ins;state.submissions=subs;state.equipment=equipment;state.drawings=drawings;renderDetail(d,h,l,dash,ins,subs,equipment,drawings);await loadFacilities(state.offset)}catch(e){alert('対象物を取得できません: '+e.message)}}
+function renderDetail(d,history,legacy,dash={},inspections=[],submissions=[],equipment=[],drawings=[]){$('noSelection').classList.add('hidden');$('detailView').classList.remove('hidden');const f=d.facility,x=d.detail||{},c=d.contact||{},floors=d.floors||[];const st=Object.fromEntries((dash.submission_statuses||[]).map(x=>[x.code,x]));const badge=(code,label)=>{const a=st[code],ok=a&&a.state!=='not_submitted';return `<div class="field"><label>${esc(label)}</label><div class="value"><span class="pill ${ok?'active':''}">${ok?'提出記録あり':'登録確認なし・要否未判定'}</span>${a?.latest_submitted_at?` <span class="muted">${esc(a.latest_submitted_at)}</span>`:''}</div></div>`};$('detailView').innerHTML=`<div class="card"><div class="hero"><div class="grow"><h1>${esc(f.name)}</h1><div class="muted">${esc(f.address||'所在地未登録')} ・ 整理番号 ${esc(f.legacy_serial_no||'－')} ・ Version ${f.version}</div></div><span class="pill ${f.status==='active'?'active':''}">${f.status==='active'?'使用中':'廃止'}</span></div><div class="toolbar" style="margin-top:12px"><button class="btn primary" onclick="openEdit()" ${f.status!=='active'?'disabled':''}>編集</button>${f.status==='active'?`<button class="btn danger" onclick="changeFacilityState('abolish')">廃止</button>`:`<button class="btn" onclick="changeFacilityState('restore')">復元</button>`}</div></div>
 <div class="card"><div class="sectionTitle">確認ダッシュボード</div><div class="grid3">${badge('equipment_inspection_report','消防用設備等点検結果報告')}${badge('fire_manager_appointment','防火管理者')}${badge('fire_plan','消防計画')}</div><div class="row" style="margin-top:10px"><span class="pill">査察 ${dash.inspections_total||0}件</span><span class="pill ${(dash.open_findings||0)>0?'dangerText':''}">未完了指摘 ${dash.open_findings||0}件</span><span class="muted">最終査察 ${esc(dash.latest_inspection_at||'未登録')}</span></div></div>
 <div class="card"><div class="row"><div class="sectionTitle grow">査察履歴</div><button class="btn primary" onclick="quickAddInspection()">＋ 査察登録</button></div>${inspections.length?`<div class="scroll"><table><thead><tr><th>実施日</th><th>種別</th><th>状態</th><th>指摘</th></tr></thead><tbody>${inspections.map(i=>`<tr><td>${esc(i.inspected_at)}</td><td>${esc(i.inspection_type)}</td><td>${esc(i.status)}</td><td>${i.findings.length?i.findings.map(q=>`<div>${esc(q.finding_text)} <span class="pill">${esc(q.corrective_status)}</span>${q.corrective_status!=='completed'?` <button class="btn" onclick="completeFinding('${q.finding_id}',${q.version})">是正完了</button>`:''}</div>`).join(''):'－'}</td></tr>`).join('')}</tbody></table></div>`:'<div class="muted">査察履歴なし</div>'}</div>
 <div class="card"><div class="row"><div class="sectionTitle grow">届出・報告受付</div><button class="btn primary" onclick="smartReceiveSubmission()">文書解析して受付</button><button class="btn" onclick="quickReceiveSubmission()">手動受付</button></div>${submissions.length?`<div class="scroll"><table><thead><tr><th>提出日</th><th>種別</th><th>届出番号</th><th>状態</th><th>原本</th></tr></thead><tbody>${submissions.map(s=>`<tr><td>${esc(s.submitted_at||s.received_at.slice(0,10))}</td><td>${esc(s.submission_type_name)}</td><td>${esc(s.official_number||'－')}</td><td>${esc(s.status)}</td><td>${s.document_ids.length}件</td></tr>`).join('')}</tbody></table></div>`:'<div class="muted">届出記録なし</div>'}</div>
 <div class="card"><div class="row"><div class="sectionTitle grow">設置消防用設備台帳</div><button class="btn primary" onclick="quickAddEquipment()">＋ 設備登録</button></div>${equipment.length?`<div class="scroll"><table><thead><tr><th>設備</th><th>階・場所</th><th>数量</th><th>確認状態</th><th>由来</th><th></th></tr></thead><tbody>${equipment.map(e=>`<tr><td>${esc(e.equipment_type_name)}</td><td>${esc([e.floor_number===null||e.floor_number===undefined?null:e.floor_number+'階',e.location_text].filter(Boolean).join(' / ')||'－')}</td><td>${esc(e.quantity??'－')}</td><td>${esc(e.verification_status)}</td><td>${esc(e.source_kind)}</td><td>${e.verification_status!=='verified'? `<button class="btn" onclick="verifyEquipment('${e.facility_equipment_id}',${e.version})">確認済みにする</button>`:''}</td></tr>`).join('')}</tbody></table></div>`:'<div class="muted">設置設備記録なし</div>'}</div>
+<div class="card"><div class="row"><div class="sectionTitle grow">図面解析・AI候補</div><button class="btn primary" onclick="triggerDrawingUpload()">＋ 図面登録</button></div><div class="notice">図面登録直後はpendingです。AI/解析Adapterが候補を生成しても、設備台帳・対象物情報にはHuman Reviewなしで反映されません。</div>${drawings.length?`<div class="scroll"><table><thead><tr><th>登録日時</th><th>状態</th><th>方式</th><th>ページ</th><th>信頼度</th><th></th></tr></thead><tbody>${drawings.map(a=>`<tr><td>${esc(formatDate(a.created_at))}</td><td>${esc(drawingStatusLabel(a.status))}</td><td>${esc(a.analysis_method)}</td><td>${esc(a.page_count??'－')}</td><td>${a.confidence===null||a.confidence===undefined?'－':esc(Math.round(a.confidence*100)+'%')}</td><td><button class="btn" onclick="openDrawingAnalysis('${a.drawing_analysis_id}')">確認</button></td></tr>`).join('')}</tbody></table></div>`:'<div class="muted">図面解析記録なし</div>'}</div>
 <div class="card"><div class="row"><div class="sectionTitle grow">必要書類・消防用設備 判定支援</div><button class="btn" onclick="runRequirementEvaluation('submission_requirement')">必要書類候補</button><button class="btn" onclick="runRequirementEvaluation('equipment_requirement')">必要設備候補</button><button class="btn" onclick="runSubmissionCompliance()">必要届出と受付を照合</button><button class="btn" onclick="runEquipmentCompliance()">必要設備と設置設備を照合</button></div><div class="notice">承認済み・適用期間内の正式ルールだけを使って候補を表示します。届出照合も正式違反判定ではありません。</div><div id="ruleEvalResult" class="muted">未判定</div><div id="submissionComplianceResult" class="muted" style="margin-top:10px"></div><div id="equipmentComplianceResult" class="muted" style="margin-top:10px"></div></div>
 <div class="card"><div class="sectionTitle">基本情報</div><div class="grid3">${kv('電話番号',f.phone)}${kv('令別表区分',x.classification_code)}${kv('区分詳細', [x.classification_detail_1,x.classification_detail_2].filter(Boolean).join(' / '))}${kv('用途地域',x.zoning)}${kv('構造',x.structure)}${kv('令8条区画',x.article8_partition)}${kv('地上階',x.above_ground_floors)}${kv('地下階',x.basement_floors)}${kv('建築面積',unit(x.building_area,'㎡'))}${kv('延べ面積',unit(x.total_floor_area,'㎡'))}${kv('収容人員',unit(x.occupancy_total,'人'))}${kv('従業員',unit(x.employee_total,'人'))}</div></div>
 <div class="card"><div class="sectionTitle">代表者</div><div class="grid2">${kv('氏名',c.representative_name)}${kv('役職',c.representative_title)}${kv('住所',c.representative_address)}${kv('電話',c.representative_phone)}</div></div>
@@ -469,6 +484,153 @@ async function runSubmissionCompliance(){
   }catch(e){
     box.innerHTML='<div class="conflict">届出照合できません: '+esc(e.message)+'</div>';
   }
+}
+
+
+function triggerDrawingUpload(){
+  if(!state.selected)return;
+  const input=$('drawingFileInput');
+  input.value='';
+  input.click();
+}
+
+async function uploadDrawingFile(event){
+  const file=event.target.files?.[0];
+  if(!file||!state.selected)return;
+  try{
+    const fd=new FormData();
+    fd.append('file',file);
+    fd.append('document_type','drawing');
+    const doc=await api('/documents/upload',{method:'POST',body:fd});
+    await api('/facilities/'+state.selected.building_id+'/drawing-analyses',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        document_id:doc.document_id,
+        analysis_method:'ai',
+        summary:{queue_state:'awaiting_local_ai'}
+      })
+    });
+    await selectFacility(state.selected.building_id);
+    alert('図面を登録しました。状態は「解析待ち」です。候補生成後もHuman Reviewまでは台帳へ反映されません。');
+  }catch(e){
+    alert('図面を登録できません: '+e.message);
+  }finally{
+    event.target.value='';
+  }
+}
+
+function closeDrawingAnalysis(){
+  $('drawingReviewModal').classList.add('hidden');
+  state.drawingAnalysisId=null;
+  state.drawingDetail=null;
+}
+
+async function openDrawingAnalysis(id){
+  try{
+    const d=await api('/drawing-analyses/'+id);
+    state.drawingAnalysisId=id;
+    state.drawingDetail=d;
+    $('drawingReviewModal').classList.remove('hidden');
+    renderDrawingAnalysis(d);
+  }catch(e){alert('図面解析を取得できません: '+e.message)}
+}
+
+function renderDrawingAnalysis(d){
+  const a=d.analysis;
+  const equipment=(d.equipment_candidates||[]);
+  const facts=(d.fact_candidates||[]);
+  const elements=(d.elements||[]);
+  const eqHtml=equipment.length?equipment.map(x=>{
+    let actions='';
+    if(x.status==='pending'){
+      actions='<button class="btn primary" onclick="reviewDrawingEquipment(\''+x.drawing_equipment_candidate_id+'\','+x.version+',\'accepted\')">承認</button> <button class="btn" onclick="reviewDrawingEquipment(\''+x.drawing_equipment_candidate_id+'\','+x.version+',\'rejected\')">却下</button>';
+    }else if(x.status==='accepted'){
+      actions='<button class="btn primary" onclick="promoteDrawingEquipment(\''+x.drawing_equipment_candidate_id+'\','+x.version+',\''+esc(x.suggested_equipment_type_code||'').replace(/'/g,"&#039;")+'\')">設備候補へ昇格</button>';
+    }else if(x.status==='promoted'){
+      actions='<span class="pill active">設備台帳候補化済み</span>';
+    }
+    return '<div class="history"><b>'+esc(x.suggested_label||x.suggested_equipment_type_code||'設備候補')+'</b> <span class="pill">'+esc(x.status)+'</span>'+
+      '<div class="muted">階 '+esc(x.floor_number??'－')+' ・ 場所 '+esc(x.location_text||'－')+' ・ 数量 '+esc(x.quantity??'－')+' ・ 信頼度 '+esc(x.confidence===null||x.confidence===undefined?'－':Math.round(x.confidence*100)+'%')+'</div>'+
+      '<div class="row" style="margin-top:8px">'+actions+'</div></div>';
+  }).join(''):'<div class="muted">設備候補なし</div>';
+
+  const factHtml=facts.length?facts.map(x=>{
+    let actions='';
+    if(x.status==='pending'){
+      actions='<button class="btn primary" onclick="reviewDrawingFact(\''+x.drawing_fact_candidate_id+'\','+x.version+',\'accepted\')">承認</button> <button class="btn" onclick="reviewDrawingFact(\''+x.drawing_fact_candidate_id+'\','+x.version+',\'rejected\')">却下</button>';
+    }else if(x.status==='accepted'&&!x.applied_at){
+      actions='<button class="btn primary" onclick="applyDrawingFact(\''+x.drawing_fact_candidate_id+'\','+x.version+')">対象物へ反映</button>';
+    }else if(x.applied_at){
+      actions='<span class="pill active">対象物へ反映済み</span>';
+    }
+    return '<div class="history"><b>'+esc(x.target_path)+'</b> <span class="pill">'+esc(x.status)+'</span>'+
+      '<div class="value">'+esc(JSON.stringify(x.proposed_value))+'</div>'+
+      '<div class="muted">信頼度 '+esc(x.confidence===null||x.confidence===undefined?'－':Math.round(x.confidence*100)+'%')+'</div>'+
+      '<div class="row" style="margin-top:8px">'+actions+'</div></div>';
+  }).join(''):'<div class="muted">対象物情報候補なし</div>';
+
+  const elementHtml=elements.length?'<details><summary>抽出要素 '+elements.length+'件</summary><div class="scroll"><table><thead><tr><th>頁</th><th>種別</th><th>ラベル</th><th>階</th><th>信頼度</th></tr></thead><tbody>'+
+    elements.map(x=>'<tr><td>'+esc(x.page_no)+'</td><td>'+esc(x.element_type)+'</td><td>'+esc(x.label||'－')+'</td><td>'+esc(x.floor_number??'－')+'</td><td>'+esc(x.confidence===null||x.confidence===undefined?'－':Math.round(x.confidence*100)+'%')+'</td></tr>').join('')+
+    '</tbody></table></div></details>':'';
+
+  let reviewButton='';
+  if(a.status!=='reviewed'){
+    reviewButton='<button class="btn" onclick="reviewDrawingAnalysis(\''+a.drawing_analysis_id+'\','+a.version+')">解析レビュー完了</button>';
+  }
+  $('drawingReviewBody').innerHTML=
+    '<div class="row"><b class="grow">'+esc(drawingStatusLabel(a.status))+'</b><span class="pill">'+esc(a.analysis_method)+'</span>'+reviewButton+'</div>'+
+    '<div class="notice">設備候補の昇格後も verification_status=ai_candidate です。別途、現地または正式書類で確認して初めてverifiedにできます。</div>'+
+    '<div class="grid2"><div class="card"><div class="sectionTitle">設備候補</div>'+eqHtml+'</div><div class="card"><div class="sectionTitle">対象物情報候補</div>'+factHtml+'</div></div>'+
+    elementHtml;
+}
+
+async function reviewDrawingEquipment(id,version,nextStatus){
+  try{
+    await api('/drawing-equipment-candidates/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:version,status:nextStatus})});
+    await openDrawingAnalysis(state.drawingAnalysisId);
+  }catch(e){alert('設備候補を更新できません: '+e.message)}
+}
+
+async function promoteDrawingEquipment(id,version,suggestedCode){
+  let code=suggestedCode||'';
+  if(!code){
+    code=prompt('設備種別コードを入力してください','')||'';
+    if(!code)return;
+  }
+  try{
+    await api('/drawing-equipment-candidates/'+id+'/promote',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:version,equipment_type_code:code||null})});
+    const aid=state.drawingAnalysisId;
+    await selectFacility(state.selected.building_id);
+    await openDrawingAnalysis(aid);
+  }catch(e){alert('設備候補を昇格できません: '+e.message)}
+}
+
+async function reviewDrawingFact(id,version,nextStatus){
+  try{
+    await api('/drawing-fact-candidates/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:version,status:nextStatus})});
+    await openDrawingAnalysis(state.drawingAnalysisId);
+  }catch(e){alert('対象物情報候補を更新できません: '+e.message)}
+}
+
+async function applyDrawingFact(id,version){
+  if(!state.selected)return;
+  if(!confirm('この図面候補を対象物台帳へ反映しますか？'))return;
+  const aid=state.drawingAnalysisId;
+  const bid=state.selected.building_id;
+  try{
+    await api('/drawing-fact-candidates/'+id+'/apply',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:version,expected_facility_version:state.selected.version})});
+    await selectFacility(bid);
+    await openDrawingAnalysis(aid);
+  }catch(e){alert('対象物情報を反映できません: '+e.message)}
+}
+
+async function reviewDrawingAnalysis(id,version){
+  try{
+    await api('/drawing-analyses/'+id+'/review',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:version})});
+    await selectFacility(state.selected.building_id);
+    await openDrawingAnalysis(id);
+  }catch(e){alert('解析レビューを完了できません: '+e.message)}
 }
 
 async function quickAddEquipment(){
