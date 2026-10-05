@@ -2584,24 +2584,67 @@ def test_phase7_fire_investigation_human_gates_for_ai_evidence_cause_and_report(
     assert approved_cause.json()["official_cause_text"]=="電気配線から出火した可能性"
     assert approved_cause.json()["version"]==2
 
-    report=client.post(f"/fire-investigations/{cid}/report-drafts",json={
+    direct_ai_report=client.post(f"/fire-investigations/{cid}/report-drafts",json={
         "report_type":"fire_investigation_report",
         "narrative_text":"AI作成の報告書下書き",
         "structured_content":{"summary":"test"},
-        "evidence_refs":[{"type":"cause_candidate","id":cc["fire_cause_candidate_id"]}],
+        "evidence_refs":[],
         "ai_generated":True,
         "model_version":"report-test-v1"
     })
-    assert report.status_code==201
-    rp=report.json()
-    assert rp["status"]=="draft"
+    assert direct_ai_report.status_code==422
 
-    blocked_report=client.post(f"/fire-investigations/report-drafts/{rp['fire_report_draft_id']}/approve",json={
+    snapshot=client.post(f"/fire-investigations/{cid}/evidence-snapshots",json={
+        "metadata":{"purpose":"unit-test-report"}
+    })
+    assert snapshot.status_code==201
+    snap=snapshot.json()
+    assert snap["case_version"]==2
+    assert ann["fire_photo_annotation_id"] in snap["photo_annotation_ids"]
+    assert seg["fire_transcript_segment_id"] in snap["transcript_segment_ids"]
+    assert st["fire_statement_draft_id"] in snap["statement_draft_ids"]
+    assert tl["fire_timeline_event_id"] in snap["timeline_event_ids"]
+    assert snap["official_cause_candidate_id"]==cc["fire_cause_candidate_id"]
+
+    snapshot2=client.post(f"/fire-investigations/{cid}/evidence-snapshots",json={
+        "metadata":{"purpose":"same-evidence-second-call"}
+    })
+    assert snapshot2.status_code==201
+    assert snapshot2.json()["fire_evidence_snapshot_id"]==snap["fire_evidence_snapshot_id"]
+
+    report_manifest={
+        "evidence_snapshot_id":snap["fire_evidence_snapshot_id"],
+        "report_type":"fire_investigation_report",
+        "model_version":"report-test-v2",
+        "narrative_text":"Evidence Snapshotを根拠にしたAI報告書下書き",
+        "structured_content":{"summary":"test"},
+        "payload_metadata":{"source":"unit-test"}
+    }
+    report=client.post(f"/fire-investigations/{cid}/report-ai-manifest",json=report_manifest)
+    assert report.status_code==200
+    rb=report.json()
+    assert rb["created"] is True
+    assert len(rb["derived_ids"])==1
+    report_id=rb["derived_ids"][0]
+
+    report_repeat=client.post(f"/fire-investigations/{cid}/report-ai-manifest",json=report_manifest)
+    assert report_repeat.status_code==200
+    assert report_repeat.json()["created"] is False
+    assert report_repeat.json()["derived_ids"]==[report_id]
+
+    detail_before_review=client.get(f"/fire-investigations/{cid}").json()
+    rp=next(x for x in detail_before_review["report_drafts"] if x["fire_report_draft_id"]==report_id)
+    assert rp["status"]=="draft"
+    assert rp["ai_generated"] is True
+    assert rp["fire_evidence_snapshot_id"]==snap["fire_evidence_snapshot_id"]
+    assert rp["source_manifest_id"]==rb["fire_investigation_ai_manifest_id"]
+
+    blocked_report=client.post(f"/fire-investigations/report-drafts/{report_id}/approve",json={
         "expected_version":1
     })
     assert blocked_report.status_code==409
 
-    reviewed_report=client.patch(f"/fire-investigations/report-drafts/{rp['fire_report_draft_id']}",json={
+    reviewed_report=client.patch(f"/fire-investigations/report-drafts/{report_id}",json={
         "expected_version":1,
         "status":"reviewed"
     })
@@ -2609,7 +2652,7 @@ def test_phase7_fire_investigation_human_gates_for_ai_evidence_cause_and_report(
     assert reviewed_report.json()["status"]=="reviewed"
     assert reviewed_report.json()["version"]==2
 
-    approved_report=client.post(f"/fire-investigations/report-drafts/{rp['fire_report_draft_id']}/approve",json={
+    approved_report=client.post(f"/fire-investigations/report-drafts/{report_id}/approve",json={
         "expected_version":2
     })
     assert approved_report.status_code==200
