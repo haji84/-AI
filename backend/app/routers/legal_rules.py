@@ -16,8 +16,10 @@ from ..models import (
     FacilityDetail,
     FacilityFloor,
     LegalProvision,
+    LegalProvisionReviewCandidate,
     LegalRule,
     LegalRuleCitation,
+    LegalRuleDraftCandidate,
     LegalRuleVersion,
     LegalSourceDocumentVersion,
     RequirementEvaluation,
@@ -27,6 +29,7 @@ from ..schemas import (
     LegalProvisionOut,
     LegalRuleCitationCreate,
     LegalRuleCitationOut,
+    LegalRuleCoverageOut,
     LegalRuleCreate,
     LegalRuleOut,
     LegalRuleVersionApprove,
@@ -257,6 +260,92 @@ def create_rule(
     )
     db.commit()
     return _rule_out(row)
+
+
+@router.get("/coverage", response_model=LegalRuleCoverageOut)
+def legal_rule_coverage(
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("legal_rule.read")),
+):
+    tracked_domains = ("equipment_requirement", "submission_requirement")
+
+    def nested(rows):
+        out: dict[str, dict[str, int]] = {domain: {} for domain in tracked_domains}
+        for domain, state, count in rows:
+            if domain in out:
+                out[domain][str(state)] = int(count)
+        return out
+
+    review_rows = db.execute(
+        select(
+            LegalProvisionReviewCandidate.category,
+            LegalProvisionReviewCandidate.status,
+            func.count(),
+        )
+        .where(LegalProvisionReviewCandidate.category.in_(tracked_domains))
+        .group_by(
+            LegalProvisionReviewCandidate.category,
+            LegalProvisionReviewCandidate.status,
+        )
+    ).all()
+
+    draft_rows = db.execute(
+        select(
+            LegalRuleDraftCandidate.domain,
+            LegalRuleDraftCandidate.status,
+            func.count(),
+        )
+        .where(LegalRuleDraftCandidate.domain.in_(tracked_domains))
+        .group_by(
+            LegalRuleDraftCandidate.domain,
+            LegalRuleDraftCandidate.status,
+        )
+    ).all()
+
+    rule_version_rows = db.execute(
+        select(
+            LegalRule.domain,
+            LegalRuleVersion.status,
+            func.count(),
+        )
+        .join(
+            LegalRuleVersion,
+            LegalRuleVersion.rule_id == LegalRule.rule_id,
+        )
+        .where(LegalRule.domain.in_(tracked_domains))
+        .group_by(LegalRule.domain, LegalRuleVersion.status)
+    ).all()
+
+    approved_rows = db.execute(
+        select(LegalRule.domain, func.count(func.distinct(LegalRule.rule_id)))
+        .join(
+            LegalRuleVersion,
+            LegalRuleVersion.rule_id == LegalRule.rule_id,
+        )
+        .where(
+            LegalRule.domain.in_(tracked_domains),
+            LegalRuleVersion.status == "approved",
+        )
+        .group_by(LegalRule.domain)
+    ).all()
+    approved = {domain: 0 for domain in tracked_domains}
+    approved.update({str(domain): int(count) for domain, count in approved_rows})
+
+    citation_count = db.scalar(
+        select(func.count()).select_from(LegalRuleCitation)
+    ) or 0
+
+    return LegalRuleCoverageOut(
+        review_queue_by_domain_status=nested(review_rows),
+        draft_candidates_by_domain_status=nested(draft_rows),
+        rule_versions_by_domain_status=nested(rule_version_rows),
+        approved_rule_count_by_domain=approved,
+        exact_citation_count=int(citation_count),
+        note=(
+            "Counts show workflow progress only. They are not a percentage of legal completeness "
+            "and do not imply that all applicable legal requirements have been authored."
+        ),
+    )
 
 
 @router.get("/{rule_id}/versions", response_model=list[LegalRuleVersionOut])
