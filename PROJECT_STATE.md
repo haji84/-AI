@@ -437,3 +437,40 @@ Current external gate:
 - therefore production-quality STT, diarization accuracy, and uncertainty-marker accuracy are NOT claimed
 - next action is real-audio Baseline generation, then Human-set acceptance thresholds
 
+
+
+## Phase 9 audio benchmark run registry
+
+Implemented and CI-verified:
+- Migration 027 benchmark-run persistence
+- benchmark v2 result payload storage
+- canonical result SHA-256
+- Manifest SHA-256
+- recording count
+- Human baseline review
+- optimistic concurrency
+- duplicate result idempotency
+- Benchmark Run history API
+- two-run metric comparison API
+- CER / Speaker Error Rate / uncertainty F1 deltas
+- recording-condition metadata in benchmark results
+- route-precedence regression protection
+
+Verified checkpoint:
+- run: `37257011265` SUCCESS
+- backend pytest: 91 passed
+- Migration 027: 4 statements PASS
+
+Current Phase 9 external gate:
+- no real Japanese interview/fire-investigation audio Dataset has been benchmarked yet
+- first real CER / Speaker Error Rate / uncertainty-marker Baseline remains unexecuted
+- production-quality STT/diarization accuracy is therefore NOT claimed
+
+Next executable external step:
+1. provide or collect real Japanese interview audio
+2. create Human Reference JSON
+3. generate Local STT Hypothesis JSON
+4. run Benchmark v2
+5. register result in benchmark-run registry
+6. Human accepts/rejects Baseline
+7. set acceptance thresholds only after Baseline review
