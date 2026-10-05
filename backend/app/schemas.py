@@ -949,3 +949,41 @@ class DrawingAnalysisDetailOut(BaseModel):
     elements: list[DrawingElementOut] = Field(default_factory=list)
     equipment_candidates: list[DrawingEquipmentCandidateOut] = Field(default_factory=list)
     fact_candidates: list[DrawingFactCandidateOut] = Field(default_factory=list)
+
+
+class DrawingManifestElement(BaseModel):
+    client_ref: str | None = None
+    page_no: int = Field(default=1, ge=1)
+    element_type: str = Field(min_length=1, max_length=80)
+    label: str | None = None
+    floor_number: int | None = None
+    geometry: dict = Field(default_factory=dict)
+    extracted_data: dict = Field(default_factory=dict)
+    confidence: float | None = Field(default=None, ge=0, le=1)
+
+class DrawingManifestEquipmentCandidate(BaseModel):
+    drawing_element_ref: str | None = None
+    suggested_equipment_type_code: str | None = None
+    suggested_label: str | None = None
+    floor_number: int | None = None
+    location_text: str | None = None
+    quantity: int | None = Field(default=None, ge=0)
+    confidence: float | None = Field(default=None, ge=0, le=1)
+
+class DrawingManifestFactCandidate(BaseModel):
+    drawing_element_ref: str | None = None
+    target_path: str = Field(min_length=1, max_length=200)
+    proposed_value: dict
+    confidence: float | None = Field(default=None, ge=0, le=1)
+    evidence: dict = Field(default_factory=dict)
+
+class DrawingAnalysisResultManifest(BaseModel):
+    expected_version: int = Field(ge=1)
+    model_version: str | None = None
+    page_count: int | None = Field(default=None, ge=1)
+    confidence: float | None = Field(default=None, ge=0, le=1)
+    summary: dict = Field(default_factory=dict)
+    evidence: dict = Field(default_factory=dict)
+    elements: list[DrawingManifestElement] = Field(default_factory=list)
+    equipment_candidates: list[DrawingManifestEquipmentCandidate] = Field(default_factory=list)
+    fact_candidates: list[DrawingManifestFactCandidate] = Field(default_factory=list)
