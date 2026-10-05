@@ -689,3 +689,31 @@ Next legal-authoring gate:
 3. Human authors classification conditions/outcomes
 4. create Draft Rule candidates with exact source evidence
 5. separate Human approval before consultation auto-classification can rely on them
+
+
+## Phase 6 occupancy classification catalog
+
+Implemented and CI-verified:
+- Schedule 1 worklist upgraded to v2
+- official TableRow structure split into practical classification identities
+- first-level イ/ロ/ハ/ニ groups become separate classification entries
+- current official corpus expectation: 22 Schedule rows / 35 classification entries
+- classification identity/outcome copied mechanically from official Schedule 1 text
+- applicability conditions remain blank and require Human legal authoring
+- exact table row provision keys generated for citations
+- legal structure parser v2 emits citable table_row provisions
+- flat occupancy classification catalog output
+- legal-change guard fails when reviewed Schedule shape changes
+- main push automatically rebuilds the official worklist/catalog from verified e-Gov artifact
+
+Verified checkpoint:
+- run: `37271737351` SUCCESS
+- backend pytest: 110 passed
+- migration parser smoke: PASS
+- frontend JavaScript syntax: PASS
+
+Next gate:
+1. merge and run the official-corpus workflow on main
+2. verify 22 rows / 35 entries and exact source hash
+3. use the catalog to prepare Human-authored occupancy classification Draft Rules
+4. do not approve Rules until conditions and exact source evidence are reviewed
