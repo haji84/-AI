@@ -70,6 +70,7 @@ Manifestからの相対pathを使用する。
 - CER
 
 空白文字はCER計算から除外する。
+句読点・記号はv2では除外しない。Reference/Hypothesisで同一の転記規約を使用する。
 
 ### Speaker diarization
 
