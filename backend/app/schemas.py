@@ -1088,6 +1088,8 @@ class FireTranscriptSegmentOut(BaseModel):
     end_ms: int | None = None
     speaker_label: str | None = None
     text: str
+    uncertainty_markers: list = Field(default_factory=list)
+    text_sha256: str | None = None
     confidence: float | None = None
     source_kind: str
     model_version: str | None = None
@@ -1109,6 +1111,7 @@ class FireStatementDraftCreate(BaseModel):
 class FireStatementDraftReview(BaseModel):
     expected_version: int = Field(ge=1)
     status: Literal["reviewed","rejected"]
+    uncertainty_reviewed: bool = False
 
 class FireStatementDraftOut(BaseModel):
     fire_statement_draft_id: str
@@ -1117,6 +1120,8 @@ class FireStatementDraftOut(BaseModel):
     person_label: str | None = None
     draft_text: str
     evidence_segment_ids: list
+    source_uncertainty_markers: list = Field(default_factory=list)
+    uncertainty_reviewed: bool = False
     ai_generated: bool
     model_version: str | None = None
     status: str
@@ -1368,5 +1373,46 @@ class FirePhotoPlanLinkOut(BaseModel):
     label: str | None = None
     source_kind: str
     confidence: float | None = None
+    status: str
+    version: int
+
+
+class FireTranscriptSearchItemOut(BaseModel):
+    segment: FireTranscriptSegmentOut
+    media: FireInvestigationMediaOut
+    search_score: int
+
+class FireEvidenceRef(BaseModel):
+    type: Literal["transcript_segment","statement","timeline_event"]
+    id: str
+
+class FireEvidenceComparisonCreate(BaseModel):
+    issue_type: str = Field(min_length=1, max_length=80)
+    summary: str = Field(min_length=1)
+    left_ref: FireEvidenceRef
+    right_ref: FireEvidenceRef
+    evidence_refs: list[FireEvidenceRef] = Field(default_factory=list)
+    confidence: float | None = Field(default=None, ge=0, le=1)
+
+class FireEvidenceComparisonAIManifest(BaseModel):
+    model_version: str = Field(min_length=1)
+    comparisons: list[FireEvidenceComparisonCreate] = Field(default_factory=list)
+    payload_metadata: dict = Field(default_factory=dict)
+
+class FireEvidenceComparisonReview(BaseModel):
+    expected_version: int = Field(ge=1)
+    status: Literal["accepted","rejected"]
+
+class FireEvidenceComparisonOut(BaseModel):
+    fire_evidence_comparison_candidate_id: str
+    fire_investigation_case_id: str
+    issue_type: str
+    summary: str
+    left_ref: dict
+    right_ref: dict
+    evidence_refs: list
+    confidence: float | None = None
+    extraction_method: str
+    model_version: str | None = None
     status: str
     version: int
