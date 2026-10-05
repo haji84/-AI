@@ -51,6 +51,9 @@ PERMISSIONS: dict[str, str] = {
     "legal_source.sync": "法令・例規更新同期実行",
     "equipment.read": "設置消防用設備台帳参照",
     "equipment.manage": "設置消防用設備台帳・設備種別管理",
+    "drawing.read": "図面解析・候補参照",
+    "drawing.analyze": "図面解析候補作成",
+    "drawing.review": "図面解析候補レビュー・設備候補昇格",
 }
 
 ROLE_POLICY: dict[str, dict] = {
@@ -71,6 +74,7 @@ ROLE_POLICY: dict[str, dict] = {
             "intake.read", "intake.analyze", "intake.review", "intake.apply",
             "legal_rule.read", "legal_rule.evaluate", "legal_source.read",
             "equipment.read", "equipment.manage",
+            "drawing.read", "drawing.analyze", "drawing.review",
         },
     },
     "emergency_reporter": {
@@ -116,7 +120,7 @@ ROLE_POLICY: dict[str, dict] = {
         "system_role": True,
         "permissions": {
             "system.health.read", "legal_rule.read", "legal_rule.manage", "legal_rule.evaluate", "legal_source.read", "legal_source.manage", "legal_source.sync",
-            "document.read", "equipment.read",
+            "document.read", "equipment.read", "drawing.read",
         },
     },
     "legal_rule_approver": {
