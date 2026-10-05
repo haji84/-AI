@@ -5483,3 +5483,135 @@ def test_phase6_occupancy_coverage_only_completes_at_35_approved_rules():
     assert stale_cov["regression_gate_passed"] is False
     assert stale_cov["coverage_complete"] is False
     assert stale_cov["current_test_suite_fingerprint"] != run_body["result_payload"]["test_suite_fingerprint"]
+
+
+
+def test_phase6_occupancy_regression_detects_ambiguous_matches_and_blocks_acceptance():
+    from app.models import (
+        LegalJurisdiction,
+        LegalProvision,
+        LegalRuleDraftCandidate,
+        LegalRuleDraftCitation,
+        LegalSource,
+        LegalSourceDocument,
+        LegalSourceDocumentVersion,
+    )
+
+    login()
+    source_sha = "a1" * 32
+    with SessionLocal() as db:
+        jurisdiction = LegalJurisdiction(
+            code="TEST-REGRESSION-AMBIGUOUS",
+            name="国",
+            jurisdiction_type="national",
+        )
+        db.add(jurisdiction); db.flush()
+        source = LegalSource(
+            jurisdiction_id=jurisdiction.jurisdiction_id,
+            source_code="regression-ambiguous-source",
+            name="Regression ambiguous source",
+            source_type="law",
+            adapter_type="manual",
+            base_url="https://example.invalid/",
+        )
+        db.add(source); db.flush()
+        document = LegalSourceDocument(
+            legal_source_id=source.legal_source_id,
+            external_id="336CO0000000037",
+            document_type="cabinet_order",
+            title="消防法施行令",
+        )
+        db.add(document); db.flush()
+        version = LegalSourceDocumentVersion(
+            legal_source_document_id=document.legal_source_document_id,
+            normalized_text="別表第一",
+            structured_content={},
+            sha256=source_sha,
+            structure_status="structured",
+            structure_parser_version="legal-structure-v2",
+            provision_count=1,
+        )
+        db.add(version); db.flush()
+        provision = LegalProvision(
+            legal_source_document_version_id=version.legal_source_document_version_id,
+            provision_type="table_row",
+            provision_key="appendix_table:1/table_row:ambiguous",
+            sequence_no=1,
+            body_text="ambiguous test row",
+            content_sha256="b1" * 32,
+        )
+        db.add(provision); db.flush()
+
+        shared_conditions = {
+            "all":[{"field":"primary_use","op":"eq","value":"shared-use"}]
+        }
+        for idx, code in enumerate(["AMB-A","AMB-B"], start=1):
+            draft = LegalRuleDraftCandidate(
+                source_legal_document_version_id=version.legal_source_document_version_id,
+                domain="occupancy_classification",
+                proposed_rule_code=f"OCC-AMB-{idx}",
+                proposed_name=f"Ambiguous {code}",
+                proposed_conditions=shared_conditions,
+                proposed_outcome={
+                    "decision":"classification_candidate",
+                    "classification_code":code,
+                    "classification_label":code,
+                },
+                extraction_method="deterministic",
+                model_version="occupancy-authoring-import-v1",
+                generation_context={
+                    "source_xml_sha256":source_sha,
+                    "classification_code":code,
+                    "classification_label":code,
+                    "catalog_entry_count":35,
+                },
+                status="pending",
+            )
+            db.add(draft); db.flush()
+            db.add(LegalRuleDraftCitation(
+                legal_rule_draft_candidate_id=draft.legal_rule_draft_candidate_id,
+                legal_provision_id=provision.legal_provision_id,
+                citation_role="primary",
+            ))
+        db.commit()
+
+    case = client.post(
+        "/occupancy-regression/cases",
+        json={
+            "source_xml_sha256":source_sha,
+            "name":"曖昧判定テスト",
+            "input_snapshot":{"primary_use":"shared-use"},
+            "expected_classification_codes":["AMB-A"],
+        },
+    )
+    assert case.status_code == 201
+    case_id = case.json()["occupancy_classification_test_case_id"]
+    reviewed = client.post(
+        f"/occupancy-regression/cases/{case_id}/review",
+        json={"expected_version":1,"status":"reviewed"},
+    )
+    assert reviewed.status_code == 200
+
+    run = client.post(
+        "/occupancy-regression/runs",
+        json={"source_xml_sha256":source_sha},
+    )
+    assert run.status_code == 201
+    body = run.json()
+    assert body["ambiguous_case_count"] == 1
+    assert body["failed_case_count"] == 1
+    assert body["result_payload"]["overall_pass"] is False
+    assert len(body["result_payload"]["duplicate_condition_groups"]) == 1
+    assert body["result_payload"]["cases"][0]["matched_classification_codes"] == ["AMB-A","AMB-B"]
+    assert body["result_payload"]["cases"][0]["unexpected_matches"] == ["AMB-B"]
+
+    blocked = client.post(
+        f"/occupancy-regression/runs/{body['occupancy_classification_test_run_id']}/review",
+        json={
+            "expected_version":1,
+            "human_decision":"accepted_regression",
+            "review_notes":"This must be blocked",
+        },
+    )
+    assert blocked.status_code == 409
+    assert "did not pass" in str(blocked.json())
