@@ -6582,6 +6582,7 @@ def test_phase6_equipment_placement_batch_coverage_tracks_ignore_and_approved_ru
 
 
 def test_phase6_consultation_response_review_becomes_stale_when_annotation_changes(monkeypatch):
+    from datetime import datetime, timezone
     import app.consultation_response as consultation_response
     from app.models import DrawingAnnotationSet, DrawingConsultation
 
