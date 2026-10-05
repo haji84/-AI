@@ -994,3 +994,43 @@ Next gate:
 4. bind that official placement Worklist to an immutable batch
 5. Human process all placement candidates
 6. add placement Rule regression before declaring placement coverage complete
+
+
+## Phase 6 equipment placement authoring batch
+
+Implemented on branch `phase6-equipment-placement-batch`; CI verification pending:
+- Migration 035 equipment placement authoring batch persistence
+- official placement Worklist batch SHA-256 binding
+- equipment_placement Human review candidates linked to an immutable batch
+- Dry-run / Apply batch importer and CLI
+- per-candidate source provision content SHA-256
+- Human ignored placement candidates count as correctly processed non-Rules
+- reviewed placement candidates remain incomplete until Rule Draft handoff
+- drafted placement candidates become terminal only when the Draft is Human-rejected or promoted to an Approved/effective Rule with valid source citation
+- source hash drift immediately invalidates placement authoring coverage
+- drawing consultation exposes an explicit placement Rule coverage warning while incomplete
+- placement authoring coverage and placement regression coverage are separated
+
+Verified official Worklist evidence from run `37291827627`, artifact `11337265684`:
+- artifact digest: `sha256:e85a10327047f60c37b08cee052cc7f50356fdd3611a0d2a5a273d093e3c67ba`
+- placement_rules lane items: 61
+- equipment_placement candidates: 61
+- source distribution:
+  - 消防法施行規則: 39
+  - 消防法施行令: 10
+  - 危険物の規制に関する規則: 7
+  - 大島地区消防組合火災予防条例: 5
+
+Coverage semantics:
+- 61 is the current verified candidate count, not a legal Rule count.
+- irrelevant/noise provisions are Human-ignored rather than auto-promoted.
+- relevant provisions must pass Draft -> Human review -> promote -> Human approve before authoring coverage can complete.
+- even complete authoring coverage does not set final coverage_complete until a placement regression gate exists and is Human-accepted.
+- a rebuilt official Worklist receives a new batch SHA and must be processed separately.
+
+Next gate:
+1. merge batch tracking to main
+2. import/process the official 61-candidate placement batch
+3. add Human-reviewed placement regression cases
+4. test Rule constraints/room targeting/marker generation
+5. require a current Human-accepted regression PASS before placement coverage_complete=true
