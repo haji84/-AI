@@ -12,6 +12,11 @@ from ..db import get_db
 from ..legal_rule_validation import validate_rule_conditions
 from ..legal_outcome_validation import validate_rule_outcome_references
 from ..occupancy_authoring_import import check_occupancy_catalog_readiness, import_occupancy_catalog
+from ..occupancy_authoring_workbench import (
+    build_occupancy_authoring_worklist,
+    bulk_author_occupancy_conditions,
+    occupancy_rule_coverage,
+)
 from ..models import (
     LegalProvision,
     LegalRule,
@@ -34,6 +39,10 @@ from ..schemas import (
     OccupancyCatalogImportOut,
     OccupancyCatalogReadinessRequest,
     OccupancyCatalogReadinessOut,
+    OccupancyAuthoringBulkConditionRequest,
+    OccupancyAuthoringBulkConditionOut,
+    OccupancyAuthoringWorklistOut,
+    OccupancyRuleCoverageOut,
 )
 
 router = APIRouter(prefix="/legal-rule-drafts", tags=["legal-rule-drafts"])
@@ -216,6 +225,80 @@ def import_occupancy_catalog_endpoint(
             "Applicability conditions must be Human-authored before review, and promoted Rule "
             "Versions still require separate Human approval."
         ),
+    )
+
+
+
+
+@router.get(
+    "/occupancy-authoring/worklist",
+    response_model=OccupancyAuthoringWorklistOut,
+)
+def occupancy_authoring_worklist(
+    source_xml_sha256: str | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("legal_rule.read")),
+):
+    return OccupancyAuthoringWorklistOut(
+        **build_occupancy_authoring_worklist(
+            db,
+            source_xml_sha256=source_xml_sha256,
+        )
+    )
+
+
+@router.post(
+    "/occupancy-authoring/conditions",
+    response_model=OccupancyAuthoringBulkConditionOut,
+)
+def occupancy_authoring_conditions(
+    payload: OccupancyAuthoringBulkConditionRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("legal_rule.manage")),
+):
+    updates = [x.model_dump(mode="json") for x in payload.updates]
+    result = bulk_author_occupancy_conditions(
+        db,
+        source_xml_sha256=payload.source_xml_sha256,
+        updates=updates,
+        apply=payload.apply,
+    )
+    if payload.apply and result.get("applied"):
+        write_audit(
+            db,
+            user_id=user.user_id,
+            action="occupancy_authoring.conditions_bulk_apply",
+            entity_type="legal_rule_draft_candidate",
+            entity_id=None,
+            after={
+                "source_xml_sha256": payload.source_xml_sha256,
+                "updated_count": result.get("updated_count", 0),
+                "draft_ids": [x.get("draft_id") for x in updates],
+            },
+        )
+        db.commit()
+    elif payload.apply:
+        db.rollback()
+    return OccupancyAuthoringBulkConditionOut(result=result)
+
+
+@router.get(
+    "/occupancy-authoring/coverage",
+    response_model=OccupancyRuleCoverageOut,
+)
+def occupancy_authoring_coverage(
+    source_xml_sha256: str | None = None,
+    evaluation_date: str | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("legal_rule.read")),
+):
+    day = _date(evaluation_date) if evaluation_date else date.today()
+    return OccupancyRuleCoverageOut(
+        coverage=occupancy_rule_coverage(
+            db,
+            source_xml_sha256=source_xml_sha256,
+            evaluation_date=day,
+        )
     )
 
 
