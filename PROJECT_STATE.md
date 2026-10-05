@@ -531,7 +531,7 @@ Safety remains unchanged:
 
 ## Phase 6 drawing benchmark v1
 
-Implemented on branch `phase6-drawing-benchmark-v1`; CI verification pending:
+Implemented and CI-verified:
 - benchmark format `fire-ai-drawing-benchmark-v1`
 - multi-drawing Dataset Manifest
 - bounding-box normalization for x/y/width/height, x1/y1/x2/y2, bbox and polygon points
@@ -544,6 +544,12 @@ Implemented on branch `phase6-drawing-benchmark-v1`; CI verification pending:
 - Facility fact-candidate Precision / Recall / F1
 - Reference / Hypothesis / Manifest SHA-256 provenance
 - benchmark contract and regression tests
+
+Verified checkpoint:
+- run: `37260088706` SUCCESS
+- backend pytest: 97 passed
+- migration parser smoke: PASS
+- frontend JavaScript syntax: PASS
 
 External Gate remains:
 - real architectural drawing Human Reference dataset has not yet been benchmarked
