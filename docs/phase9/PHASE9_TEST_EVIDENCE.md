@@ -2,20 +2,17 @@
 
 更新日: 2026-10-05
 
-## Last verified green checkpoint
+## Current green checkpoint
 
-GitHub Actions run: `37254735014`
+GitHub Actions run: `37256577150`
 Conclusion: SUCCESS
 
-- backend pytest: 83 passed
-- Migration 025: 5 statements PASS
-- Migration 026: 2 statements PASS
+- backend pytest: 88 passed
+- Phase 9 audio benchmark v2 tests: PASS
+- migrations parser smoke: PASS
 - frontend JavaScript syntax: PASS
 
-Canonical Phase 9 API is consolidated under `/fire-investigations`.
-The temporary duplicate `fire_audio` router was removed after consolidation.
-
-## Verified behaviors
+## Phase 9 voice / statement intelligence already verified
 
 - uncertainty marker positions are deterministic
 - transcript text SHA-256 is stable
@@ -29,24 +26,61 @@ The temporary duplicate `fire_audio` router was removed after consolidation.
 - comparison candidates remain pending until Human review
 - optimistic version conflict prevents double review
 - accepted comparison remains a separate candidate record
+- accepted comparison cannot mutate reviewed statement text
+- accepted comparison cannot mutate confirmed timeline status
+- accepted comparison cannot select/approve official fire cause
 
-## Additional hardening after the checkpoint
+## Japanese Audio Benchmark v2 verified
 
-- Phase 9 UI added for transcript search and evidence-comparison review
-- UI warns when comparison Evidence contains uncertainty markers
-- explicit regression assertion added that accepting a comparison must not mutate:
-  - reviewed statement text
-  - confirmed timeline status
-  - official fire cause
+Tool:
+`scripts/benchmark_fire_audio.py`
 
-These latest changes require their current HEAD CI result before being reported as the new final green checkpoint.
+Format:
+`fire-ai-japanese-stt-benchmark-v2`
 
-## Safety boundary
+Verified features:
+- Japanese Character Error Rate
+- substitutions / insertions / deletions
+- memory-reduced Levenshtein row implementation
+- speaker diarization scoring on non-double-counted timeline intervals
+- automatic Hypothesis speaker-label -> Reference speaker-label mapping
+- rectangular speaker assignment handling
+- speaker confusion / missed / false-alarm time
+- Speaker Error Rate
+- uncertainty marker exact scoring
+- uncertainty marker time-tolerance scoring
+- bipartite marker matching to prevent duplicate matches
+- multi-recording Dataset Manifest
+- per-recording results
+- micro aggregate CER
+- micro aggregate diarization error
+- micro aggregate uncertainty Precision/Recall/F1
+- Reference/Hypothesis SHA-256 provenance
+- Manifest SHA-256 provenance
+- per-recording environment/condition metadata passthrough
+- payload/time-range validation
 
-An accepted evidence-comparison candidate is not an established fact.
+## Benchmark interpretation policy
+
+The benchmark is evidence only.
+
 It cannot directly:
-- rewrite transcript text
-- rewrite a reviewed statement
-- rewrite a confirmed timeline
-- select/approve a fire cause
+- mark a transcript accepted
+- mark a statement reviewed
+- confirm a timeline
+- select or approve a fire cause
 - approve a formal report
+
+No production-quality STT claim is allowed until a real Japanese audio Dataset is benchmarked.
+
+## Still unexecuted external benchmark gate
+
+1. Prepare real Japanese interview/fire-investigation-like audio recordings.
+2. Create Human Reference transcripts, speaker segments, and uncertainty markers.
+3. Generate Local STT/diarization Hypothesis JSON.
+4. Build Dataset Manifest with recording-condition metadata.
+5. Run Benchmark v2.
+6. Save Baseline result and all input hashes as Evidence.
+7. Human Gate sets acceptance thresholds after seeing the Baseline.
+
+Until this gate is executed, do not report production-quality STT/diarization or validated uncertainty-marker accuracy.
