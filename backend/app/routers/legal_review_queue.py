@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from ..audit import write_audit
@@ -24,6 +24,7 @@ from ..schemas import (
     LegalProvisionReviewCandidateDraft,
     LegalProvisionReviewCandidateOut,
     LegalProvisionReviewCandidatePatch,
+    LegalReviewQueueSummaryOut,
 )
 
 router = APIRouter(prefix="/legal-review-queue", tags=["legal-review-queue"])
@@ -76,28 +77,90 @@ def _out(db: Session, row: LegalProvisionReviewCandidate) -> LegalProvisionRevie
     )
 
 
-@router.get("", response_model=list[LegalProvisionReviewCandidateOut])
-def list_review_candidates(
-    queue_status: str | None = "pending",
+def _review_query(
+    *,
+    queue_status: str | None = None,
     category: str | None = None,
     priority_lane: str | None = None,
+    provision_context: str | None = None,
+    q: str | None = None,
     min_score: float = 0,
-    offset: int = 0,
-    limit: int = 100,
-    db: Session = Depends(get_db),
-    user: User = Depends(require_permission("legal_rule.read")),
+    min_review_priority: float = 0,
 ):
-    stmt = select(LegalProvisionReviewCandidate)
+    score_expr = (
+        LegalProvisionReviewCandidate.relevance_score
+        + LegalProvisionReviewCandidate.source_priority_score
+        + LegalProvisionReviewCandidate.context_priority_score
+    )
+    stmt = (
+        select(LegalProvisionReviewCandidate)
+        .join(
+            LegalProvision,
+            LegalProvision.legal_provision_id
+            == LegalProvisionReviewCandidate.legal_provision_id,
+        )
+        .join(
+            LegalSourceDocumentVersion,
+            LegalSourceDocumentVersion.legal_source_document_version_id
+            == LegalProvision.legal_source_document_version_id,
+        )
+        .join(
+            LegalSourceDocument,
+            LegalSourceDocument.legal_source_document_id
+            == LegalSourceDocumentVersion.legal_source_document_id,
+        )
+    )
     if queue_status:
         stmt = stmt.where(LegalProvisionReviewCandidate.status == queue_status)
     if category:
         stmt = stmt.where(LegalProvisionReviewCandidate.category == category)
     if priority_lane:
         stmt = stmt.where(LegalProvisionReviewCandidate.priority_lane == priority_lane)
-    stmt = stmt.where(LegalProvisionReviewCandidate.relevance_score >= min_score)
+    if provision_context:
+        stmt = stmt.where(LegalProvisionReviewCandidate.provision_context == provision_context)
+    if min_score:
+        stmt = stmt.where(LegalProvisionReviewCandidate.relevance_score >= min_score)
+    if min_review_priority:
+        stmt = stmt.where(score_expr >= min_review_priority)
+    if q:
+        needle=f"%{q.strip()}%"
+        stmt=stmt.where(
+            or_(
+                LegalSourceDocument.title.ilike(needle),
+                LegalProvision.display_label.ilike(needle),
+                LegalProvision.heading_text.ilike(needle),
+                LegalProvision.body_text.ilike(needle),
+            )
+        )
+    return stmt, score_expr
+
+
+@router.get("", response_model=list[LegalProvisionReviewCandidateOut])
+def list_review_candidates(
+    queue_status: str | None = "pending",
+    category: str | None = None,
+    priority_lane: str | None = None,
+    provision_context: str | None = None,
+    q: str | None = None,
+    min_score: float = 0,
+    min_review_priority: float = 0,
+    offset: int = 0,
+    limit: int = 50,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("legal_rule.read")),
+):
+    stmt, score_expr = _review_query(
+        queue_status=queue_status,
+        category=category,
+        priority_lane=priority_lane,
+        provision_context=provision_context,
+        q=q,
+        min_score=min_score,
+        min_review_priority=min_review_priority,
+    )
     rows = db.scalars(
         stmt.order_by(
-            (LegalProvisionReviewCandidate.relevance_score + LegalProvisionReviewCandidate.source_priority_score + LegalProvisionReviewCandidate.context_priority_score).desc(),
+            score_expr.desc(),
             LegalProvisionReviewCandidate.source_priority_score.desc(),
             LegalProvisionReviewCandidate.context_priority_score.desc(),
             LegalProvisionReviewCandidate.relevance_score.desc(),
@@ -107,6 +170,47 @@ def list_review_candidates(
         .limit(max(1, min(limit, 500)))
     ).all()
     return [_out(db, x) for x in rows]
+
+
+@router.get("/summary", response_model=LegalReviewQueueSummaryOut)
+def review_queue_summary(
+    category: str | None = None,
+    priority_lane: str | None = None,
+    provision_context: str | None = None,
+    q: str | None = None,
+    min_score: float = 0,
+    min_review_priority: float = 0,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("legal_rule.read")),
+):
+    stmt, _score_expr = _review_query(
+        queue_status=None,
+        category=category,
+        priority_lane=priority_lane,
+        provision_context=provision_context,
+        q=q,
+        min_score=min_score,
+        min_review_priority=min_review_priority,
+    )
+    sub = stmt.order_by(None).subquery()
+    total = db.scalar(select(func.count()).select_from(sub)) or 0
+
+    def grouped(column):
+        return {
+            str(key): int(count)
+            for key, count in db.execute(
+                select(column, func.count()).select_from(sub).group_by(column)
+            ).all()
+            if key is not None
+        }
+
+    return LegalReviewQueueSummaryOut(
+        total=int(total),
+        by_status=grouped(sub.c.status),
+        by_category=grouped(sub.c.category),
+        by_priority_lane=grouped(sub.c.priority_lane),
+        by_provision_context=grouped(sub.c.provision_context),
+    )
 
 
 @router.patch("/{candidate_id}", response_model=LegalProvisionReviewCandidateOut)
