@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from .db import get_db
 from .settings import settings
-from .routers import auth, facilities, documents, extensions, templates, contracts, inspections, submissions, intake, legal_rules, legal_sources, legal_rule_drafts, legal_review_queue, equipment, drawings, drawing_benchmarks, fire_investigations, fire_report_exports, fire_photos, audio_benchmarks, evidence_benchmarks, search as unified_search
+from .routers import auth, facilities, documents, extensions, templates, contracts, inspections, submissions, intake, legal_rules, legal_sources, legal_rule_drafts, legal_review_queue, equipment, drawings, drawing_annotations, drawing_benchmarks, fire_investigations, fire_report_exports, fire_photos, audio_benchmarks, evidence_benchmarks, search as unified_search
 
 app = FastAPI(title=settings.app_name, version="0.12.0")
 
@@ -39,6 +39,7 @@ app.include_router(legal_rule_drafts.router)
 app.include_router(legal_review_queue.router)
 app.include_router(equipment.router)
 app.include_router(drawings.router)
+app.include_router(drawing_annotations.router)
 app.include_router(drawing_benchmarks.router)
 # Register static audio-benchmark paths before /fire-investigations/{case_id}.
 app.include_router(audio_benchmarks.router)
