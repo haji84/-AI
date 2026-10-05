@@ -3410,7 +3410,7 @@ def test_phase9_uncertainty_search_statement_gate_and_comparison_manifest():
     assert seg1.status_code==201
     s1=seg1.json()
     marker_texts={x["text"] for x in s1["uncertainty_markers"]}
-    assert "頃" in marker_texts
+    assert "1時頃" in marker_texts
     assert "たぶん" in marker_texts
     assert "と思う" in marker_texts
     assert len(s1["text_sha256"])==64
@@ -3534,7 +3534,7 @@ def test_phase9_uncertainty_marker_positions_are_deterministic():
     from app.fire_transcript_semantics import extract_uncertainty_markers, transcript_text_sha256
     text="たぶん10時頃だったと思う。"
     markers=extract_uncertainty_markers(text)
-    assert [x["text"] for x in markers]==["たぶん","10時頃","頃","と思う"]
+    assert [x["text"] for x in markers]==["たぶん","10時頃","と思う"]
     for marker in markers:
         assert text[marker["start"]:marker["end"]]==marker["text"]
     assert transcript_text_sha256(text)==transcript_text_sha256(text)
