@@ -1220,6 +1220,36 @@ class FireInvestigationAIManifest(Base):
     )
 
 
+class FireEvidenceSnapshot(Base):
+    __tablename__ = "fire_evidence_snapshots"
+    fire_evidence_snapshot_id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True, default=uuid_str)
+    fire_investigation_case_id: Mapped[str] = mapped_column(
+        ForeignKey("fire_investigation_cases.fire_investigation_case_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    case_version: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    snapshot_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    photo_annotation_ids: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    transcript_segment_ids: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    statement_draft_ids: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    timeline_event_ids: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    official_cause_candidate_id: Mapped[str | None] = mapped_column(
+        ForeignKey("fire_cause_candidates.fire_cause_candidate_id", ondelete="SET NULL")
+    )
+    media_document_hashes: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    snapshot_metadata: Mapped[dict] = mapped_column("metadata", JSON, nullable=False, default=dict)
+    created_by: Mapped[str | None] = mapped_column(ForeignKey("app_users.user_id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    __table_args__ = (
+        UniqueConstraint(
+            "fire_investigation_case_id",
+            "snapshot_sha256",
+            name="uq_fire_evidence_snapshot",
+        ),
+    )
+
+
 class FirePhotoAnnotation(Base):
     __tablename__ = "fire_photo_annotations"
     fire_photo_annotation_id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True, default=uuid_str)
@@ -1327,6 +1357,12 @@ class FireReportDraft(Base):
     narrative_text: Mapped[str | None] = mapped_column(Text)
     structured_content: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     evidence_refs: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    fire_evidence_snapshot_id: Mapped[str | None] = mapped_column(
+        ForeignKey("fire_evidence_snapshots.fire_evidence_snapshot_id")
+    )
+    source_manifest_id: Mapped[str | None] = mapped_column(
+        ForeignKey("fire_investigation_ai_manifests.fire_investigation_ai_manifest_id")
+    )
     ai_generated: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     model_version: Mapped[str | None] = mapped_column(String(200))
     status: Mapped[str] = mapped_column(String(30), nullable=False, default="draft", index=True)
