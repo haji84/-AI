@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 
-SCANNER_VERSION = "fire-legal-relevance-v2"
+SCANNER_VERSION = "fire-legal-relevance-v3"
 
 CATEGORY_KEYWORDS: dict[str, dict[str, float]] = {
     "equipment_requirement": {
@@ -22,6 +22,21 @@ CATEGORY_KEYWORDS: dict[str, dict[str, float]] = {
         "排煙設備": 3.0,
         "防火水槽": 3.0,
         "無窓階": 3.0,
+    },
+    "equipment_placement": {
+        "歩行距離": 4.0,
+        "水平距離": 4.0,
+        "設置場所": 3.5,
+        "設置位置": 3.5,
+        "設置箇所": 3.5,
+        "容易に使用": 2.5,
+        "見やすい箇所": 2.5,
+        "出入口付近": 3.0,
+        "出入口の付近": 3.0,
+        "床面から": 2.5,
+        "床面より": 2.5,
+        "高さ": 1.5,
+        "間隔": 2.0,
     },
     "submission_requirement": {
         "届出": 3.0,
@@ -70,6 +85,28 @@ CATEGORY_KEYWORDS: dict[str, dict[str, float]] = {
         "防炎": 2.5,
     },
 }
+
+
+PLACEMENT_EQUIPMENT_TERMS = (
+    "消防用設備",
+    "消火器",
+    "屋内消火栓",
+    "屋外消火栓",
+    "スプリンクラー",
+    "自動火災報知設備",
+    "火災報知設備",
+    "非常警報設備",
+    "避難器具",
+    "誘導灯",
+    "誘導標識",
+    "連結送水管",
+    "排煙設備",
+    "防火水槽",
+)
+
+PLACEMENT_HINTS = tuple(
+    CATEGORY_KEYWORDS["equipment_placement"].keys()
+)
 
 FIRE_SERVICE_ANCHORS = (
     "消防",
@@ -127,6 +164,11 @@ def score_fire_service_relevance(
     type_boost = 0.25 if provision_type in {"article", "paragraph", "item", "document_body"} else 0.0
 
     for category, weighted in CATEGORY_KEYWORDS.items():
+        if category == "equipment_placement":
+            if not any(term in text for term in PLACEMENT_EQUIPMENT_TERMS):
+                continue
+            if not any(term in text for term in PLACEMENT_HINTS):
+                continue
         score = 0.0
         reasons: list[str] = []
         for keyword, weight in weighted.items():
