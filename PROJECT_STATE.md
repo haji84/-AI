@@ -925,3 +925,35 @@ Target flow:
 6. promoted Rule Versions -> Human Approved and effective
 7. require zero stale source hashes and all batch candidates processed
 8. only then treat equipment requirement Rule coverage as complete for that batch
+
+
+## Phase 6 equipment requirement regression gate
+
+Implemented on branch `phase6-equipment-regression-gate`; CI verification pending:
+- Migration 034 equipment requirement regression case/run persistence
+- Human-authored equipment regression cases support zero, one, or multiple expected equipment type codes
+- reviewed case inputs are restricted to facts the drawing consultation equipment engine can evaluate
+- expected equipment codes must exist in active EquipmentType master
+- only Human-reviewed cases participate in runs
+- regression executes the same effective Approved `equipment_requirement` Rule engine used by consultations
+- required equipment is compared as an exact set
+- missing equipment is reported as under-requirement
+- unexpected equipment is reported as over-requirement
+- matched Rule Version / citations / condition evidence are preserved per case
+- regression run result is SHA-256 idempotent and persisted
+- PASS still requires separate Human acceptance
+- effective equipment Rule engine is fingerprinted across all active/effective Approved equipment_requirement Rules
+- reviewed test suite is separately fingerprinted
+- Rule changes invalidate previous accepted regression evidence
+- reviewed test case changes invalidate previous accepted regression evidence
+- authoring batch coverage and regression coverage are separate:
+  - `authoring_coverage_complete`: all official batch candidates Human-processed with valid source evidence
+  - `coverage_complete`: authoring complete plus a current Human-accepted passing regression
+- E2E covers Approved authoring complete -> regression missing -> incomplete -> PASS + Human accept -> complete -> source drift -> incomplete
+- E2E covers over-requirement -> regression FAIL -> Human acceptance blocked
+
+Safety:
+- regression expected equipment sets are Human-reviewed truth
+- zero equipment is a valid expected set for negative cases
+- an old PASS cannot survive a current Rule-set or reviewed-test-suite change
+- equipment consultation continues to warn while final equipment Rule coverage is incomplete
