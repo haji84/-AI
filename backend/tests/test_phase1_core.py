@@ -3951,3 +3951,109 @@ def test_phase9_audio_benchmark_comparison_reports_metric_deltas_only():
     assert body["metrics"]["cer"]["lower_is_better"] is True
     assert body["metrics"]["uncertainty_f1"]["higher_is_better"] is True
     assert "Dataset composition" in body["note"]
+
+
+def test_phase9_evidence_comparison_benchmark_registry_human_gate_and_comparison():
+    login()
+
+    def payload(precision, recall, f1, fp, marker):
+        tp = 8
+        fn = 2
+        hypothesis_count = tp + fp
+        return {
+            "benchmark_format": "fire-ai-evidence-comparison-benchmark-v1",
+            "manifest_sha256": marker * 64,
+            "cases": [],
+            "aggregate": {
+                "case_count": 5,
+                "true_positive": tp,
+                "false_positive": fp,
+                "false_negative": fn,
+                "precision": precision,
+                "recall": recall,
+                "f1": f1,
+                "reference_count": tp + fn,
+                "hypothesis_count": hypothesis_count,
+            },
+            "policy": "benchmark evidence only",
+        }
+
+    first_payload = payload(0.8, 0.8, 0.8, 2, "a")
+    first = client.post(
+        "/fire-investigations/evidence-comparison-benchmarks",
+        json={"dataset_label": "Evidence Model A", "result_payload": first_payload},
+    )
+    assert first.status_code == 201
+    body = first.json()
+    bid = body["fire_evidence_comparison_benchmark_run_id"]
+    assert body["review_status"] == "pending"
+    assert body["case_count"] == 5
+    assert len(body["result_sha256"]) == 64
+
+    duplicate = client.post(
+        "/fire-investigations/evidence-comparison-benchmarks",
+        json={
+            "dataset_label": "Duplicate label must not create another row",
+            "result_payload": first_payload,
+        },
+    )
+    assert duplicate.status_code == 201
+    assert duplicate.json()["fire_evidence_comparison_benchmark_run_id"] == bid
+
+    reviewed = client.post(
+        f"/fire-investigations/evidence-comparison-benchmarks/{bid}/review",
+        json={
+            "expected_version": 1,
+            "human_decision": "accepted_baseline",
+            "review_notes": "Accepted for benchmark comparison only.",
+        },
+    )
+    assert reviewed.status_code == 200
+    assert reviewed.json()["review_status"] == "reviewed"
+    assert reviewed.json()["human_decision"] == "accepted_baseline"
+    assert reviewed.json()["version"] == 2
+
+    stale = client.post(
+        f"/fire-investigations/evidence-comparison-benchmarks/{bid}/review",
+        json={"expected_version": 1, "human_decision": "rejected_baseline"},
+    )
+    assert stale.status_code == 409
+
+    second = client.post(
+        "/fire-investigations/evidence-comparison-benchmarks",
+        json={
+            "dataset_label": "Evidence Model B",
+            "result_payload": payload(0.9, 0.8, 0.8470588235294118, 1, "b"),
+        },
+    )
+    assert second.status_code == 201
+
+    compared = client.get(
+        "/fire-investigations/evidence-comparison-benchmarks/compare",
+        params={
+            "left_id": bid,
+            "right_id": second.json()["fire_evidence_comparison_benchmark_run_id"],
+        },
+    )
+    assert compared.status_code == 200
+    metrics = compared.json()["metrics"]
+    assert round(metrics["precision"]["delta_right_minus_left"], 6) == 0.1
+    assert round(metrics["recall"]["delta_right_minus_left"], 6) == 0.0
+    assert metrics["f1"]["higher_is_better"] is True
+    assert round(metrics["false_positives_per_case"]["delta_right_minus_left"], 6) == -0.2
+    assert metrics["false_positives_per_case"]["lower_is_better"] is True
+
+    listed = client.get("/fire-investigations/evidence-comparison-benchmarks")
+    assert listed.status_code == 200
+    assert any(
+        x["fire_evidence_comparison_benchmark_run_id"] == bid for x in listed.json()
+    )
+
+    bad = client.post(
+        "/fire-investigations/evidence-comparison-benchmarks",
+        json={
+            "dataset_label": "Bad format",
+            "result_payload": {"benchmark_format": "unknown-v99"},
+        },
+    )
+    assert bad.status_code == 422

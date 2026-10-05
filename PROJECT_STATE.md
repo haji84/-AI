@@ -499,3 +499,31 @@ Human Gate remains explicit:
 - no production acceptance threshold is hard-coded
 - real Human-labeled investigation cases are still required
 - production-quality evidence-comparison accuracy must not be claimed until the real dataset is benchmarked and Human acceptance thresholds are set
+
+
+## Phase 9 evidence-comparison benchmark run registry
+
+Implemented and CI-verified:
+- Migration 028 benchmark-run persistence
+- benchmark v1 result payload storage
+- canonical result SHA-256
+- Manifest SHA-256
+- case count
+- duplicate result idempotency
+- Human baseline review
+- optimistic concurrency
+- Benchmark Run history API
+- two-run comparison API
+- Precision / Recall / F1 deltas
+- false positives per case delta
+
+Verified checkpoint:
+- run: `37259163834` SUCCESS
+- backend pytest: 94 passed
+- Migration 028 parser smoke: PASS
+- frontend JavaScript syntax: PASS
+
+Safety remains unchanged:
+- benchmark acceptance cannot mutate reviewed statements, confirmed timeline, formal evidence, official cause, or report
+- no production threshold is hard-coded
+- real Human-labeled cases and Human-set acceptance thresholds remain external gates
