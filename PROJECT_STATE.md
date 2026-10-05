@@ -1208,3 +1208,41 @@ Safety / resource controls:
 - managed storage path confinement is rechecked before rendering
 - adaptive render size limits large-format PDF memory growth
 - original Document SHA remains the authoritative source identity
+
+
+## Phase 6 house-plan-001 Geometry Reference Draft
+
+Implemented on branch `phase6-house-plan-reference-001`; CI verification pending:
+- existing supplied residential reference remains bound to source SHA-256 `2df43a8f5cebe48f2a55ae8968714319ca05491088d98a1e6038fd0b10aa26b6`
+- 12 first-floor room/zone Geometry Drafts added:
+  - UB
+  - トイレ
+  - 洗面脱衣室
+  - 玄関
+  - ホール
+  - WIC
+  - 主寝室
+  - タタミコーナー
+  - L
+  - D
+  - K
+  - P
+- geometry quality is separated into:
+  - strict_wall_bounded
+  - circulation_approx
+  - open_plan_approx
+  - service_area_approx
+- visible printed room-area values are preserved for 主寝室 / タタミコーナー / L / D / K
+- Reference remains `pending_human_acceptance`
+- Human review checklist added at `benchmarks/phase6/reference/house-plan-001.review.md`
+- drawing Benchmark now refuses Human Reference formats unless:
+  - `reference_status=human_accepted`, and
+  - when `human_gate.required=true`, `human_gate.accepted=true`
+  - or the Reference is exported from a reviewed Human Annotation set
+- plain synthetic unit-test fixtures without Human Reference format are unaffected
+- E2E/unit coverage verifies pending Draft rejection and accepted/reviewed Reference acceptance
+
+Human Gate:
+- the 12 polygons are a Draft, not benchmark truth
+- open-plan/circulation boundaries require explicit Human confirmation/correction
+- first real Geometry Baseline remains blocked until this Reference is Human-accepted and a Local Vision Hypothesis is produced
