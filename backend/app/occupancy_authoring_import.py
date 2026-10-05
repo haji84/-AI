@@ -239,3 +239,137 @@ def import_occupancy_catalog(
     if apply:
         db.flush()
     return stats
+
+
+
+def check_occupancy_catalog_readiness(
+    db: Session,
+    catalog: dict,
+) -> dict:
+    if not isinstance(catalog, dict) or catalog.get("format") != CATALOG_FORMAT:
+        raise ValueError("unsupported occupancy catalog format")
+    if catalog.get("law_title") != TARGET_LAW_TITLE:
+        raise ValueError("occupancy catalog is not for 消防法施行令")
+
+    entries = catalog.get("entries")
+    if not isinstance(entries, list):
+        raise ValueError("occupancy catalog entries must be a list")
+    if int(catalog.get("classification_entry_count", -1)) != len(entries):
+        raise ValueError("occupancy catalog entry count mismatch")
+
+    source_sha = str(catalog.get("source_xml_sha256") or "")
+    if len(source_sha) != 64:
+        raise ValueError("invalid source_xml_sha256")
+
+    resolution, source_version = _resolve_source_version(
+        db,
+        source_sha256=source_sha,
+    )
+
+    result = {
+        "ready": False,
+        "resolution": resolution,
+        "source_xml_sha256": source_sha,
+        "source_version_id": None,
+        "source_structure_status": None,
+        "source_structure_parser_version": None,
+        "expected_parser_version": PARSER_VERSION,
+        "catalog_entry_count": len(entries),
+        "valid_entry_count": 0,
+        "exact_provision_match_count": 0,
+        "missing_provision_count": 0,
+        "stale_provision_count": 0,
+        "existing_pending_skeleton_count": 0,
+        "existing_terminal_skeleton_count": 0,
+        "would_insert_count": 0,
+        "blockers": [],
+    }
+
+    if source_version is None:
+        result["blockers"].append(resolution)
+        return result
+
+    result["source_version_id"] = source_version.legal_source_document_version_id
+    result["source_structure_status"] = source_version.structure_status
+    result["source_structure_parser_version"] = source_version.structure_parser_version
+
+    if resolution != "ok":
+        result["blockers"].append(resolution)
+        return result
+
+    for entry in entries:
+        if not _valid_entry(entry):
+            result["blockers"].append(
+                {
+                    "type": "invalid_entry",
+                    "classification_code": (
+                        entry.get("classification_code")
+                        if isinstance(entry, dict)
+                        else None
+                    ),
+                }
+            )
+            continue
+
+        result["valid_entry_count"] += 1
+        provision = db.scalar(
+            select(LegalProvision).where(
+                LegalProvision.legal_source_document_version_id
+                == source_version.legal_source_document_version_id,
+                LegalProvision.provision_key == entry["row_provision_key"],
+                LegalProvision.present_in_source.is_(True),
+            )
+        )
+        if provision is None:
+            result["missing_provision_count"] += 1
+            result["blockers"].append(
+                {
+                    "type": "missing_provision",
+                    "classification_code": entry["classification_code"],
+                    "row_provision_key": entry["row_provision_key"],
+                }
+            )
+            continue
+
+        if (
+            provision.provision_type != "table_row"
+            or str(entry["official_text"]) not in (provision.body_text or "")
+        ):
+            result["stale_provision_count"] += 1
+            result["blockers"].append(
+                {
+                    "type": "stale_provision",
+                    "classification_code": entry["classification_code"],
+                    "row_provision_key": entry["row_provision_key"],
+                }
+            )
+            continue
+
+        result["exact_provision_match_count"] += 1
+        fingerprint = _canonical_sha(
+            {
+                "import_version": IMPORT_VERSION,
+                "source_version_id": source_version.legal_source_document_version_id,
+                "entry_sha256": entry["entry_sha256"],
+                "row_provision_key": entry["row_provision_key"],
+                "proposed_rule_code": entry["proposed_rule_code"],
+            }
+        )
+        existing = db.scalar(
+            select(LegalRuleDraftCandidate).where(
+                LegalRuleDraftCandidate.candidate_fingerprint == fingerprint
+            )
+        )
+        if existing is None:
+            result["would_insert_count"] += 1
+        elif existing.status == "pending":
+            result["existing_pending_skeleton_count"] += 1
+        else:
+            result["existing_terminal_skeleton_count"] += 1
+
+    result["ready"] = (
+        not result["blockers"]
+        and result["valid_entry_count"] == len(entries)
+        and result["exact_provision_match_count"] == len(entries)
+    )
+    return result
