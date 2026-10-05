@@ -929,7 +929,7 @@ Target flow:
 
 ## Phase 6 equipment requirement regression gate
 
-Implemented on branch `phase6-equipment-regression-gate`; CI verification pending:
+Implemented and CI-verified:
 - Migration 034 equipment requirement regression case/run persistence
 - Human-authored equipment regression cases support zero, one, or multiple expected equipment type codes
 - reviewed case inputs are restricted to facts the drawing consultation equipment engine can evaluate
@@ -951,6 +951,12 @@ Implemented on branch `phase6-equipment-regression-gate`; CI verification pendin
   - `coverage_complete`: authoring complete plus a current Human-accepted passing regression
 - E2E covers Approved authoring complete -> regression missing -> incomplete -> PASS + Human accept -> complete -> source drift -> incomplete
 - E2E covers over-requirement -> regression FAIL -> Human acceptance blocked
+
+Verified checkpoint:
+- run: `37290673265` SUCCESS
+- backend pytest: 119 passed
+- Migration 034 parser smoke: PASS
+- frontend JavaScript syntax: PASS
 
 Safety:
 - regression expected equipment sets are Human-reviewed truth
