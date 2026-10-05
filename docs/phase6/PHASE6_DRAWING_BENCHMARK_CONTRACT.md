@@ -1,0 +1,114 @@
+# Phase 6 Drawing AI Benchmark Contract
+
+更新日: 2026-10-05
+Format: `fire-ai-drawing-benchmark-v1`
+
+## Purpose
+
+実図面に対するLocal Vision/AIの性能を、Human Referenceと比較して測定する。
+
+Benchmark結果は性能Evidenceであり、設備台帳・建物情報・法令適合判定を自動確定しない。
+
+## Input
+
+ReferenceとHypothesisはPhase 6のDrawing Manifestに近いJSONを使う。
+
+主要配列:
+- `elements[]`
+- `equipment_candidates[]`
+- `fact_candidates[]`
+
+### Element geometry
+
+v1は以下をbounding boxへ正規化してIoUを計算する。
+
+- `{x,y,width,height}`
+- `{x1,y1,x2,y2}`
+- `{bbox:[x,y,width,height]}`
+- `{points:[...]}` の外接矩形
+
+図面ページが異なるElementは一致しない。
+
+## Metrics
+
+### Geometry detection
+Human Reference elementとAI elementを1対1対応し、IoUが閾値以上なら検出候補とする。
+
+- TP / FP / FN
+- Precision / Recall / F1
+- mean IoU
+- element_type accuracy
+
+同じAI elementを複数Referenceへ重複マッチしない。
+
+### Symbol classification
+
+Geometryで一致したElementのうち、Referenceに`symbol_code`または`extracted_data.symbol`があるものを評価する。
+
+- reference scored
+- correct
+- accuracy
+
+### Equipment candidates
+
+Element参照がある場合は、Geometryで対応したElementと設備種別コードを使って比較する。
+Element参照がない場合はfloor/location/typeのfallback identityを使う。
+
+- TP / FP / FN
+- Precision / Recall / F1
+
+### Facility fact candidates
+
+`target_path + proposed_value`の正規化値で比較する。
+
+- TP / FP / FN
+- Precision / Recall / F1
+
+## Dataset Manifest
+
+```json
+{
+  "iou_threshold": 0.5,
+  "drawings": [
+    {
+      "id": "plan-001",
+      "reference": "reference/plan-001.json",
+      "hypothesis": "hypothesis/plan-001.json",
+      "metadata": {
+        "drawing_type": "floor_plan",
+        "scan_quality": "good"
+      }
+    }
+  ]
+}
+```
+
+ResultにはManifest/Reference/Hypothesis SHA-256を保存する。
+
+## Tool
+
+`scripts/benchmark_drawing_analysis.py`
+
+```bash
+python scripts/benchmark_drawing_analysis.py \
+  --manifest benchmark-manifest.json \
+  --output benchmark-result.json
+```
+
+## Human acceptance gate
+
+本番品質の閾値はv1へ固定しない。
+
+実図面Baseline後にHuman Gateで最低でも以下を決める。
+
+- Geometry Precision / Recall / F1
+- mean IoU
+- element_type accuracy
+- symbol accuracy
+- equipment candidate Precision / Recall / F1
+- fact candidate Precision / Recall / F1
+- IoU threshold
+- 必要な図面件数
+- 図面種別、画質、縮尺、スキャン/写真条件のCoverage
+
+Benchmark未実行でproduction-quality drawing AIとは表現しない。
