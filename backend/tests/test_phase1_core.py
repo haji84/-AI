@@ -2899,3 +2899,60 @@ def test_phase7_1_transcript_manifest_rejects_invalid_segment_range():
         }
     )
     assert r.status_code==422
+
+
+def test_phase7_3_stale_snapshot_and_out_of_snapshot_evidence_are_rejected():
+    login()
+    case=client.post("/fire-investigations",json={
+        "case_number":"FIRE-TEST-73-STALE",
+        "title":"Phase7.3 stale snapshot"
+    }).json()
+    cid=case["fire_investigation_case_id"]
+
+    audio_doc=client.post(
+        "/documents/upload",
+        files={"file":("snapshot-audio.m4a",b"snapshot-audio","audio/mp4")},
+        data={"document_type":"fire_interview_audio"}
+    ).json()
+    media=client.post(f"/fire-investigations/{cid}/media",json={
+        "document_id":audio_doc["document_id"],
+        "media_type":"audio"
+    }).json()
+    seg=client.post(f"/fire-investigations/media/{media['fire_investigation_media_id']}/transcript-segments",json={
+        "text":"Snapshot evidence",
+        "source_kind":"manual"
+    }).json()
+    accepted=client.patch(
+        f"/fire-investigations/transcript-segments/{seg['fire_transcript_segment_id']}",
+        json={"expected_version":1,"status":"accepted"}
+    )
+    assert accepted.status_code==200
+
+    snap=client.post(f"/fire-investigations/{cid}/evidence-snapshots",json={"metadata":{"test":"stale"}})
+    assert snap.status_code==201
+    sid=snap.json()["fire_evidence_snapshot_id"]
+
+    invalid_ref=client.post(f"/fire-investigations/{cid}/report-ai-manifest",json={
+        "evidence_snapshot_id":sid,
+        "report_type":"fire_investigation_report",
+        "model_version":"report-test-v3",
+        "narrative_text":"invalid ref",
+        "evidence_refs":[{"type":"transcript_segment","id":"00000000-0000-0000-0000-000000000000"}]
+    })
+    assert invalid_ref.status_code==422
+
+    changed=client.patch(f"/fire-investigations/{cid}",json={
+        "expected_version":1,
+        "title":"Phase7.3 stale snapshot changed"
+    })
+    assert changed.status_code==200
+    assert changed.json()["version"]==2
+
+    stale=client.post(f"/fire-investigations/{cid}/report-ai-manifest",json={
+        "evidence_snapshot_id":sid,
+        "report_type":"fire_investigation_report",
+        "model_version":"report-test-v3",
+        "narrative_text":"stale snapshot"
+    })
+    assert stale.status_code==409
+    assert "stale" in stale.text
