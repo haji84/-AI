@@ -25,8 +25,9 @@ def seed():
 seed()
 from app.module_seed import seed_modules
 from app.submission_seed import seed_submission_types
+from app.equipment_seed import seed_equipment_types
 with SessionLocal() as db:
-    seed_modules(db); seed_submission_types(db); db.commit()
+    seed_modules(db); seed_submission_types(db); seed_equipment_types(db); db.commit()
 client=TestClient(app)
 
 @pytest.fixture(autouse=True)
@@ -41,6 +42,7 @@ def reset_database_between_tests():
     with SessionLocal() as db:
         seed_modules(db)
         seed_submission_types(db)
+        seed_equipment_types(db)
         db.commit()
     yield
     client.cookies.clear()
