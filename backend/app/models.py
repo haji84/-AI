@@ -1277,6 +1277,9 @@ class FireTranscriptSegment(Base):
     end_ms: Mapped[int | None] = mapped_column(Integer)
     speaker_label: Mapped[str | None] = mapped_column(String(200))
     text: Mapped[str] = mapped_column(Text, nullable=False)
+    uncertainty_markers: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    text_sha256: Mapped[str | None] = mapped_column(String(64))
+    search_text: Mapped[str] = mapped_column(Text, nullable=False, default="")
     confidence: Mapped[float | None] = mapped_column(Float)
     source_kind: Mapped[str] = mapped_column(String(30), nullable=False, default="ai")
     model_version: Mapped[str | None] = mapped_column(String(200))
@@ -1297,6 +1300,8 @@ class FireStatementDraft(Base):
     person_label: Mapped[str | None] = mapped_column(String(300))
     draft_text: Mapped[str] = mapped_column(Text, nullable=False)
     evidence_segment_ids: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    source_uncertainty_markers: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    uncertainty_reviewed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     ai_generated: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     model_version: Mapped[str | None] = mapped_column(String(200))
     status: Mapped[str] = mapped_column(String(30), nullable=False, default="draft", index=True)
@@ -1458,6 +1463,37 @@ class FirePhotoPlanLink(Base):
     label: Mapped[str | None] = mapped_column(Text)
     source_kind: Mapped[str] = mapped_column(String(30), nullable=False, default="manual")
     confidence: Mapped[float | None] = mapped_column(Float)
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="pending", index=True)
+    version: Mapped[int] = mapped_column(BigInteger, nullable=False, default=1)
+    reviewed_by: Mapped[str | None] = mapped_column(ForeignKey("app_users.user_id"))
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_by: Mapped[str | None] = mapped_column(ForeignKey("app_users.user_id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
+class FireEvidenceComparisonCandidate(Base):
+    __tablename__ = "fire_evidence_comparison_candidates"
+    fire_evidence_comparison_candidate_id: Mapped[str] = mapped_column(
+        Uuid(as_uuid=False), primary_key=True, default=uuid_str
+    )
+    fire_investigation_case_id: Mapped[str] = mapped_column(
+        ForeignKey("fire_investigation_cases.fire_investigation_case_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    source_manifest_id: Mapped[str | None] = mapped_column(
+        ForeignKey("fire_investigation_ai_manifests.fire_investigation_ai_manifest_id", ondelete="SET NULL"),
+        index=True,
+    )
+    issue_type: Mapped[str] = mapped_column(String(80), nullable=False)
+    summary: Mapped[str] = mapped_column(Text, nullable=False)
+    left_ref: Mapped[dict] = mapped_column(JSON, nullable=False)
+    right_ref: Mapped[dict] = mapped_column(JSON, nullable=False)
+    evidence_refs: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    confidence: Mapped[float | None] = mapped_column(Float)
+    extraction_method: Mapped[str] = mapped_column(String(30), nullable=False, default="ai")
+    model_version: Mapped[str | None] = mapped_column(String(200))
     status: Mapped[str] = mapped_column(String(30), nullable=False, default="pending", index=True)
     version: Mapped[int] = mapped_column(BigInteger, nullable=False, default=1)
     reviewed_by: Mapped[str | None] = mapped_column(ForeignKey("app_users.user_id"))
