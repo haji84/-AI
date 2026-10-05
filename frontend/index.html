@@ -644,13 +644,23 @@ function firePhotoQualityLabel(flags){
 }
 async function showFirePhotoProfile(mediaId,known=null){
   try{
-    const p=known||await api('/fire-photos/media/'+mediaId+'/profile');
+    const [p,links]=await Promise.all([
+      known?Promise.resolve(known):api('/fire-photos/media/'+mediaId+'/profile'),
+      api('/fire-photos/media/'+mediaId+'/plan-links?accepted_only=true')
+    ]);
     const dup=p.duplicate_of_media_id
       ? '<div class="notice">重複候補: '+esc(p.duplicate_of_media_id)+' ・ dHash距離 '+esc(p.duplicate_distance)+'</div>'
       : '';
     const rawExif=p.exif_metadata?.DateTimeOriginal
       ? '<div class="muted">EXIF撮影日時原文: '+esc(p.exif_metadata.DateTimeOriginal)+(p.exif_captured_at?' ・ timezone確認済み '+esc(formatDate(p.exif_captured_at)):' ・ timezone未確定のため自動確定なし')+'</div>'
       : '';
+    const mapLinks=links.length
+      ? '<div class="card" style="margin-top:10px"><b>Human承認済み図面位置</b>'+
+        links.map(x=>'<div class="history">'+esc(x.label||'撮影位置')+
+          '<div class="muted">図面解析 '+esc(x.drawing_analysis_id)+' ・ page '+esc(x.page_no??'－')+' ・ 階 '+esc(x.floor_number??'－')+
+          ' ・ x '+esc(x.position?.x??'－')+' / y '+esc(x.position?.y??'－')+'</div></div>').join('')+
+        '</div>'
+      : '<div class="muted">Human承認済みの図面位置リンクなし</div>';
     $('fireEvidencePanel').innerHTML='<div class="card"><div class="row"><div class="sectionTitle grow">写真メタデータ #'+esc(p.photo_number??'－')+'</div><span class="pill">'+esc(p.analysis_version)+'</span></div>'+
       dup+
       '<div class="grid3"><div class="field"><label>画像サイズ</label><div class="value">'+esc(p.image_width)+' × '+esc(p.image_height)+'</div></div>'+
@@ -660,7 +670,8 @@ async function showFirePhotoProfile(mediaId,known=null){
       '<div class="field"><label>コントラスト</label><div class="value">'+esc(p.contrast_score??'－')+'</div></div>'+
       '<div class="field"><label>シャープネス</label><div class="value">'+esc(p.sharpness_score??'－')+'</div></div></div>'+
       '<div class="muted">画質判定: '+esc(firePhotoQualityLabel(p.quality_flags))+'</div>'+rawExif+
-      '<div class="muted">※ 画質指標と近似重複は派生候補です。原本写真は変更されません。</div></div>';
+      mapLinks+
+      '<div class="muted">※ 画質指標・近似重複・AI位置候補は派生情報です。原本写真は変更されません。</div></div>';
   }catch(e){
     if(e.status===404){alert('まだ写真解析されていません。「写真解析」を実行してください。');return}
     alert('写真メタデータを取得できません: '+e.message)
