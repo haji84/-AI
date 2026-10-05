@@ -1743,3 +1743,37 @@ class EquipmentRequirementTestRun(Base):
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
+class EquipmentPlacementAuthoringBatch(Base):
+    __tablename__ = "equipment_placement_authoring_batches"
+    equipment_placement_authoring_batch_id: Mapped[str] = mapped_column(
+        Uuid(as_uuid=False), primary_key=True, default=uuid_str
+    )
+    worklist_sha256: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
+    worklist_item_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    expected_candidate_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    import_version: Mapped[str] = mapped_column(String(120), nullable=False)
+    source_metadata: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    created_by: Mapped[str | None] = mapped_column(ForeignKey("app_users.user_id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
+class EquipmentPlacementBatchCandidate(Base):
+    __tablename__ = "equipment_placement_batch_candidates"
+    equipment_placement_authoring_batch_id: Mapped[str] = mapped_column(
+        ForeignKey(
+            "equipment_placement_authoring_batches.equipment_placement_authoring_batch_id",
+            ondelete="CASCADE",
+        ),
+        primary_key=True,
+    )
+    legal_provision_review_candidate_id: Mapped[str] = mapped_column(
+        ForeignKey(
+            "legal_provision_review_candidates.legal_provision_review_candidate_id",
+            ondelete="CASCADE",
+        ),
+        primary_key=True,
+    )
+    provision_content_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
