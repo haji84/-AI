@@ -6,9 +6,9 @@ from sqlalchemy.orm import Session
 
 from .db import get_db
 from .settings import settings
-from .routers import auth, facilities, documents, extensions, templates, contracts, inspections, submissions, intake, legal_rules, legal_sources, legal_rule_drafts, legal_review_queue, equipment, drawings, fire_investigations
+from .routers import auth, facilities, documents, extensions, templates, contracts, inspections, submissions, intake, legal_rules, legal_sources, legal_rule_drafts, legal_review_queue, equipment, drawings, fire_investigations, fire_report_exports
 
-app = FastAPI(title=settings.app_name, version="0.8.0")
+app = FastAPI(title=settings.app_name, version="0.9.0")
 
 
 @app.get("/health")
@@ -40,6 +40,7 @@ app.include_router(legal_review_queue.router)
 app.include_router(equipment.router)
 app.include_router(drawings.router)
 app.include_router(fire_investigations.router)
+app.include_router(fire_report_exports.router)
 
 _ui = Path(__file__).resolve().parents[2] / "frontend"
 if _ui.exists():
