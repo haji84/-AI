@@ -1202,6 +1202,7 @@ class FirePhotoAnnotation(Base):
     source_kind: Mapped[str] = mapped_column(String(30), nullable=False, default="ai")
     model_version: Mapped[str | None] = mapped_column(String(200))
     status: Mapped[str] = mapped_column(String(30), nullable=False, default="pending")
+    version: Mapped[int] = mapped_column(BigInteger, nullable=False, default=1)
     reviewed_by: Mapped[str | None] = mapped_column(ForeignKey("app_users.user_id"))
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
@@ -1219,6 +1220,9 @@ class FireTranscriptSegment(Base):
     source_kind: Mapped[str] = mapped_column(String(30), nullable=False, default="ai")
     model_version: Mapped[str | None] = mapped_column(String(200))
     review_status: Mapped[str] = mapped_column(String(30), nullable=False, default="pending")
+    version: Mapped[int] = mapped_column(BigInteger, nullable=False, default=1)
+    reviewed_by: Mapped[str | None] = mapped_column(ForeignKey("app_users.user_id"))
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
 
