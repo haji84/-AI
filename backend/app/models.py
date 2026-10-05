@@ -1008,3 +1008,38 @@ class LegalProvisionReviewCandidate(Base):
             name="uq_legal_provision_review_category",
         ),
     )
+
+
+class EquipmentType(Base):
+    __tablename__ = "equipment_types"
+    equipment_type_id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True, default=uuid_str)
+    code: Mapped[str] = mapped_column(String(150), unique=True, nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(300), nullable=False)
+    category: Mapped[str | None] = mapped_column(String(120))
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    equipment_metadata: Mapped[dict] = mapped_column("metadata", JSON, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
+class FacilityEquipment(Base):
+    __tablename__ = "facility_equipment"
+    facility_equipment_id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True, default=uuid_str)
+    building_id: Mapped[str] = mapped_column(ForeignKey("facilities.building_id", ondelete="CASCADE"), nullable=False, index=True)
+    equipment_type_id: Mapped[str] = mapped_column(ForeignKey("equipment_types.equipment_type_id"), nullable=False, index=True)
+    floor_number: Mapped[int | None] = mapped_column(Integer)
+    location_text: Mapped[str | None] = mapped_column(Text)
+    quantity: Mapped[int | None] = mapped_column(Integer)
+    operational_status: Mapped[str] = mapped_column(String(30), nullable=False, default="installed")
+    verification_status: Mapped[str] = mapped_column(String(30), nullable=False, default="verified")
+    source_kind: Mapped[str] = mapped_column(String(30), nullable=False, default="manual", index=True)
+    source_document_id: Mapped[str | None] = mapped_column(ForeignKey("documents.document_id"))
+    submission_id: Mapped[str | None] = mapped_column(ForeignKey("submissions.submission_id"))
+    installed_at: Mapped[date | None] = mapped_column(Date)
+    last_verified_at: Mapped[date | None] = mapped_column(Date)
+    notes: Mapped[str | None] = mapped_column(Text)
+    version: Mapped[int] = mapped_column(BigInteger, nullable=False, default=1)
+    created_by: Mapped[str | None] = mapped_column(ForeignKey("app_users.user_id"))
+    updated_by: Mapped[str | None] = mapped_column(ForeignKey("app_users.user_id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
