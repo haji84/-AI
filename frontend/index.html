@@ -150,12 +150,13 @@ async function loadFacilities(offset=state.offset){state.offset=Math.max(0,offse
 function renderList(items){$('listSummary').textContent=`${state.total}件`;const current=state.selected?.building_id;$('facilityList').innerHTML=items.map(x=>`<div class="facilityItem ${x.building_id===current?'selected':''}" onclick="selectFacility('${x.building_id}')"><b>${esc(x.name)}</b><div class="meta">${esc(x.address||'所在地未登録')}</div><div class="meta">整理番号 ${esc(x.legacy_serial_no||'－')} ・ ${x.status==='active'?'使用中':'廃止'}</div></div>`).join('')||'<div class="empty">該当なし</div>';const page=Math.floor(state.offset/state.limit)+1,totalPages=Math.max(1,Math.ceil(state.total/state.limit));$('pageInfo').textContent=`${page} / ${totalPages}`;$('prevBtn').disabled=state.offset===0;$('nextBtn').disabled=state.offset+state.limit>=state.total}
 function changePage(dir){loadFacilities(state.offset+dir*state.limit)}
 
-async function selectFacility(id){try{const [d,h,l,dash,ins,subs]=await Promise.all([api(`/facilities/${id}/detail`),api(`/facilities/${id}/history`),api(`/facilities/${id}/legacy-review`),api(`/facilities/${id}/dashboard`),api(`/inspections?building_id=${id}`),api(`/submissions?building_id=${id}`)]);state.selected=d.facility;state.detail=d;state.dashboard=dash;state.inspections=ins;state.submissions=subs;renderDetail(d,h,l,dash,ins,subs);await loadFacilities(state.offset)}catch(e){alert('対象物を取得できません: '+e.message)}}
-function renderDetail(d,history,legacy,dash={},inspections=[],submissions=[]){$('noSelection').classList.add('hidden');$('detailView').classList.remove('hidden');const f=d.facility,x=d.detail||{},c=d.contact||{},floors=d.floors||[];const st=Object.fromEntries((dash.submission_statuses||[]).map(x=>[x.code,x]));const badge=(code,label)=>{const a=st[code],ok=a&&a.state!=='not_submitted';return `<div class="field"><label>${esc(label)}</label><div class="value"><span class="pill ${ok?'active':''}">${ok?'提出記録あり':'登録確認なし・要否未判定'}</span>${a?.latest_submitted_at?` <span class="muted">${esc(a.latest_submitted_at)}</span>`:''}</div></div>`};$('detailView').innerHTML=`<div class="card"><div class="hero"><div class="grow"><h1>${esc(f.name)}</h1><div class="muted">${esc(f.address||'所在地未登録')} ・ 整理番号 ${esc(f.legacy_serial_no||'－')} ・ Version ${f.version}</div></div><span class="pill ${f.status==='active'?'active':''}">${f.status==='active'?'使用中':'廃止'}</span></div><div class="toolbar" style="margin-top:12px"><button class="btn primary" onclick="openEdit()" ${f.status!=='active'?'disabled':''}>編集</button>${f.status==='active'?`<button class="btn danger" onclick="changeFacilityState('abolish')">廃止</button>`:`<button class="btn" onclick="changeFacilityState('restore')">復元</button>`}</div></div>
+async function selectFacility(id){try{const [d,h,l,dash,ins,subs,equipment]=await Promise.all([api(`/facilities/${id}/detail`),api(`/facilities/${id}/history`),api(`/facilities/${id}/legacy-review`),api(`/facilities/${id}/dashboard`),api(`/inspections?building_id=${id}`),api(`/submissions?building_id=${id}`),api(`/facilities/${id}/equipment`)]);state.selected=d.facility;state.detail=d;state.dashboard=dash;state.inspections=ins;state.submissions=subs;state.equipment=equipment;renderDetail(d,h,l,dash,ins,subs,equipment);await loadFacilities(state.offset)}catch(e){alert('対象物を取得できません: '+e.message)}}
+function renderDetail(d,history,legacy,dash={},inspections=[],submissions=[],equipment=[]){$('noSelection').classList.add('hidden');$('detailView').classList.remove('hidden');const f=d.facility,x=d.detail||{},c=d.contact||{},floors=d.floors||[];const st=Object.fromEntries((dash.submission_statuses||[]).map(x=>[x.code,x]));const badge=(code,label)=>{const a=st[code],ok=a&&a.state!=='not_submitted';return `<div class="field"><label>${esc(label)}</label><div class="value"><span class="pill ${ok?'active':''}">${ok?'提出記録あり':'登録確認なし・要否未判定'}</span>${a?.latest_submitted_at?` <span class="muted">${esc(a.latest_submitted_at)}</span>`:''}</div></div>`};$('detailView').innerHTML=`<div class="card"><div class="hero"><div class="grow"><h1>${esc(f.name)}</h1><div class="muted">${esc(f.address||'所在地未登録')} ・ 整理番号 ${esc(f.legacy_serial_no||'－')} ・ Version ${f.version}</div></div><span class="pill ${f.status==='active'?'active':''}">${f.status==='active'?'使用中':'廃止'}</span></div><div class="toolbar" style="margin-top:12px"><button class="btn primary" onclick="openEdit()" ${f.status!=='active'?'disabled':''}>編集</button>${f.status==='active'?`<button class="btn danger" onclick="changeFacilityState('abolish')">廃止</button>`:`<button class="btn" onclick="changeFacilityState('restore')">復元</button>`}</div></div>
 <div class="card"><div class="sectionTitle">確認ダッシュボード</div><div class="grid3">${badge('equipment_inspection_report','消防用設備等点検結果報告')}${badge('fire_manager_appointment','防火管理者')}${badge('fire_plan','消防計画')}</div><div class="row" style="margin-top:10px"><span class="pill">査察 ${dash.inspections_total||0}件</span><span class="pill ${(dash.open_findings||0)>0?'dangerText':''}">未完了指摘 ${dash.open_findings||0}件</span><span class="muted">最終査察 ${esc(dash.latest_inspection_at||'未登録')}</span></div></div>
 <div class="card"><div class="row"><div class="sectionTitle grow">査察履歴</div><button class="btn primary" onclick="quickAddInspection()">＋ 査察登録</button></div>${inspections.length?`<div class="scroll"><table><thead><tr><th>実施日</th><th>種別</th><th>状態</th><th>指摘</th></tr></thead><tbody>${inspections.map(i=>`<tr><td>${esc(i.inspected_at)}</td><td>${esc(i.inspection_type)}</td><td>${esc(i.status)}</td><td>${i.findings.length?i.findings.map(q=>`<div>${esc(q.finding_text)} <span class="pill">${esc(q.corrective_status)}</span>${q.corrective_status!=='completed'?` <button class="btn" onclick="completeFinding('${q.finding_id}',${q.version})">是正完了</button>`:''}</div>`).join(''):'－'}</td></tr>`).join('')}</tbody></table></div>`:'<div class="muted">査察履歴なし</div>'}</div>
 <div class="card"><div class="row"><div class="sectionTitle grow">届出・報告受付</div><button class="btn primary" onclick="smartReceiveSubmission()">文書解析して受付</button><button class="btn" onclick="quickReceiveSubmission()">手動受付</button></div>${submissions.length?`<div class="scroll"><table><thead><tr><th>提出日</th><th>種別</th><th>届出番号</th><th>状態</th><th>原本</th></tr></thead><tbody>${submissions.map(s=>`<tr><td>${esc(s.submitted_at||s.received_at.slice(0,10))}</td><td>${esc(s.submission_type_name)}</td><td>${esc(s.official_number||'－')}</td><td>${esc(s.status)}</td><td>${s.document_ids.length}件</td></tr>`).join('')}</tbody></table></div>`:'<div class="muted">届出記録なし</div>'}</div>
-<div class="card"><div class="row"><div class="sectionTitle grow">必要書類・消防用設備 判定支援</div><button class="btn" onclick="runRequirementEvaluation('submission_requirement')">必要書類候補</button><button class="btn" onclick="runRequirementEvaluation('equipment_requirement')">必要設備候補</button><button class="btn" onclick="runSubmissionCompliance()">必要届出と受付を照合</button></div><div class="notice">承認済み・適用期間内の正式ルールだけを使って候補を表示します。届出照合も正式違反判定ではありません。</div><div id="ruleEvalResult" class="muted">未判定</div><div id="submissionComplianceResult" class="muted" style="margin-top:10px"></div></div>
+<div class="card"><div class="row"><div class="sectionTitle grow">設置消防用設備台帳</div><button class="btn primary" onclick="quickAddEquipment()">＋ 設備登録</button></div>${equipment.length?`<div class="scroll"><table><thead><tr><th>設備</th><th>階・場所</th><th>数量</th><th>確認状態</th><th>由来</th><th></th></tr></thead><tbody>${equipment.map(e=>`<tr><td>${esc(e.equipment_type_name)}</td><td>${esc([e.floor_number===null||e.floor_number===undefined?null:e.floor_number+'階',e.location_text].filter(Boolean).join(' / ')||'－')}</td><td>${esc(e.quantity??'－')}</td><td>${esc(e.verification_status)}</td><td>${esc(e.source_kind)}</td><td>${e.verification_status!=='verified'? `<button class="btn" onclick="verifyEquipment('${e.facility_equipment_id}',${e.version})">確認済みにする</button>`:''}</td></tr>`).join('')}</tbody></table></div>`:'<div class="muted">設置設備記録なし</div>'}</div>
+<div class="card"><div class="row"><div class="sectionTitle grow">必要書類・消防用設備 判定支援</div><button class="btn" onclick="runRequirementEvaluation('submission_requirement')">必要書類候補</button><button class="btn" onclick="runRequirementEvaluation('equipment_requirement')">必要設備候補</button><button class="btn" onclick="runSubmissionCompliance()">必要届出と受付を照合</button><button class="btn" onclick="runEquipmentCompliance()">必要設備と設置設備を照合</button></div><div class="notice">承認済み・適用期間内の正式ルールだけを使って候補を表示します。届出照合も正式違反判定ではありません。</div><div id="ruleEvalResult" class="muted">未判定</div><div id="submissionComplianceResult" class="muted" style="margin-top:10px"></div><div id="equipmentComplianceResult" class="muted" style="margin-top:10px"></div></div>
 <div class="card"><div class="sectionTitle">基本情報</div><div class="grid3">${kv('電話番号',f.phone)}${kv('令別表区分',x.classification_code)}${kv('区分詳細', [x.classification_detail_1,x.classification_detail_2].filter(Boolean).join(' / '))}${kv('用途地域',x.zoning)}${kv('構造',x.structure)}${kv('令8条区画',x.article8_partition)}${kv('地上階',x.above_ground_floors)}${kv('地下階',x.basement_floors)}${kv('建築面積',unit(x.building_area,'㎡'))}${kv('延べ面積',unit(x.total_floor_area,'㎡'))}${kv('収容人員',unit(x.occupancy_total,'人'))}${kv('従業員',unit(x.employee_total,'人'))}</div></div>
 <div class="card"><div class="sectionTitle">代表者</div><div class="grid2">${kv('氏名',c.representative_name)}${kv('役職',c.representative_title)}${kv('住所',c.representative_address)}${kv('電話',c.representative_phone)}</div></div>
 <div class="card"><div class="sectionTitle">階別情報</div>${floors.length?`<div class="scroll"><table><thead><tr><th>階</th><th>床面積</th><th>用途</th><th>収容</th><th>従業員</th><th>無窓等</th><th>カーテン</th><th>絨毯</th><th>合板</th></tr></thead><tbody>${floors.map(fl=>`<tr><td>${esc(fl.floor_label||fl.floor_number+'階')}</td><td>${val(fl.floor_area)}</td><td>${val(fl.use_name)}</td><td>${val(fl.occupancy_count)}</td><td>${val(fl.employee_count)}</td><td>${val(fl.windowless_status)}</td><td>${val(fl.curtain_status)}</td><td>${val(fl.carpet_status)}</td><td>${val(fl.plywood_status)}</td></tr>`).join('')}</tbody></table></div>`:'<div class="muted">階別情報なし</div>'}</div>
@@ -467,6 +468,95 @@ async function runSubmissionCompliance(){
       '<div class="muted">'+esc(r.note)+'</div>';
   }catch(e){
     box.innerHTML='<div class="conflict">届出照合できません: '+esc(e.message)+'</div>';
+  }
+}
+
+async function quickAddEquipment(){
+  if(!state.selected)return;
+  try{
+    const types=await api('/equipment-types');
+    if(!types.length){alert('設備種別マスタが未登録です。システム管理者が設備種別を登録してください。');return}
+    const menu=types.map((x,i)=>(i+1)+': '+x.name+' ['+x.code+']').join('\n');
+    const raw=prompt('登録する設備種別を番号で選択してください\n'+menu,'1');
+    if(raw===null)return;
+    const i=Number(raw)-1;
+    if(!Number.isInteger(i)||i<0||i>=types.length){alert('選択が不正です');return}
+    const floorRaw=prompt('設置階（不明なら空欄）','');
+    if(floorRaw===null)return;
+    const location=prompt('設置場所（任意）','')??'';
+    const quantityRaw=prompt('数量（不明なら空欄）','');
+    if(quantityRaw===null)return;
+    await api('/facilities/'+state.selected.building_id+'/equipment',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        equipment_type_code:types[i].code,
+        floor_number:floorRaw.trim()===''?null:Number(floorRaw),
+        location_text:location.trim()||null,
+        quantity:quantityRaw.trim()===''?null:Number(quantityRaw),
+        operational_status:'installed',
+        verification_status:'verified',
+        source_kind:'manual',
+        last_verified_at:new Date().toISOString().slice(0,10)
+      })
+    });
+    await selectFacility(state.selected.building_id);
+  }catch(e){alert('設備を登録できません: '+e.message)}
+}
+
+async function verifyEquipment(id,version){
+  if(!confirm('この設備記録を職員確認済みにしますか？'))return;
+  try{
+    await api('/facility-equipment/'+id,{
+      method:'PATCH',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        expected_version:version,
+        verification_status:'verified',
+        source_kind:'manual',
+        last_verified_at:new Date().toISOString().slice(0,10)
+      })
+    });
+    await selectFacility(state.selected.building_id);
+  }catch(e){alert('設備を確認済みにできません: '+e.message)}
+}
+
+async function runEquipmentCompliance(){
+  if(!state.selected)return;
+  const box=$('equipmentComplianceResult');
+  box.innerHTML='必要設備と設置設備を照合中…';
+  try{
+    const r=await api('/facilities/'+state.selected.building_id+'/equipment-compliance/evaluate',{method:'POST'});
+    const stateLabel={
+      verified_installed:'確認済み設置記録あり',
+      missing_equipment_candidate:'設置記録なし候補',
+      unverified_evidence_only:'未確認・AI・旧データ証拠のみ',
+      manual_review_required:'要人確認'
+    };
+    const items=(r.items||[]).map(x=>{
+      const rules=(x.rule_evidence||[]).map(rule=>{
+        const citations=(rule.citations||[]).map(c=>[c.display_label,c.heading_text].filter(Boolean).join(' ')||c.provision_key).join(' / ');
+        return '<div class="muted">Rule '+esc(rule.rule_code)+' v'+esc(rule.version_no)+(citations?' ・ '+esc(citations):'')+'</div>';
+      }).join('');
+      return '<div class="history"><b>'+esc(x.equipment_type_name||x.equipment_type_code)+'</b> '+
+        '<span class="pill">'+esc(stateLabel[x.state]||x.state)+'</span>'+
+        rules+
+        (x.detail?.reason?'<div class="muted">'+esc(x.detail.reason)+'</div>':'')+
+        '</div>';
+    }).join('');
+    const unmapped=(r.unmapped_rules||[]).length
+      ? '<div class="notice">自動照合できない設備Rule '+esc(r.unmapped_rules.length)+'件。Rule outcomeの明示設定または人確認が必要です。</div>'
+      : '';
+    box.innerHTML=
+      '<div class="row"><span class="pill">一致Rule '+esc(r.matched_rule_count)+'</span>'+
+      '<span class="pill">自動照合 '+esc(r.actionable_rule_count)+'</span>'+
+      '<span class="pill">設置記録なし候補 '+esc(r.gap_candidate_count)+'</span>'+
+      '<span class="pill">要確認 '+esc(r.manual_review_count)+'</span></div>'+
+      unmapped+
+      (items||'<div class="muted">照合対象となる承認済Ruleはありません。</div>')+
+      '<div class="muted">'+esc(r.note)+'</div>';
+  }catch(e){
+    box.innerHTML='<div class="conflict">設備照合できません: '+esc(e.message)+'</div>';
   }
 }
 
