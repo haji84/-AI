@@ -10,6 +10,7 @@ from ..audit import write_audit
 from ..authz import require_permission
 from ..db import get_db
 from ..legal_rule_validation import validate_rule_conditions
+from ..legal_requirement_engine import evaluate_approved_requirement_rules
 from ..models import (
     Document,
     Facility,
@@ -606,63 +607,12 @@ def evaluate_requirements(
     if not facility:
         raise HTTPException(status_code=404, detail="facility not found")
     evaluation_date = _date(payload.evaluation_date) or date.today()
-    snapshot = _snapshot(db, facility)
-    rules = db.scalars(
-        select(LegalRule).where(
-            LegalRule.active.is_(True),
-            LegalRule.domain == payload.domain,
-        ).order_by(LegalRule.rule_code)
-    ).all()
-    results: list[dict] = []
-    for rule in rules:
-        versions = db.scalars(
-            select(LegalRuleVersion)
-            .where(
-                LegalRuleVersion.rule_id == rule.rule_id,
-                LegalRuleVersion.status == "approved",
-                LegalRuleVersion.effective_from <= evaluation_date,
-            )
-            .order_by(LegalRuleVersion.version_no.desc())
-        ).all()
-        version = next((x for x in versions if x.effective_to is None or x.effective_to >= evaluation_date), None)
-        if not version:
-            continue
-        matched, evidence = _match_conditions(version.conditions, snapshot)
-        if not matched:
-            continue
-        citations = db.scalars(
-            select(LegalRuleCitation).where(
-                LegalRuleCitation.legal_rule_version_id == version.legal_rule_version_id
-            )
-        ).all()
-        citation_payload = []
-        for citation in citations:
-            provision = db.get(LegalProvision, citation.legal_provision_id)
-            if provision:
-                citation_payload.append({
-                    "role": citation.citation_role,
-                    "legal_provision_id": provision.legal_provision_id,
-                    "provision_key": provision.provision_key,
-                    "display_label": provision.display_label,
-                    "heading_text": provision.heading_text,
-                    "body_text": provision.body_text,
-                })
-        results.append(
-            {
-                "rule_id": rule.rule_id,
-                "rule_code": rule.rule_code,
-                "rule_name": rule.name,
-                "legal_rule_version_id": version.legal_rule_version_id,
-                "version_no": version.version_no,
-                "source_document_id": version.source_document_id,
-                "source_reference": version.source_reference,
-                "source_legal_document_version_id": version.source_legal_document_version_id,
-                "citations": citation_payload,
-                "outcome": version.outcome,
-                "evidence": evidence,
-                "decision_status": "candidate",
-            }
-        )
+    snapshot, results = evaluate_approved_requirement_rules(
+        db,
+        facility=facility,
+        domain=payload.domain,
+        evaluation_date=evaluation_date,
+    )
     evaluation = RequirementEvaluation(
         building_id=building_id,
         domain=payload.domain,
