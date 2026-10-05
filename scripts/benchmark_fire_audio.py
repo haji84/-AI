@@ -133,29 +133,28 @@ def _best_speaker_mapping(reference: list[dict], hypothesis: list[dict]) -> dict
                 for hi, ri in enumerate(best[1])
             }
 
-        # More hypothesis speakers than reference speakers: select the best unique hypothesis subset.
-        dp: dict[tuple[int, int], tuple[int, tuple[tuple[int, int], ...]]] = {(0, 0): (0, ())}
-        for hi, h in enumerate(hyp_labels):
-            nxt = dict(dp)
-            for (_idx, mask), (score, assignment) in dp.items():
-                for ri, r in enumerate(ref_labels):
-                    if mask & (1 << ri):
+        # More hypothesis speakers than reference speakers: assign each reference
+        # speaker to one unique hypothesis speaker and leave extra hypothesis labels unmapped.
+        dp2: dict[int, tuple[int, tuple[int, ...]]] = {0: (0, ())}
+        for ri, r in enumerate(ref_labels):
+            nxt2: dict[int, tuple[int, tuple[int, ...]]] = {}
+            for mask, (score, assignment) in dp2.items():
+                for hi, h in enumerate(hyp_labels):
+                    if mask & (1 << hi):
                         continue
-                    key = (hi + 1, mask | (1 << ri))
+                    new_mask = mask | (1 << hi)
                     value = (
                         score + matrix.get((r, h), 0),
-                        assignment + ((hi, ri),),
+                        assignment + (hi,),
                     )
-                    if key not in nxt or value[0] > nxt[key][0]:
-                        nxt[key] = value
-            dp = nxt
-        complete = [
-            value
-            for (_idx, mask), value in dp.items()
-            if mask == (1 << n_ref) - 1
-        ]
-        best = max(complete, key=lambda x: x[0], default=(0, ()))
-        return {hyp_labels[hi]: ref_labels[ri] for hi, ri in best[1]}
+                    if new_mask not in nxt2 or value[0] > nxt2[new_mask][0]:
+                        nxt2[new_mask] = value
+            dp2 = nxt2
+        best = max(dp2.values(), key=lambda x: x[0], default=(0, ()))
+        return {
+            hyp_labels[hi]: ref_labels[ri]
+            for ri, hi in enumerate(best[1])
+        }
 
     # Large-speaker fallback: deterministic greedy maximum-overlap matching.
     pairs = sorted(
