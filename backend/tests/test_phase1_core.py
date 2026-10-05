@@ -18,7 +18,7 @@ def seed():
         u=User(employee_id=emp.employee_id,username="tester",password_hash=hash_password("long-test-password")); db.add(u)
         r=Role(code="tester",name="Tester"); db.add(r); db.flush()
         db.add(UserRole(user_id=u.user_id,role_id=r.role_id))
-        for code in ["facility.read","facility.create","facility.update","facility.restore","document.create","document.read", "inspection.read","inspection.create","inspection.update", "submission.read","submission.create","submission.update","submission.manage", "intake.read","intake.analyze","intake.review","intake.apply", "extension.read","extension.create","extension.review","extension.apply","template.read","template.manage","contract.read","contract.create","contract.update","contract.approve","legal_rule.read","legal_rule.manage","legal_rule.approve","legal_rule.evaluate","legal_source.read","legal_source.manage","legal_source.sync"]:
+        for code in ["facility.read","facility.create","facility.update","facility.restore","document.create","document.read", "inspection.read","inspection.create","inspection.update", "submission.read","submission.create","submission.update","submission.manage", "intake.read","intake.analyze","intake.review","intake.apply", "extension.read","extension.create","extension.review","extension.apply","template.read","template.manage","contract.read","contract.create","contract.update","contract.approve","legal_rule.read","legal_rule.manage","legal_rule.approve","legal_rule.evaluate","legal_source.read","legal_source.manage","legal_source.sync","equipment.read","equipment.manage"]:
             p=Permission(code=code,description=code); db.add(p); db.flush(); db.add(RolePermission(role_id=r.role_id,permission_id=p.permission_id))
         db.commit()
 
