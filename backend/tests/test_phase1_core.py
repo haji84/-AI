@@ -2956,3 +2956,133 @@ def test_phase7_3_stale_snapshot_and_out_of_snapshot_evidence_are_rejected():
     })
     assert stale.status_code==409
     assert "stale" in stale.text
+
+
+def test_phase7_4_approved_report_renders_registered_excel_template_without_modifying_original():
+    from io import BytesIO
+    from pathlib import Path
+    from openpyxl import Workbook, load_workbook
+    from app.models import Document
+    from app.official_form_renderer import sha256_file
+    from app.settings import settings
+
+    login()
+
+    wb=Workbook()
+    ws=wb.active
+    ws.title="様式"
+    ws["A1"]="正式様式原本"
+    ws["B2"]=""
+    ws["B3"]=""
+    ws["B4"]=""
+    buf=BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+
+    uploaded=client.post(
+        "/documents/upload",
+        files={"file":("fire-report-template.xlsx",buf.getvalue(),"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+        data={"document_type":"form_template"}
+    )
+    assert uploaded.status_code==201
+    template_doc=uploaded.json()
+
+    template=client.post("/templates",json={
+        "template_code":"FIRE_REPORT_TEST_74",
+        "name":"火災調査報告テスト様式",
+        "module_code":"fire_investigation",
+        "document_id":template_doc["document_id"],
+        "version_label":"2026-test",
+        "issuer":"test",
+        "effective_from":"2026-01-01",
+        "effective_to":None,
+        "field_mapping":{
+            "case_number":{"sheet":"様式","cell":"B2"},
+            "title":{"sheet":"様式","cell":"B3"},
+            "narrative_text":{"sheet":"様式","cell":"B4"}
+        },
+        "print_settings":{},
+        "modification_policy":"fill_only"
+    })
+    assert template.status_code==201
+    template_id=template.json()["form_template_id"]
+
+    case=client.post("/fire-investigations",json={
+        "case_number":"FIRE-TEST-74",
+        "title":"正式様式出力テスト",
+        "occurred_at":"2026-10-05T09:00:00+09:00",
+        "location_text":"テスト地点"
+    })
+    assert case.status_code==201
+    cb=case.json()
+    cid=cb["fire_investigation_case_id"]
+
+    report=client.post(f"/fire-investigations/{cid}/report-drafts",json={
+        "report_type":"fire_investigation_report",
+        "form_template_id":template_id,
+        "narrative_text":"Human確認済み報告本文",
+        "structured_content":{"summary":"test"},
+        "evidence_refs":[],
+        "ai_generated":False
+    })
+    assert report.status_code==201
+    rid=report.json()["fire_report_draft_id"]
+
+    reviewed=client.patch(f"/fire-investigations/report-drafts/{rid}",json={
+        "expected_version":1,
+        "status":"reviewed"
+    })
+    assert reviewed.status_code==200
+    approved=client.post(f"/fire-investigations/report-drafts/{rid}/approve",json={
+        "expected_version":2
+    })
+    assert approved.status_code==200
+    assert approved.json()["status"]=="approved"
+    assert approved.json()["version"]==3
+
+    with SessionLocal() as db:
+        src=db.get(Document,template_doc["document_id"])
+        source_path=(Path(settings.storage_root).resolve()/src.storage_path).resolve()
+        original_hash=sha256_file(source_path)
+        assert original_hash==src.sha256
+
+    rendered=client.post(f"/fire-investigations/report-drafts/{rid}/render-form",json={
+        "expected_report_version":3
+    })
+    assert rendered.status_code==201
+    exp=rendered.json()
+    assert exp["status"]=="rendered"
+    assert exp["output_document_id"]
+    assert exp["template_sha256"]==original_hash
+    assert exp["output_format"]=="xlsx"
+
+    rendered_again=client.post(f"/fire-investigations/report-drafts/{rid}/render-form",json={
+        "expected_report_version":3
+    })
+    assert rendered_again.status_code==201
+    assert rendered_again.json()["fire_report_export_id"]==exp["fire_report_export_id"]
+    assert rendered_again.json()["output_document_id"]==exp["output_document_id"]
+
+    with SessionLocal() as db:
+        src=db.get(Document,template_doc["document_id"])
+        out=db.get(Document,exp["output_document_id"])
+        source_path=(Path(settings.storage_root).resolve()/src.storage_path).resolve()
+        output_path=(Path(settings.storage_root).resolve()/out.storage_path).resolve()
+        assert sha256_file(source_path)==original_hash
+        out_wb=load_workbook(output_path,data_only=False)
+        out_ws=out_wb["様式"]
+        assert out_ws["A1"].value=="正式様式原本"
+        assert out_ws["B2"].value=="FIRE-TEST-74"
+        assert out_ws["B3"].value=="正式様式出力テスト"
+        assert out_ws["B4"].value=="Human確認済み報告本文"
+
+    verified=client.post(f"/fire-investigations/report-exports/{exp['fire_report_export_id']}/verify",json={
+        "expected_case_version":1
+    })
+    assert verified.status_code==200
+    assert verified.json()["status"]=="verified"
+
+    case_after=client.get(f"/fire-investigations/{cid}")
+    assert case_after.status_code==200
+    assert case_after.json()["case"]["final_report_document_id"]==exp["output_document_id"]
+    assert case_after.json()["case"]["version"]==2
