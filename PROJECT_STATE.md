@@ -503,7 +503,7 @@ Human Gate remains explicit:
 
 ## Phase 9 evidence-comparison benchmark run registry
 
-Implemented on branch `phase9-evidence-comparison-benchmark-registry`; CI verification pending:
+Implemented and CI-verified:
 - Migration 028 benchmark-run persistence
 - benchmark v1 result payload storage
 - canonical result SHA-256
@@ -516,6 +516,12 @@ Implemented on branch `phase9-evidence-comparison-benchmark-registry`; CI verifi
 - two-run comparison API
 - Precision / Recall / F1 deltas
 - false positives per case delta
+
+Verified checkpoint:
+- run: `37259163834` SUCCESS
+- backend pytest: 94 passed
+- Migration 028 parser smoke: PASS
+- frontend JavaScript syntax: PASS
 
 Safety remains unchanged:
 - benchmark acceptance cannot mutate reviewed statements, confirmed timeline, formal evidence, official cause, or report
