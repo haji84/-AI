@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from .db import get_db
 from .settings import settings
-from .routers import auth, facilities, documents, extensions, templates, contracts, inspections, submissions, intake, legal_rules, legal_sources, legal_rule_drafts, legal_review_queue, equipment, drawings, fire_investigations, fire_report_exports, photo_intelligence, fire_photos
+from .routers import auth, facilities, documents, extensions, templates, contracts, inspections, submissions, intake, legal_rules, legal_sources, legal_rule_drafts, legal_review_queue, equipment, drawings, fire_investigations, fire_report_exports, fire_photos
 
 app = FastAPI(title=settings.app_name, version="0.10.0")
 
@@ -41,7 +41,6 @@ app.include_router(equipment.router)
 app.include_router(drawings.router)
 app.include_router(fire_investigations.router)
 app.include_router(fire_report_exports.router)
-app.include_router(photo_intelligence.router)
 app.include_router(fire_photos.router)
 
 _ui = Path(__file__).resolve().parents[2] / "frontend"
