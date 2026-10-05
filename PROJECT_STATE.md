@@ -366,9 +366,9 @@ Do not report the latest hardening/UI HEAD as final PASS until its current CI fi
 
 ## Current next gates
 
-1. real audio/STT benchmark with Japanese interview recordings
-3. speaker diarization accuracy benchmark
-4. uncertainty-marker precision/recall benchmark
+1. execute Benchmark v2 on real Japanese interview recordings
+2. obtain the first real CER / Speaker Error Rate / uncertainty Precision-Recall-F1 Baseline
+3. set acceptance thresholds through Human Gate
 5. evidence-comparison usefulness/false-positive acceptance test
 6. approved LAN PostgreSQL migrations through 026
 7. backup/restore after Migration 026
@@ -408,4 +408,32 @@ Not yet production claims:
 - semantic/vector retrieval quality benchmark
 - production PostgreSQL latency/load benchmark
 - approved LAN physical-client search E2E
+
+
+
+## Phase 9 Japanese audio benchmark v2
+
+Implemented and CI-verified:
+- benchmark format `fire-ai-japanese-stt-benchmark-v2`
+- Japanese CER
+- automatic speaker-label overlap mapping
+- speaker confusion / missed / false-alarm metrics
+- non-double-counted diarization timeline scoring
+- uncertainty marker tolerance window
+- bipartite marker matching
+- multi-recording Dataset Manifest
+- micro aggregate metrics
+- Reference/Hypothesis/Manifest SHA-256 provenance
+- recording-condition metadata passthrough
+- example Dataset Manifest
+- v2 benchmark contract
+
+Verified checkpoint:
+- run: `37256577150` SUCCESS
+- backend pytest: 88 passed
+
+Current external gate:
+- real Japanese audio Dataset has not yet been supplied/executed
+- therefore production-quality STT, diarization accuracy, and uncertainty-marker accuracy are NOT claimed
+- next action is real-audio Baseline generation, then Human-set acceptance thresholds
 
