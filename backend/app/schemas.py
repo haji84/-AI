@@ -1216,6 +1216,7 @@ class FireInvestigationCaseDetailOut(BaseModel):
     timeline: list[FireTimelineEventOut] = Field(default_factory=list)
     cause_candidates: list[FireCauseCandidateOut] = Field(default_factory=list)
     report_drafts: list[FireReportDraftOut] = Field(default_factory=list)
+    evidence_snapshots: list[dict] = Field(default_factory=list)
 
 
 class FirePhotoAIAnnotationInput(BaseModel):
