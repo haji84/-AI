@@ -18,7 +18,7 @@ def seed():
         u=User(employee_id=emp.employee_id,username="tester",password_hash=hash_password("long-test-password")); db.add(u)
         r=Role(code="tester",name="Tester"); db.add(r); db.flush()
         db.add(UserRole(user_id=u.user_id,role_id=r.role_id))
-        for code in ["facility.read","facility.create","facility.update","facility.restore","document.create","document.read", "inspection.read","inspection.create","inspection.update", "submission.read","submission.create","submission.update","submission.manage", "intake.read","intake.analyze","intake.review","intake.apply", "extension.read","extension.create","extension.review","extension.apply","template.read","template.manage","contract.read","contract.create","contract.update","contract.approve","legal_rule.read","legal_rule.manage","legal_rule.approve","legal_rule.evaluate","legal_source.read","legal_source.manage","legal_source.sync","equipment.read","equipment.manage","drawing.read","drawing.analyze","drawing.review","fire_investigation.read","fire_investigation.create","fire_investigation.update","fire_investigation.review","fire_investigation.approve"]:
+        for code in ["facility.read","facility.create","facility.update","facility.restore","document.create","document.read", "inspection.read","inspection.create","inspection.update", "submission.read","submission.create","submission.update","submission.manage", "intake.read","intake.analyze","intake.review","intake.apply", "extension.read","extension.create","extension.review","extension.apply","template.read","template.manage","contract.read","contract.create","contract.update","contract.approve","legal_rule.read","legal_rule.manage","legal_rule.approve","legal_rule.evaluate","legal_source.read","legal_source.manage","legal_source.sync","equipment.read","equipment.manage","drawing.read","drawing.analyze","drawing.review","fire_investigation.read","fire_investigation.create","fire_investigation.update","fire_investigation.review","fire_investigation.approve","search.use"]:
             p=Permission(code=code,description=code); db.add(p); db.flush(); db.add(RolePermission(role_id=r.role_id,permission_id=p.permission_id))
         db.commit()
 
@@ -3560,3 +3560,122 @@ def test_phase9_1_transcript_uncertainty_search_statement_gate_and_evidence_comp
         "status":"rejected"
     })
     assert stale.status_code==409
+
+
+def test_phase10_unified_search_is_permission_filtered_and_audited():
+    from app.models import AuditLog
+    login()
+
+    facility=client.post("/facilities",json={
+        "name":"横断検索キーワードOMEGA",
+        "address":"検索住所"
+    })
+    assert facility.status_code==201
+
+    fire_case=client.post("/fire-investigations",json={
+        "case_number":"OMEGA-FIRE-001",
+        "title":"横断検索キーワードOMEGA 火災調査"
+    })
+    assert fire_case.status_code==201
+
+    result=client.get("/search",params={"q":"OMEGA","modules":"facilities,fire","limit":20})
+    assert result.status_code==200
+    body=result.json()
+    assert {"facilities","fire"}.issubset(set(body["searched_modules"]))
+    assert any(x["module"]=="facilities" for x in body["hits"])
+    assert any(x["module"]=="fire" for x in body["hits"])
+    assert all(x["required_permission"] for x in body["hits"])
+
+    # Raw search text is not written to the audit log.
+    with SessionLocal() as db:
+        audit=db.scalar(
+            select(AuditLog)
+            .where(AuditLog.action=="unified_search.query")
+            .order_by(AuditLog.audit_id.desc())
+        )
+        assert audit is not None
+        after=audit.after_data or {}
+        assert after.get("query_sha256")
+        assert after.get("query_length")==5
+        assert "OMEGA" not in str(after)
+
+    # Create a second user with only facility search permission.
+    with SessionLocal() as db:
+        emp=Employee(display_name="検索限定利用者"); db.add(emp); db.flush()
+        limited=User(
+            employee_id=emp.employee_id,
+            username="search-limited",
+            password_hash=hash_password("limited-search-password"),
+        )
+        db.add(limited)
+        role=Role(code="search_limited",name="Search Limited")
+        db.add(role); db.flush()
+        db.add(UserRole(user_id=limited.user_id,role_id=role.role_id))
+        for code in ("search.use","facility.read"):
+            perm=db.scalar(select(Permission).where(Permission.code==code))
+            if perm is None:
+                perm=Permission(code=code,description=code); db.add(perm); db.flush()
+            db.add(RolePermission(role_id=role.role_id,permission_id=perm.permission_id))
+        db.commit()
+
+    client.cookies.clear()
+    limited_login=client.post("/auth/login",json={
+        "username":"search-limited",
+        "password":"limited-search-password"
+    })
+    assert limited_login.status_code==200
+
+    limited_result=client.get("/search",params={"q":"OMEGA"})
+    assert limited_result.status_code==200
+    limited_body=limited_result.json()
+    assert limited_body["searched_modules"]==["facilities"]
+    assert limited_body["hits"]
+    assert all(x["module"]=="facilities" for x in limited_body["hits"])
+    assert "fire" in limited_body["skipped_modules"]
+
+    forbidden=client.get("/search",params={"q":"OMEGA","modules":"fire"})
+    assert forbidden.status_code==403
+
+
+def test_phase10_unified_search_returns_reviewed_fire_evidence_only():
+    login()
+    case=client.post("/fire-investigations",json={
+        "case_number":"SEARCH-FIRE-10",
+        "title":"Phase10証拠検索"
+    }).json()
+    cid=case["fire_investigation_case_id"]
+    audio=client.post(
+        "/documents/upload",
+        files={"file":("search10.m4a",b"audio-search10","audio/mp4")},
+        data={"document_type":"fire_interview_audio"}
+    ).json()
+    media=client.post(f"/fire-investigations/{cid}/media",json={
+        "document_id":audio["document_id"],
+        "media_type":"audio"
+    }).json()
+    mid=media["fire_investigation_media_id"]
+
+    pending=client.post(f"/fire-investigations/media/{mid}/transcript-segments",json={
+        "start_ms":0,
+        "end_ms":2000,
+        "speaker_label":"関係者",
+        "text":"SECRET-PENDING-TRANSCRIPT",
+        "source_kind":"ai",
+        "model_version":"search-test"
+    }).json()
+
+    before=client.get("/search",params={"q":"SECRET-PENDING-TRANSCRIPT","modules":"fire"})
+    assert before.status_code==200
+    assert not any(x["source_type"]=="accepted_transcript" for x in before.json()["hits"])
+
+    accepted=client.patch(
+        f"/fire-investigations/transcript-segments/{pending['fire_transcript_segment_id']}",
+        json={"expected_version":1,"status":"accepted"}
+    )
+    assert accepted.status_code==200
+
+    after=client.get("/search",params={"q":"SECRET-PENDING-TRANSCRIPT","modules":"fire"})
+    assert after.status_code==200
+    hits=[x for x in after.json()["hits"] if x["source_type"]=="accepted_transcript"]
+    assert len(hits)==1
+    assert hits[0]["navigation"]["segment_id"]==pending["fire_transcript_segment_id"]
