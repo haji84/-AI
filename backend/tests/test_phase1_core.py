@@ -4550,6 +4550,12 @@ def test_phase6_drawing_consultation_requires_classification_before_equipment():
     assert len(required)==1
     assert required[0]["equipment_type_code"]=="consult-test-extinguisher"
     assert required[0]["state"]=="required_candidate"
+    equipment_coverage_warnings=[
+        x for x in body["missing_information"]
+        if x.get("field")=="equipment_requirement_rule_coverage"
+    ]
+    assert len(equipment_coverage_warnings)==1
+    assert equipment_coverage_warnings[0]["coverage"]["batch_found"] is False
 
     placement=body["placement_results"]
     assert len(placement)==1
