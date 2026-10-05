@@ -1525,6 +1525,7 @@ def test_phase5_4_supplementary_provisions_are_retained_but_deprioritized():
 
 
 def test_phase5_5_hash_bound_worklist_import_is_idempotent():
+    from sqlalchemy import func
     from app.legal_authoring_import import import_worklist
     from app.models import (
         LegalJurisdiction, LegalSource, LegalSourceDocument,
