@@ -478,7 +478,7 @@ Next executable external step:
 
 ## Phase 9 evidence-comparison benchmark v1
 
-Implemented on branch `phase9-evidence-comparison-benchmark-v1`; CI verification pending:
+Implemented and CI-verified:
 - exact Human Reference vs Local AI candidate comparison
 - left/right evidence order normalization
 - duplicate prediction false-positive accounting
@@ -488,6 +488,12 @@ Implemented on branch `phase9-evidence-comparison-benchmark-v1`; CI verification
 - multi-case micro aggregation
 - Reference / Hypothesis / Manifest SHA-256 provenance
 - benchmark contract and regression tests
+
+Verified checkpoint:
+- run: `37258781446` SUCCESS
+- backend pytest: 93 passed
+- migration parser smoke: PASS
+- frontend JavaScript syntax: PASS
 
 Human Gate remains explicit:
 - no production acceptance threshold is hard-coded
