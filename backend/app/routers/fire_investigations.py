@@ -476,6 +476,21 @@ def create_photo_annotation(
     return _photo_out(row)
 
 
+@router.get("/media/{media_id}/photo-annotations", response_model=list[FirePhotoAnnotationOut])
+def list_photo_annotations(
+    media_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("fire_investigation.read")),
+):
+    _require_media(db, media_id, "photo")
+    rows = db.scalars(
+        select(FirePhotoAnnotation)
+        .where(FirePhotoAnnotation.fire_investigation_media_id == media_id)
+        .order_by(FirePhotoAnnotation.created_at)
+    ).all()
+    return [_photo_out(x) for x in rows]
+
+
 @router.patch("/photo-annotations/{annotation_id}", response_model=FirePhotoAnnotationOut)
 def review_photo_annotation(
     annotation_id: str,
