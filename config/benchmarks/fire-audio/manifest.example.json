@@ -1,0 +1,15 @@
+{
+  "marker_tolerance_ms": 250,
+  "recordings": [
+    {
+      "id": "example-001",
+      "reference": "reference/example-001.json",
+      "hypothesis": "hypothesis/example-001.json"
+    },
+    {
+      "id": "example-002",
+      "reference": "reference/example-002.json",
+      "hypothesis": "hypothesis/example-002.json"
+    }
+  ]
+}
