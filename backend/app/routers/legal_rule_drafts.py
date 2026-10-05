@@ -11,7 +11,7 @@ from ..authz import require_permission
 from ..db import get_db
 from ..legal_rule_validation import validate_rule_conditions
 from ..legal_outcome_validation import validate_rule_outcome_references
-from ..occupancy_authoring_import import import_occupancy_catalog
+from ..occupancy_authoring_import import check_occupancy_catalog_readiness, import_occupancy_catalog
 from ..models import (
     LegalProvision,
     LegalRule,
@@ -32,6 +32,8 @@ from ..schemas import (
     LegalRuleDraftCitationOut,
     OccupancyCatalogImportRequest,
     OccupancyCatalogImportOut,
+    OccupancyCatalogReadinessRequest,
+    OccupancyCatalogReadinessOut,
 )
 
 router = APIRouter(prefix="/legal-rule-drafts", tags=["legal-rule-drafts"])
@@ -155,6 +157,24 @@ def _validate_citations(
     return rows
 
 
+
+
+
+
+@router.post(
+    "/imports/occupancy-catalog/readiness",
+    response_model=OccupancyCatalogReadinessOut,
+)
+def occupancy_catalog_readiness(
+    payload: OccupancyCatalogReadinessRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("legal_rule.read")),
+):
+    try:
+        readiness = check_occupancy_catalog_readiness(db, payload.catalog)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    return OccupancyCatalogReadinessOut(readiness=readiness)
 
 
 @router.post("/imports/occupancy-catalog", response_model=OccupancyCatalogImportOut)

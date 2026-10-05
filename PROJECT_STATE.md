@@ -778,3 +778,33 @@ Next gate:
 2. import the verified 35-entry catalog
 3. Human-author applicability conditions for each pending skeleton
 4. review/promotion/approval remain separate Human gates
+
+
+## Phase 6 legal restructure / occupancy readiness
+
+Implemented and CI-verified:
+- reusable `legal_structure_service.structure_legal_version`
+- CLI and API share the same structuring implementation
+- legal document Version restructure API
+- expected source SHA-256 conflict protection
+- current-parser no-op behavior unless force=true
+- legal-structure-v2 table_row generation
+- existing provision diff / impacted Rule evidence preserved
+- occupancy catalog readiness API
+- readiness checks exact source SHA, parser version, entry validity, table_row existence and official-text match
+- readiness reports existing pending/terminal skeleton counts and would-insert count
+- E2E covers unparsed -> readiness blocked -> parser v2 restructure -> readiness PASS -> skeleton import
+
+Verified checkpoint:
+- run: `37275726652` SUCCESS
+- backend pytest: 114 passed
+- migration parser smoke: PASS
+- frontend JavaScript syntax: PASS
+
+Target production flow:
+1. identify the stored 消防法施行令 Version matching official catalog SHA
+2. restructure that Version with legal-structure-v2
+3. run occupancy catalog readiness
+4. require ready=true and 35 exact provision matches
+5. import the verified 35 pending authoring skeletons
+6. Human-authored applicability conditions remain required before review/promotion/approval
