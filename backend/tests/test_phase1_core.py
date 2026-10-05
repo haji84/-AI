@@ -1487,7 +1487,7 @@ def test_phase5_4_browser_legal_review_entrypoint_exists():
 
 def test_phase5_4_relevance_scanner_rejects_generic_reporting_noise():
     from app.legal_relevance import score_fire_service_relevance, SCANNER_VERSION
-    assert SCANNER_VERSION=="fire-legal-relevance-v2"
+    assert SCANNER_VERSION=="fire-legal-relevance-v3"
     noise=score_fire_service_relevance(
         title="地方税法",
         label="第百条",

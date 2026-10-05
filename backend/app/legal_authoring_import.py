@@ -17,6 +17,7 @@ from .models import (
 WORKLIST_IMPORT_VERSION = "core-authoring-worklist-import-v1"
 KNOWN_REVIEW_CATEGORIES = {
     "equipment_requirement",
+    "equipment_placement",
     "submission_requirement",
     "fire_management",
     "inspection_enforcement",

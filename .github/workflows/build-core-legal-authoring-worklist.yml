@@ -62,7 +62,7 @@ jobs:
           oshima=set(cfg["oshima_exact_titles"])
           allowed_types={
               "article","paragraph","item","subitem1","subitem2","subitem3",
-              "subitem4","subitem5","subitem6","document_body"
+              "subitem4","subitem5","subitem6","document_body","table_row"
           }
 
           work=[]

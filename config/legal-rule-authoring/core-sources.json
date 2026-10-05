@@ -1,5 +1,5 @@
 {
-  "version": "phase5-core-sources-v1",
+  "version": "phase6-core-sources-v2",
   "national_exact_titles": [
     "消防法",
     "消防法施行令",
@@ -54,6 +54,12 @@
         "fire_prevention_local"
       ],
       "purpose": "local ordinance-specific review"
+    },
+    "placement_rules": {
+      "categories": [
+        "equipment_placement"
+      ],
+      "purpose": "Human authoring of deterministic equipment placement constraints"
     }
   }
 }
