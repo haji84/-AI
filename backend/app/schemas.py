@@ -715,3 +715,12 @@ class LegalReviewQueueSummaryOut(BaseModel):
     by_category: dict[str, int] = Field(default_factory=dict)
     by_priority_lane: dict[str, int] = Field(default_factory=dict)
     by_provision_context: dict[str, int] = Field(default_factory=dict)
+
+
+class LegalRuleCoverageOut(BaseModel):
+    review_queue_by_domain_status: dict[str, dict[str, int]] = Field(default_factory=dict)
+    draft_candidates_by_domain_status: dict[str, dict[str, int]] = Field(default_factory=dict)
+    rule_versions_by_domain_status: dict[str, dict[str, int]] = Field(default_factory=dict)
+    approved_rule_count_by_domain: dict[str, int] = Field(default_factory=dict)
+    exact_citation_count: int = 0
+    note: str
