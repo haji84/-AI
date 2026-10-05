@@ -812,7 +812,7 @@ Target production flow:
 
 ## Phase 6 occupancy authoring workbench
 
-Implemented on branch `phase6-occupancy-authoring-workbench`; CI verification pending:
+Implemented and CI-verified:
 - official 35-entry occupancy authoring Worklist API
 - classification code / label / official row citation / current conditions visible in one response
 - condition state: blank / valid / invalid
@@ -829,6 +829,12 @@ Implemented on branch `phase6-occupancy-authoring-workbench`; CI verification pe
 - coverage requires all 35 Rule Versions to be Approved, active and effective
 - drawing consultation surfaces an explicit coverage warning until coverage_complete=true
 - E2E covers atomic bulk authoring and 35/35 Approved coverage completion
+
+Verified checkpoint:
+- run: `37276843143` SUCCESS
+- backend pytest: 116 passed
+- migration parser smoke: PASS
+- frontend JavaScript syntax: PASS
 
 Safety:
 - Workbench accelerates Human authoring but does not generate legal applicability conditions
