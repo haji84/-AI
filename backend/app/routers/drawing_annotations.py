@@ -290,12 +290,19 @@ def import_reference_annotation(
             detail=str(exc),
         )
 
+    coordinate_space = str(
+        reference.get("coordinate_space") or "pixel"
+    )
+    if coordinate_space not in {"pixel", "normalized"}:
+        raise HTTPException(
+            status_code=422,
+            detail="reference coordinate_space must be pixel or normalized",
+        )
+
     row = DrawingAnnotationSet(
         drawing_analysis_id=analysis_id,
         annotation_kind="human_reference",
-        coordinate_space=str(
-            reference.get("coordinate_space") or "pixel"
-        ),
+        coordinate_space=coordinate_space,
         page_dimensions=page_dimensions,
         payload=body,
         source_method="import",
