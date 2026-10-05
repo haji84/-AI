@@ -1143,3 +1143,162 @@ class DrawingFactCandidate(Base):
     applied_facility_version: Mapped[int | None] = mapped_column(BigInteger)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
+class FireInvestigationCase(Base):
+    __tablename__ = "fire_investigation_cases"
+    fire_investigation_case_id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True, default=uuid_str)
+    case_number: Mapped[str | None] = mapped_column(String(120), unique=True, index=True)
+    building_id: Mapped[str | None] = mapped_column(ForeignKey("facilities.building_id", ondelete="SET NULL"), index=True)
+    title: Mapped[str] = mapped_column(String(500), nullable=False)
+    occurred_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    location_text: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="draft", index=True)
+    official_cause_text: Mapped[str | None] = mapped_column(Text)
+    official_cause_candidate_id: Mapped[str | None] = mapped_column(ForeignKey("fire_cause_candidates.fire_cause_candidate_id"))
+    final_report_document_id: Mapped[str | None] = mapped_column(ForeignKey("documents.document_id"))
+    version: Mapped[int] = mapped_column(BigInteger, nullable=False, default=1)
+    created_by: Mapped[str | None] = mapped_column(ForeignKey("app_users.user_id"))
+    updated_by: Mapped[str | None] = mapped_column(ForeignKey("app_users.user_id"))
+    cause_approved_by: Mapped[str | None] = mapped_column(ForeignKey("app_users.user_id"))
+    cause_approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
+class FireInvestigationMedia(Base):
+    __tablename__ = "fire_investigation_media"
+    fire_investigation_media_id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True, default=uuid_str)
+    fire_investigation_case_id: Mapped[str] = mapped_column(ForeignKey("fire_investigation_cases.fire_investigation_case_id", ondelete="CASCADE"), nullable=False, index=True)
+    document_id: Mapped[str] = mapped_column(ForeignKey("documents.document_id", ondelete="RESTRICT"), nullable=False)
+    media_type: Mapped[str] = mapped_column(String(30), nullable=False)
+    sequence_no: Mapped[int | None] = mapped_column(Integer)
+    captured_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    location_label: Mapped[str | None] = mapped_column(Text)
+    floor_number: Mapped[int | None] = mapped_column(Integer)
+    notes: Mapped[str | None] = mapped_column(Text)
+    review_status: Mapped[str] = mapped_column(String(30), nullable=False, default="pending")
+    ai_metadata: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    created_by: Mapped[str | None] = mapped_column(ForeignKey("app_users.user_id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    __table_args__ = (
+        UniqueConstraint(
+            "fire_investigation_case_id",
+            "document_id",
+            name="uq_fire_investigation_media_document",
+        ),
+    )
+
+
+class FirePhotoAnnotation(Base):
+    __tablename__ = "fire_photo_annotations"
+    fire_photo_annotation_id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True, default=uuid_str)
+    fire_investigation_media_id: Mapped[str] = mapped_column(ForeignKey("fire_investigation_media.fire_investigation_media_id", ondelete="CASCADE"), nullable=False, index=True)
+    description: Mapped[str | None] = mapped_column(Text)
+    tags: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    map_position: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    confidence: Mapped[float | None] = mapped_column(Float)
+    source_kind: Mapped[str] = mapped_column(String(30), nullable=False, default="ai")
+    model_version: Mapped[str | None] = mapped_column(String(200))
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="pending")
+    reviewed_by: Mapped[str | None] = mapped_column(ForeignKey("app_users.user_id"))
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
+class FireTranscriptSegment(Base):
+    __tablename__ = "fire_transcript_segments"
+    fire_transcript_segment_id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True, default=uuid_str)
+    fire_investigation_media_id: Mapped[str] = mapped_column(ForeignKey("fire_investigation_media.fire_investigation_media_id", ondelete="CASCADE"), nullable=False, index=True)
+    start_ms: Mapped[int | None] = mapped_column(Integer)
+    end_ms: Mapped[int | None] = mapped_column(Integer)
+    speaker_label: Mapped[str | None] = mapped_column(String(200))
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    confidence: Mapped[float | None] = mapped_column(Float)
+    source_kind: Mapped[str] = mapped_column(String(30), nullable=False, default="ai")
+    model_version: Mapped[str | None] = mapped_column(String(200))
+    review_status: Mapped[str] = mapped_column(String(30), nullable=False, default="pending")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
+class FireStatementDraft(Base):
+    __tablename__ = "fire_statement_drafts"
+    fire_statement_draft_id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True, default=uuid_str)
+    fire_investigation_case_id: Mapped[str] = mapped_column(ForeignKey("fire_investigation_cases.fire_investigation_case_id", ondelete="CASCADE"), nullable=False, index=True)
+    fire_investigation_media_id: Mapped[str | None] = mapped_column(ForeignKey("fire_investigation_media.fire_investigation_media_id", ondelete="SET NULL"))
+    person_label: Mapped[str | None] = mapped_column(String(300))
+    draft_text: Mapped[str] = mapped_column(Text, nullable=False)
+    evidence_segment_ids: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    ai_generated: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    model_version: Mapped[str | None] = mapped_column(String(200))
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="draft", index=True)
+    version: Mapped[int] = mapped_column(BigInteger, nullable=False, default=1)
+    created_by: Mapped[str | None] = mapped_column(ForeignKey("app_users.user_id"))
+    reviewed_by: Mapped[str | None] = mapped_column(ForeignKey("app_users.user_id"))
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
+class FireTimelineEvent(Base):
+    __tablename__ = "fire_timeline_events"
+    fire_timeline_event_id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True, default=uuid_str)
+    fire_investigation_case_id: Mapped[str] = mapped_column(ForeignKey("fire_investigation_cases.fire_investigation_case_id", ondelete="CASCADE"), nullable=False, index=True)
+    event_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    event_time_text: Mapped[str | None] = mapped_column(Text)
+    event_type: Mapped[str | None] = mapped_column(String(80))
+    title: Mapped[str] = mapped_column(String(500), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+    source_refs: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    confidence: Mapped[float | None] = mapped_column(Float)
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="candidate", index=True)
+    version: Mapped[int] = mapped_column(BigInteger, nullable=False, default=1)
+    created_by: Mapped[str | None] = mapped_column(ForeignKey("app_users.user_id"))
+    reviewed_by: Mapped[str | None] = mapped_column(ForeignKey("app_users.user_id"))
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
+class FireCauseCandidate(Base):
+    __tablename__ = "fire_cause_candidates"
+    fire_cause_candidate_id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True, default=uuid_str)
+    fire_investigation_case_id: Mapped[str] = mapped_column(ForeignKey("fire_investigation_cases.fire_investigation_case_id", ondelete="CASCADE"), nullable=False, index=True)
+    cause_category: Mapped[str | None] = mapped_column(String(200))
+    cause_text: Mapped[str] = mapped_column(Text, nullable=False)
+    hypothesis: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    evidence_refs: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    confidence: Mapped[float | None] = mapped_column(Float)
+    extraction_method: Mapped[str] = mapped_column(String(30), nullable=False, default="manual")
+    model_version: Mapped[str | None] = mapped_column(String(200))
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="candidate", index=True)
+    version: Mapped[int] = mapped_column(BigInteger, nullable=False, default=1)
+    created_by: Mapped[str | None] = mapped_column(ForeignKey("app_users.user_id"))
+    reviewed_by: Mapped[str | None] = mapped_column(ForeignKey("app_users.user_id"))
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
+class FireReportDraft(Base):
+    __tablename__ = "fire_report_drafts"
+    fire_report_draft_id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True, default=uuid_str)
+    fire_investigation_case_id: Mapped[str] = mapped_column(ForeignKey("fire_investigation_cases.fire_investigation_case_id", ondelete="CASCADE"), nullable=False, index=True)
+    report_type: Mapped[str] = mapped_column(String(120), nullable=False)
+    form_template_id: Mapped[str | None] = mapped_column(ForeignKey("form_templates.form_template_id"))
+    narrative_text: Mapped[str | None] = mapped_column(Text)
+    structured_content: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    evidence_refs: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    ai_generated: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    model_version: Mapped[str | None] = mapped_column(String(200))
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="draft", index=True)
+    version: Mapped[int] = mapped_column(BigInteger, nullable=False, default=1)
+    created_by: Mapped[str | None] = mapped_column(ForeignKey("app_users.user_id"))
+    reviewed_by: Mapped[str | None] = mapped_column(ForeignKey("app_users.user_id"))
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    approved_by: Mapped[str | None] = mapped_column(ForeignKey("app_users.user_id"))
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
