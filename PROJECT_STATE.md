@@ -1212,7 +1212,7 @@ Safety / resource controls:
 
 ## Phase 6 house-plan-001 Geometry Reference Draft
 
-Implemented on branch `phase6-house-plan-reference-001`; CI verification pending:
+Implemented and CI-verified:
 - existing supplied residential reference remains bound to source SHA-256 `2df43a8f5cebe48f2a55ae8968714319ca05491088d98a1e6038fd0b10aa26b6`
 - 12 first-floor room/zone Geometry Drafts added:
   - UB
@@ -1246,3 +1246,9 @@ Human Gate:
 - the 12 polygons are a Draft, not benchmark truth
 - open-plan/circulation boundaries require explicit Human confirmation/correction
 - first real Geometry Baseline remains blocked until this Reference is Human-accepted and a Local Vision Hypothesis is produced
+
+Verified checkpoint:
+- run: `37381610546` SUCCESS
+- backend pytest: 132 passed
+- migration parser smoke: PASS
+- frontend JavaScript syntax: PASS
