@@ -1360,7 +1360,7 @@ Verified checkpoint:
 
 ## Phase 6 Human Reference Draft import
 
-Implemented on branch `phase6-reference-draft-import`; CI verification pending:
+Implemented and CI-verified:
 - Human Reference Draft JSON can be imported directly into a DrawingAnalysis as an editable Annotation
 - supported format prefix: `fire-ai-drawing-human-reference...`
 - source Document SHA-256 must exactly match the DrawingAnalysis source
@@ -1382,6 +1382,12 @@ Implemented on branch `phase6-reference-draft-import`; CI verification pending:
 - existing Annotation and no-Annotation states can both import another Draft
 - E2E covers source-bound import, forced Draft status, automatic area recalculation, later Human Review/export, source-SHA mismatch rejection, and coordinate-space rejection
 - frontend contract protects Reference Draft import wiring
+
+Verified checkpoint:
+- run: `37388194605` SUCCESS
+- backend pytest: 146 passed
+- migration parser smoke: PASS
+- frontend JavaScript syntax: PASS
 
 Target house-plan-001 flow:
 1. upload/open the same source drawing whose SHA is `2df43a8f5cebe48f2a55ae8968714319ca05491088d98a1e6038fd0b10aa26b6`
