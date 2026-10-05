@@ -155,7 +155,7 @@ function renderDetail(d,history,legacy,dash={},inspections=[],submissions=[]){$(
 <div class="card"><div class="sectionTitle">確認ダッシュボード</div><div class="grid3">${badge('equipment_inspection_report','消防用設備等点検結果報告')}${badge('fire_manager_appointment','防火管理者')}${badge('fire_plan','消防計画')}</div><div class="row" style="margin-top:10px"><span class="pill">査察 ${dash.inspections_total||0}件</span><span class="pill ${(dash.open_findings||0)>0?'dangerText':''}">未完了指摘 ${dash.open_findings||0}件</span><span class="muted">最終査察 ${esc(dash.latest_inspection_at||'未登録')}</span></div></div>
 <div class="card"><div class="row"><div class="sectionTitle grow">査察履歴</div><button class="btn primary" onclick="quickAddInspection()">＋ 査察登録</button></div>${inspections.length?`<div class="scroll"><table><thead><tr><th>実施日</th><th>種別</th><th>状態</th><th>指摘</th></tr></thead><tbody>${inspections.map(i=>`<tr><td>${esc(i.inspected_at)}</td><td>${esc(i.inspection_type)}</td><td>${esc(i.status)}</td><td>${i.findings.length?i.findings.map(q=>`<div>${esc(q.finding_text)} <span class="pill">${esc(q.corrective_status)}</span>${q.corrective_status!=='completed'?` <button class="btn" onclick="completeFinding('${q.finding_id}',${q.version})">是正完了</button>`:''}</div>`).join(''):'－'}</td></tr>`).join('')}</tbody></table></div>`:'<div class="muted">査察履歴なし</div>'}</div>
 <div class="card"><div class="row"><div class="sectionTitle grow">届出・報告受付</div><button class="btn primary" onclick="smartReceiveSubmission()">文書解析して受付</button><button class="btn" onclick="quickReceiveSubmission()">手動受付</button></div>${submissions.length?`<div class="scroll"><table><thead><tr><th>提出日</th><th>種別</th><th>届出番号</th><th>状態</th><th>原本</th></tr></thead><tbody>${submissions.map(s=>`<tr><td>${esc(s.submitted_at||s.received_at.slice(0,10))}</td><td>${esc(s.submission_type_name)}</td><td>${esc(s.official_number||'－')}</td><td>${esc(s.status)}</td><td>${s.document_ids.length}件</td></tr>`).join('')}</tbody></table></div>`:'<div class="muted">届出記録なし</div>'}</div>
-<div class="card"><div class="row"><div class="sectionTitle grow">必要書類・消防用設備 判定支援</div><button class="btn" onclick="runRequirementEvaluation('submission_requirement')">必要書類候補</button><button class="btn" onclick="runRequirementEvaluation('equipment_requirement')">必要設備候補</button></div><div class="notice">承認済み・適用期間内の正式ルールだけを使って候補を表示します。最終判断ではありません。</div><div id="ruleEvalResult" class="muted">未判定</div></div>
+<div class="card"><div class="row"><div class="sectionTitle grow">必要書類・消防用設備 判定支援</div><button class="btn" onclick="runRequirementEvaluation('submission_requirement')">必要書類候補</button><button class="btn" onclick="runRequirementEvaluation('equipment_requirement')">必要設備候補</button><button class="btn" onclick="runSubmissionCompliance()">必要届出と受付を照合</button></div><div class="notice">承認済み・適用期間内の正式ルールだけを使って候補を表示します。届出照合も正式違反判定ではありません。</div><div id="ruleEvalResult" class="muted">未判定</div><div id="submissionComplianceResult" class="muted" style="margin-top:10px"></div></div>
 <div class="card"><div class="sectionTitle">基本情報</div><div class="grid3">${kv('電話番号',f.phone)}${kv('令別表区分',x.classification_code)}${kv('区分詳細', [x.classification_detail_1,x.classification_detail_2].filter(Boolean).join(' / '))}${kv('用途地域',x.zoning)}${kv('構造',x.structure)}${kv('令8条区画',x.article8_partition)}${kv('地上階',x.above_ground_floors)}${kv('地下階',x.basement_floors)}${kv('建築面積',unit(x.building_area,'㎡'))}${kv('延べ面積',unit(x.total_floor_area,'㎡'))}${kv('収容人員',unit(x.occupancy_total,'人'))}${kv('従業員',unit(x.employee_total,'人'))}</div></div>
 <div class="card"><div class="sectionTitle">代表者</div><div class="grid2">${kv('氏名',c.representative_name)}${kv('役職',c.representative_title)}${kv('住所',c.representative_address)}${kv('電話',c.representative_phone)}</div></div>
 <div class="card"><div class="sectionTitle">階別情報</div>${floors.length?`<div class="scroll"><table><thead><tr><th>階</th><th>床面積</th><th>用途</th><th>収容</th><th>従業員</th><th>無窓等</th><th>カーテン</th><th>絨毯</th><th>合板</th></tr></thead><tbody>${floors.map(fl=>`<tr><td>${esc(fl.floor_label||fl.floor_number+'階')}</td><td>${val(fl.floor_area)}</td><td>${val(fl.use_name)}</td><td>${val(fl.occupancy_count)}</td><td>${val(fl.employee_count)}</td><td>${val(fl.windowless_status)}</td><td>${val(fl.curtain_status)}</td><td>${val(fl.carpet_status)}</td><td>${val(fl.plywood_status)}</td></tr>`).join('')}</tbody></table></div>`:'<div class="muted">階別情報なし</div>'}</div>
@@ -429,6 +429,46 @@ async function draftLegalRuleFromReview(id,version,defaultName){
 }
 
 $('searchQ').addEventListener('keydown',e=>{if(e.key==='Enter')loadFacilities(0)});$('loginPass').addEventListener('keydown',e=>{if(e.key==='Enter')login()});
+
+async function runSubmissionCompliance(){
+  if(!state.selected)return;
+  const box=$('submissionComplianceResult');
+  box.innerHTML='必要届出と受付記録を照合中…';
+  try{
+    const r=await api('/facilities/'+state.selected.building_id+'/submission-compliance/evaluate',{method:'POST'});
+    const stateLabel={
+      modern_submission_recorded:'正式受付記録あり',
+      missing_record_candidate:'記録なし候補',
+      legacy_evidence_only:'旧台帳証拠のみ',
+      manual_review_required:'要人確認'
+    };
+    const items=(r.items||[]).map(x=>{
+      const rules=(x.rule_evidence||[]).map(rule=>{
+        const citations=(rule.citations||[]).map(c=>[c.display_label,c.heading_text].filter(Boolean).join(' ')||c.provision_key).join(' / ');
+        return '<div class="muted">Rule '+esc(rule.rule_code)+' v'+esc(rule.version_no)+(citations?' ・ '+esc(citations):'')+'</div>';
+      }).join('');
+      const latest=x.latest_submitted_at?' ・ '+esc(x.latest_submitted_at):'';
+      return '<div class="history"><b>'+esc(x.submission_type_name||x.submission_type_code)+'</b> '+
+        '<span class="pill">'+esc(stateLabel[x.state]||x.state)+'</span>'+latest+
+        rules+
+        (x.detail?.reason?'<div class="muted">'+esc(x.detail.reason)+'</div>':'')+
+        '</div>';
+    }).join('');
+    const unmapped=(r.unmapped_rules||[]).length
+      ? '<div class="notice">自動照合できないRule '+esc(r.unmapped_rules.length)+'件。Rule outcomeの明示設定または人確認が必要です。</div>'
+      : '';
+    box.innerHTML=
+      '<div class="row"><span class="pill">一致Rule '+esc(r.matched_rule_count)+'</span>'+
+      '<span class="pill">自動照合 '+esc(r.actionable_rule_count)+'</span>'+
+      '<span class="pill">記録なし候補 '+esc(r.gap_candidate_count)+'</span>'+
+      '<span class="pill">要確認 '+esc(r.manual_review_count)+'</span></div>'+
+      unmapped+
+      (items||'<div class="muted">照合対象となる承認済Ruleはありません。</div>')+
+      '<div class="muted">'+esc(r.note)+'</div>';
+  }catch(e){
+    box.innerHTML='<div class="conflict">届出照合できません: '+esc(e.message)+'</div>';
+  }
+}
 
 async function runRequirementEvaluation(domain){
   if(!state.selected)return;
