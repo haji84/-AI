@@ -16,6 +16,7 @@ from .models import (
     LegalRuleDraftCitation,
     LegalRuleVersion,
     OccupancyClassificationTestRun,
+    OccupancyClassificationTestCase,
 )
 from .occupancy_authoring_import import IMPORT_VERSION
 
@@ -351,6 +352,43 @@ def occupancy_authoring_fingerprint(
     ).encode("utf-8")
     return hashlib.sha256(raw).hexdigest()
 
+
+def occupancy_test_suite_fingerprint(
+    db: Session,
+    *,
+    source_xml_sha256: str,
+) -> str | None:
+    rows = db.scalars(
+        select(OccupancyClassificationTestCase)
+        .where(
+            OccupancyClassificationTestCase.source_xml_sha256 == source_xml_sha256,
+            OccupancyClassificationTestCase.status == "reviewed",
+        )
+        .order_by(
+            OccupancyClassificationTestCase.name,
+            OccupancyClassificationTestCase.created_at,
+        )
+    ).all()
+    if not rows:
+        return None
+    payload = [
+        {
+            "test_case_id": row.occupancy_classification_test_case_id,
+            "version": row.version,
+            "name": row.name,
+            "input_snapshot": row.input_snapshot or {},
+            "expected_classification_codes": row.expected_classification_codes or [],
+        }
+        for row in rows
+    ]
+    raw = json.dumps(
+        payload,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(raw).hexdigest()
+
 def occupancy_rule_coverage(
     db: Session,
     *,
@@ -487,11 +525,18 @@ def occupancy_rule_coverage(
             )
             .order_by(OccupancyClassificationTestRun.reviewed_at.desc())
         ).all()
+    current_test_suite_fingerprint = (
+        occupancy_test_suite_fingerprint(db, source_xml_sha256=selected_sha)
+        if selected_sha
+        else None
+    )
     matching_accepted_run = next(
         (
             run for run in accepted_runs
             if (run.result_payload or {}).get("authoring_fingerprint")
             == current_authoring_fingerprint
+            and (run.result_payload or {}).get("test_suite_fingerprint")
+            == current_test_suite_fingerprint
             and bool((run.result_payload or {}).get("overall_pass"))
         ),
         None,
@@ -515,7 +560,7 @@ def occupancy_rule_coverage(
         blockers.append("official occupancy authoring batch is not imported")
     if selected_sha is not None and not regression_gate_passed:
         blockers.append(
-            "accepted regression run is missing or stale for the current authoring fingerprint"
+            "accepted regression run is missing or stale for the current authoring/test-suite fingerprints"
         )
     if not catalog_batch_valid:
         blockers.append(
@@ -544,6 +589,7 @@ def occupancy_rule_coverage(
         "source_xml_sha256": selected_sha,
         "evaluation_date": evaluation_date.isoformat(),
         "current_authoring_fingerprint": current_authoring_fingerprint,
+        "current_test_suite_fingerprint": current_test_suite_fingerprint,
         "regression_gate_passed": regression_gate_passed,
         "accepted_regression_run_id": (
             matching_accepted_run.occupancy_classification_test_run_id
