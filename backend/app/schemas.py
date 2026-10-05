@@ -1439,3 +1439,28 @@ class UnifiedSearchResponse(BaseModel):
     skipped_modules: list[str] = Field(default_factory=list)
     total_hits: int = 0
     note: str
+
+
+class FireAudioBenchmarkRunCreate(BaseModel):
+    dataset_label: str = Field(min_length=1, max_length=300)
+    result_payload: dict
+
+class FireAudioBenchmarkRunReview(BaseModel):
+    expected_version: int = Field(ge=1)
+    human_decision: Literal["accepted_baseline","rejected_baseline"]
+    review_notes: str | None = None
+
+class FireAudioBenchmarkRunOut(BaseModel):
+    fire_audio_benchmark_run_id: str
+    benchmark_format: str
+    dataset_label: str
+    manifest_sha256: str | None = None
+    result_sha256: str
+    recording_count: int
+    result_payload: dict
+    review_status: str
+    human_decision: str | None = None
+    review_notes: str | None = None
+    version: int
+    created_at: str
+    reviewed_at: str | None = None
