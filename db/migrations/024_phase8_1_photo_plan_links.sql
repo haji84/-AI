@@ -1,5 +1,4 @@
--- Phase 8.1: reviewed photo-to-drawing position links.
--- AI/manual candidates remain separate from accepted links.
+-- Phase 8.1: Human-reviewed photo position links on drawing analyses.
 
 CREATE TABLE IF NOT EXISTS fire_photo_plan_links (
   fire_photo_plan_link_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -29,4 +28,6 @@ CREATE TABLE IF NOT EXISTS fire_photo_plan_links (
 CREATE INDEX IF NOT EXISTS idx_fire_photo_plan_links_media
   ON fire_photo_plan_links(fire_investigation_media_id, status);
 CREATE INDEX IF NOT EXISTS idx_fire_photo_plan_links_drawing
-  ON fire_photo_plan_links(drawing_analysis_id, status);
+  ON fire_photo_plan_links(drawing_analysis_id, page_no);
+CREATE INDEX IF NOT EXISTS idx_fire_photo_plan_links_element
+  ON fire_photo_plan_links(drawing_element_id);
