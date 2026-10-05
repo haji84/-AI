@@ -923,6 +923,10 @@ class DrawingFactCandidateReview(BaseModel):
     expected_version: int = Field(ge=1)
     status: Literal["accepted","rejected"]
 
+class DrawingFactCandidateApply(BaseModel):
+    expected_version: int = Field(ge=1)
+    expected_facility_version: int = Field(ge=1)
+
 class DrawingFactCandidateOut(BaseModel):
     drawing_fact_candidate_id: str
     drawing_analysis_id: str
@@ -933,6 +937,9 @@ class DrawingFactCandidateOut(BaseModel):
     evidence: dict
     status: str
     version: int
+    applied_by: str | None = None
+    applied_at: str | None = None
+    applied_facility_version: int | None = None
 
 class DrawingAnalysisReview(BaseModel):
     expected_version: int = Field(ge=1)
