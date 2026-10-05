@@ -62,14 +62,14 @@ table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid #e4e8ec;
 <div class="notice">自動抽出は関連候補の優先順位付けだけです。Rule条件・結論は職員確認後に作成し、正式承認は別Gateです。</div>
 <div class="row" style="margin-bottom:10px"><button class="btn" onclick="showLegalQueue()">条文候補</button><button class="btn" onclick="showLegalDrafts()">Rule草案</button></div>
 <div id="legalQueueControls" class="row" style="margin-bottom:10px">
-<select id="legalReviewStatus" onchange="loadLegalReview()">
+<select id="legalReviewStatus" onchange="loadLegalReview(0)">
 <option value="pending">未確認</option>
 <option value="reviewed">レビュー済み</option>
 <option value="drafted">Rule草案化済み</option>
 <option value="ignored">対象外</option>
 <option value="">すべて</option>
 </select>
-<select id="legalReviewCategory" onchange="loadLegalReview()">
+<select id="legalReviewCategory" onchange="loadLegalReview(0)">
 <option value="">全カテゴリ</option>
 <option value="equipment_requirement">必要設備</option>
 <option value="submission_requirement">必要届出</option>
@@ -78,15 +78,24 @@ table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid #e4e8ec;
 <option value="hazardous_materials">危険物</option>
 <option value="fire_prevention_local">火災予防条例系</option>
 </select>
-<select id="legalReviewLane" onchange="loadLegalReview()">
+<select id="legalReviewLane" onchange="loadLegalReview(0)">
 <option value="">全優先レーン</option>
 <option value="national_core">国法コア</option>
 <option value="local_core">ローカルコア</option>
 <option value="normal">通常</option>
 </select>
-<input id="legalReviewMinScore" type="number" min="0" step="0.5" value="2" style="max-width:110px" onchange="loadLegalReview()" title="最低関連度">
-<button class="btn" onclick="loadLegalReview()">更新</button>
+<select id="legalReviewContext" onchange="loadLegalReview(0)">
+<option value="">全文脈</option>
+<option value="main">本文</option>
+<option value="supplementary_transition">附則・経過措置</option>
+<option value="document_body">告示等本文</option>
+</select>
+<input id="legalReviewQ" placeholder="法令名・条文を検索" style="min-width:190px" onkeydown="if(event.key==='Enter')loadLegalReview(0)">
+<input id="legalReviewMinScore" type="number" min="0" step="0.5" value="2" style="max-width:100px" onchange="loadLegalReview(0)" title="最低関連度">
+<input id="legalReviewMinPriority" type="number" step="0.5" value="0" style="max-width:100px" onchange="loadLegalReview(0)" title="最低総合優先度">
+<button class="btn" onclick="loadLegalReview(0)">更新</button>
 </div>
+<div id="legalReviewStats" class="row muted" style="margin-bottom:8px"></div>
 <div id="legalDraftControls" class="row hidden" style="margin-bottom:10px">
 <select id="legalDraftStatus" onchange="loadLegalDrafts()">
 <option value="pending">未確認草案</option>
@@ -99,6 +108,11 @@ table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid #e4e8ec;
 </div>
 <div id="legalReviewSummary" class="muted" style="margin-bottom:10px"></div>
 <div id="legalReviewList"></div>
+<div id="legalReviewPager" class="pagebar">
+<button id="legalReviewPrev" class="btn" onclick="changeLegalReviewPage(-1)">前へ</button>
+<span id="legalReviewPageInfo" class="muted"></span>
+<button id="legalReviewNext" class="btn" onclick="changeLegalReviewPage(1)">次へ</button>
+</div>
 </div>
 </div>
 </div>
@@ -123,6 +137,7 @@ table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid #e4e8ec;
 <script>
 const $=id=>document.getElementById(id);
 const state={offset:0,limit:50,total:0,selected:null,detail:null,mode:null,draft:null};
+const legalReviewState={offset:0,limit:50,total:0};
 const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
 const val=v=>(v===null||v===undefined||v==='')?'－':esc(v);
 
@@ -289,7 +304,8 @@ const legalLaneLabels={national_core:'国法コア',local_core:'ローカルコ�
 
 async function openLegalReview(){
   $('legalReviewModal').classList.remove('hidden');
-  await loadLegalReview();
+  legalReviewState.offset=0;
+  await loadLegalReview(0);
 }
 function closeLegalReview(){$('legalReviewModal').classList.add('hidden')}
 
@@ -300,22 +316,50 @@ function legalReasonText(reasons){
   }).join(' / ');
 }
 
-async function loadLegalReview(){
+async function loadLegalReview(offset=legalReviewState.offset){
+  legalReviewState.offset=Math.max(0,offset);
   const box=$('legalReviewList');
   box.innerHTML='<div class="muted">読み込み中…</div>';
-  const p=new URLSearchParams({limit:'100'});
   const status=$('legalReviewStatus').value;
   const category=$('legalReviewCategory').value;
   const lane=$('legalReviewLane').value;
+  const context=$('legalReviewContext').value;
+  const q=$('legalReviewQ').value.trim();
   const minScore=$('legalReviewMinScore').value;
-  if(status)p.set('queue_status',status);
-  else p.set('queue_status','');
-  if(category)p.set('category',category);
-  if(lane)p.set('priority_lane',lane);
-  if(minScore)p.set('min_score',minScore);
+  const minPriority=$('legalReviewMinPriority').value;
+
+  const p=new URLSearchParams({
+    limit:String(legalReviewState.limit),
+    offset:String(legalReviewState.offset)
+  });
+  const summaryParams=new URLSearchParams();
+  if(status)p.set('queue_status',status); else p.set('queue_status','');
+  if(category){p.set('category',category);summaryParams.set('category',category)}
+  if(lane){p.set('priority_lane',lane);summaryParams.set('priority_lane',lane)}
+  if(context){p.set('provision_context',context);summaryParams.set('provision_context',context)}
+  if(q){p.set('q',q);summaryParams.set('q',q)}
+  if(minScore){p.set('min_score',minScore);summaryParams.set('min_score',minScore)}
+  if(minPriority){p.set('min_review_priority',minPriority);summaryParams.set('min_review_priority',minPriority)}
+
   try{
-    const rows=await api('/legal-review-queue?'+p);
-    $('legalReviewSummary').textContent='表示 '+rows.length+'件（最大100件）';
+    const [rows,summary]=await Promise.all([
+      api('/legal-review-queue?'+p),
+      api('/legal-review-queue/summary?'+summaryParams)
+    ]);
+    const statusTotal=status?(summary.by_status?.[status]||0):summary.total;
+    legalReviewState.total=statusTotal;
+    const page=Math.floor(legalReviewState.offset/legalReviewState.limit)+1;
+    const pages=Math.max(1,Math.ceil(statusTotal/legalReviewState.limit));
+    $('legalReviewSummary').textContent='対象 '+statusTotal+'件 ・ 表示 '+rows.length+'件';
+    $('legalReviewStats').innerHTML=
+      '<span class="pill">全体 '+esc(summary.total)+'</span>'+
+      '<span class="pill">未確認 '+esc(summary.by_status?.pending||0)+'</span>'+
+      '<span class="pill">レビュー済み '+esc(summary.by_status?.reviewed||0)+'</span>'+
+      '<span class="pill active">草案化 '+esc(summary.by_status?.drafted||0)+'</span>'+
+      '<span class="pill">対象外 '+esc(summary.by_status?.ignored||0)+'</span>';
+    $('legalReviewPageInfo').textContent=page+' / '+pages;
+    $('legalReviewPrev').disabled=legalReviewState.offset===0;
+    $('legalReviewNext').disabled=legalReviewState.offset+legalReviewState.limit>=statusTotal;
     box.innerHTML=rows.map(x=>{
       const p=x.provision||{};
       const label=[p.display_label,p.heading_text].filter(Boolean).join(' ')||p.provision_key||'条文';
@@ -342,14 +386,19 @@ async function loadLegalReview(){
     }).join('')||'<div class="empty">該当候補はありません。</div>';
   }catch(e){
     $('legalReviewSummary').textContent='';
+    $('legalReviewStats').innerHTML='';
+    $('legalReviewPageInfo').textContent='';
     box.innerHTML='<div class="conflict">法令レビュー候補を取得できません: '+esc(e.message)+'</div>';
   }
+}
+function changeLegalReviewPage(dir){
+  loadLegalReview(legalReviewState.offset+dir*legalReviewState.limit);
 }
 
 async function updateLegalReview(id,version,nextStatus){
   try{
     await api('/legal-review-queue/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:version,status:nextStatus})});
-    await loadLegalReview();
+    await loadLegalReview(legalReviewState.offset);
   }catch(e){alert('更新できません: '+e.message)}
 }
 
@@ -358,7 +407,7 @@ async function draftLegalRuleFromReview(id,version,defaultName){
   if(name===null)return;
   try{
     await api('/legal-review-queue/'+id+'/draft',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:version,proposed_name:name||null})});
-    await loadLegalReview();
+    await loadLegalReview(legalReviewState.offset);
     alert('未解釈のRule草案を作成しました。条件・結論の職員入力後にReviewできます。');
   }catch(e){alert('Rule草案を作成できません: '+e.message)}
 }
