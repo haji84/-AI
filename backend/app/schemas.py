@@ -707,3 +707,11 @@ class LegalProvisionReviewCandidatePatch(BaseModel):
 class LegalProvisionReviewCandidateDraft(BaseModel):
     expected_version: int = Field(ge=1)
     proposed_name: str | None = Field(default=None, min_length=1, max_length=300)
+
+
+class LegalReviewQueueSummaryOut(BaseModel):
+    total: int
+    by_status: dict[str, int] = Field(default_factory=dict)
+    by_category: dict[str, int] = Field(default_factory=dict)
+    by_priority_lane: dict[str, int] = Field(default_factory=dict)
+    by_provision_context: dict[str, int] = Field(default_factory=dict)
