@@ -730,3 +730,45 @@ Implemented on branch `phase6-occupancy-bulk-zip`; CI verification pending:
 - regression test reproduces the verified e-Gov artifact layout
 
 This fixes the first real official-corpus failure where the Actions artifact contained the nationwide bulk ZIP rather than loose XML files.
+
+
+## Phase 6 official Schedule 1 verified catalog
+
+Verified against the real e-Gov national-law artifact:
+- workflow run: `37272303236` SUCCESS
+- artifact: `occupancy-classification-worklist` (artifact ID `11329130740`)
+- law title: 消防法施行令
+- law number: 昭和三十六年政令第三十七号
+- target: 別表第一
+- official source XML SHA-256: `245b01995baddd226f5a29dfb08ee7d7e95737be601072a264f2d1a07735a5bb`
+- Schedule rows: 22
+- practical classification entries: 35
+- flat catalog entries: 35
+- sample verified codes: （一）イ, （一）ロ, （二）イ, （二）ロ, （二）ハ, （二）ニ, （三）イ, （三）ロ
+
+The catalog contains official classification identity and text only.
+Applicability conditions remain Human-authored.
+
+## Phase 6 occupancy authoring skeleton import
+
+Implemented on branch `phase6-occupancy-authoring-import`; CI verification pending:
+- official occupancy catalog dry-run/apply importer
+- exact target law ID/title verification
+- source XML SHA must match stored LegalSourceDocumentVersion
+- legal structure parser v2 is required
+- exact `table_row` LegalProvision is required
+- catalog official text must be present in the cited row provision
+- pending LegalRuleDraftCandidate skeleton creation
+- proposed classification identity/outcome is imported
+- proposed_conditions remains empty by design
+- exact row citation is attached automatically
+- idempotent candidate fingerprint
+- public arbitrary Draft creation rules remain unchanged
+- existing Human review gate rejects empty conditions
+- promoted Rule Version still requires separate Human approval
+
+Next gate:
+1. ensure the stored official source version is restructured with legal-structure-v2
+2. import the verified 35-entry catalog
+3. Human-author applicability conditions for each pending skeleton
+4. review/promotion/approval remain separate Human gates
