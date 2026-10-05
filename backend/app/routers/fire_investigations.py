@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from ..audit import write_audit
 from ..authz import require_permission
 from ..db import get_db
+from ..fire_transcript_semantics import extract_uncertainty_markers, transcript_search_text, transcript_text_sha256, unique_uncertainty_labels
 from ..models import (
     Document,
     Facility,
@@ -178,6 +179,8 @@ def _segment_out(row: FireTranscriptSegment) -> FireTranscriptSegmentOut:
         end_ms=row.end_ms,
         speaker_label=row.speaker_label,
         text=row.text,
+        uncertainty_markers=row.uncertainty_markers or [],
+        text_sha256=row.text_sha256,
         confidence=row.confidence,
         source_kind=row.source_kind,
         model_version=row.model_version,
@@ -194,6 +197,8 @@ def _statement_out(row: FireStatementDraft) -> FireStatementDraftOut:
         person_label=row.person_label,
         draft_text=row.draft_text,
         evidence_segment_ids=row.evidence_segment_ids or [],
+        source_uncertainty_markers=row.source_uncertainty_markers or [],
+        uncertainty_reviewed=bool(row.uncertainty_reviewed),
         ai_generated=row.ai_generated,
         model_version=row.model_version,
         status=row.status,
@@ -784,6 +789,9 @@ def ingest_transcript_ai_manifest(
             end_ms=item.end_ms,
             speaker_label=item.speaker_label,
             text=item.text,
+            uncertainty_markers=extract_uncertainty_markers(item.text),
+            text_sha256=transcript_text_sha256(item.text),
+            search_text=transcript_search_text(speaker_label=item.speaker_label, text=item.text),
             confidence=item.confidence,
             source_kind="ai",
             model_version=payload.model_version,
@@ -827,6 +835,9 @@ def create_transcript_segment(
         end_ms=payload.end_ms,
         speaker_label=payload.speaker_label,
         text=payload.text,
+        uncertainty_markers=extract_uncertainty_markers(payload.text),
+        text_sha256=transcript_text_sha256(payload.text),
+        search_text=transcript_search_text(speaker_label=payload.speaker_label, text=payload.text),
         confidence=payload.confidence,
         source_kind=payload.source_kind,
         model_version=payload.model_version,
@@ -885,6 +896,7 @@ def review_transcript_segment(
             version=payload.expected_version + 1,
             reviewed_by=user.user_id,
             reviewed_at=datetime.now(timezone.utc),
+            uncertainty_reviewed=payload.uncertainty_reviewed if payload.status == "reviewed" else False,
             updated_at=datetime.now(timezone.utc),
         )
     )
@@ -967,6 +979,9 @@ def ingest_statement_ai_manifest(
 
     ids: list[str] = []
     for item, _segments in validated:
+        source_uncertainty = unique_uncertainty_labels(
+            [marker for segment in _segments for marker in (segment.uncertainty_markers or [])]
+        )
         row = FireStatementDraft(
             fire_investigation_case_id=case_id,
             fire_investigation_media_id=item.fire_investigation_media_id,
@@ -974,6 +989,8 @@ def ingest_statement_ai_manifest(
             person_label=item.person_label,
             draft_text=item.draft_text,
             evidence_segment_ids=item.evidence_segment_ids,
+            source_uncertainty_markers=source_uncertainty,
+            uncertainty_reviewed=False,
             ai_generated=True,
             model_version=payload.model_version,
             status="draft",
@@ -1013,6 +1030,7 @@ def create_statement_draft(
         media = _require_media(db, payload.fire_investigation_media_id)
         if media.fire_investigation_case_id != case_id:
             raise HTTPException(status_code=422, detail="statement media belongs to another case")
+    evidence_segments: list[FireTranscriptSegment] = []
     for segment_id in payload.evidence_segment_ids:
         segment = db.get(FireTranscriptSegment, segment_id)
         if not segment:
@@ -1020,12 +1038,18 @@ def create_statement_draft(
         media = db.get(FireInvestigationMedia, segment.fire_investigation_media_id)
         if not media or media.fire_investigation_case_id != case_id:
             raise HTTPException(status_code=422, detail="evidence segment belongs to another case")
+        evidence_segments.append(segment)
+    source_uncertainty = unique_uncertainty_labels(
+        [marker for segment in evidence_segments for marker in (segment.uncertainty_markers or [])]
+    )
     row = FireStatementDraft(
         fire_investigation_case_id=case_id,
         fire_investigation_media_id=payload.fire_investigation_media_id,
         person_label=payload.person_label,
         draft_text=payload.draft_text,
         evidence_segment_ids=payload.evidence_segment_ids,
+        source_uncertainty_markers=source_uncertainty,
+        uncertainty_reviewed=False,
         ai_generated=payload.ai_generated,
         model_version=payload.model_version,
         status="draft",
@@ -1057,6 +1081,15 @@ def review_statement_draft(
     row = db.get(FireStatementDraft, statement_id)
     if not row:
         raise HTTPException(status_code=404, detail="statement draft not found")
+    if (
+        payload.status == "reviewed"
+        and row.source_uncertainty_markers
+        and not payload.uncertainty_reviewed
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail="source transcript contains uncertainty markers; explicit uncertainty_reviewed confirmation is required",
+        )
     result = db.execute(
         update(FireStatementDraft)
         .where(
