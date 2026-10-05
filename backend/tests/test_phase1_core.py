@@ -4573,6 +4573,38 @@ def test_phase6_drawing_consultation_requires_classification_before_equipment():
     assert marker["geometry"]["y"]==50.0
     assert marker["status"]=="candidate"
 
+    response=client.get(
+        f"/drawing-consultations/{cid}/response",
+        params={"evaluation_date":"2026-10-05"},
+    )
+    assert response.status_code==200
+    package=response.json()
+    assert package["answer_state"]=="partial"
+    assert package["reviewable"] is False
+    assert package["coverage_complete"] is False
+    assert package["classification"]["code"]=="TEST-A"
+    assert len(package["required_equipment"])==1
+    assert package["required_equipment"][0]["equipment_type_code"]=="consult-test-extinguisher"
+    add_action=next(
+        x for x in package["equipment_actions"]
+        if x["equipment_type_code"]=="consult-test-extinguisher"
+    )
+    assert add_action["action"]=="add_candidate"
+    assert len(package["overlay_markers"])==1
+    assert package["overlay_markers"][0]["room_ref"]=="room-1"
+    assert package["overlay_markers"][0]["equipment_type_code"]=="consult-test-extinguisher"
+
+    blocked_review=client.post(
+        f"/drawing-consultations/{cid}/response/review",
+        json={
+            "expected_version":body["version"],
+            "evaluation_date":"2026-10-05",
+            "review_notes":"Coverage incomplete, so this must not be accepted.",
+        },
+    )
+    assert blocked_review.status_code==409
+    assert blocked_review.json()["detail"]["answer_state"]=="partial"
+
 
 def test_phase6_manual_classification_requires_human_note():
     login()
