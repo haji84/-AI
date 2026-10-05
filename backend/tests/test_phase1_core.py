@@ -4138,3 +4138,72 @@ def test_phase6_drawing_benchmark_registry_human_gate_and_comparison():
         "result_payload":{"benchmark_format":"unknown-v99"}
     })
     assert bad.status_code==422
+
+
+def test_phase6_drawing_benchmark_registry_preserves_na_metrics():
+    login()
+
+    def payload(marker):
+        return {
+            "benchmark_format":"fire-ai-drawing-benchmark-v1",
+            "manifest_sha256":marker*64,
+            "aggregate":{
+                "drawing_count":1,
+                "geometry_detection":{
+                    "true_positive":2,
+                    "false_positive":0,
+                    "false_negative":0,
+                    "precision":1.0,
+                    "recall":1.0,
+                    "f1":1.0,
+                    "mean_iou":0.9,
+                    "element_type_accuracy":1.0,
+                },
+                "symbol_classification":{
+                    "reference_scored":0,
+                    "correct":0,
+                    "accuracy":None,
+                    "applicable":False,
+                },
+                "equipment_candidates":{
+                    "true_positive":0,
+                    "false_positive":0,
+                    "false_negative":0,
+                    "precision":None,
+                    "recall":None,
+                    "f1":None,
+                    "applicable":False,
+                },
+                "fact_candidates":{
+                    "true_positive":0,
+                    "false_positive":0,
+                    "false_negative":0,
+                    "precision":None,
+                    "recall":None,
+                    "f1":None,
+                    "applicable":False,
+                },
+            },
+        }
+
+    left=client.post("/drawing-benchmarks",json={
+        "dataset_label":"N/A A",
+        "result_payload":payload("c")
+    })
+    right=client.post("/drawing-benchmarks",json={
+        "dataset_label":"N/A B",
+        "result_payload":payload("d")
+    })
+    assert left.status_code==201 and right.status_code==201
+
+    compared=client.get("/drawing-benchmarks/compare",params={
+        "left_id":left.json()["drawing_benchmark_run_id"],
+        "right_id":right.json()["drawing_benchmark_run_id"],
+    })
+    assert compared.status_code==200
+    metrics=compared.json()["metrics"]
+    assert metrics["symbol_accuracy"]["left"] is None
+    assert metrics["symbol_accuracy"]["delta_right_minus_left"] is None
+    assert metrics["symbol_accuracy"]["applicable"] is False
+    assert metrics["equipment_f1"]["delta_right_minus_left"] is None
+    assert metrics["equipment_f1"]["applicable"] is False

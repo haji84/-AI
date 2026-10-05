@@ -583,3 +583,24 @@ Verified checkpoint:
 External Gate remains:
 - real Human-labeled architectural drawing dataset has not yet been benchmarked
 - production acceptance thresholds remain Human-set after Baseline review
+
+
+## Phase 6 real-drawing benchmark hardening
+
+Triggered by first supplied residential reference drawing:
+- optional categories with no Human Reference targets no longer report fake perfect scores
+- zero-reference/zero-hypothesis category -> applicable=false and null metric
+- false-positive-only category remains scored and penalized
+- symbol/equipment/fact N/A values are preserved through Benchmark Run comparison API
+- benchmark contract documents N/A semantics
+
+CI-verified on branch `phase6-drawing-benchmark-na-hardening`.
+
+Verified hardening checkpoint:
+- run: `37267047053` SUCCESS
+- backend pytest: 101 passed
+- migration parser smoke: PASS
+- frontend JavaScript syntax: PASS
+
+The supplied residential plan is suitable for Geometry and Facility fact extraction Baseline.
+It is not sufficient by itself for fire-equipment symbol accuracy coverage.

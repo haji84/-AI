@@ -46,10 +46,17 @@ def _validate_result(payload: dict) -> tuple[str, str | None, int]:
     if not isinstance(geometry, dict):
         raise HTTPException(status_code=422, detail="geometry_detection aggregate is required")
     for key in ("precision", "recall", "f1", "mean_iou", "element_type_accuracy"):
-        value = float(geometry.get(key, 0))
+        raw = geometry.get(key)
+        if raw is None:
+            continue
+        value = float(raw)
         if not 0 <= value <= 1:
             raise HTTPException(status_code=422, detail=f"{key} must be between 0 and 1")
     return fmt, manifest_sha, drawing_count
+
+
+def _optional_float(value):
+    return None if value is None else float(value)
 
 
 def _metric_values(payload: dict) -> dict:
@@ -60,13 +67,23 @@ def _metric_values(payload: dict) -> dict:
     facts = aggregate.get("fact_candidates") or {}
     drawing_count = max(1, int(aggregate.get("drawing_count", 1)))
     return {
-        "geometry_f1": float(geometry.get("f1", 0)),
-        "mean_iou": float(geometry.get("mean_iou", 0)),
-        "element_type_accuracy": float(geometry.get("element_type_accuracy", 0)),
-        "symbol_accuracy": float(symbols.get("accuracy", 0)),
-        "equipment_f1": float(equipment.get("f1", 0)),
-        "fact_f1": float(facts.get("f1", 0)),
+        "geometry_f1": _optional_float(geometry.get("f1")),
+        "mean_iou": _optional_float(geometry.get("mean_iou")),
+        "element_type_accuracy": _optional_float(geometry.get("element_type_accuracy")),
+        "symbol_accuracy": _optional_float(symbols.get("accuracy")),
+        "equipment_f1": _optional_float(equipment.get("f1")),
+        "fact_f1": _optional_float(facts.get("f1")),
         "geometry_false_positives_per_drawing": float(geometry.get("false_positive", 0)) / drawing_count,
+    }
+
+
+def _comparison_metric(left, right, *, higher_is_better: bool) -> dict:
+    return {
+        "left": left,
+        "right": right,
+        "delta_right_minus_left": None if left is None or right is None else right - left,
+        "higher_is_better": higher_is_better,
+        "applicable": left is not None and right is not None,
     }
 
 
@@ -103,18 +120,14 @@ def compare_drawing_benchmarks(
     rm = _metric_values(right.result_payload or {})
     metrics = {}
     for name in ("geometry_f1", "mean_iou", "element_type_accuracy", "symbol_accuracy", "equipment_f1", "fact_f1"):
-        metrics[name] = {
-            "left": lm[name],
-            "right": rm[name],
-            "delta_right_minus_left": rm[name] - lm[name],
-            "higher_is_better": True,
-        }
+        metrics[name] = _comparison_metric(lm[name], rm[name], higher_is_better=True)
     name = "geometry_false_positives_per_drawing"
     metrics[name] = {
         "left": lm[name],
         "right": rm[name],
         "delta_right_minus_left": rm[name] - lm[name],
         "lower_is_better": True,
+        "applicable": True,
     }
     return DrawingBenchmarkComparisonOut(
         left_id=left.drawing_benchmark_run_id,
