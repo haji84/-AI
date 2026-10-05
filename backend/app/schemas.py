@@ -1873,3 +1873,36 @@ class EquipmentPlacementRegressionRunOut(BaseModel):
     version: int
     created_at: str
     reviewed_at: str | None = None
+
+
+class DrawingConsultationResponseReview(BaseModel):
+    expected_version: int = Field(ge=1)
+    evaluation_date: str | None = None
+    review_notes: str | None = None
+
+class DrawingConsultationResponseOut(BaseModel):
+    response_format: str
+    evaluation_date: str
+    consultation_id: str
+    source: dict
+    classification: dict
+    input_snapshot: dict
+    existing_equipment: list
+    required_equipment: list
+    equipment_actions: list
+    placement_results: list
+    overlay_markers: list
+    citations: list
+    cited_provision_hashes: list
+    unresolved_questions: list
+    coverage: dict
+    coverage_complete: bool
+    blockers: list
+    answer_state: str
+    reviewable: bool
+    response_sha256: str
+    saved_response_sha256: str | None = None
+    review_current: bool
+    review_stale: bool
+    reviewed_at: str | None = None
+    response_review_notes: str | None = None
