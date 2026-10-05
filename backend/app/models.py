@@ -1587,3 +1587,40 @@ class DrawingAnnotationSet(Base):
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
+class DrawingConsultation(Base):
+    __tablename__ = "drawing_consultations"
+    drawing_consultation_id: Mapped[str] = mapped_column(
+        Uuid(as_uuid=False), primary_key=True, default=uuid_str
+    )
+    drawing_analysis_id: Mapped[str] = mapped_column(
+        ForeignKey("drawing_analyses.drawing_analysis_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    drawing_annotation_set_id: Mapped[str] = mapped_column(
+        ForeignKey("drawing_annotation_sets.drawing_annotation_set_id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    status: Mapped[str] = mapped_column(String(40), nullable=False, default="draft", index=True)
+    input_snapshot: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    classification_results: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    missing_information: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    confirmed_classification_code: Mapped[str | None] = mapped_column(String(100))
+    confirmed_classification_label: Mapped[str | None] = mapped_column(Text)
+    confirmed_classification_rule_version_id: Mapped[str | None] = mapped_column(
+        ForeignKey("legal_rule_versions.legal_rule_version_id")
+    )
+    classification_confirmed_by: Mapped[str | None] = mapped_column(ForeignKey("app_users.user_id"))
+    classification_confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    equipment_results: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    placement_results: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    consultation_notes: Mapped[str | None] = mapped_column(Text)
+    version: Mapped[int] = mapped_column(BigInteger, nullable=False, default=1)
+    created_by: Mapped[str | None] = mapped_column(ForeignKey("app_users.user_id"))
+    reviewed_by: Mapped[str | None] = mapped_column(ForeignKey("app_users.user_id"))
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)

@@ -453,7 +453,7 @@ class FacilityChangeProposalApply(BaseModel):
 class LegalRuleCreate(BaseModel):
     rule_code: str = Field(min_length=1, max_length=150)
     name: str = Field(min_length=1, max_length=300)
-    domain: Literal["submission_requirement", "equipment_requirement"]
+    domain: Literal["submission_requirement", "equipment_requirement", "occupancy_classification", "equipment_placement"]
     description: str | None = None
 
 class LegalRuleOut(BaseModel):
@@ -628,7 +628,7 @@ class LegalSourceDocumentVersionOut(BaseModel):
 
 class LegalRuleDraftCandidateCreate(BaseModel):
     source_legal_document_version_id: str | None = None
-    domain: Literal["submission_requirement","equipment_requirement"]
+    domain: Literal["submission_requirement","equipment_requirement","occupancy_classification","equipment_placement"]
     proposed_rule_code: str | None = None
     proposed_name: str = Field(min_length=1, max_length=300)
     proposed_conditions: dict
@@ -1580,3 +1580,46 @@ class DrawingAnnotationSetOut(BaseModel):
     version: int
     created_at: str
     reviewed_at: str | None = None
+
+
+class DrawingConsultationCreate(BaseModel):
+    drawing_annotation_set_id: str
+    answers: dict = Field(default_factory=dict)
+    notes: str | None = None
+
+class DrawingConsultationUpdateAnswers(BaseModel):
+    expected_version: int = Field(ge=1)
+    answers: dict
+
+class DrawingConsultationClassify(BaseModel):
+    expected_version: int = Field(ge=1)
+    evaluation_date: str | None = None
+
+class DrawingConsultationClassificationConfirm(BaseModel):
+    expected_version: int = Field(ge=1)
+    classification_code: str = Field(min_length=1, max_length=100)
+    classification_label: str = Field(min_length=1)
+    candidate_rule_version_id: str | None = None
+    review_note: str | None = None
+
+class DrawingConsultationEquipmentEvaluate(BaseModel):
+    expected_version: int = Field(ge=1)
+    evaluation_date: str | None = None
+
+class DrawingConsultationOut(BaseModel):
+    drawing_consultation_id: str
+    drawing_analysis_id: str
+    drawing_annotation_set_id: str
+    status: str
+    input_snapshot: dict
+    classification_results: list = Field(default_factory=list)
+    missing_information: list = Field(default_factory=list)
+    confirmed_classification_code: str | None = None
+    confirmed_classification_label: str | None = None
+    confirmed_classification_rule_version_id: str | None = None
+    equipment_results: list = Field(default_factory=list)
+    placement_results: list = Field(default_factory=list)
+    consultation_notes: str | None = None
+    version: int
+    created_at: str
+    classification_confirmed_at: str | None = None

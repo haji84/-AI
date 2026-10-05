@@ -54,8 +54,16 @@ ALLOWED_FIELDS = {
     "occupancy_total",
     "employee_total",
     "floor_count",
+    "primary_use",
+    "use_tags",
+    "has_sleeping_use",
+    "has_food_service",
+    "public_access",
+    "mixed_use",
+    "windowless_floor_count",
+    "equipment_type_code",
 }
-ALLOWED_OPS = {"eq", "ne", "in", "contains", "gte", "lte", "gt", "lt", "exists"}
+ALLOWED_OPS = {"eq", "ne", "in", "contains", "contains_any", "contains_all", "gte", "lte", "gt", "lt", "exists"}
 
 
 def _date(value: str | None, *, required: bool = False) -> date | None:
@@ -269,7 +277,7 @@ def legal_rule_coverage(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("legal_rule.read")),
 ):
-    tracked_domains = ("equipment_requirement", "submission_requirement")
+    tracked_domains = ("equipment_requirement", "submission_requirement", "occupancy_classification", "equipment_placement")
 
     def nested(rows):
         out: dict[str, dict[str, int]] = {domain: {} for domain in tracked_domains}

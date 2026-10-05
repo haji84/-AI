@@ -52,7 +52,7 @@ def clause_result(clause: dict, snapshot: dict) -> dict:
     matched = False
     try:
         if op == "exists":
-            matched = actual not in (None, "")
+            matched = actual not in (None, "", [], {})
         elif op == "eq":
             matched = actual == expected
         elif op == "ne":
@@ -60,7 +60,22 @@ def clause_result(clause: dict, snapshot: dict) -> dict:
         elif op == "in":
             matched = actual in expected if isinstance(expected, list) else False
         elif op == "contains":
-            matched = str(expected) in str(actual) if actual is not None else False
+            if isinstance(actual, (list, tuple, set)):
+                matched = expected in actual
+            else:
+                matched = str(expected) in str(actual) if actual is not None else False
+        elif op == "contains_any":
+            matched = (
+                isinstance(actual, (list, tuple, set))
+                and isinstance(expected, list)
+                and any(x in actual for x in expected)
+            )
+        elif op == "contains_all":
+            matched = (
+                isinstance(actual, (list, tuple, set))
+                and isinstance(expected, list)
+                and all(x in actual for x in expected)
+            )
         elif op == "gte":
             matched = actual is not None and actual >= expected
         elif op == "lte":
@@ -88,14 +103,86 @@ def match_conditions(conditions: dict, snapshot: dict) -> tuple[bool, dict]:
     return all_ok and any_ok, {"all": all_results, "any": any_results}
 
 
-def evaluate_approved_requirement_rules(
+def _active_version(
     db: Session,
     *,
-    facility: Facility,
+    rule_id: str,
+    evaluation_date: date,
+) -> LegalRuleVersion | None:
+    versions = db.scalars(
+        select(LegalRuleVersion)
+        .where(
+            LegalRuleVersion.rule_id == rule_id,
+            LegalRuleVersion.status == "approved",
+            LegalRuleVersion.effective_from <= evaluation_date,
+        )
+        .order_by(LegalRuleVersion.version_no.desc())
+    ).all()
+    return next(
+        (
+            x
+            for x in versions
+            if x.effective_to is None or x.effective_to >= evaluation_date
+        ),
+        None,
+    )
+
+
+def approved_rule_count(
+    db: Session,
+    *,
     domain: str,
     evaluation_date: date,
-) -> tuple[dict, list[dict]]:
-    snapshot = facility_snapshot(db, facility)
+) -> int:
+    rules = db.scalars(
+        select(LegalRule).where(
+            LegalRule.active.is_(True),
+            LegalRule.domain == domain,
+        )
+    ).all()
+    return sum(
+        1
+        for rule in rules
+        if _active_version(db, rule_id=rule.rule_id, evaluation_date=evaluation_date)
+    )
+
+
+def required_input_fields_for_domain(
+    db: Session,
+    *,
+    domain: str,
+    evaluation_date: date,
+) -> set[str]:
+    fields: set[str] = set()
+    rules = db.scalars(
+        select(LegalRule).where(
+            LegalRule.active.is_(True),
+            LegalRule.domain == domain,
+        )
+    ).all()
+    for rule in rules:
+        version = _active_version(
+            db,
+            rule_id=rule.rule_id,
+            evaluation_date=evaluation_date,
+        )
+        if not version:
+            continue
+        conditions = version.conditions or {}
+        for clause in list(conditions.get("all") or []) + list(conditions.get("any") or []):
+            field = clause.get("field")
+            if field:
+                fields.add(str(field))
+    return fields
+
+
+def evaluate_approved_rules_for_snapshot(
+    db: Session,
+    *,
+    snapshot: dict,
+    domain: str,
+    evaluation_date: date,
+) -> list[dict]:
     rules = db.scalars(
         select(LegalRule)
         .where(
@@ -107,22 +194,10 @@ def evaluate_approved_requirement_rules(
 
     results: list[dict] = []
     for rule in rules:
-        versions = db.scalars(
-            select(LegalRuleVersion)
-            .where(
-                LegalRuleVersion.rule_id == rule.rule_id,
-                LegalRuleVersion.status == "approved",
-                LegalRuleVersion.effective_from <= evaluation_date,
-            )
-            .order_by(LegalRuleVersion.version_no.desc())
-        ).all()
-        version = next(
-            (
-                x
-                for x in versions
-                if x.effective_to is None or x.effective_to >= evaluation_date
-            ),
-            None,
+        version = _active_version(
+            db,
+            rule_id=rule.rule_id,
+            evaluation_date=evaluation_date,
         )
         if not version:
             continue
@@ -168,5 +243,21 @@ def evaluate_approved_requirement_rules(
                 "decision_status": "candidate",
             }
         )
+    return results
 
+
+def evaluate_approved_requirement_rules(
+    db: Session,
+    *,
+    facility: Facility,
+    domain: str,
+    evaluation_date: date,
+) -> tuple[dict, list[dict]]:
+    snapshot = facility_snapshot(db, facility)
+    results = evaluate_approved_rules_for_snapshot(
+        db,
+        snapshot=snapshot,
+        domain=domain,
+        evaluation_date=evaluation_date,
+    )
     return snapshot, results
