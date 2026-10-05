@@ -4609,3 +4609,248 @@ def test_phase6_manual_classification_requires_human_note():
     })
     assert confirmed.status_code==200
     assert confirmed.json()["confirmed_classification_rule_version_id"] is None
+
+
+
+def test_phase6_occupancy_catalog_import_creates_pending_skeletons_only():
+    from app.models import (
+        LegalJurisdiction,
+        LegalProvision,
+        LegalRuleDraftCandidate,
+        LegalSource,
+        LegalSourceDocument,
+        LegalSourceDocumentVersion,
+    )
+
+    login()
+    source_sha = "a" * 64
+    row_key = "appendix_table:1/table_row:row-test"
+    with SessionLocal() as db:
+        jurisdiction = LegalJurisdiction(
+            code="TEST-OCC-JP",
+            name="国",
+            jurisdiction_type="national",
+        )
+        db.add(jurisdiction)
+        db.flush()
+        source = LegalSource(
+            jurisdiction_id=jurisdiction.jurisdiction_id,
+            source_code="egov-test-occ",
+            name="e-Gov test",
+            source_type="law",
+            adapter_type="manual",
+            base_url="https://example.invalid/",
+        )
+        db.add(source)
+        db.flush()
+        document = LegalSourceDocument(
+            legal_source_id=source.legal_source_id,
+            external_id="336CO0000000037",
+            document_type="cabinet_order",
+            title="消防法施行令",
+            document_number="昭和三十六年政令第三十七号",
+        )
+        db.add(document)
+        db.flush()
+        version = LegalSourceDocumentVersion(
+            legal_source_document_id=document.legal_source_document_id,
+            normalized_text="別表第一 （三） イ 待合、料理店 ロ 飲食店",
+            structured_content={},
+            sha256=source_sha,
+            structure_status="structured",
+            structure_parser_version="legal-structure-v2",
+            provision_count=1,
+        )
+        db.add(version)
+        db.flush()
+        provision = LegalProvision(
+            legal_source_document_version_id=version.legal_source_document_version_id,
+            provision_type="table_row",
+            provision_key=row_key,
+            sequence_no=1,
+            body_text="（三） イ 待合、料理店その他これらに類するもの ロ 飲食店",
+            source_path=row_key,
+            source_meta={"xml_tag": "TableRow"},
+            content_sha256="b" * 64,
+        )
+        db.add(provision)
+        db.commit()
+        source_version_id = version.legal_source_document_version_id
+
+    catalog = {
+        "format": "fire-ai-occupancy-classification-catalog-v1",
+        "law_title": "消防法施行令",
+        "law_number": "昭和三十六年政令第三十七号",
+        "target_appendix": "別表第一",
+        "source_xml_sha256": source_sha,
+        "classification_entry_count": 1,
+        "entries": [
+            {
+                "classification_code": "（三）ロ",
+                "classification_label": "飲食店",
+                "official_text": "ロ 飲食店",
+                "detail_sentences": [],
+                "source_row_no": 3,
+                "source_entry_no": 2,
+                "row_provision_key": row_key,
+                "row_sha256": "d" * 64,
+                "entry_sha256": "c" * 64,
+                "proposed_rule_code": "OCC-S1-R03-E02",
+                "proposed_name": "令別表第一 （三）ロ",
+                "proposed_conditions": {},
+                "proposed_outcome": {
+                    "decision": "classification_candidate",
+                    "classification_code": "（三）ロ",
+                    "classification_label": "飲食店",
+                },
+                "human_review_status": "pending",
+                "conditions_authoring_status": "required",
+            }
+        ],
+        "policy": {
+            "official_identity_only": True,
+            "applicability_conditions_authored": False,
+            "human_review_required": True,
+            "auto_approve": False,
+        },
+    }
+
+    dry = client.post(
+        "/legal-rule-drafts/imports/occupancy-catalog",
+        json={"catalog": catalog, "apply": False},
+    )
+    assert dry.status_code == 200
+    assert dry.json()["stats"]["inserted"] == 1
+    assert dry.json()["stats"]["resolved_source_version_id"] == source_version_id
+    with SessionLocal() as db:
+        assert db.scalar(select(LegalRuleDraftCandidate)) is None
+
+    applied = client.post(
+        "/legal-rule-drafts/imports/occupancy-catalog",
+        json={"catalog": catalog, "apply": True},
+    )
+    assert applied.status_code == 200
+    assert applied.json()["stats"]["inserted"] == 1
+
+    listed = client.get(
+        "/legal-rule-drafts",
+        params={"domain": "occupancy_classification"},
+    )
+    assert listed.status_code == 200
+    assert len(listed.json()) == 1
+    draft = listed.json()[0]
+    draft_id = draft["legal_rule_draft_candidate_id"]
+    assert draft["status"] == "pending"
+    assert draft["proposed_rule_code"] == "OCC-S1-R03-E02"
+    assert draft["proposed_conditions"] == {}
+    assert draft["proposed_outcome"]["classification_code"] == "（三）ロ"
+    assert len(draft["citations"]) == 1
+    assert draft["citations"][0]["provision"]["provision_key"] == row_key
+
+    repeated = client.post(
+        "/legal-rule-drafts/imports/occupancy-catalog",
+        json={"catalog": catalog, "apply": True},
+    )
+    assert repeated.status_code == 200
+    assert repeated.json()["stats"]["inserted"] == 0
+    assert repeated.json()["stats"]["unchanged"] == 1
+
+    blocked = client.post(
+        f"/legal-rule-drafts/{draft_id}/review",
+        json={"expected_version": 1, "status": "reviewed"},
+    )
+    assert blocked.status_code == 409
+    assert "proposed_conditions" in str(blocked.json())
+
+
+def test_phase6_occupancy_catalog_import_requires_parser_v2_source():
+    from app.models import (
+        LegalJurisdiction,
+        LegalProvision,
+        LegalSource,
+        LegalSourceDocument,
+        LegalSourceDocumentVersion,
+    )
+
+    login()
+    source_sha = "e" * 64
+    row_key = "appendix_table:1/table_row:row-old-parser"
+    with SessionLocal() as db:
+        jurisdiction = LegalJurisdiction(
+            code="TEST-OCC-OLD",
+            name="国",
+            jurisdiction_type="national",
+        )
+        db.add(jurisdiction)
+        db.flush()
+        source = LegalSource(
+            jurisdiction_id=jurisdiction.jurisdiction_id,
+            source_code="egov-test-old",
+            name="e-Gov old parser test",
+            source_type="law",
+            adapter_type="manual",
+            base_url="https://example.invalid/",
+        )
+        db.add(source)
+        db.flush()
+        document = LegalSourceDocument(
+            legal_source_id=source.legal_source_id,
+            external_id="336CO0000000037",
+            document_type="cabinet_order",
+            title="消防法施行令",
+        )
+        db.add(document)
+        db.flush()
+        version = LegalSourceDocumentVersion(
+            legal_source_document_id=document.legal_source_document_id,
+            normalized_text="別表第一",
+            structured_content={},
+            sha256=source_sha,
+            structure_status="structured",
+            structure_parser_version="legal-structure-v1",
+            provision_count=1,
+        )
+        db.add(version)
+        db.flush()
+        db.add(
+            LegalProvision(
+                legal_source_document_version_id=version.legal_source_document_version_id,
+                provision_type="appendix_table",
+                provision_key="appendix_table:1",
+                sequence_no=1,
+                body_text="別表第一",
+                content_sha256="f" * 64,
+            )
+        )
+        db.commit()
+
+    catalog = {
+        "format": "fire-ai-occupancy-classification-catalog-v1",
+        "law_title": "消防法施行令",
+        "source_xml_sha256": source_sha,
+        "classification_entry_count": 1,
+        "entries": [
+            {
+                "classification_code": "（三）ロ",
+                "classification_label": "飲食店",
+                "official_text": "ロ 飲食店",
+                "row_provision_key": row_key,
+                "entry_sha256": "1" * 64,
+                "proposed_rule_code": "OCC-S1-R03-E02",
+                "proposed_name": "令別表第一 （三）ロ",
+                "proposed_outcome": {
+                    "decision": "classification_candidate",
+                    "classification_code": "（三）ロ",
+                    "classification_label": "飲食店",
+                },
+            }
+        ],
+    }
+
+    result = client.post(
+        "/legal-rule-drafts/imports/occupancy-catalog",
+        json={"catalog": catalog, "apply": True},
+    )
+    assert result.status_code == 200
+    assert result.json()["stats"]["parser_upgrade_required"] == 1
+    assert result.json()["stats"]["inserted"] == 0

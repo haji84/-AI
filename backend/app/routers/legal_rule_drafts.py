@@ -11,6 +11,7 @@ from ..authz import require_permission
 from ..db import get_db
 from ..legal_rule_validation import validate_rule_conditions
 from ..legal_outcome_validation import validate_rule_outcome_references
+from ..occupancy_authoring_import import import_occupancy_catalog
 from ..models import (
     LegalProvision,
     LegalRule,
@@ -29,6 +30,8 @@ from ..schemas import (
     LegalRuleDraftCandidatePromote,
     LegalRuleDraftCandidateReview,
     LegalRuleDraftCitationOut,
+    OccupancyCatalogImportRequest,
+    OccupancyCatalogImportOut,
 )
 
 router = APIRouter(prefix="/legal-rule-drafts", tags=["legal-rule-drafts"])
@@ -150,6 +153,50 @@ def _validate_citations(
             raise HTTPException(status_code=422, detail="draft citation belongs to another source version")
         rows.append(provision)
     return rows
+
+
+
+
+@router.post("/imports/occupancy-catalog", response_model=OccupancyCatalogImportOut)
+def import_occupancy_catalog_endpoint(
+    payload: OccupancyCatalogImportRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("legal_rule.manage")),
+):
+    try:
+        stats = import_occupancy_catalog(
+            db,
+            payload.catalog,
+            apply=payload.apply,
+            created_by=user.user_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+    if payload.apply:
+        write_audit(
+            db,
+            user_id=user.user_id,
+            action="occupancy_catalog.import",
+            entity_type="legal_rule_draft_candidate",
+            entity_id=None,
+            after={
+                "stats": stats.as_dict(),
+                "source_xml_sha256": payload.catalog.get("source_xml_sha256"),
+                "catalog_format": payload.catalog.get("format"),
+            },
+        )
+        db.commit()
+
+    return OccupancyCatalogImportOut(
+        apply=payload.apply,
+        stats=stats.as_dict(),
+        note=(
+            "This import creates pending occupancy-classification authoring skeletons only. "
+            "Applicability conditions must be Human-authored before review, and promoted Rule "
+            "Versions still require separate Human approval."
+        ),
+    )
 
 
 @router.get("", response_model=list[LegalRuleDraftCandidateOut])

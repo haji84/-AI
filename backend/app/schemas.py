@@ -1623,3 +1623,13 @@ class DrawingConsultationOut(BaseModel):
     version: int
     created_at: str
     classification_confirmed_at: str | None = None
+
+
+class OccupancyCatalogImportRequest(BaseModel):
+    catalog: dict
+    apply: bool = False
+
+class OccupancyCatalogImportOut(BaseModel):
+    apply: bool
+    stats: dict
+    note: str
