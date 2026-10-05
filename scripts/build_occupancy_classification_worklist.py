@@ -300,6 +300,69 @@ def extract_schedule_one(data: bytes) -> dict:
     }
 
 
+
+def build_catalog(worklist: dict) -> dict:
+    entries = []
+    for row in worklist.get("rows", []):
+        for entry in row.get("classification_entries", []):
+            entries.append(
+                {
+                    "classification_code": entry["classification_code"],
+                    "classification_label": entry["classification_label"],
+                    "official_text": entry["official_text"],
+                    "detail_sentences": entry["detail_sentences"],
+                    "source_row_no": row["row_no"],
+                    "source_entry_no": entry["entry_no"],
+                    "row_provision_key": row["row_provision_key"],
+                    "row_sha256": row["row_sha256"],
+                    "entry_sha256": entry["entry_sha256"],
+                    "proposed_rule_code": entry["proposed_rule_code"],
+                    "proposed_name": entry["proposed_name"],
+                    "proposed_conditions": entry["proposed_conditions"],
+                    "proposed_outcome": entry["proposed_outcome"],
+                    "human_review_status": entry["human_review_status"],
+                    "conditions_authoring_status": entry["conditions_authoring_status"],
+                }
+            )
+    return {
+        "format": "fire-ai-occupancy-classification-catalog-v1",
+        "law_title": worklist.get("law_title"),
+        "law_number": worklist.get("law_number"),
+        "target_appendix": worklist.get("target_appendix"),
+        "source_xml_sha256": worklist.get("source_xml_sha256"),
+        "source_path": worklist.get("source_path"),
+        "classification_entry_count": len(entries),
+        "entries": entries,
+        "policy": {
+            "official_identity_only": True,
+            "applicability_conditions_authored": False,
+            "human_review_required": True,
+            "auto_approve": False,
+        },
+    }
+
+
+def validate_expected_shape(worklist: dict) -> None:
+    if worklist.get("row_count") != 22:
+        raise ValueError(
+            f"Schedule 1 row count changed: expected 22, got {worklist.get('row_count')}"
+        )
+    if worklist.get("classification_entry_count") != 35:
+        raise ValueError(
+            "Schedule 1 classification entry count changed: "
+            f"expected 35, got {worklist.get('classification_entry_count')}"
+        )
+    codes = {
+        entry.get("classification_code")
+        for row in worklist.get("rows", [])
+        for entry in row.get("classification_entries", [])
+    }
+    required_codes = {"（一）イ", "（三）ロ", "（六）ロ", "（十六）イ", "（二十）"}
+    missing = sorted(required_codes - codes)
+    if missing:
+        raise ValueError(f"Expected Schedule 1 classification codes missing: {missing}")
+
+
 def find_target_xml(root_dir: Path) -> tuple[Path, bytes]:
     candidates = sorted(root_dir.rglob("*.xml"))
     if not candidates:
@@ -323,6 +386,12 @@ def main() -> int:
     source.add_argument("--xml", type=Path)
     source.add_argument("--root-dir", type=Path)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--catalog-output", type=Path)
+    parser.add_argument(
+        "--validate-current-shape",
+        action="store_true",
+        help="Fail if the official Schedule 1 shape no longer matches the reviewed 22-row/35-entry baseline.",
+    )
     args = parser.parse_args()
 
     if args.xml:
@@ -333,12 +402,21 @@ def main() -> int:
 
     result = extract_schedule_one(data)
     result["source_path"] = str(source_path)
+    if args.validate_current_shape:
+        validate_expected_shape(result)
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(
         json.dumps(result, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
+    if args.catalog_output:
+        catalog = build_catalog(result)
+        args.catalog_output.parent.mkdir(parents=True, exist_ok=True)
+        args.catalog_output.write_text(
+            json.dumps(catalog, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
     return 0
 
 
