@@ -831,3 +831,114 @@ class FacilityEquipmentRequirementComplianceOut(BaseModel):
     items: list[EquipmentRequirementComparisonItemOut] = Field(default_factory=list)
     unmapped_rules: list[dict] = Field(default_factory=list)
     note: str
+
+
+class DrawingAnalysisCreate(BaseModel):
+    document_id: str
+    analysis_method: Literal["ai","manual","import"] = "ai"
+    model_version: str | None = None
+    page_count: int | None = Field(default=None, ge=1)
+    confidence: float | None = Field(default=None, ge=0, le=1)
+    summary: dict = Field(default_factory=dict)
+    evidence: dict = Field(default_factory=dict)
+
+class DrawingAnalysisOut(BaseModel):
+    drawing_analysis_id: str
+    building_id: str
+    document_id: str
+    status: str
+    analysis_method: str
+    model_version: str | None = None
+    page_count: int | None = None
+    confidence: float | None = None
+    summary: dict
+    evidence: dict
+    version: int
+    created_at: str
+
+class DrawingElementCreate(BaseModel):
+    page_no: int = Field(default=1, ge=1)
+    element_type: str = Field(min_length=1, max_length=80)
+    label: str | None = None
+    floor_number: int | None = None
+    geometry: dict = Field(default_factory=dict)
+    extracted_data: dict = Field(default_factory=dict)
+    confidence: float | None = Field(default=None, ge=0, le=1)
+    source_kind: Literal["ai","manual","import"] = "ai"
+
+class DrawingElementOut(BaseModel):
+    drawing_element_id: str
+    drawing_analysis_id: str
+    page_no: int
+    element_type: str
+    label: str | None = None
+    floor_number: int | None = None
+    geometry: dict
+    extracted_data: dict
+    confidence: float | None = None
+    source_kind: str
+    review_status: str
+
+class DrawingEquipmentCandidateCreate(BaseModel):
+    drawing_element_id: str | None = None
+    suggested_equipment_type_code: str | None = None
+    suggested_label: str | None = None
+    floor_number: int | None = None
+    location_text: str | None = None
+    quantity: int | None = Field(default=None, ge=0)
+    confidence: float | None = Field(default=None, ge=0, le=1)
+
+class DrawingEquipmentCandidateReview(BaseModel):
+    expected_version: int = Field(ge=1)
+    status: Literal["accepted","rejected"]
+
+class DrawingEquipmentCandidatePromote(BaseModel):
+    expected_version: int = Field(ge=1)
+    equipment_type_code: str | None = None
+    notes: str | None = None
+
+class DrawingEquipmentCandidateOut(BaseModel):
+    drawing_equipment_candidate_id: str
+    drawing_analysis_id: str
+    drawing_element_id: str | None = None
+    equipment_type_id: str | None = None
+    suggested_equipment_type_code: str | None = None
+    suggested_label: str | None = None
+    floor_number: int | None = None
+    location_text: str | None = None
+    quantity: int | None = None
+    confidence: float | None = None
+    status: str
+    facility_equipment_id: str | None = None
+    version: int
+
+class DrawingFactCandidateCreate(BaseModel):
+    drawing_element_id: str | None = None
+    target_path: str = Field(min_length=1, max_length=200)
+    proposed_value: dict
+    confidence: float | None = Field(default=None, ge=0, le=1)
+    evidence: dict = Field(default_factory=dict)
+
+class DrawingFactCandidateReview(BaseModel):
+    expected_version: int = Field(ge=1)
+    status: Literal["accepted","rejected"]
+
+class DrawingFactCandidateOut(BaseModel):
+    drawing_fact_candidate_id: str
+    drawing_analysis_id: str
+    drawing_element_id: str | None = None
+    target_path: str
+    proposed_value: dict
+    confidence: float | None = None
+    evidence: dict
+    status: str
+    version: int
+
+class DrawingAnalysisReview(BaseModel):
+    expected_version: int = Field(ge=1)
+
+class DrawingAnalysisDetailOut(BaseModel):
+    analysis: DrawingAnalysisOut
+    elements: list[DrawingElementOut] = Field(default_factory=list)
+    equipment_candidates: list[DrawingEquipmentCandidateOut] = Field(default_factory=list)
+    fact_candidates: list[DrawingFactCandidateOut] = Field(default_factory=list)
