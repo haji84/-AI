@@ -6337,7 +6337,8 @@ def test_phase6_equipment_placement_batch_coverage_tracks_ignore_and_approved_ru
             },
             "proposed_outcome":{
                 "equipment_type_code":"placement-batch-equipment",
-                "placement_mode":"manual_with_constraints",
+                "placement_mode":"room_candidate",
+                "target_room_use":["assembly_room"],
                 "constraints":{"max_distance_m":20}
             },
             "rationale":"Human-authored placement requirement test",
@@ -6380,6 +6381,154 @@ def test_phase6_equipment_placement_batch_coverage_tracks_ignore_and_approved_ru
     assert done["coverage_complete"] is False
     assert done["regression_gate_passed"] is False
     assert any("regression" in x for x in done["blockers"])
+
+    rooms = [
+        {
+            "client_ref":"room-assembly",
+            "page_no":1,
+            "floor_number":1,
+            "element_type":"room",
+            "label":"集会室",
+            "geometry":{"x":0,"y":0,"width":100,"height":50},
+            "extracted_data":{"use_name":"assembly_room"},
+        },
+        {
+            "client_ref":"room-office",
+            "page_no":1,
+            "floor_number":1,
+            "element_type":"room",
+            "label":"事務室",
+            "geometry":{"x":200,"y":0,"width":80,"height":40},
+            "extracted_data":{"use_name":"office"},
+        },
+    ]
+    case = client.post(
+        "/equipment-placement-regression/cases",
+        json={
+            "worklist_sha256":batch_sha,
+            "name":"集会室への配置候補",
+            "input_snapshot":{
+                "classification_code":"TEST-P",
+                "primary_use":"assembly"
+            },
+            "rooms":rooms,
+            "equipment_type_codes":["placement-batch-equipment"],
+            "expected_results":[{
+                "equipment_type_code":"placement-batch-equipment",
+                "expected_state":"placement_candidate",
+                "expected_room_refs":["room-assembly"],
+                "expected_constraints":[{"max_distance_m":20}],
+            }],
+            "notes":"Human-reviewed placement fixture",
+        },
+    )
+    assert case.status_code == 201
+    case_id = case.json()["equipment_placement_test_case_id"]
+    reviewed_case = client.post(
+        f"/equipment-placement-regression/cases/{case_id}/review",
+        json={"expected_version":1,"status":"reviewed"},
+    )
+    assert reviewed_case.status_code == 200
+
+    run = client.post(
+        "/equipment-placement-regression/runs",
+        json={
+            "worklist_sha256":batch_sha,
+            "evaluation_date":"2026-10-05",
+        },
+    )
+    assert run.status_code == 201
+    run_body = run.json()
+    assert run_body["case_count"] == 1
+    assert run_body["passed_case_count"] == 1
+    assert run_body["failed_case_count"] == 0
+    assert run_body["state_mismatch_case_count"] == 0
+    assert run_body["marker_mismatch_case_count"] == 0
+    assert run_body["constraint_mismatch_case_count"] == 0
+    assert run_body["result_payload"]["overall_pass"] is True
+    eq = run_body["result_payload"]["cases"][0]["equipment_results"][0]
+    assert eq["actual_room_refs"] == ["room-assembly"]
+    assert eq["marker_geometry_checks"][0]["actual_center"] == {"x":50.0,"y":25.0}
+    assert eq["marker_geometry_checks"][0]["matches_room_center"] is True
+    run_id = run_body["equipment_placement_test_run_id"]
+
+    accepted = client.post(
+        f"/equipment-placement-regression/runs/{run_id}/review",
+        json={
+            "expected_version":1,
+            "human_decision":"accepted_regression",
+            "review_notes":"Human accepted placement regression",
+        },
+    )
+    assert accepted.status_code == 200
+
+    completed = client.get(
+        "/legal-review-queue/equipment-placement/coverage",
+        params={"worklist_sha256":batch_sha,"evaluation_date":"2026-10-05"},
+    ).json()["coverage"]
+    assert completed["authoring_coverage_complete"] is True
+    assert completed["regression_gate_passed"] is True
+    assert completed["accepted_regression_run_id"] == run_id
+    assert completed["coverage_complete"] is True
+    assert completed["blockers"] == []
+
+    wrong_case = client.post(
+        "/equipment-placement-regression/cases",
+        json={
+            "worklist_sha256":batch_sha,
+            "name":"誤期待ケース",
+            "input_snapshot":{
+                "classification_code":"TEST-P",
+                "primary_use":"assembly"
+            },
+            "rooms":rooms,
+            "equipment_type_codes":["placement-batch-equipment"],
+            "expected_results":[{
+                "equipment_type_code":"placement-batch-equipment",
+                "expected_state":"placement_candidate",
+                "expected_room_refs":["room-office"],
+                "expected_constraints":[{"max_distance_m":20}],
+            }],
+        },
+    )
+    assert wrong_case.status_code == 201
+    wrong_id = wrong_case.json()["equipment_placement_test_case_id"]
+    assert client.post(
+        f"/equipment-placement-regression/cases/{wrong_id}/review",
+        json={"expected_version":1,"status":"reviewed"},
+    ).status_code == 200
+
+    stale_suite = client.get(
+        "/legal-review-queue/equipment-placement/coverage",
+        params={"worklist_sha256":batch_sha,"evaluation_date":"2026-10-05"},
+    ).json()["coverage"]
+    assert stale_suite["regression_gate_passed"] is False
+    assert stale_suite["coverage_complete"] is False
+
+    failed_run = client.post(
+        "/equipment-placement-regression/runs",
+        json={
+            "worklist_sha256":batch_sha,
+            "evaluation_date":"2026-10-05",
+        },
+    )
+    assert failed_run.status_code == 201
+    failed_body = failed_run.json()
+    assert failed_body["case_count"] == 2
+    assert failed_body["failed_case_count"] == 1
+    assert failed_body["marker_mismatch_case_count"] == 1
+    assert failed_body["result_payload"]["overall_pass"] is False
+
+    blocked_accept = client.post(
+        f"/equipment-placement-regression/runs/{failed_body['equipment_placement_test_run_id']}/review",
+        json={
+            "expected_version":1,
+            "human_decision":"accepted_regression",
+            "review_notes":"Must be blocked",
+        },
+    )
+    assert blocked_accept.status_code == 409
+    assert "did not pass" in str(blocked_accept.json())
 
     with SessionLocal() as db:
         provision = db.scalar(
