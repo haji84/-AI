@@ -1515,7 +1515,9 @@ function renderDrawingWorkspace(){
   }
   consultHtml+='</div>';
   const responseHtml=renderDrawingResponse(state.drawingResponse);
-  $('drawingWorkspaceBody').innerHTML='<div class="drawingWorkspaceGrid"><div><div class="row" style="margin-bottom:8px"><b class="grow">'+esc(doc.original_filename)+'</b><a class="btn" target="_blank" href="/documents/'+encodeURIComponent(doc.document_id)+'/download">原本を開く</a></div>'+preview+'</div><div class="drawingWorkspaceSide">'+annHtml+consultHtml+responseHtml+'</div></div>';
+  const hypothesisLink=(a.analysis_method==='ai'&&['analyzed','reviewed'].includes(a.status))?'<a class="btn" target="_blank" href="/drawing-analyses/'+encodeURIComponent(a.drawing_analysis_id)+'/benchmark-hypothesis">AI Hypothesis JSON</a>':'';
+  const referenceLink=(ann?.status==='reviewed')?'<a class="btn" target="_blank" href="/drawing-annotations/'+encodeURIComponent(ann.drawing_annotation_set_id)+'/benchmark-reference">Human Reference JSON</a>':'';
+  $('drawingWorkspaceBody').innerHTML='<div class="drawingWorkspaceGrid"><div><div class="row" style="margin-bottom:8px"><b class="grow">'+esc(doc.original_filename)+'</b>'+referenceLink+hypothesisLink+'<a class="btn" target="_blank" href="/documents/'+encodeURIComponent(doc.document_id)+'/download">原本を開く</a></div>'+preview+'</div><div class="drawingWorkspaceSide">'+annHtml+consultHtml+responseHtml+'</div></div>';
   setTimeout(renderDrawingOverlay,0);
 }
 
