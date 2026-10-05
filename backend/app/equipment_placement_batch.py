@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .equipment_authoring_batch import _draft_terminal_state
+from .equipment_placement_engine import placement_rule_engine_fingerprint
 from .legal_authoring_import import (
     WORKLIST_IMPORT_VERSION,
     _resolve_provision,
@@ -16,6 +17,8 @@ from .legal_authoring_import import (
 from .models import (
     EquipmentPlacementAuthoringBatch,
     EquipmentPlacementBatchCandidate,
+    EquipmentPlacementTestCase,
+    EquipmentPlacementTestRun,
     LegalProvision,
     LegalProvisionReviewCandidate,
 )
@@ -221,6 +224,39 @@ def import_equipment_placement_batch(
     return result
 
 
+
+def placement_test_suite_fingerprint(
+    db: Session,
+    *,
+    worklist_sha256: str,
+) -> str | None:
+    rows = db.scalars(
+        select(EquipmentPlacementTestCase)
+        .where(
+            EquipmentPlacementTestCase.worklist_sha256 == worklist_sha256,
+            EquipmentPlacementTestCase.status == "reviewed",
+        )
+        .order_by(
+            EquipmentPlacementTestCase.name,
+            EquipmentPlacementTestCase.created_at,
+        )
+    ).all()
+    if not rows:
+        return None
+    payload = [
+        {
+            "test_case_id": row.equipment_placement_test_case_id,
+            "version": row.version,
+            "name": row.name,
+            "input_snapshot": row.input_snapshot or {},
+            "rooms": row.rooms or [],
+            "equipment_type_codes": row.equipment_type_codes or [],
+            "expected_results": row.expected_results or [],
+        }
+        for row in rows
+    ]
+    return _canonical_sha(payload)
+
 def equipment_placement_batch_coverage(
     db: Session,
     *,
@@ -356,6 +392,47 @@ def equipment_placement_batch_coverage(
     if processed_count != expected:
         blockers.append(f"processed candidates {processed_count}/{expected}")
 
+    current_rule_engine_fingerprint = placement_rule_engine_fingerprint(
+        db,
+        evaluation_date=evaluation_date,
+    )
+    current_test_suite_fingerprint = placement_test_suite_fingerprint(
+        db,
+        worklist_sha256=batch.worklist_sha256,
+    )
+    accepted_runs = db.scalars(
+        select(EquipmentPlacementTestRun)
+        .where(
+            EquipmentPlacementTestRun.worklist_sha256 == batch.worklist_sha256,
+            EquipmentPlacementTestRun.review_status == "reviewed",
+            EquipmentPlacementTestRun.human_decision == "accepted_regression",
+        )
+        .order_by(EquipmentPlacementTestRun.reviewed_at.desc())
+    ).all()
+    matching_accepted_run = next(
+        (
+            run for run in accepted_runs
+            if (run.result_payload or {}).get("rule_engine_fingerprint")
+            == current_rule_engine_fingerprint
+            and (run.result_payload or {}).get("test_suite_fingerprint")
+            == current_test_suite_fingerprint
+            and (run.result_payload or {}).get("evaluation_date")
+            == evaluation_date.isoformat()
+            and bool((run.result_payload or {}).get("overall_pass"))
+        ),
+        None,
+    )
+    regression_gate_passed = matching_accepted_run is not None
+    if authoring_coverage_complete and not regression_gate_passed:
+        blockers.append(
+            "accepted placement regression run is missing or stale for "
+            "the current Rule/test-suite fingerprints"
+        )
+
+    final_coverage_complete = bool(
+        authoring_coverage_complete and regression_gate_passed
+    )
+
     return {
         "batch_found": True,
         "batch_id": batch.equipment_placement_authoring_batch_id,
@@ -367,16 +444,16 @@ def equipment_placement_batch_coverage(
         "evaluation_date": evaluation_date.isoformat(),
         "counts": counts,
         "authoring_coverage_complete": authoring_coverage_complete,
-        "coverage_complete": False,
-        "regression_gate_passed": False,
-        "blockers": (
-            blockers
-            + (
-                ["placement regression gate not implemented/accepted yet"]
-                if authoring_coverage_complete
-                else []
-            )
+        "current_rule_engine_fingerprint": current_rule_engine_fingerprint,
+        "current_test_suite_fingerprint": current_test_suite_fingerprint,
+        "regression_gate_passed": regression_gate_passed,
+        "accepted_regression_run_id": (
+            matching_accepted_run.equipment_placement_test_run_id
+            if matching_accepted_run
+            else None
         ),
+        "coverage_complete": final_coverage_complete,
+        "blockers": blockers,
         "source_metadata": batch.source_metadata or {},
         "items": items,
     }
