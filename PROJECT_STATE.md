@@ -844,7 +844,7 @@ Safety:
 
 ## Phase 6 occupancy classification regression gate
 
-Implemented on branch `phase6-occupancy-regression-gate`; CI verification pending:
+Implemented and CI-verified:
 - Migration 032 regression test case / run persistence
 - Human-authored regression test cases with Draft -> Review/Reject workflow
 - reviewed cases require exactly one expected classification code
@@ -863,6 +863,12 @@ Implemented on branch `phase6-occupancy-regression-gate`; CI verification pendin
 - occupancy Rule coverage_complete now requires a current Human-accepted passing regression run in addition to 35/35 Approved Rules
 - E2E covers 35/35 Approved -> incomplete without regression -> PASS+Human accept -> complete -> reviewed case change -> incomplete
 - E2E covers ambiguous double-hit -> regression FAIL -> Human acceptance blocked
+
+Verified checkpoint:
+- run: `37279357089` SUCCESS
+- backend pytest: 117 passed
+- Migration 032 parser smoke: PASS
+- frontend JavaScript syntax: PASS
 
 Safety:
 - regression cases and expected answers are Human-reviewed truth, not AI-generated truth
