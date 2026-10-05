@@ -427,6 +427,7 @@ def score_manifest(
         output.append(
             {
                 "recording_id": str(item.get("id") or f"recording-{index + 1}"),
+                "metadata": item.get("metadata") or {},
                 "reference": str(item["reference"]),
                 "reference_sha256": file_sha256(ref_path),
                 "hypothesis": str(item["hypothesis"]),
