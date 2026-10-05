@@ -322,3 +322,34 @@ def test_phase6_house_plan_001_geometry_draft_is_complete_but_not_accepted():
         assert len(points) >= 3
         assert all(0 <= x <= width and 0 <= y <= height for x, y in points)
         assert element["reference_meta"]["human_review_status"] == "pending"
+
+
+
+def test_phase6_drawing_benchmark_rejects_status_only_acceptance_when_human_gate_is_false(tmp_path):
+    mod = _mod()
+    reference = {
+        "reference_format": "fire-ai-drawing-human-reference-draft-v1",
+        "reference_status": "human_accepted",
+        "human_gate": {
+            "required": True,
+            "accepted": False,
+        },
+        "elements": [],
+        "equipment_candidates": [],
+        "fact_candidates": [],
+    }
+    hypothesis = {
+        "elements": [],
+        "equipment_candidates": [],
+        "fact_candidates": [],
+    }
+    ref_path = tmp_path / "reference.json"
+    hyp_path = tmp_path / "hypothesis.json"
+    ref_path.write_text(json.dumps(reference), encoding="utf-8")
+    hyp_path.write_text(json.dumps(hypothesis), encoding="utf-8")
+
+    try:
+        mod.score_pair(ref_path, hyp_path)
+        assert False, "expected ValueError"
+    except ValueError as exc:
+        assert "Human-accepted drawing reference is required" in str(exc)
