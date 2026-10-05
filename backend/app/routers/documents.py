@@ -1,4 +1,6 @@
+from pathlib import Path
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from ..db import get_db
 from ..models import Document, Facility, User
@@ -6,6 +8,7 @@ from ..schemas import DocumentOut
 from ..authz import require_permission
 from ..audit import write_audit
 from ..storage import store_upload
+from ..settings import settings
 
 router=APIRouter(prefix="/documents", tags=["documents"])
 
@@ -41,3 +44,24 @@ def get_document(document_id: str, db: Session = Depends(get_db), user: User = D
                        original_filename=doc.original_filename, sha256=doc.sha256,
                        size_bytes=doc.size_bytes, mime_type=doc.mime_type,
                        document_type=doc.document_type)
+
+@router.get("/{document_id}/download")
+def download_document(
+    document_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("document.read")),
+):
+    doc=db.get(Document,document_id)
+    if not doc:
+        raise HTTPException(status_code=404,detail="document not found")
+    root=Path(settings.storage_root).resolve()
+    path=(root/doc.storage_path).resolve()
+    if path != root and root not in path.parents:
+        raise HTTPException(status_code=409,detail="document path escapes managed storage")
+    if not path.exists() or not path.is_file():
+        raise HTTPException(status_code=404,detail="document file not found")
+    return FileResponse(
+        str(path),
+        media_type=doc.mime_type or "application/octet-stream",
+        filename=doc.original_filename,
+    )
