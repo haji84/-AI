@@ -1043,3 +1043,100 @@ class FacilityEquipment(Base):
     updated_by: Mapped[str | None] = mapped_column(ForeignKey("app_users.user_id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
+class DrawingAnalysis(Base):
+    __tablename__ = "drawing_analyses"
+    drawing_analysis_id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True, default=uuid_str)
+    building_id: Mapped[str] = mapped_column(ForeignKey("facilities.building_id", ondelete="CASCADE"), nullable=False, index=True)
+    document_id: Mapped[str] = mapped_column(ForeignKey("documents.document_id", ondelete="RESTRICT"), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="pending", index=True)
+    analysis_method: Mapped[str] = mapped_column(String(30), nullable=False, default="ai")
+    model_version: Mapped[str | None] = mapped_column(String(200))
+    page_count: Mapped[int | None] = mapped_column(Integer)
+    confidence: Mapped[float | None] = mapped_column(Float)
+    summary: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    evidence: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    version: Mapped[int] = mapped_column(BigInteger, nullable=False, default=1)
+    created_by: Mapped[str | None] = mapped_column(ForeignKey("app_users.user_id"))
+    reviewed_by: Mapped[str | None] = mapped_column(ForeignKey("app_users.user_id"))
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
+class DrawingElement(Base):
+    __tablename__ = "drawing_elements"
+    drawing_element_id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True, default=uuid_str)
+    drawing_analysis_id: Mapped[str] = mapped_column(
+        ForeignKey("drawing_analyses.drawing_analysis_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    page_no: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    element_type: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    label: Mapped[str | None] = mapped_column(Text)
+    floor_number: Mapped[int | None] = mapped_column(Integer)
+    geometry: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    extracted_data: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    confidence: Mapped[float | None] = mapped_column(Float)
+    source_kind: Mapped[str] = mapped_column(String(30), nullable=False, default="ai")
+    review_status: Mapped[str] = mapped_column(String(30), nullable=False, default="pending", index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
+class DrawingEquipmentCandidate(Base):
+    __tablename__ = "drawing_equipment_candidates"
+    drawing_equipment_candidate_id: Mapped[str] = mapped_column(
+        Uuid(as_uuid=False), primary_key=True, default=uuid_str
+    )
+    drawing_analysis_id: Mapped[str] = mapped_column(
+        ForeignKey("drawing_analyses.drawing_analysis_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    drawing_element_id: Mapped[str | None] = mapped_column(
+        ForeignKey("drawing_elements.drawing_element_id", ondelete="SET NULL")
+    )
+    equipment_type_id: Mapped[str | None] = mapped_column(ForeignKey("equipment_types.equipment_type_id"), index=True)
+    suggested_equipment_type_code: Mapped[str | None] = mapped_column(String(150))
+    suggested_label: Mapped[str | None] = mapped_column(Text)
+    floor_number: Mapped[int | None] = mapped_column(Integer)
+    location_text: Mapped[str | None] = mapped_column(Text)
+    quantity: Mapped[int | None] = mapped_column(Integer)
+    confidence: Mapped[float | None] = mapped_column(Float)
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="pending", index=True)
+    facility_equipment_id: Mapped[str | None] = mapped_column(
+        ForeignKey("facility_equipment.facility_equipment_id")
+    )
+    version: Mapped[int] = mapped_column(BigInteger, nullable=False, default=1)
+    reviewed_by: Mapped[str | None] = mapped_column(ForeignKey("app_users.user_id"))
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
+class DrawingFactCandidate(Base):
+    __tablename__ = "drawing_fact_candidates"
+    drawing_fact_candidate_id: Mapped[str] = mapped_column(
+        Uuid(as_uuid=False), primary_key=True, default=uuid_str
+    )
+    drawing_analysis_id: Mapped[str] = mapped_column(
+        ForeignKey("drawing_analyses.drawing_analysis_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    drawing_element_id: Mapped[str | None] = mapped_column(
+        ForeignKey("drawing_elements.drawing_element_id", ondelete="SET NULL")
+    )
+    target_path: Mapped[str] = mapped_column(String(200), nullable=False)
+    proposed_value: Mapped[dict] = mapped_column(JSON, nullable=False)
+    confidence: Mapped[float | None] = mapped_column(Float)
+    evidence: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="pending", index=True)
+    version: Mapped[int] = mapped_column(BigInteger, nullable=False, default=1)
+    reviewed_by: Mapped[str | None] = mapped_column(ForeignKey("app_users.user_id"))
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
