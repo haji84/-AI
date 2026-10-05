@@ -1311,3 +1311,33 @@ class FireReportExportOut(BaseModel):
     status: str
     error_detail: str | None = None
     created_at: str
+
+
+class FirePhotoProfileOut(BaseModel):
+    fire_photo_profile_id: str
+    fire_investigation_media_id: str
+    photo_number: int | None = None
+    image_width: int | None = None
+    image_height: int | None = None
+    orientation: int | None = None
+    exif_captured_at: str | None = None
+    camera_make: str | None = None
+    camera_model: str | None = None
+    exif_metadata: dict = Field(default_factory=dict)
+    exact_sha256: str
+    perceptual_hash: str | None = None
+    duplicate_of_media_id: str | None = None
+    duplicate_distance: int | None = None
+    brightness_score: float | None = None
+    contrast_score: float | None = None
+    sharpness_score: float | None = None
+    quality_flags: list[str] = Field(default_factory=list)
+    search_text: str = ""
+    analysis_version: str
+    analyzed_at: str
+
+class FirePhotoSearchItemOut(BaseModel):
+    media: FireInvestigationMediaOut
+    profile: FirePhotoProfileOut | None = None
+    accepted_annotations: list[FirePhotoAnnotationOut] = Field(default_factory=list)
+    search_score: int = 0
