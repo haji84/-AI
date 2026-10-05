@@ -3,11 +3,23 @@
   "recordings": [
     {
       "id": "example-001",
+      "metadata": {
+        "environment": "quiet_room",
+        "speaker_count": 2,
+        "noise_condition": "low",
+        "microphone": "example"
+      },
       "reference": "reference/example-001.json",
       "hypothesis": "hypothesis/example-001.json"
     },
     {
       "id": "example-002",
+      "metadata": {
+        "environment": "field_like",
+        "speaker_count": 2,
+        "noise_condition": "medium",
+        "microphone": "example"
+      },
       "reference": "reference/example-002.json",
       "hypothesis": "hypothesis/example-002.json"
     }
