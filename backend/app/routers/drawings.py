@@ -17,6 +17,7 @@ from ..models import (
     DrawingFactCandidate,
     EquipmentType,
     Facility,
+    FacilityDetail,
     FacilityEquipment,
     User,
 )
@@ -31,12 +32,52 @@ from ..schemas import (
     DrawingEquipmentCandidateOut,
     DrawingEquipmentCandidatePromote,
     DrawingEquipmentCandidateReview,
+    DrawingFactCandidateApply,
     DrawingFactCandidateCreate,
     DrawingFactCandidateOut,
     DrawingFactCandidateReview,
 )
 
 router = APIRouter(tags=["drawings"])
+
+DRAWING_FACT_APPLY_FIELDS = {
+    "detail.classification_code": ("classification_code", "str"),
+    "detail.classification_detail_1": ("classification_detail_1", "str"),
+    "detail.classification_detail_2": ("classification_detail_2", "str"),
+    "detail.structure": ("structure", "str"),
+    "detail.zoning": ("zoning", "str"),
+    "detail.article8_partition": ("article8_partition", "str"),
+    "detail.above_ground_floors": ("above_ground_floors", "int_nonnegative"),
+    "detail.basement_floors": ("basement_floors", "int_nonnegative"),
+    "detail.building_area": ("building_area", "number_nonnegative"),
+    "detail.total_floor_area": ("total_floor_area", "number_nonnegative"),
+    "detail.occupancy_total": ("occupancy_total", "int_nonnegative"),
+    "detail.employee_total": ("employee_total", "int_nonnegative"),
+}
+
+
+def _validated_fact_value(target_path: str, proposed: dict):
+    if target_path not in DRAWING_FACT_APPLY_FIELDS:
+        raise HTTPException(status_code=422, detail="target_path is not allowed for drawing fact application")
+    if not isinstance(proposed, dict) or "value" not in proposed:
+        raise HTTPException(status_code=422, detail="proposed_value must contain value")
+    value = proposed.get("value")
+    _field, kind = DRAWING_FACT_APPLY_FIELDS[target_path]
+    if kind == "str":
+        if value is not None and not isinstance(value, str):
+            raise HTTPException(status_code=422, detail="proposed value must be a string or null")
+        return value
+    if kind == "int_nonnegative":
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            raise HTTPException(status_code=422, detail="proposed value must be a non-negative integer")
+        return value
+    if kind == "number_nonnegative":
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0:
+            raise HTTPException(status_code=422, detail="proposed value must be a non-negative number")
+        return float(value)
+    raise HTTPException(status_code=422, detail="unsupported drawing fact target type")
+
+
 
 
 def _analysis_out(row: DrawingAnalysis) -> DrawingAnalysisOut:
@@ -101,6 +142,9 @@ def _fact_candidate_out(row: DrawingFactCandidate) -> DrawingFactCandidateOut:
         evidence=row.evidence or {},
         status=row.status,
         version=row.version,
+        applied_by=row.applied_by,
+        applied_at=row.applied_at.isoformat() if row.applied_at else None,
+        applied_facility_version=row.applied_facility_version,
     )
 
 
@@ -493,6 +537,98 @@ def review_drawing_fact_candidate(
         entity_type="drawing_fact_candidate",
         entity_id=row.drawing_fact_candidate_id,
         after=_fact_candidate_out(row).model_dump(mode="json"),
+    )
+    db.commit()
+    return _fact_candidate_out(row)
+
+
+@router.post(
+    "/drawing-fact-candidates/{candidate_id}/apply",
+    response_model=DrawingFactCandidateOut,
+)
+def apply_drawing_fact_candidate(
+    candidate_id: str,
+    payload: DrawingFactCandidateApply,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("drawing.review")),
+):
+    row = db.get(DrawingFactCandidate, candidate_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="drawing fact candidate not found")
+    if row.version != payload.expected_version:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="drawing fact candidate was updated")
+    if row.status != "accepted":
+        raise HTTPException(status_code=409, detail="drawing fact candidate must be accepted before apply")
+    if row.applied_at is not None:
+        raise HTTPException(status_code=409, detail="drawing fact candidate already applied")
+
+    analysis = db.get(DrawingAnalysis, row.drawing_analysis_id)
+    if not analysis:
+        raise HTTPException(status_code=409, detail="drawing analysis missing")
+    facility = db.get(Facility, analysis.building_id)
+    if not facility:
+        raise HTTPException(status_code=404, detail="facility not found")
+    if facility.version != payload.expected_facility_version:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "message": "facility was updated by another user",
+                "current_version": facility.version,
+            },
+        )
+
+    value = _validated_fact_value(row.target_path, row.proposed_value)
+    detail_field, _kind = DRAWING_FACT_APPLY_FIELDS[row.target_path]
+    detail = db.get(FacilityDetail, facility.building_id)
+    if detail is None:
+        detail = FacilityDetail(building_id=facility.building_id)
+        db.add(detail)
+        db.flush()
+
+    before_value = getattr(detail, detail_field)
+    setattr(detail, detail_field, value)
+    detail.updated_at = datetime.now(timezone.utc)
+
+    result = db.execute(
+        update(Facility)
+        .where(
+            Facility.building_id == facility.building_id,
+            Facility.version == payload.expected_facility_version,
+        )
+        .values(
+            version=payload.expected_facility_version + 1,
+            updated_at=datetime.now(timezone.utc),
+        )
+    )
+    if result.rowcount != 1:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="facility version changed during apply")
+
+    row.applied_by = user.user_id
+    row.applied_at = datetime.now(timezone.utc)
+    row.applied_facility_version = payload.expected_facility_version + 1
+    row.version += 1
+    row.updated_at = datetime.now(timezone.utc)
+
+    write_audit(
+        db,
+        user_id=user.user_id,
+        action="drawing_fact_candidate.apply",
+        entity_type="facility",
+        entity_id=facility.building_id,
+        before={
+            "target_path": row.target_path,
+            "value": before_value,
+            "facility_version": payload.expected_facility_version,
+        },
+        after={
+            "target_path": row.target_path,
+            "value": value,
+            "facility_version": payload.expected_facility_version + 1,
+            "drawing_fact_candidate_id": row.drawing_fact_candidate_id,
+        },
+        ai_used=analysis.analysis_method == "ai",
+        ai_model_version=analysis.model_version,
     )
     db.commit()
     return _fact_candidate_out(row)
