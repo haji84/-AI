@@ -693,7 +693,7 @@ Next legal-authoring gate:
 
 ## Phase 6 occupancy classification catalog
 
-Implemented on branch `phase6-occupancy-catalog`; CI verification pending:
+Implemented and CI-verified:
 - Schedule 1 worklist upgraded to v2
 - official TableRow structure split into practical classification identities
 - first-level イ/ロ/ハ/ニ groups become separate classification entries
@@ -705,6 +705,12 @@ Implemented on branch `phase6-occupancy-catalog`; CI verification pending:
 - flat occupancy classification catalog output
 - legal-change guard fails when reviewed Schedule shape changes
 - main push automatically rebuilds the official worklist/catalog from verified e-Gov artifact
+
+Verified checkpoint:
+- run: `37271737351` SUCCESS
+- backend pytest: 110 passed
+- migration parser smoke: PASS
+- frontend JavaScript syntax: PASS
 
 Next gate:
 1. merge and run the official-corpus workflow on main
