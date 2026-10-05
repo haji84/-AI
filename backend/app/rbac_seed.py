@@ -59,6 +59,7 @@ PERMISSIONS: dict[str, str] = {
     "fire_investigation.update": "火災調査ケース・派生情報更新",
     "fire_investigation.review": "火災調査AI候補・供述・原因候補レビュー",
     "fire_investigation.approve": "火災原因・正式報告承認",
+    "search.use": "権限範囲内の横断検索",
 }
 
 ROLE_POLICY: dict[str, dict] = {
@@ -160,6 +161,23 @@ ROLE_POLICY: dict[str, dict] = {
         "permissions": {"system.health.read", "audit.read"},
     },
 }
+
+
+SEARCH_ENABLED_ROLES = {
+    "prevention_editor",
+    "emergency_reporter",
+    "emergency_detail_viewer",
+    "extension_manager",
+    "contract_editor",
+    "contract_approver",
+    "legal_rule_manager",
+    "legal_rule_approver",
+    "fire_investigator",
+    "fire_investigation_approver",
+}
+for _role_code in SEARCH_ENABLED_ROLES:
+    if _role_code in ROLE_POLICY:
+        ROLE_POLICY[_role_code]["permissions"].add("search.use")
 
 
 def seed_rbac(db: Session) -> dict[str, Role]:
