@@ -5615,3 +5615,279 @@ def test_phase6_occupancy_regression_detects_ambiguous_matches_and_blocks_accept
     )
     assert blocked.status_code == 409
     assert "did not pass" in str(blocked.json())
+
+
+
+def test_phase6_equipment_requirement_batch_coverage_tracks_ignore_and_approved_rule():
+    from app.models import (
+        LegalJurisdiction,
+        LegalProvision,
+        LegalSource,
+        LegalSourceDocument,
+        LegalSourceDocumentVersion,
+    )
+
+    login()
+
+    equipment = client.post("/equipment-types", json={
+        "code":"batch-test-equipment",
+        "name":"Batch Test Equipment",
+        "category":"test",
+        "metadata":{}
+    })
+    assert equipment.status_code == 201
+
+    with SessionLocal() as db:
+        jurisdiction = LegalJurisdiction(
+            code="TEST-EQUIPMENT-BATCH",
+            name="国",
+            jurisdiction_type="national",
+        )
+        db.add(jurisdiction); db.flush()
+        source = LegalSource(
+            jurisdiction_id=jurisdiction.jurisdiction_id,
+            source_code="equipment-batch-source",
+            name="Equipment batch source",
+            source_type="law",
+            adapter_type="manual",
+            base_url="https://example.invalid/",
+        )
+        db.add(source); db.flush()
+        document = LegalSourceDocument(
+            legal_source_id=source.legal_source_id,
+            external_id="336CO0000000037",
+            document_type="cabinet_order",
+            title="消防法施行令",
+        )
+        db.add(document); db.flush()
+        version = LegalSourceDocumentVersion(
+            legal_source_document_id=document.legal_source_document_id,
+            normalized_text="設備要件テスト",
+            structured_content={},
+            sha256="c1"*32,
+            structure_status="structured",
+            structure_parser_version="legal-structure-v2",
+            provision_count=2,
+        )
+        db.add(version); db.flush()
+
+        p1 = LegalProvision(
+            legal_source_document_version_id=version.legal_source_document_version_id,
+            provision_type="article",
+            provision_key="article:設備候補一",
+            sequence_no=1,
+            body_text="設備候補一",
+            content_sha256="d1"*32,
+        )
+        p2 = LegalProvision(
+            legal_source_document_version_id=version.legal_source_document_version_id,
+            provision_type="article",
+            provision_key="article:設備候補二",
+            sequence_no=2,
+            body_text="設備候補二",
+            content_sha256="d2"*32,
+        )
+        db.add_all([p1,p2]); db.commit()
+
+    items = [
+        {
+            "scope":"national",
+            "document_title":"消防法施行令",
+            "source_ref":"336CO0000000037_20261005/file.xml",
+            "priority_lane":"highest",
+            "source_priority_score":4.0,
+            "provision_context":"main",
+            "context_priority_score":2.0,
+            "provision_key":"article:設備候補一",
+            "provision_content_sha256":"d1"*32,
+            "provision_type":"article",
+            "display_label":"第一候補",
+            "heading_text":None,
+            "body_text":"設備候補一",
+            "hits":[{
+                "category":"equipment_requirement",
+                "score":8.0,
+                "reasons":["設備"],
+                "review_priority_score":14.0,
+            }],
+        },
+        {
+            "scope":"national",
+            "document_title":"消防法施行令",
+            "source_ref":"336CO0000000037_20261005/file.xml",
+            "priority_lane":"highest",
+            "source_priority_score":4.0,
+            "provision_context":"main",
+            "context_priority_score":2.0,
+            "provision_key":"article:設備候補二",
+            "provision_content_sha256":"d2"*32,
+            "provision_type":"article",
+            "display_label":"第二候補",
+            "heading_text":None,
+            "body_text":"設備候補二",
+            "hits":[{
+                "category":"equipment_requirement",
+                "score":7.0,
+                "reasons":["設備"],
+                "review_priority_score":13.0,
+            }],
+        },
+    ]
+
+    dry = client.post(
+        "/legal-review-queue/imports/equipment-requirement-worklist",
+        json={
+            "items":items,
+            "source_metadata":{"artifact_id":999,"fixture":"unit-test"},
+            "apply":False,
+        },
+    )
+    assert dry.status_code == 200
+    dry_body = dry.json()["result"]
+    assert dry_body["expected_candidate_count"] == 2
+    assert dry_body["ready_to_apply"] is True
+    batch_sha = dry_body["worklist_sha256"]
+
+    applied = client.post(
+        "/legal-review-queue/imports/equipment-requirement-worklist",
+        json={
+            "items":items,
+            "source_metadata":{"artifact_id":999,"fixture":"unit-test"},
+            "apply":True,
+        },
+    )
+    assert applied.status_code == 200
+    app = applied.json()["result"]
+    assert app["applied"] is True
+    assert app["linked_candidate_count"] == 2
+    assert app["worklist_sha256"] == batch_sha
+
+    coverage = client.get(
+        "/legal-review-queue/equipment-requirement/coverage",
+        params={"worklist_sha256":batch_sha,"evaluation_date":"2026-10-05"},
+    )
+    assert coverage.status_code == 200
+    cov = coverage.json()["coverage"]
+    assert cov["expected_candidate_count"] == 2
+    assert cov["counts"]["pending"] == 2
+    assert cov["coverage_complete"] is False
+
+    candidates = client.get(
+        "/legal-review-queue",
+        params={"category":"equipment_requirement","queue_status":"pending","limit":10},
+    )
+    assert candidates.status_code == 200
+    rows = candidates.json()
+    assert len(rows) == 2
+    by_key = {x["provision"]["provision_key"]:x for x in rows}
+
+    ignored = client.patch(
+        f"/legal-review-queue/{by_key['article:設備候補一']['legal_provision_review_candidate_id']}",
+        json={"expected_version":1,"status":"ignored"},
+    )
+    assert ignored.status_code == 200
+    assert ignored.json()["status"] == "ignored"
+
+    reviewed = client.patch(
+        f"/legal-review-queue/{by_key['article:設備候補二']['legal_provision_review_candidate_id']}",
+        json={"expected_version":1,"status":"reviewed"},
+    )
+    assert reviewed.status_code == 200
+    review_id = reviewed.json()["legal_provision_review_candidate_id"]
+    assert reviewed.json()["version"] == 2
+
+    mid = client.get(
+        "/legal-review-queue/equipment-requirement/coverage",
+        params={"worklist_sha256":batch_sha,"evaluation_date":"2026-10-05"},
+    ).json()["coverage"]
+    assert mid["counts"]["ignored"] == 1
+    assert mid["counts"]["reviewed"] == 1
+    assert mid["coverage_complete"] is False
+
+    drafted = client.post(
+        f"/legal-review-queue/{review_id}/draft",
+        json={"expected_version":2,"proposed_name":"設備要件テストRule"},
+    )
+    assert drafted.status_code == 200
+    assert drafted.json()["status"] == "drafted"
+    draft_id = drafted.json()["legal_rule_draft_candidate_id"]
+
+    draft_list = client.get(
+        "/legal-rule-drafts",
+        params={"domain":"equipment_requirement","draft_status":"pending","limit":10},
+    )
+    assert draft_list.status_code == 200
+    draft = next(
+        x for x in draft_list.json()
+        if x["legal_rule_draft_candidate_id"] == draft_id
+    )
+
+    patched = client.patch(
+        f"/legal-rule-drafts/{draft_id}",
+        json={
+            "expected_version":draft["version"],
+            "proposed_rule_code":"TEST-EQUIPMENT-BATCH-RULE",
+            "proposed_conditions":{
+                "all":[{"field":"classification_code","op":"eq","value":"TEST-EQ"}]
+            },
+            "proposed_outcome":{
+                "decision":"required",
+                "equipment_type_code":"batch-test-equipment",
+                "comparison_mode":"presence"
+            },
+            "rationale":"Human-authored equipment requirement test",
+        },
+    )
+    assert patched.status_code == 200
+
+    reviewed_draft = client.post(
+        f"/legal-rule-drafts/{draft_id}/review",
+        json={"expected_version":patched.json()["version"],"status":"reviewed"},
+    )
+    assert reviewed_draft.status_code == 200
+
+    promoted = client.post(
+        f"/legal-rule-drafts/{draft_id}/promote",
+        json={
+            "expected_version":reviewed_draft.json()["version"],
+            "effective_from":"2026-01-01",
+        },
+    )
+    assert promoted.status_code == 200
+    rule_version_id = promoted.json()["promoted_rule_version_id"]
+
+    approved = client.post(
+        f"/legal-rules/versions/{rule_version_id}/approve",
+        json={"expected_version":1},
+    )
+    assert approved.status_code == 200
+
+    complete = client.get(
+        "/legal-review-queue/equipment-requirement/coverage",
+        params={"worklist_sha256":batch_sha,"evaluation_date":"2026-10-05"},
+    )
+    assert complete.status_code == 200
+    comp = complete.json()["coverage"]
+    assert comp["counts"]["ignored"] == 1
+    assert comp["counts"]["drafted"] == 1
+    assert comp["counts"]["draft_terminal_approved"] == 1
+    assert comp["processed_candidate_count"] == 2
+    assert comp["coverage_complete"] is True
+    assert comp["blockers"] == []
+
+    with SessionLocal() as db:
+        provision = db.scalar(
+            select(LegalProvision).where(
+                LegalProvision.provision_key == "article:設備候補二"
+            )
+        )
+        provision.content_sha256 = "ff"*32
+        db.commit()
+
+    stale = client.get(
+        "/legal-review-queue/equipment-requirement/coverage",
+        params={"worklist_sha256":batch_sha,"evaluation_date":"2026-10-05"},
+    ).json()["coverage"]
+    assert stale["counts"]["stale_source"] == 1
+    assert stale["coverage_complete"] is False
+    assert any("stale source" in x for x in stale["blockers"])
