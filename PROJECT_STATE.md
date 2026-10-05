@@ -1252,3 +1252,50 @@ Verified checkpoint:
 - backend pytest: 132 passed
 - migration parser smoke: PASS
 - frontend JavaScript syntax: PASS
+
+
+## Phase 6 DrawingAnalysis benchmark Hypothesis export
+
+Implemented and CI-verified:
+- `DrawingAnalysis` AI results can be exported as `fire-ai-drawing-hypothesis-v1`
+- export requires:
+  - `analysis_method=ai`
+  - status `analyzed` or `reviewed`
+  - non-empty `model_version`
+- export contains:
+  - source Document ID / filename / SHA-256 / MIME type
+  - DrawingAnalysis ID/version/status/model
+  - page count / confidence / summary / evidence
+  - elements
+  - equipment candidates
+  - Facility fact candidates
+- element references are stable DrawingElement IDs, so equipment/fact links remain intact
+- repeated export of an unchanged DrawingAnalysis is deterministic
+- pending AI analyses cannot be exported as benchmark Hypothesis
+- manual analyses cannot be exported as AI benchmark Hypothesis
+- drawing Benchmark now rejects Reference/Hypothesis source SHA-256 mismatch
+- drawing workspace exposes direct links to:
+  - reviewed Human Reference JSON
+  - analyzed AI Hypothesis JSON
+- house-plan-001 Baseline manifest template added
+- hypothesis directory workflow documented
+
+Target Baseline flow:
+1. Human confirms/corrects house-plan-001 Geometry Draft
+2. mark the Reference Human-accepted
+3. run Local Vision on the same source drawing
+4. export `/benchmark-hypothesis`
+5. verify source SHA matches `2df43a8f5cebe48f2a55ae8968714319ca05491088d98a1e6038fd0b10aa26b6`
+6. save as `benchmarks/phase6/hypothesis/house-plan-001.hypothesis.json`
+7. run `house-plan-001.baseline-manifest.template.json`
+8. persist Benchmark Run and send it through Human Baseline review
+
+External/Human gate remains:
+- house-plan-001 Reference is still pending Human acceptance
+- real Local Vision Hypothesis #001 has not yet been produced
+
+Verified checkpoint:
+- run: `37382418987` SUCCESS
+- backend pytest: 135 passed
+- migration parser smoke: PASS
+- frontend JavaScript syntax: PASS

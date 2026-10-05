@@ -1917,3 +1917,21 @@ class DrawingConsultationResponseOut(BaseModel):
     review_stale: bool
     reviewed_at: str | None = None
     response_review_notes: str | None = None
+
+
+class DrawingBenchmarkHypothesisOut(BaseModel):
+    hypothesis_format: str
+    drawing_analysis_id: str
+    analysis_version: int
+    analysis_status: str
+    analysis_method: str
+    model_version: str
+    page_count: int | None = None
+    confidence: float | None = None
+    summary: dict
+    evidence: dict
+    source: dict
+    elements: list[dict] = Field(default_factory=list)
+    equipment_candidates: list[dict] = Field(default_factory=list)
+    fact_candidates: list[dict] = Field(default_factory=list)
+    policy: str

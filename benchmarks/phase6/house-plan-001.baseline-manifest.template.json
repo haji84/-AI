@@ -1,0 +1,16 @@
+{
+  "iou_threshold": 0.5,
+  "drawings": [
+    {
+      "id": "house-plan-001",
+      "reference": "reference/house-plan-001.reference.json",
+      "hypothesis": "hypothesis/house-plan-001.hypothesis.json",
+      "metadata": {
+        "drawing_type": "residential_floor_plan",
+        "source_filename": "平面図-1024x745.jpg",
+        "source_sha256": "2df43a8f5cebe48f2a55ae8968714319ca05491088d98a1e6038fd0b10aa26b6",
+        "baseline_status": "blocked_until_human_reference_acceptance_and_ai_hypothesis_export"
+      }
+    }
+  ]
+}

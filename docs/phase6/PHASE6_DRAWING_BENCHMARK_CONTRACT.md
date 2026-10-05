@@ -152,3 +152,25 @@ Human Referenceとして明示されたReferenceは、Human確認前にBenchmark
 - AI/Assistantが作ったGeometry Draftを自分自身の正解として採点しない
 - Human修正前のopen-plan境界やcirculation境界を正式な正解値にしない
 - accepted Reference SHAをBaseline Evidenceへ固定する
+
+
+## Hypothesis export and source binding
+
+Local Vision / AI側のBenchmark入力は、`DrawingAnalysis`から次でexportする。
+
+```
+GET /drawing-analyses/{analysis_id}/benchmark-hypothesis
+```
+
+export条件:
+- `analysis_method=ai`
+- statusが`analyzed`または`reviewed`
+- `model_version`が存在する
+
+Hypothesisにはsource DocumentのSHA-256を含める。
+
+EvaluatorはReferenceとHypothesisの両方にsource SHA-256がある場合、値が一致しなければ実行を拒否する。
+
+これにより別図面のHuman ReferenceとAI結果を誤って比較しない。
+
+Human Reference側はReviewed Annotation exportまたは明示的Human acceptance済みRepository Referenceを使用する。

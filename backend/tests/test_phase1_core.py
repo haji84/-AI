@@ -6827,3 +6827,125 @@ def test_phase6_pdf_drawing_preview_info_and_page_png():
         f"/drawing-analyses/{aid}/pages/3/preview"
     )
     assert missing.status_code == 404
+
+
+
+def test_phase6_drawing_benchmark_hypothesis_export_is_stable_and_source_bound():
+    login()
+    facility=client.post(
+        "/facilities",
+        json={"name":"Phase6 Hypothesis Export対象"},
+    ).json()
+    bid=facility["building_id"]
+
+    upload=client.post(
+        "/documents/upload",
+        files={"file":("baseline-plan.png",b"baseline-plan-source","image/png")},
+        data={"document_type":"drawing","building_id":bid},
+    )
+    assert upload.status_code==201
+    doc=upload.json()
+
+    pending=client.post(
+        f"/facilities/{bid}/drawing-analyses",
+        json={
+            "document_id":doc["document_id"],
+            "analysis_method":"ai",
+            "model_version":"local-vision-baseline-v1",
+        },
+    )
+    assert pending.status_code==201
+    aid=pending.json()["drawing_analysis_id"]
+
+    blocked_pending=client.get(
+        f"/drawing-analyses/{aid}/benchmark-hypothesis"
+    )
+    assert blocked_pending.status_code==409
+    assert "analyzed/reviewed" in str(blocked_pending.json())
+
+    manual=client.post(
+        f"/facilities/{bid}/drawing-analyses",
+        json={
+            "document_id":doc["document_id"],
+            "analysis_method":"manual",
+            "model_version":"manual-not-a-model",
+        },
+    )
+    assert manual.status_code==201
+    blocked_manual=client.get(
+        f"/drawing-analyses/{manual.json()['drawing_analysis_id']}/benchmark-hypothesis"
+    )
+    assert blocked_manual.status_code==409
+    assert "analysis_method=ai" in str(blocked_manual.json())
+
+    manifest={
+        "expected_version":1,
+        "model_version":"local-vision-baseline-v1",
+        "page_count":1,
+        "confidence":0.81,
+        "summary":{"drawing_type":"floor_plan"},
+        "evidence":{"pipeline":"unit-test"},
+        "elements":[{
+            "client_ref":"room-ai-1",
+            "page_no":1,
+            "element_type":"room",
+            "label":"LDK?",
+            "floor_number":1,
+            "geometry":{"x":100,"y":100,"width":300,"height":200},
+            "extracted_data":{"use_name":"living_dining_kitchen"},
+            "confidence":0.77,
+        }],
+        "equipment_candidates":[{
+            "drawing_element_ref":"room-ai-1",
+            "suggested_equipment_type_code":"automatic_fire_alarm",
+            "suggested_label":"自動火災報知設備",
+            "floor_number":1,
+            "location_text":"LDK付近",
+            "quantity":1,
+            "confidence":0.61,
+        }],
+        "fact_candidates":[{
+            "drawing_element_ref":"room-ai-1",
+            "target_path":"detail.total_floor_area",
+            "proposed_value":{"value":112.1},
+            "confidence":0.88,
+            "evidence":{"page":1},
+        }],
+    }
+    ingested=client.post(
+        f"/drawing-analyses/{aid}/manifest",
+        json=manifest,
+    )
+    assert ingested.status_code==200
+    detail=ingested.json()
+    assert detail["analysis"]["status"]=="analyzed"
+
+    first=client.get(
+        f"/drawing-analyses/{aid}/benchmark-hypothesis"
+    )
+    assert first.status_code==200
+    body=first.json()
+    assert body["hypothesis_format"]=="fire-ai-drawing-hypothesis-v1"
+    assert body["drawing_analysis_id"]==aid
+    assert body["analysis_version"]==2
+    assert body["analysis_status"]=="analyzed"
+    assert body["analysis_method"]=="ai"
+    assert body["model_version"]=="local-vision-baseline-v1"
+    assert body["source"]["document_id"]==doc["document_id"]
+    assert body["source"]["sha256"]==doc["sha256"]
+    assert body["source"]["filename"]=="baseline-plan.png"
+    assert len(body["elements"])==1
+    assert len(body["equipment_candidates"])==1
+    assert len(body["fact_candidates"])==1
+
+    element_ref=body["elements"][0]["client_ref"]
+    assert element_ref==detail["elements"][0]["drawing_element_id"]
+    assert body["equipment_candidates"][0]["drawing_element_ref"]==element_ref
+    assert body["fact_candidates"][0]["drawing_element_ref"]==element_ref
+    assert body["elements"][0]["source_kind"]=="ai"
+
+    second=client.get(
+        f"/drawing-analyses/{aid}/benchmark-hypothesis"
+    )
+    assert second.status_code==200
+    assert second.json()==body

@@ -353,3 +353,60 @@ def test_phase6_drawing_benchmark_rejects_status_only_acceptance_when_human_gate
         assert False, "expected ValueError"
     except ValueError as exc:
         assert "Human-accepted drawing reference is required" in str(exc)
+
+
+
+def test_phase6_drawing_benchmark_rejects_reference_hypothesis_source_mismatch(tmp_path):
+    mod = _mod()
+    reference = {
+        "reference_format": "fire-ai-drawing-human-reference-v1",
+        "reference_status": "human_accepted",
+        "source": {"sha256": "a" * 64},
+        "elements": [],
+        "equipment_candidates": [],
+        "fact_candidates": [],
+    }
+    hypothesis = {
+        "hypothesis_format": "fire-ai-drawing-hypothesis-v1",
+        "source": {"sha256": "b" * 64},
+        "elements": [],
+        "equipment_candidates": [],
+        "fact_candidates": [],
+    }
+    ref_path = tmp_path / "reference.json"
+    hyp_path = tmp_path / "hypothesis.json"
+    ref_path.write_text(json.dumps(reference), encoding="utf-8")
+    hyp_path.write_text(json.dumps(hypothesis), encoding="utf-8")
+
+    try:
+        mod.score_pair(ref_path, hyp_path)
+        assert False, "expected ValueError"
+    except ValueError as exc:
+        assert "source drawing SHA-256 mismatch" in str(exc)
+
+
+def test_phase6_drawing_benchmark_accepts_same_source_reference_hypothesis(tmp_path):
+    mod = _mod()
+    source_sha = "c" * 64
+    reference = {
+        "reference_format": "fire-ai-drawing-human-reference-v1",
+        "reference_status": "human_accepted",
+        "source": {"sha256": source_sha},
+        "elements": [],
+        "equipment_candidates": [],
+        "fact_candidates": [],
+    }
+    hypothesis = {
+        "hypothesis_format": "fire-ai-drawing-hypothesis-v1",
+        "source": {"sha256": source_sha},
+        "elements": [],
+        "equipment_candidates": [],
+        "fact_candidates": [],
+    }
+    ref_path = tmp_path / "reference.json"
+    hyp_path = tmp_path / "hypothesis.json"
+    ref_path.write_text(json.dumps(reference), encoding="utf-8")
+    hyp_path.write_text(json.dumps(hypothesis), encoding="utf-8")
+
+    result = mod.score_pair(ref_path, hyp_path)
+    assert result["metrics"]["geometry_detection"]["applicable"] is False

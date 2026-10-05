@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from ..audit import write_audit
 from ..authz import require_permission
 from ..db import get_db
+from ..drawing_benchmark_export import build_drawing_hypothesis
 from ..settings import settings
 from ..models import (
     Document,
@@ -36,6 +37,7 @@ from ..schemas import (
     DrawingAnalysisResultManifest,
     DrawingPreviewInfoOut,
     DrawingAnalysisReview,
+    DrawingBenchmarkHypothesisOut,
     DrawingElementCreate,
     DrawingElementOut,
     DrawingEquipmentCandidateCreate,
@@ -646,6 +648,33 @@ def get_drawing_page_preview(
         )
     finally:
         pdf.close()
+
+
+
+
+@router.get(
+    "/drawing-analyses/{analysis_id}/benchmark-hypothesis",
+    response_model=DrawingBenchmarkHypothesisOut,
+)
+def export_drawing_benchmark_hypothesis(
+    analysis_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("drawing.read")),
+):
+    analysis = db.get(DrawingAnalysis, analysis_id)
+    if not analysis:
+        raise HTTPException(
+            status_code=404,
+            detail="drawing analysis not found",
+        )
+    try:
+        payload = build_drawing_hypothesis(db, analysis)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail=str(exc),
+        )
+    return DrawingBenchmarkHypothesisOut(**payload)
 
 
 @router.get("/drawing-analyses/{analysis_id}", response_model=DrawingAnalysisDetailOut)
