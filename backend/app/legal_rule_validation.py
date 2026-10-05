@@ -11,9 +11,17 @@ ALLOWED_RULE_FIELDS = {
     "occupancy_total",
     "employee_total",
     "floor_count",
+    "primary_use",
+    "use_tags",
+    "has_sleeping_use",
+    "has_food_service",
+    "public_access",
+    "mixed_use",
+    "windowless_floor_count",
+    "equipment_type_code",
 }
 
-ALLOWED_RULE_OPS = {"eq", "ne", "in", "contains", "gte", "lte", "gt", "lt", "exists"}
+ALLOWED_RULE_OPS = {"eq", "ne", "in", "contains", "contains_any", "contains_all", "gte", "lte", "gt", "lt", "exists"}
 
 
 def validate_rule_conditions(payload: dict) -> None:
