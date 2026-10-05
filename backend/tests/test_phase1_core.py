@@ -6578,3 +6578,168 @@ def test_phase6_equipment_placement_batch_coverage_tracks_ignore_and_approved_ru
     assert stale["counts"]["stale_source"] == 1
     assert stale["authoring_coverage_complete"] is False
     assert stale["coverage_complete"] is False
+
+
+
+def test_phase6_consultation_response_review_becomes_stale_when_annotation_changes(monkeypatch):
+    import app.consultation_response as consultation_response
+    from app.models import DrawingAnnotationSet, DrawingConsultation
+
+    login()
+    facility=client.post("/facilities",json={"name":"相談回答レビュー対象"}).json()
+    bid=facility["building_id"]
+    upload=client.post(
+        "/documents/upload",
+        files={"file":("response-plan.png",b"response-plan","image/png")},
+        data={"document_type":"drawing","building_id":bid},
+    ).json()
+    aid=client.post(f"/facilities/{bid}/drawing-analyses",json={
+        "document_id":upload["document_id"],
+        "analysis_method":"manual",
+    }).json()["drawing_analysis_id"]
+
+    ann=client.post(f"/drawing-analyses/{aid}/annotations",json={
+        "coordinate_space":"pixel",
+        "page_dimensions":{"1":{"width":100,"height":100}},
+        "source_method":"manual",
+        "payload":{
+            "elements":[{
+                "client_ref":"room-1",
+                "page_no":1,
+                "floor_number":1,
+                "element_type":"room",
+                "label":"相談室",
+                "geometry":{"x":0,"y":0,"width":100,"height":100},
+                "extracted_data":{"use_name":"consult_room"},
+            }],
+            "equipment_candidates":[],
+            "fact_candidates":[],
+        },
+    }).json()
+    ann_id=ann["drawing_annotation_set_id"]
+    assert client.post(
+        f"/drawing-annotations/{ann_id}/review",
+        json={"expected_version":1,"status":"reviewed"},
+    ).status_code==200
+
+    consultation=client.post(f"/drawing-analyses/{aid}/consultations",json={
+        "drawing_annotation_set_id":ann_id,
+        "answers":{"primary_use":"consult"},
+    }).json()
+    cid=consultation["drawing_consultation_id"]
+
+    confirmed=client.post(
+        f"/drawing-consultations/{cid}/classification/confirm",
+        json={
+            "expected_version":1,
+            "classification_code":"TEST-READY",
+            "classification_label":"テストレビュー用途",
+            "review_note":"Human manual classification for response review test",
+        },
+    )
+    assert confirmed.status_code==200
+    assert confirmed.json()["version"]==2
+
+    monkeypatch.setattr(
+        consultation_response,
+        "occupancy_rule_coverage",
+        lambda db, evaluation_date: {
+            "coverage_complete":True,
+            "accepted_regression_run_id":"occ-run",
+            "blockers":[],
+        },
+    )
+    monkeypatch.setattr(
+        consultation_response,
+        "equipment_requirement_batch_coverage",
+        lambda db, evaluation_date: {
+            "coverage_complete":True,
+            "worklist_sha256":"req-batch",
+            "accepted_regression_run_id":"req-run",
+            "blockers":[],
+        },
+    )
+    monkeypatch.setattr(
+        consultation_response,
+        "equipment_placement_batch_coverage",
+        lambda db, evaluation_date: {
+            "coverage_complete":True,
+            "worklist_sha256":"place-batch",
+            "accepted_regression_run_id":"place-run",
+            "blockers":[],
+        },
+    )
+    monkeypatch.setattr(
+        consultation_response,
+        "_missing_equipment_inputs",
+        lambda db, snapshot, evaluation_date: [],
+    )
+    monkeypatch.setattr(
+        consultation_response,
+        "_required_equipment",
+        lambda db, snapshot, evaluation_date: [],
+    )
+    monkeypatch.setattr(
+        consultation_response,
+        "evaluate_placement_candidates",
+        lambda db, input_snapshot, classification_code, rooms, equipment_type_codes, evaluation_date: [],
+    )
+
+    ready=client.get(
+        f"/drawing-consultations/{cid}/response",
+        params={"evaluation_date":"2026-10-05"},
+    )
+    assert ready.status_code==200
+    ready_body=ready.json()
+    assert ready_body["answer_state"]=="review_ready"
+    assert ready_body["reviewable"] is True
+    first_sha=ready_body["response_sha256"]
+
+    reviewed=client.post(
+        f"/drawing-consultations/{cid}/response/review",
+        json={
+            "expected_version":2,
+            "evaluation_date":"2026-10-05",
+            "review_notes":"Human reviewed current consultation response",
+        },
+    )
+    assert reviewed.status_code==200
+    reviewed_body=reviewed.json()
+    assert reviewed_body["answer_state"]=="reviewed"
+    assert reviewed_body["review_current"] is True
+    assert reviewed_body["response_sha256"]==first_sha
+
+    with SessionLocal() as db:
+        row=db.get(DrawingConsultation,cid)
+        assert row.status=="reviewed"
+        assert row.response_sha256==first_sha
+        assert row.version==3
+        annotation=db.get(DrawingAnnotationSet,ann_id)
+        annotation.version += 1
+        annotation.updated_at = datetime.now(timezone.utc)
+        db.commit()
+
+    stale=client.get(
+        f"/drawing-consultations/{cid}/response",
+        params={"evaluation_date":"2026-10-05"},
+    )
+    assert stale.status_code==200
+    stale_body=stale.json()
+    assert stale_body["answer_state"]=="review_stale"
+    assert stale_body["review_stale"] is True
+    assert stale_body["reviewable"] is True
+    assert stale_body["saved_response_sha256"]==first_sha
+    assert stale_body["response_sha256"]!=first_sha
+
+    rereviewed=client.post(
+        f"/drawing-consultations/{cid}/response/review",
+        json={
+            "expected_version":3,
+            "evaluation_date":"2026-10-05",
+            "review_notes":"Human re-reviewed after annotation version change",
+        },
+    )
+    assert rereviewed.status_code==200
+    assert rereviewed.json()["answer_state"]=="reviewed"
+    assert rereviewed.json()["review_current"] is True
+    assert rereviewed.json()["response_sha256"]==stale_body["response_sha256"]
