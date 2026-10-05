@@ -3541,6 +3541,19 @@ def test_phase9_1_transcript_uncertainty_search_statement_gate_and_evidence_comp
     assert accepted_comp.status_code==200
     assert accepted_comp.json()["status"]=="accepted"
     assert accepted_comp.json()["version"]==2
+    # Phase 9 hard gate: comparison acceptance must not mutate source evidence
+    # or promote a formal fire cause.
+    detail_after_comparison=client.get(f"/fire-investigations/{cid}")
+    assert detail_after_comparison.status_code==200
+    after=detail_after_comparison.json()
+    statement_after=next(x for x in after["statements"] if x["fire_statement_draft_id"]==statement_id)
+    timeline_after=next(x for x in after["timeline"] if x["fire_timeline_event_id"]==tl["fire_timeline_event_id"])
+    assert statement_after["draft_text"]=="関係者Aは、10時頃に煙を見た可能性がある旨を述べた。"
+    assert statement_after["status"]=="reviewed"
+    assert timeline_after["status"]=="confirmed"
+    assert after["case"]["official_cause_candidate_id"] is None
+    assert after["case"]["official_cause_text"] is None
+
 
     stale=client.patch(f"/fire-investigations/evidence-comparisons/{comp_id}",json={
         "expected_version":1,
