@@ -1630,7 +1630,7 @@ Safety:
 
 ## Phase 6 Human floor-area target comparison
 
-Implemented on branch `phase6-floor-area-targets`; CI verification pending:
+Implemented and CI-verified:
 - optional Human floor-area targets stored in Annotation payload
 - target schema:
   - floor_number
@@ -1661,3 +1661,9 @@ Safety:
 - m² difference is never emitted before room Geometry has Human scale calibration
 - arbitrary overlapping zones do not inflate the target comparison
 - backend validation remains authoritative over comparison output
+
+Verified checkpoint:
+- run: `37412861883` SUCCESS
+- backend pytest: 168 passed
+- migration parser smoke: PASS
+- frontend JavaScript syntax: PASS
