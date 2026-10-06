@@ -1909,3 +1909,24 @@ Resolved architecture conflicts:
 Review diff: `docs/SPECIFICATION_V2_DIFF.md`.
 
 Implementation status remains tracked separately in PROJECT_STATE / completion ledgers; specification scope must not be reduced merely because a module is still Missing or Partial.
+
+
+## Master Feature Matrix canonical completion audit (2026-10-07)
+
+Master Specification v2.0 all 57 chapters have been re-audited against actual main code, migrations, routers, frontend, tests and deployment assets.
+
+Canonical matrix:
+- `docs/completion/MASTER_FEATURE_MATRIX.md`
+
+Audited base:
+- `6bcf537936915d3c891e9176b71a38f4886197e1`
+
+Primary status:
+- Completed: 14
+- Partial: 32
+- Missing: 10
+- External Gate: 1
+
+Completion work must now follow the Matrix backlog rather than historical Phase numbering.
+A PR/module completion is not a stopping condition.
+After each merged completion slice, refresh main and update the affected Matrix rows only.
