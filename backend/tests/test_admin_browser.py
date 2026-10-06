@@ -49,7 +49,7 @@ with SessionLocal() as db:
             page.locator('#loginForm input[name=password]').fill('synthetic-ui-password')
             page.locator('#loginForm button').click();expect(page.locator('#workspace')).to_be_visible()
             expect(page.locator('#passwordPolicy')).to_contain_text('未設定')
-            expect(page.locator('#expiryPolicyOption')).to_be_disabled()
+            expect(page.locator('#expiryPolicyOption')).to_have_js_property('disabled',True)
             expect(page.locator('#expiryForm select[name=mode]')).to_have_value('explicit')
             page.locator('#orgForm input[name=code]').fill('SYN')
             page.locator('#orgForm input[name=name]').fill('Synthetic unit')
