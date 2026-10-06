@@ -1453,7 +1453,7 @@ Safety:
 
 ## Phase 6 in-app Drawing Baseline run
 
-Implemented on branch `phase6-inapp-baseline-run`; CI verification pending:
+Implemented and CI-verified:
 - drawing Benchmark scoring core extracted to `backend/app/drawing_benchmark_core.py`
 - CLI and backend API now use the same scoring implementation
 - existing CLI behavior is preserved through a thin wrapper
@@ -1495,6 +1495,12 @@ Implemented on branch `phase6-inapp-baseline-run`; CI verification pending:
   - one persisted Benchmark Run
   - separate Human Baseline acceptance
 - regression test verifies CLI and API scorer parity through the shared core
+
+Verified checkpoint:
+- run: `37392710772` SUCCESS
+- backend pytest: 151 passed
+- migration parser smoke: PASS
+- frontend JavaScript syntax: PASS
 
 Safety:
 - in-app execution cannot bypass Human Reference review
