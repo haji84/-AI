@@ -153,7 +153,8 @@ def test_phase6_workspace_runs_in_app_baseline():
         "この図面でBaseline実行",
         "Geometry F1",
         "mean IoU",
-        "Benchmark採用は別のHuman Review Gate",
+        "このBaselineを採用",
+        "Human Review待ち",
     ]
     missing = [x for x in required_fragments if x not in html]
     assert not missing, f"In-app Baseline UI wiring missing: {missing}"
