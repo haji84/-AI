@@ -1743,3 +1743,57 @@ Verified checkpoint:
 - backend pytest: 175 passed
 - migration parser smoke: PASS
 - frontend JavaScript syntax: PASS
+
+
+## Phase 6 reviewed Annotation revision workflow
+
+Implemented and CI-verified:
+- reviewed Human Annotation remains immutable
+- reviewed Annotation can create a new editable Revision Draft
+- optimistic source Annotation version check
+- Revision Draft copies:
+  - Geometry
+  - page calibration
+  - Human floor-area targets
+  - equipment/fact candidates
+  - existing provenance
+- copied Draft passes through server-authoritative Geometry/area recalculation
+- Revision Draft starts at:
+  - status=draft
+  - version=1
+  - source_method=manual
+- previous Human review state is never inherited
+- revision provenance stored in `payload.revision_history`
+- provenance records source Annotation ID/version/review timestamp plus Human note
+- Revision Draft can use existing:
+  - vertex edit
+  - room/zone add/remove
+  - calibration
+  - floor-area target comparison
+  - snapping
+  - Undo/Redo
+- old reviewed Reference remains exportable and unchanged
+- revision requires a new Human Review before Reference export
+- UI exposes `修正版Draftを作る` on reviewed Annotation
+- UI shows Revision lineage
+- E2E covers:
+  - stale version rejection
+  - reviewed -> Revision Draft creation
+  - Draft cannot create a revision
+  - derived area copied/recalculated
+  - revision Geometry edit changes only the new Draft
+  - old Reference keeps original 2.0m² evidence
+  - revised Reference reaches 3.0m² after correction
+  - both reviewed References remain immutable evidence
+
+Safety:
+- reviewed evidence is never edited in place
+- Revision does not inherit review approval
+- old Benchmark evidence remains reproducible
+- downstream Baseline still requires explicit Human Review of the Revision
+
+Verified checkpoint:
+- run: `37439190828` SUCCESS
+- backend pytest: 178 passed
+- migration parser smoke: PASS
+- frontend JavaScript syntax: PASS

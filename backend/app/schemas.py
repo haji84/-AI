@@ -1582,6 +1582,10 @@ class DrawingAnnotationReview(BaseModel):
     expected_version: int = Field(ge=1)
     status: Literal["reviewed","rejected"]
 
+class DrawingAnnotationRevisionCreate(BaseModel):
+    expected_version: int = Field(ge=1)
+    note: str | None = None
+
 class DrawingAnnotationSetOut(BaseModel):
     drawing_annotation_set_id: str
     drawing_analysis_id: str
