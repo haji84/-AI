@@ -109,10 +109,10 @@ async function workforceLeaveForm(){
     ['employee_id','職員','select',workforceOptions(workforceState.employees,'employee_id',x=>(x.employee_code??'')+' / '+x.display_name,false)],
     ['leave_type','休暇種別','select',[['annual','年休'],['special','特別休暇'],['compensatory','代休/補償時間']]],
     ['kind','Ledger操作','select',[['grant','付与'],['use','使用'],['adjustment_add','加算訂正'],['adjustment_subtract','減算訂正'],['expire','失効']]],
-    ['quantity_minutes','分','number'],['effective_on','適用日','date'],['expires_on','期限','date'],['private_reason','理由（機微情報）','textarea']
+    ['quantity_minutes','分','number'],['effective_on','適用日','date'],['leave_start_at','休暇開始（使用時）','datetime-local'],['leave_end_at','休暇終了（使用時）','datetime-local'],['expires_on','期限','date'],['private_reason','理由（機微情報）','textarea']
   ];
   $('workforceContent').innerHTML=`<h2>休暇Ledger Draft</h2><div class="grid2">${fields.map(f=>workforceField(f,{effective_on:workforceState.date})).join('')}</div><div class="toolbar"><button class="btn primary" id="workforceSaveLeave">Draft保存</button><button class="btn" id="workforceBack">戻る</button></div>`;
-  workforceBind('workforceSaveLeave',async()=>{await api('/workforce/leave',workforceJSON('POST',workforceValues(fields)));await workforceLeave()});workforceBind('workforceBack',workforceLeave);
+  workforceBind('workforceSaveLeave',async()=>{const data=workforceValues(fields);for(const k of ['leave_start_at','leave_end_at'])if(data[k])data[k]=new Date(data[k]).toISOString();await api('/workforce/leave',workforceJSON('POST',data));await workforceLeave()});workforceBind('workforceBack',workforceLeave);
 }
 async function workforceAttendance(){
   const [attendance,times]=await Promise.all([api('/workforce/attendance'),api('/workforce/time-entries')]);
