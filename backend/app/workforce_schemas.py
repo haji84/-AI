@@ -46,6 +46,12 @@ class QualificationCreate(Strict):
         if self.valid_to and self.valid_to<self.valid_from:raise ValueError('valid_to cannot precede valid_from')
         return self
 
+class QualificationPatch(Version):
+    label:str|None=Field(None,min_length=1,max_length=200)
+    valid_to:date|None=None
+    document_id:str|None=None
+    active:bool|None=None
+
 class StaffingRuleCreate(Strict):
     organization_id:str
     shift_type_id:str
