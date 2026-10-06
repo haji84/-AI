@@ -52,7 +52,11 @@ bind('endAssignmentForm',values=>{const record=adminState.history.find(x=>x.assi
 byId('accountEditForm').elements.user_id.addEventListener('change',syncAccountRoles);
 byId('staffEditForm').elements.employee_id.addEventListener('change',syncStaffEdit);
 byId('orgEditForm').elements.organization_id.addEventListener('change',syncOrgEdit);
-byId('auditButton').addEventListener('click',async()=>{try{byId('audit').textContent=JSON.stringify(await request('/administration/audit'),null,2);}catch(error){message(error.message);}});
+let auditRows=[];
+async function loadAudit(older=false){try{const params=new URLSearchParams({limit:'100'});if(older&&auditRows.length)params.set('before_id',String(auditRows.at(-1).audit_id));const action=byId('auditAction').value.trim();if(action)params.set('action',action);const rows=await request('/administration/audit?'+params);auditRows=older?[...auditRows,...rows]:rows;byId('audit').textContent=JSON.stringify(auditRows,null,2);byId('auditOlder').disabled=rows.length<100;}catch(error){message(error.message);}}
+byId('auditButton').addEventListener('click',()=>loadAudit());
+byId('auditOlder').addEventListener('click',()=>loadAudit(true));
+byId('auditAction').addEventListener('change',()=>loadAudit());
 byId('refreshButton').addEventListener('click',()=>refresh().then(()=>message('最新状態を読み込みました。')).catch(error=>message(error.message)));
 byId('logoutButton').addEventListener('click',async()=>{try{await request('/auth/logout','POST');location.reload();}catch(error){message(error.message);}});
 refresh().catch(error=>message(error.message));

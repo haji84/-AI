@@ -43,6 +43,9 @@ GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO {application};
 REVOKE INSERT, UPDATE, DELETE ON tenant_identity FROM {application};
 REVOKE INSERT, UPDATE, DELETE ON schema_migrations FROM {application};
 REVOKE UPDATE, DELETE ON audit_logs FROM {application};
+REVOKE UPDATE, DELETE ON learning_artifacts, learning_evaluations, learning_transitions FROM {application};
+REVOKE UPDATE, DELETE ON learning_corrections, learning_evaluation_sets FROM {application};
+GRANT UPDATE(review_status, reviewed_by, reason, version) ON learning_corrections, learning_evaluation_sets TO {application};
 -- No role membership from application to owner; no DDL/TRUNCATE privileges.
 '''
     service = f'''[Unit]

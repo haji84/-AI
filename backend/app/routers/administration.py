@@ -264,9 +264,15 @@ def create_account(payload: AccountCreate,actor=Depends(require_permission('acco
 
 
 @router.get('/audit')
-def audits(limit: int=100,actor=Depends(require_permission('audit.read')),db: Session=Depends(get_db)):
-    if not 1<=limit<=500:raise HTTPException(422,'limit must be between1 and500')
-    return [output(row) for row in db.scalars(select(AuditLog).order_by(AuditLog.audit_id.desc()).limit(limit))]
+def audits(limit: int=100,before_id: int|None=None,action: str|None=None,entity_type: str|None=None,actor=Depends(require_permission('audit.read')),db: Session=Depends(get_db)):
+    if not 1<=limit<=500 or (before_id is not None and before_id<1):raise HTTPException(422,'invalid audit page')
+    if any(value is not None and len(value)>120 for value in (action,entity_type)):raise HTTPException(422,'audit filter too long')
+    query=select(AuditLog)
+    if before_id is not None:query=query.where(AuditLog.audit_id<before_id)
+    if action is not None:query=query.where(AuditLog.action==action)
+    if entity_type is not None:query=query.where(AuditLog.entity_type==entity_type)
+    return [output(row) for row in db.scalars(query.order_by(AuditLog.audit_id.desc()).limit(limit))]
+
 
 
 class AccountPatch(HumanChange):
