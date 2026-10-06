@@ -1,6 +1,6 @@
 # 実運用完成監査
 
-監査基準: 2026-10-06、main `fbc7227f18507bfa472f53e0e847c7d4fe5bef02`。
+監査基準: 2026-10-06、main `24a0ea8db84a152a5bcf56a206c5c15181b18083`。
 正本: GitHub haji84/-AI main。過去の会話・Phase番号・PROJECT_STATEだけで完成判定しない。
 
 ## 判定方法
@@ -34,9 +34,9 @@ External Gateは承認済み実環境・Humanによる正式判定・提供さ�
 | tenant分離 | Completed（コード基盤・PR41/43） | 承認済み本部別DB方式、UUID照合、生成専用roles/paths、PG別DB接続・更新拒否、backup/restore境界CI | 実OS ACL・実機復元・LAN受入はExternal Gate |
 | 職員とアカウント分離 | Completed（データモデル） | EmployeeとUser.employee_id | 管理操作は別項目 |
 | 組織マスタ・人事履歴・異動追随 | Completed（基盤・PR44） | OrganizationUnit/EmployeeAssignment、Migration041、有効日権限、管理ブラウザCI | 実辞令/所属・LAN受入は別Gate |
-| 認証・RBAC | Partial（v2.0再監査） | PR44有効日所属/管理UI/password履歴/変更/reset/login排他/session失効/最後の管理者保護 | 新正式v2.0 §6 password expiryをTask7で実装中（review/CI/merge前）。実運用権限受入はExternal Gate |
+| 認証・RBAC | Partial（v2.0再監査） | PR44有効日所属/管理UI/password履歴/変更/reset/login排他/session失効/最後の管理者保護 | PR54 password expiryはmerge/main CI37494620742 SUCCESS。Task8 customRole/RoleRule/期限付き・代理管理はreview/CI/merge前。実運用権限受入はExternal Gate |
 | 監査ログ | Completed（基盤） | audit.py、AuditLog、管理閲覧API/UI、PostgreSQLの更新/削除拒否CI | 実サーバーOS/運用受入は別Gate |
-| migration | Completed（001-043・基盤） | PostgreSQL全実行/再実行/制約/排他CI、schema照合 | 本番clone移行・実機受入は別Gate |
+| migration | Completed（001-043/045・基盤） | PostgreSQL全実行/再実行/制約/排他CI、schema照合 | 本番clone移行・実機受入は別Gate |
 | backup/restore | Completed（コード基盤・PR43/47） | UUID/hash/release/所有者/PG復元、本部timer停止/復帰、SIGTERM、保守排他・拒否再利用防止。PR47 PG367/browser2成功、main Green | 実systemd/監視/実機復元受入はExternal Gate |
 | 本番LAN・TLS・複数PC競合 | External Gate | deploy/nginx、systemd、LAN_DEPLOYMENT.md | 承認サーバー/名前/証明書/経路と実機検証 |
 | 完成成果物・release一式 | Missing | READMEとPhase手順あり | 全マニュアル、構成/DB/権限/制約/検証/完成判定を束ねる |

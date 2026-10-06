@@ -7,7 +7,7 @@ from ..models import User, UserSession
 from ..schemas import LoginRequest, UserOut
 from ..security import verify_password, new_session_token, session_expiry, token_digest
 from ..settings import settings
-from ..authz import current_user, authenticated_user, permission_codes
+from ..authz import current_user, authenticated_user, permission_codes, revalidate_session
 from ..password_policy import password_expired
 from ..audit import write_audit
 from ..personnel import employee_available, account_change_lock
@@ -33,6 +33,8 @@ def login(payload: LoginRequest, response: Response, db: Session = Depends(get_d
 
 @router.post("/logout")
 def logout(response: Response, user: User = Depends(authenticated_user), db: Session = Depends(get_db)):
+    account_change_lock(db)
+    revalidate_session(db,user.user_id)
     # Revoke all active sessions for this user in Phase 1. Per-device revoke can be added later.
     sessions=db.scalars(select(UserSession).where(UserSession.user_id == user.user_id, UserSession.revoked_at.is_(None))).all()
     now=datetime.now(timezone.utc)

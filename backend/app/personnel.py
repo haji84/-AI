@@ -4,7 +4,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import Boolean, BigInteger, CheckConstraint, Date, DateTime, ForeignKey, String, Uuid, select, or_, text
 from sqlalchemy.orm import Mapped, mapped_column
 from .db import Base
-from .models import Employee, User, UserRole, uuid_str, now_utc
+from .models import Employee, User, UserRole, Role, Document, uuid_str, now_utc
 
 
 class OrganizationUnit(Base):
@@ -45,6 +45,8 @@ class PasswordHistory(Base):
     changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=now_utc)
 
 
+from .authorization_models import HumanRoleRule,TemporaryRoleGrant
+
 def business_date():
     return datetime.now(ZoneInfo('Asia/Tokyo')).date()
 
@@ -53,20 +55,35 @@ def employee_available(db, user):
     return user.employee_id is None or bool((employee := db.get(Employee, user.employee_id)) and employee.active)
 
 
-def effective_role_ids(db, user_id):
-    user = db.get(User, user_id)
-    if not user or not user.active or not employee_available(db, user):
-        return set()
-    roles = set(db.scalars(select(UserRole.role_id).where(UserRole.user_id == user_id)))
+def effective_role_sources(db,user_id):
+    user=db.get(User,user_id)
+    if not user or not user.active or not employee_available(db,user):return []
+    today=business_date();sources=[]
+    def add(role_id,origin,start=None,finish=None):
+        sources.append({'role_id':role_id,'origin':origin,'valid_from':start.isoformat() if start else None,'valid_to':finish.isoformat() if finish else None})
+    def source_valid(row):
+        return row.source_document_id is None or bool((document:=db.get(Document,row.source_document_id)) and document.sha256==row.source_sha256)
+    for identity in db.scalars(select(UserRole.role_id).where(UserRole.user_id==user_id)):add(identity,'permanent')
+    for grant in db.scalars(select(TemporaryRoleGrant).join(Role,Role.role_id==TemporaryRoleGrant.role_id).where(Role.code!='system_admin',TemporaryRoleGrant.user_id==user_id,TemporaryRoleGrant.revoked_at.is_(None),TemporaryRoleGrant.valid_from<=today,TemporaryRoleGrant.valid_to>=today)):
+        principal=db.get(Employee,grant.acting_for_employee_id) if grant.acting_for_employee_id else None
+        if source_valid(grant) and (grant.acting_for_employee_id is None or principal and principal.active):add(grant.role_id,'acting' if principal else 'temporary',grant.valid_from,grant.valid_to)
     if user.employee_id:
-        today = business_date()
-        roles.update(db.scalars(select(AssignmentRole.role_id)
-            .join(EmployeeAssignment, EmployeeAssignment.assignment_id == AssignmentRole.assignment_id)
-            .join(OrganizationUnit, OrganizationUnit.organization_id == EmployeeAssignment.organization_id)
-            .where(EmployeeAssignment.employee_id == user.employee_id, OrganizationUnit.active.is_(True),
-                   EmployeeAssignment.valid_from <= today,
-                   or_(EmployeeAssignment.valid_to.is_(None), EmployeeAssignment.valid_to >= today))))
-    return roles
+        assignments=db.scalars(select(EmployeeAssignment).join(OrganizationUnit,OrganizationUnit.organization_id==EmployeeAssignment.organization_id)
+            .where(EmployeeAssignment.employee_id==user.employee_id,OrganizationUnit.active.is_(True),EmployeeAssignment.valid_from<=today,or_(EmployeeAssignment.valid_to.is_(None),EmployeeAssignment.valid_to>=today))).all()
+        if assignments:
+            by_id={row.assignment_id:row for row in assignments}
+            for grant in db.scalars(select(AssignmentRole).where(AssignmentRole.assignment_id.in_(by_id))):
+                row=by_id[grant.assignment_id];add(grant.role_id,'appointment',row.valid_from,row.valid_to)
+            rules=db.scalars(select(HumanRoleRule).join(Role,Role.role_id==HumanRoleRule.role_id).where(Role.code!='system_admin',HumanRoleRule.active.is_(True),HumanRoleRule.valid_from<=today,or_(HumanRoleRule.valid_to.is_(None),HumanRoleRule.valid_to>=today)))
+            for rule in rules:
+                if source_valid(rule) and any((rule.organization_id is None or rule.organization_id==row.organization_id) and (rule.title is None or rule.title==row.title) and (rule.kind is None or rule.kind==row.kind) for row in assignments):add(rule.role_id,'human_rule',rule.valid_from,rule.valid_to)
+    identities={row['role_id'] for row in sources}
+    active=set(db.scalars(select(Role.role_id).where(Role.role_id.in_(identities),Role.active.is_(True)))) if identities else set()
+    return [row for row in sources if row['role_id'] in active]
+
+
+def effective_role_ids(db,user_id):
+    return {row['role_id'] for row in effective_role_sources(db,user_id)}
 
 
 def account_change_lock(db):

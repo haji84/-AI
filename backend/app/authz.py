@@ -25,9 +25,19 @@ def authenticated_user(request: Request, db: Session = Depends(get_db)) -> User:
     user = db.get(User, session.user_id)
     if not user or not user.active or not employee_available(db, user):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="user disabled")
+    db.info['authenticated_session_token_hash']=digest
     session.last_seen_at = now
     db.commit()
     return user
+
+def revalidate_session(db: Session,user_id: str):
+    digest=db.info.get('authenticated_session_token_hash')
+    session=db.scalar(select(UserSession).where(UserSession.token_hash==digest,UserSession.user_id==user_id,UserSession.revoked_at.is_(None)).execution_options(populate_existing=True)) if digest else None
+    if not session:raise HTTPException(401,'originating session no longer valid')
+    expires=session.expires_at
+    if expires.tzinfo is None:expires=expires.replace(tzinfo=timezone.utc)
+    if expires<=datetime.now(timezone.utc):raise HTTPException(401,'originating session expired')
+
 
 def current_user(user: User = Depends(authenticated_user)) -> User:
     from .password_policy import password_expired
