@@ -18,7 +18,7 @@ from .workforce_models import (
     WorkforceImportPreview,
 )
 from .workforce_schemas import (
-    ShiftTypeCreate,ShiftTypePatch,QualificationCreate,StaffingRuleCreate,RosterCreate,
+    ShiftTypeCreate,ShiftTypePatch,QualificationCreate,QualificationPatch,StaffingRuleCreate,RosterCreate,
     LeaveCreate,AttendanceCreate,AttendancePatch,TimeEntryCreate,
 )
 
@@ -121,6 +121,13 @@ def create_qualification(db,user,payload:QualificationCreate):
     active_employee(db,payload.employee_id);require_document(db,user,payload.document_id)
     row=WorkforceEmployeeQualification(**payload.model_dump(),created_by=user.user_id)
     db.add(row);db.flush();audit(db,user,'workforce.qualification.create',row);return row
+
+def patch_qualification(db,user,key,payload:QualificationPatch):
+    row=get_row(db,WorkforceEmployeeQualification,key,True);check_version(row,payload.expected_version);before=row_dict(row)
+    require_document(db,user,payload.document_id if 'document_id' in payload.model_fields_set else None)
+    for k,v in payload.model_dump(exclude={'expected_version'},exclude_unset=True).items():setattr(row,k,v)
+    if row.valid_to and row.valid_to<row.valid_from:raise HTTPException(422,'valid_to cannot precede valid_from')
+    row.version+=1;row.updated_at=now_utc();db.flush();audit(db,user,'workforce.qualification.update',row,before);return row
 
 def create_staffing_rule(db,user,payload:StaffingRuleCreate):
     active_org(db,payload.organization_id)
