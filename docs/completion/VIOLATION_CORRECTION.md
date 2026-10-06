@@ -29,3 +29,9 @@
 Rulings: Routine承認待ちは利用者の連続開発指示を採用。Human選択した承認Rule/条文/手続を正式判断の必要条件とし、AIから確定しない。改訂候補は複数可、正式置換は現行1件のみ。Draft Ruleは候補リンク可、正式採用不可。指導のみ改善はresolved_candidateで正式違反を作らない。指示/期限変更後は証拠鎖を再確認。共有routerのためTask2/3は1つのdomain commitで統合。最初の誤名JSハーネスREDは根拠として数えず、修復6件の実再現を使用。これらが誤る場合は追加のHuman根拠入力/レビューまたは仕様照合が必要になるが、AI自動確定を正当化しない。
 
 残る内部AI候補生成worker接続は共通AI実処理のPartialに含める。APIでAI候補を受け取れるだけで、実worker/実図面Baselineやrelease完成を宣言しない。
+
+## 最初のexact-head CI失敗の原因
+
+Head2af5e504 / CI37518893581: 実browser8passed69.06s。Backend602passed18skipped287warnings/3errors300.86s。3errorsは新PG競合fixtureのjurisdiction_type='local'が既存Migration009の列挙制約違反（テスト準備段階）でした。併せてfixtureのRule domain='inspection'も既存Migration031に存在しない値と照合。Migrationを弱めず、fixtureをfire_union/equipment_requirementへ修正し、native/browser両方で共通値を使用します。競合の実測成功は修正後CIで確認するまで未達です。
+
+修復後のlocal全体:556passed67skipped286warnings242.87s（17a1bc4）。67skipはnative環境の代替成功として扱いません。
