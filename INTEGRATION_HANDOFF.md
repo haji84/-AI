@@ -1,7 +1,7 @@
 # Completion Run B — integration handoff (live)
 
 Status: IN PROGRESS; not the final completion handoff.
-Baseline: main89e87e1739add38d2e5de7afac195c14e58b6a4f (Run A PR41/43 and Run B PR40/42 merged).
+Latest inspected main: ea15820e57a73dd4ea721d43247fb63345271a53. Run B PR40/42/46 merged; Run A personnel, legal, maintenance/backup and Human-gated learning foundations preserved.
 Detailed remaining scope: docs/completion/RUN_B_STATUS.md.
 
 ## Added module surface
@@ -94,7 +94,7 @@ Canonical PR43 integration retains validate_runtime_binding startup, department-
 
 Merged-main evidence: workflow37470396667 job112292064798 reports286 passed,168 warnings,88.90s; no skipped tests in CI. This includes the4 PostgreSQL tests skipped in the local SQLite-only environment.
 
-## Operational assets — Task 3 review candidate
+## Operational assets — Task 3 merged
 
 Local implementation7a6bb633 plus fix2493c877; independent re-review PASS, latest-main adaptation/publication/CI/merge pending. Module operational_assets, router app.routers.assets, /assets, /ui/assets.js in the shared shell. Unmerged migration renamed042_run_b_operational_assets.sql after canonical Run A041; pre-PR main refresh remains required.
 Tables: operational_assets, asset_locations, asset_lots, asset_balances, asset_loans, asset_movements, asset_services, asset_import_previews. SKU/lot separation, composite lot/asset and loan lineage FKs; common Facility.building_id, Employee.employee_id, Document.document_id and Task2 Vehicle/Incident IDs reused.
@@ -103,3 +103,35 @@ Configuration: FIRE_AI_ASSET_BUSINESS_TIMEZONE defaults Asia/Tokyo; report as_of
 Integration tests: test_run_b_assets.py, fixround1 focused26 passed/1 explicit local PG skip; full308 passed/5 local PG skips; independent re-review PASS. Latest-main adaptation focused72 passed/4 explicit PostgreSQL/browser skips;42 migration parser/schema and JS/compile/diff success; stable full adaptation run pending. Actual PostgreSQL042 stock locks and test_assets_browser.py Chromium workflow execute in project CI after publication; production/Human acceptance is unclaimed. Exact API/coverage/limits: docs/completion/task-3-report.md. Subsequent statistics/dashboard/template adapters use asset/lot/location/movement/loan/service IDs and permission-aware services.
 
 Task3 latest-main adaptation67221ef independently passed specification/security review; stable full323 passed with6 PostgreSQL and2 browser local skips, focused72/4. PR46 is published but unmerged. Main00f128cd PR45 adds signed-legal dependencies; assets is re-adapting canonical dependency file before refreshed CI/merge. Initial PR46 CI37481145661 executed PostgreSQL042 and actual assets/admin Chromium successfully. Latest-main45 adaptation25067d25 stable full349 passed/8 local skips; refreshed-head review/CI remain pending.
+
+Task3 final integration: PR46 merged mainc4e692ed; migration042. Refreshed-head CI37482188445 SUCCESS: actual PostgreSQL backend355 passed, with2 browser cases skipped only in that job; separate actual Chromium job2 passed18.22s, covering administration and assets. Independent latest-main reviews PASS; canonical personnel/legal/tenant guards retained. Later common statistics/dashboard/template adapters remain internal Run B work.
+
+Merged-main assets CI37482634204 SUCCESS: backend355 passed/2 browser-only skips118.44s; separate actual Chromium2 passed16.07s. Both jobs green on authoritative mainc4e692ed; migration042 verified.
+
+Run A PR47/main7fb4ba0d supplies scheduled department backups and runtime maintenance exclusion. Run B uses these canonical get_db/startup/tenant/maintenance guards unchanged; finance adaptation is in progress.
+
+## Finance integration preparation — unmerged
+
+Task4 uses common ContractCase/Counterparty/Document/Change masters and adds fiscal policies/accounts, procurement candidates/events, reviewed financial proposals/amendments, immutable journal, import previews and rendered-form lineage. Proposed migration044 follows canonical learning043; numbering must be refreshed before publication. Router `/finance` and shared `/ui/finance.js` use existing session/RBAC/audit/tenant boundaries. Exact decimal adapters retain native PostgreSQL NUMERIC and legacy response compatibility; formal balances change only after explicit Human approval. Source versions and Document hashes are bound at review and rechecked before approval.
+
+These are implementation interfaces awaiting independent review, actual CI and merge, not completed-module evidence. Task4 report records verification boundaries. Canonical52 learning integration stays intact; shared audio transcription is internal Task8/Task10 work, and common statistics/dashboard adapters remain scheduled.
+
+Run A54 password expiry integration supersedes the preceding finance baseline: preserve canonical auth/session/password-policy and browser self-renewal surfaces, append finance hooks only. Its Migration045 means unmerged finance moves to046. Pre-adaptation408-pass local evidence does not establish final adapted-source/PG/browser success. Pending PR53 workforce foundations will be reused subject to latest-main and residual behavioral audit, with no duplicated workforce/employee master.
+
+### Finance prepared interfaces (verification pending)
+
+- New tables: finance_years, finance_accounts, finance_contract_profiles, finance_candidates, finance_contract_amendments, finance_import_previews, finance_procurement_events, finance_proposals, finance_journal, finance_rendered_forms. Append-only unmerged Migration046 follows canonical045; pending workforce044 is not replaced.
+- Relationships: fiscal accounts→FinanceYear/parent account; profile→common ContractCase uniquely; candidate/proposal/event/amendment→common contract/vendor/Document; journal→approved proposal/account and reversal lineage; rendered forms→proposal/common FormTemplate/output Document. Common User IDs record creators/reviewers/approvers; no second contract/vendor master.
+- Router: app.routers.finance `/finance`; exact contracts/vendor adapters and compatible legacy `/contracts` guards; unified search adapters for budget/procurement; shared `/ui/finance.js`. Bootstrap imports mapped finance models before fresh SQLite initialization; existing PostgreSQL runner applies046.
+- Permissions: finance.read/create/update/review/approve/admin/import/export, plus existing contract.read/create/update/approve, document.read/create, template.read, search.use at source operations. Restricted reversal evidence is redacted; rendering requires transitive original-source authorization.
+- Processes/configuration/dependencies: no finance background process, paid dependency or separate tenancy setting. Existing SQLAlchemy, openpyxl, common original-template renderer, server DB/storage/session and canonical password policy remain. ExactMoney uses native PostgreSQL NUMERIC(18,2) and fresh SQLite canonical decimal text; legacy SQLite numeric-affinity writes reject detected precision loss rather than claiming reconstruction.
+- Integration tests: test_run_b_finance.py and test_finance_browser.py; existing administration/assets/learning/password browser coverage retained. Required actual PG CI includes distinct evidence locks, source refresh, payments/races/replay/immutable journal; actual Chromium verifies stage identity and exact balance workflow.
+- Shared connections: common Documents/SHA, ContractCase/vendor/change history, form templates, source permissions, audit, search, bootstrap/module registry; later statistics/dashboard and common audio-intake adapters remain internal Run B integration.
+
+Checkpointbc597a9 independent review found four defects; fixround1 addresses entity picker IDs, reversal source confidentiality/rendering, all standalone Evidence Document locks, and unambiguous reversible CSV/XLSX apostrophe encoding. Ten targeted regressions passed. Adapted-source full test and scoped independent re-review/actual CI/merge remain pending; no finance completion is asserted.
+
+Latest-main PR56 Human role/exact rule/timed acting grants supersedes the finance046 publication baseline. Preserve canonical authz/personnel/authorization models, session renewal and browser flows; finance uses canonical permission_codes unchanged. Unmerged finance moves to048 after actual maximum047. First PR55 browser CI5passed is actual evidence; its PostgreSQL migration failed on split function bodies, so refreshed compatible-SQL CI and merge remain required. No runner/historical-migration weakening is permitted.
+
+Main57 supplies canonical complete-statement SQL preflight, PostgreSQL function/dollar-quote support and no_parameters execution. All seven files are retained exactly. Finance048 independently avoids driver-dependent %ROWTYPE declarations by using RECORD with unchanged SELECT INTO/guards; native test calls the same runner execution option. Refreshed PR55 actual browser6passed; native CI exposed driver conversion and duplicate synthetic originals, now fixed in ea48ba3. Native Document uniqueness remains unchanged. Another actual CI must pass before finance can be merged/completed.
+
+Native trigger namespace correction (fix4): finance_account_identity_guard resolves year and parent from quoted TG_TABLE_SCHEMA with parameterized UUIDs; absence uses primary-key null checks because dynamic EXECUTE does not set FOUND. Native tests cover quoted owning schema, pg_catalog-only callers and conflicting same-name shadow policies/parents. Guard behavior/payment races remain; this corrects the sole remaining failure in actual native CI (511passed/1failed/8skipped), not a second financial data source or tenant selector. Reviewed-head full CI is still pending.

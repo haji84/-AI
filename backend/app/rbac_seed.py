@@ -236,6 +236,12 @@ ROLE_POLICY["incident_reviewer"]["permissions"].add("incident.crew.read")
 ROLE_POLICY["operations_reporter"] = {"name":"出動車両集計担当", "system_role":True,
     "permissions": {"system.health.read","incident.aggregate","incident.export","fleet.aggregate","fleet.export"}}
 
+for _action in ('read','create','update','review','approve','admin','import','export'):
+    PERMISSIONS[f'finance.{_action}'] = f'Financial {_action}'
+ROLE_POLICY['system_admin']['permissions'].update(code for code in PERMISSIONS if code.startswith('finance.'))
+ROLE_POLICY['finance_editor'] = {'name':'契約予算担当', 'system_role':True, 'permissions':{'search.use','system.health.read','contract.read','contract.create','contract.update','document.read','document.create','template.read',*[f'finance.{a}' for a in ('read','create','update','import','export')]}}
+ROLE_POLICY['finance_reviewer'] = {'name':'財務確認承認者', 'system_role':True, 'permissions':{'search.use','system.health.read','contract.read','contract.approve','document.read','template.read',*[f'finance.{a}' for a in ('read','review','approve')]}}
+
 SEARCH_ENABLED_ROLES = {
     "prevention_editor",
     "emergency_reporter",

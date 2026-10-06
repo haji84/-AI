@@ -1,6 +1,7 @@
 from datetime import datetime
+from decimal import Decimal
 from typing import Literal
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 class LoginRequest(BaseModel):
     username: str
@@ -211,25 +212,40 @@ class ContractCounterpartyOut(BaseModel):
     active: bool
     version: int
 
+def legacy_contract_money_input(value):
+    # Preserve ordinary legacy numeric input; high-magnitude JSON floats can lose cents
+    # before Decimal sees the value, so require a lossless string/integer there.
+    if isinstance(value,float) and abs(value)>=1_000_000_000_000:
+        raise ValueError('contract float money must be below 1e12; use exact decimal string or integer')
+    return value
+
 class ContractCreate(BaseModel):
     contract_no: str | None = None
     title: str = Field(min_length=1, max_length=500)
     counterparty_id: str | None = None
     contract_method: str | None = None
-    amount: float | None = None
+    amount: Decimal | None = Field(default=None, ge=0, max_digits=18, decimal_places=2, allow_inf_nan=False)
     currency: str = "JPY"
     start_date: str | None = None
     end_date: str | None = None
+
+    @field_validator('amount',mode='before')
+    @classmethod
+    def exact_legacy_money(cls,value):return legacy_contract_money_input(value)
 
 class ContractPatch(BaseModel):
     expected_version: int = Field(ge=1)
     title: str | None = Field(default=None, min_length=1, max_length=500)
     counterparty_id: str | None = None
     contract_method: str | None = None
-    amount: float | None = None
+    amount: Decimal | None = Field(default=None, ge=0, max_digits=18, decimal_places=2, allow_inf_nan=False)
     start_date: str | None = None
     end_date: str | None = None
     status: str | None = None
+
+    @field_validator('amount',mode='before')
+    @classmethod
+    def exact_legacy_money(cls,value):return legacy_contract_money_input(value)
 
 class ContractStateChange(BaseModel):
     expected_version: int = Field(ge=1)

@@ -1,6 +1,6 @@
 # Completion Run B — requirement acceptance ledger
 
-Live audit as of main89e87e1739add38d2e5de7afac195c14e58b6a4f. This is not a completion claim. Grouped rows retain every requested business function; final review must split a row if only some members pass.
+Live audit as of mainea15820e57a73dd4ea721d43247fb63345271a53. This is not a completion claim. Grouped rows retain every requested business function; final review must split a row if only some members pass.
 
 Completed requires merged API/models/migration/UI and applicable tests, not a scaffold or API alone. Partial/Missing remain internal backlog. External Gate is reserved for actual approved deployment, official originals/code meanings, formal Human decisions and measured real-model evaluation. Synthetic tests do not prove deployment or clinical accuracy.
 
@@ -34,16 +34,16 @@ Completed requires merged API/models/migration/UI and applicable tests, not a sc
 | fleet | 点検・車検・修繕・故障履歴・修繕費 | Completed | PR42; task-2-report.md; CI37470033732 and mainCI37470396667 SUCCESS |
 | fleet | 次回車検・次回点検・警告・Human故障解消 | Completed | PR42; task-2-report.md; CI37470033732 and mainCI37470396667 SUCCESS |
 | fleet | 共通統計・ダッシュボード・原本帳票接続 | Partial | RUN_B_STATUS.md; final module report and acceptance evidence required |
-| assets | 資機材台帳・配置・数量・共通ID | Missing | RUN_B_STATUS.md; final module report and acceptance evidence required |
-| assets | ロット在庫・貸出・返却・移動履歴 | Missing | RUN_B_STATUS.md; final module report and acceptance evidence required |
-| assets | 点検・修繕・更新・廃棄・耐圧検査 | Missing | RUN_B_STATUS.md; final module report and acceptance evidence required |
-| assets | 使用期限・校正期限・警告 | Missing | RUN_B_STATUS.md; final module report and acceptance evidence required |
-| assets | 消耗品・薬剤・在庫・発注候補 | Missing | RUN_B_STATUS.md; final module report and acceptance evidence required |
+| assets | 資機材台帳・配置・数量・共通ID | Completed | PR46/mainc4e692ed; task-3-report.md; CI37482188445 PostgreSQL + actual Chromium |
+| assets | ロット在庫・貸出・返却・移動履歴 | Completed | PR46/mainc4e692ed; task-3-report.md; CI37482188445 PostgreSQL + actual Chromium |
+| assets | 点検・修繕・更新・廃棄・耐圧検査 | Completed | PR46/mainc4e692ed; task-3-report.md; CI37482188445 PostgreSQL + actual Chromium |
+| assets | 使用期限・校正期限・警告 | Completed | PR46/mainc4e692ed; task-3-report.md; CI37482188445 PostgreSQL + actual Chromium |
+| assets | 消耗品・薬剤・在庫・発注候補 | Completed | PR46/mainc4e692ed; task-3-report.md; CI37482188445 PostgreSQL + actual Chromium |
 | procurement | 既存契約台帳・業者・期間・契約額・文書 | Partial | RUN_B_STATUS.md; final module report and acceptance evidence required |
 | procurement | 支出・支出負担行為・見積 | Missing | RUN_B_STATUS.md; final module report and acceptance evidence required |
 | procurement | 更新期限・検索・警告・年度管理 | Partial | RUN_B_STATUS.md; final module report and acceptance evidence required |
 | budget | 年度・当初予算・補正・流用 | Missing | RUN_B_STATUS.md; final module report and acceptance evidence required |
-| budget | 款・項・目・節・細節の科目階層 | Missing | RUN_B_STATUS.md; final module report and acceptance evidence required |
+| budget | 設定可能な科目階層（既定款・項・目・節・細節） | Missing | RUN_B_STATUS.md; final module report and acceptance evidence required |
 | budget | 執行額・残額・契約支出連携 | Missing | RUN_B_STATUS.md; final module report and acceptance evidence required |
 | budget | 予算要求・次年度見積・集計・CSV/Excel | Missing | RUN_B_STATUS.md; final module report and acceptance evidence required |
 | budget | 正式処理Human Gate・証拠・取消訂正履歴 | Missing | RUN_B_STATUS.md; final module report and acceptance evidence required |
@@ -76,3 +76,5 @@ For each module, record concrete tests for CRUD, backend permissions, server-bou
 Merged main code and all green CI; migrations; APIs; shared-shell UI; tests; module/permission/DB relationship/integration-point lists; explicit remaining External Gates; Completion Run B results; final INTEGRATION_HANDOFF.md. Main is the sole authority. Re-audit equivalent changes from Run A before each PR and renumber unmerged migrations on collisions.
 
 Merged-main evidence: workflow37470396667 job112292064798 reports286 passed,168 warnings,88.90s; no skipped tests in CI. This includes the4 PostgreSQL tests skipped in the local SQLite-only environment.
+
+Finance checkpointbc597a9 remains unmerged. Independent Task4 review found four defects requiring fixes; the 408-pass local checkpoint does not establish completed finance or PostgreSQL/browser acceptance. Main54 adaptation uses unmerged finance046; all procurement/budget acceptance rows remain Partial/Missing until reviewed, CI-green and merged. Pending workforce PR53 is audited for reuse and residuals, not treated as main/completed.
