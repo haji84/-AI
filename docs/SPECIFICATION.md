@@ -220,6 +220,8 @@ AIは以下を候補として生成できる。
 - 画面影響
 - DB影響
 - API影響
+- 計算ロジック影響/候補
+- Workflow/承認フロー影響/候補
 - Permission影響
 - Audit影響
 - Migration候補
@@ -340,6 +342,11 @@ AIが権限を決めない。
 - Humanによる明示grant/revoke
 
 最後の重要管理者を失わせる変更等は保護する。
+
+人事異動通知、辞令、配置表等のDocumentを取込対象にできる。
+AI/OCRは所属・役職・発令日・兼務等の変更候補を生成できるが、Employee/Assignment/Permissionへ自動確定しない。
+元Document、抽出根拠、適用予定日、対象職員、before/after候補を表示し、Human Review後のみ人事履歴へ反映する。
+不明な職員コード、所属コード、役職コードを推測で補完しない。
 
 ---
 
@@ -595,6 +602,8 @@ Submission typeごとに設定可能:
 
 正式届出番号は既存採番System等の正本から受領する。
 AIOSが推測で正式番号を生成しない。
+正式届出番号は原則として数字のみを保存・表示し、年度・届出種別等は別fieldで保持する。
+「予防第」「号」等の接頭辞・接尾辞をAIが推測で付加しない。
 
 submission_idは内部不変IDとする。
 
@@ -891,6 +900,15 @@ Data:
 - correction history
 
 既存Excel/CSVの全情報を失わず移行し、未正規化項目はraw evidenceとして保持可能。
+
+既存 `救急報告関係.xlsm` の移行元について、会話で確定した最新の既知構成は以下とする。
+- 事案台帳: 117列
+- 救護者台帳: 160列
+- 出動隊員: 24列
+
+列数そのものをImporterへ固定せず、実ファイルのheaderを監査して全列をraw evidenceとして保持する。
+過去資料にある出動隊員「7列」表現は旧確認時点のsubset/旧記述として扱い、最新既知構成を上書きしない。
+実ファイルが将来変更された場合は、推測で列を落とさず、header auditとmapping更新をHuman Review対象とする。
 
 ### 21.1 Clinical candidates
 
