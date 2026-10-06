@@ -17,6 +17,7 @@ from ..audit import write_audit
 from ..authz import require_permission
 from ..db import get_db
 from ..drawing_benchmark_export import build_drawing_hypothesis
+from ..drawing_baseline_readiness import drawing_baseline_readiness
 from ..settings import settings
 from ..models import (
     Document,
@@ -38,6 +39,7 @@ from ..schemas import (
     DrawingPreviewInfoOut,
     DrawingAnalysisReview,
     DrawingBenchmarkHypothesisOut,
+    DrawingBaselineReadinessOut,
     DrawingElementCreate,
     DrawingElementOut,
     DrawingEquipmentCandidateCreate,
@@ -650,6 +652,25 @@ def get_drawing_page_preview(
         pdf.close()
 
 
+
+
+
+
+@router.get(
+    "/drawing-analyses/{analysis_id}/baseline-readiness",
+    response_model=DrawingBaselineReadinessOut,
+)
+def get_drawing_baseline_readiness(
+    analysis_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("drawing.read")),
+):
+    analysis = db.get(DrawingAnalysis, analysis_id)
+    if not analysis:
+        raise HTTPException(status_code=404, detail="drawing analysis not found")
+    return DrawingBaselineReadinessOut(
+        **drawing_baseline_readiness(db, analysis=analysis)
+    )
 
 
 @router.get(
