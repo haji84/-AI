@@ -17,9 +17,9 @@ Status meanings:
 
 | Status | Count |
 |---|---:|
-| Completed | 14 |
+| Completed | 16 |
 | Partial | 32 |
-| Missing | 10 |
+| Missing | 8 |
 | External Gate | 1 |
 | Total | 57 |
 
@@ -51,7 +51,7 @@ Status meanings:
 | 22 | Incident and Dispatch | Completed | PR42, Migration040, operations models/service/router/UI/tests | cross-module dashboard/statistics integration only |
 | 23 | Fleet and Vehicle | Completed | PR42 vehicle registry/trip/fuel/inspection/service/fault/cost workflows | production acceptance and cross-module statistics only |
 | 24 | Operational Assets and Inventory | Completed | PR46, Migration042, asset/lot/balance/movement/loan/service/import/export/UI/tests | production acceptance and dashboard/statistics integration only |
-| 25 | Workforce and Duty Management | Missing | personnel/organization foundation exists, but no workforce router/models/UI | roster, staffing rules, leave, attendance, overtime, support placement, duty statistics |
+| 25 | Workforce and Duty Management | Completed | Migration044; workforce models/service/router; shared Employee/Organization/Assignment; Human-approved staffing/roster/leave/attendance/overtime/comp-time; qualifications; warnings; statistics; CSV/XLSX; search/UI/tests | production-site acceptance and cross-module dispatch/work-result E2E remain under #51/#54 |
 | 26 | Contract and Procurement | Partial | ContractCase/Counterparty/Document/Change models and router | quote/commitment/procurement/payment/inspection/renewal workflows and full UI |
 | 27 | Budget and Finance | Missing | no finance/budget domain router or migration | fiscal year, configurable account hierarchy, budget changes/transfers/commitments/payments/balance/requests |
 | 28 | Council, Assembly and Inquiry Support | Missing | no inquiry domain | evidence-linked questions, answer revisions, numeric-source lineage, similar search and Human approval |
@@ -63,7 +63,7 @@ Status meanings:
 | 34 | Cross-module Statistics, Annual Reports and Surveys | Missing | emergency-specific reports exist only | unified statistics service across all modules, prior-year comparison, snapshot lineage, official surveys |
 | 35 | Unified Search | Partial | permission-aware routers/search.py, facilities/fire/legal/docs/contracts/operations/assets integration | add all remaining modules, filters/pagination quality and production performance evidence |
 | 36 | Dashboard and Personal Work Queue | Missing | facility dashboard exists, no system-wide personal work queue | permission-aware today/unprocessed/review/deadline/task aggregation across modules |
-| 37 | Learning Platform | Missing | no Learning Dataset/Champion/Candidate registry implementation | correction capture, dataset versioning, fixed evaluation, promotion/rollback lifecycle |
+| 37 | Learning Platform | Completed | PR52; Migration043; Human-reviewed corrections, fixed evaluation dataset, Candidate/Champion comparison, Human promotion and rollback, browser UI and PostgreSQL/Chromium tests | real model-training quality remains governed by #49; current engine is an explainable literal-correction baseline |
 | 38 | Autonomous Task and Self-extension Platform | Partial | ChangeRequest/extensibility models and review concepts | bounded task runner, sandbox execution, test/evidence orchestration, approved deployment/rollback loop |
 | 39 | AI Decision Levels | Partial | Human Gate patterns exist across legal/drawing/fire/emergency | central machine-readable level/policy enforcement and coverage audit across all modules |
 | 40 | AI Failure Mode | Completed | core CRUD/API modules do not require LLM availability; deterministic/manual paths exist | ensure all new modules preserve this contract |
@@ -89,14 +89,12 @@ Status meanings:
 
 ### P0: missing operational domains with foundations already available
 
-1. Workforce and Duty Management (#25)
-2. Budget and Finance (#27) plus completion of Contract/Procurement (#26)
-3. Violations and Corrective Actions (#13)
-4. Hazardous Materials (#16)
-5. Council / Inquiry Support (#28)
-6. Cross-module Statistics (#34)
-7. Dashboard / Personal Work Queue (#36)
-8. Learning Platform (#37)
+1. Budget and Finance (#27) plus completion of Contract/Procurement (#26)
+2. Violations and Corrective Actions (#13)
+3. Hazardous Materials (#16)
+4. Council / Inquiry Support (#28)
+5. Cross-module Statistics (#34)
+6. Dashboard / Personal Work Queue (#36)
 
 ### P1: completion of strong Partial domains
 
