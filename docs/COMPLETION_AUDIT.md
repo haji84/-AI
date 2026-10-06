@@ -1,0 +1,65 @@
+# 実運用完成監査
+
+監査基準: 2026-10-06、main `3452fb20e2424355ca4f2f6bbeb363c5e142d28d`。
+正本: GitHub haji84/-AI main。過去の会話・Phase番号・PROJECT_STATEだけで完成判定しない。
+
+## 判定方法
+
+Completedは下記に限定した実装要素の完了であり、システム全体の完成を意味しない。
+Partialはコードがあるが仕様・実運用証拠が不足。Missingは対応コードを確認できない。
+External Gateは承認済み実環境・Humanによる正式判定・提供されていない評価原本などが必要な項目。
+開いているPR: 0。直近マージ: #37/#36/#35。main project-checks run 37443277028 SUCCESS。
+
+## Completed / Partial / Missing / External Gate
+
+| 対象 | 判定 | コード・テスト証拠 | 残作業 |
+|---|---|---|---|
+| 対象物基本CRUD・廃止/復元・競合検出 | Completed（この実装範囲） | routers/facilities.py、test_phase1_core.py | 実LAN・利用者受入は別Gate |
+| 査察・指摘事項・届出受付 | Partial | routers/inspections.py、submissions.py、intake.py | 正式仕様の全審査フロー・運用受入照合 |
+| 原本/派生物分離・文書内容解析 | Partial | document_intake.py、storage.py、routers/documents.py | HEIC・画像補正・ページ束ね/欠落検知の仕様差分 |
+| 法令原文・Version・条文引用・ルール候補/承認 | Completed（基盤） | legal_structure*.py、routers/legal*.py、migrations 008-015 | 内容の網羅性は別Gate |
+| 法令・条例正式ルール網羅性 | External Gate | 条文worklistとHuman review APIは存在 | Humanが条件/結果/引用をレビューして承認。AIが代行不可 |
+| 署名付き閉域更新bundle | Missing | 現行collector/importerはあるが署名信頼検証のコードなし | 管理者の信頼鍵と署名検証・不正bundle拒否 |
+| Human Reference編集/QA/改訂・Baseline実行・承認 | Completed（基盤） | drawing_annotations.py、drawing_baseline_*、benchmark core、図面テスト | 実図面・モデル精度は別Gate |
+| 項判定・必要設備・配置候補・相談回答Human Gate | Partial | drawing_consultations.py、occupancy_*、equipment_placement_* | 正式ルール集合・モデル実測・実業務受入 |
+| 実図面Benchmark結果 | External Gate | reference/house-plan-001.reference.json はDraft。Baseline機能あり | Human正解確認、実Vision Hypothesis、初回測定、受入閾値 |
+| 火災調査・写真・音声・報告 | Partial | fire_investigations.py、fire_photos.py、fire_report_exports.py | Local AI実処理・正式様式・実評価の受入証拠 |
+| 実日本語音声/証拠比較精度 | External Gate | audio/evidence benchmark API/CLI | 提供原音声/正解・Human有用性判断 |
+| 横断検索 | Partial | routers/search.py、unified_search.py | 意味検索品質・本番負荷・権限受入 |
+| 救急取込・正規化 | Completed（取込範囲） | importers/emergency.py、models Emergency*、Migration 002 | Web提供は別項目 |
+| 救急Web集計・帳票・チェック・候補レビュー | Missing | 救急router未登録。臨床flagテーブルは存在 | 権限分離API/UI、集計/出力、チェック、Human候補確認 |
+| 契約管理 | Partial | routers/contracts.py、Contract* | 一覧UI・書類/見積/履行/検査/請求/変更契約の全フロー |
+| Module/Feature Flag/Change Request | Partial | routers/extensions.py、Module* | Sandbox実行・Deployment実反映/rollback証拠 |
+| 学習・Champion/Candidate昇格・rollback | Missing | 正式仕様17・Phase11。専用実装を確認できず | 修正記録、固定評価、比較、明示承認、rollback |
+| tenant分離 | Missing | 全テーブルにtenant境界なし。app.dbは単一SessionLocal | 本部別DB/資格情報/原本/監査/backupの厳格分離を実装・検証 |
+| 職員とアカウント分離 | Completed（データモデル） | EmployeeとUser.employee_id | 管理操作は別項目 |
+| 組織マスタ・人事履歴・異動追随 | Missing | Employee.organization_unit/titleは文字列のみ | 組織/所属履歴、正式権限との接続、管理UI |
+| 認証・RBAC | Partial | routers/auth.py、authz.py、security.py、rbac_seed.py | 管理UI、パスワード期限/履歴/変更、失効管理、現所属との接続 |
+| 監査ログ | Partial | audit.py、AuditLog | 管理閲覧API/UI、DB権限による改変防止実証 |
+| migration | Partial | migrations.py、001-037、CIはparser smoke | PostgreSQL全実行、再実行、schema照合、移行整合性/排他 |
+| backup/restore | Partial | scripts/backup_phase1.py、restore_phase1.py | 復元安全不具合修正、自動backup、停止整合性・PG復元試験 |
+| 本番LAN・TLS・複数PC競合 | External Gate | deploy/nginx、systemd、LAN_DEPLOYMENT.md | 承認サーバー/名前/証明書/経路と実機検証 |
+| 完成成果物・release一式 | Missing | READMEとPhase手順あり | 全マニュアル、構成/DB/権限/制約/検証/完成判定を束ねる |
+
+## 最優先の実装順序
+
+1. 復元時の非対象storage巻込みと検証前DB更新を防止する。
+2. tenant分離、職員/組織/人事履歴・認証管理・監査閲覧の共通基盤。
+3. PostgreSQL migration/backup/restoreの自動回帰と本番構成。
+4. 救急Web集計/出力/チェック/Human候補レビューと契約の不足。
+5. 署名更新、学習/昇格/rollback、主要モジュール残差。
+6. 全仕様再照合、実図面/音声/法令/実LANのExternal Gate、導入成果物。
+
+External Gateが未実施でも独立したMissing/Partialを続行する。
+各PRはこの完成タスクのSliceであり、完成宣言は行わない。
+
+## 復元不具合の再現Evidence
+
+backend/tests/test_restore_safety.py を修正前のmainコードで実行: 7 failed。
+- targetの隣のstorageがrenameされ、無関係なファイルが復元先へ混入した。
+- 不正tarを拒否する前にtarget DBが上書きされていた。
+- manifestの../参照を許容していた。
+- backup自身をstorage targetにするとbackupを削除してから読み込みに失敗した。
+- target storage配下のSQLite DBを消して成功報告していた。
+
+修正後: 7 passed。元mainの復元を本番へ使用する前にこの修正が必要。

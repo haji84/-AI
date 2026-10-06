@@ -1818,3 +1818,22 @@ Safety:
 - QA does not auto-accept a drawing Benchmark
 - geometry review can remain possible without metric calibration, while metric-area comparison stays incomplete
 - statutory floor area is not inferred by this QA layer
+
+
+## Continuous completion audit (2026-10-06)
+
+Completion is governed by the user's operational Definition of Done, not Phase numbers.
+See `docs/COMPLETION_AUDIT.md` for the main-code audit anchored to `3452fb20`.
+Do not treat earlier "next slice" headings as an authoritative remaining-work inventory.
+
+Current bounded slice: restore safety.
+- validate and stage storage before changing the target database
+- never extract into a neighboring `storage` directory
+- reject escaping manifest filenames, archive links/special files and overlapping backup/target paths
+- reject a target SQLite DB inside replaced storage
+- PostgreSQL restore uses exit-on-error and a single transaction
+- preserve original target storage until staged replacement is ready
+- 7 regression cases reproduced failures against the previous main and pass after the fix
+
+System completion, tenant isolation, production migrations, real AI baselines and LAN readiness are NOT declared complete.
+Next independent work remains tenant/common administration, PostgreSQL verification and missing emergency Web workflows.
