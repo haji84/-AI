@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -296,8 +297,38 @@ def import_reference_annotation(
                 )
             area_targets = derived_targets
 
+    reference_elements = deepcopy(reference.get("elements") or [])
+    region_area_target_count = 0
+    for element in reference_elements:
+        if not isinstance(element, dict):
+            continue
+        if element.get("area_target"):
+            region_area_target_count += 1
+            continue
+        extracted = element.get("extracted_data")
+        raw_area = (
+            extracted.get("area_m2")
+            if isinstance(extracted, dict)
+            else None
+        )
+        try:
+            target_area = float(raw_area)
+        except (TypeError, ValueError):
+            target_area = 0
+        if target_area <= 0:
+            continue
+        element["area_target"] = {
+            "target_area_m2": target_area,
+            "source": (
+                "reference.element.extracted_data.area_m2"
+            ),
+            "label": element.get("label"),
+            "note": "Imported from Human Reference element evidence",
+        }
+        region_area_target_count += 1
+
     body = {
-        "elements": reference.get("elements") or [],
+        "elements": reference_elements,
         "equipment_candidates":
             reference.get("equipment_candidates") or [],
         "fact_candidates":
@@ -372,6 +403,8 @@ def import_reference_annotation(
             "area_target_count": len(
                 body.get("area_targets") or []
             ),
+            "region_area_target_count":
+                region_area_target_count,
             "imported_as_status": "draft",
         },
     )
