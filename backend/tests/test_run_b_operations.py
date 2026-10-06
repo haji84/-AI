@@ -73,7 +73,10 @@ def test_dispatch_human_gate_crew_audit(client):
 
 def test_inactive_crew_and_mismatched_vehicle(client):
     i=incident(client);v=vehicle(client);d=post(client,'/incidents/'+i['incident_id']+'/dispatches',{'expected_version':1,'unit':'U','vehicle_id':v['vehicle_id']})
-    with SessionLocal() as db:e=db.scalar(select(Employee));e.active=False;eid=e.employee_id;db.commit()
+    # Validate an inactive crew target independently from the active operator session.
+    with SessionLocal() as db:
+        e=Employee(display_name='Synthetic inactive crew',employee_code='SYN-INACTIVE',active=False)
+        db.add(e);db.flush();eid=e.employee_id;db.commit()
     assert client.post('/operations/dispatches/'+d['dispatch_id']+'/crew',json={'expected_version':1,'employee_id':eid,'role':'crew'}).status_code==422
     v2=post(client,'/vehicles',{'code':'V2','name':'Other'})
     assert client.post('/operations/vehicles/'+v2['vehicle_id']+'/trips',json={'expected_version':1,'dispatch_id':d['dispatch_id'],'started_at':'2026-10-01T10:00:00Z','ended_at':'2026-10-01T11:00:00Z','start_odometer':'0','end_odometer':'10','purpose':'Synthetic'}).status_code==422

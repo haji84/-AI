@@ -6,6 +6,9 @@ from sqlalchemy.orm import Session
 from .models import Permission, Role, RolePermission
 
 PERMISSIONS: dict[str, str] = {
+    "personnel.read": "職員・組織・人事履歴参照",
+    "personnel.manage": "職員・組織・人事辞令Human管理",
+    "account.manage": "アカウント・永続ロールHuman管理",
     "system.health.read": "ヘルスチェック参照",
     "system.backup": "バックアップ・復元管理",
     "audit.read": "監査ログ参照",
