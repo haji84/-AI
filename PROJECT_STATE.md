@@ -1542,3 +1542,47 @@ Safety:
 - Human can explicitly reject a technically passing Baseline
 - Run history remains immutable evidence while current Annotation/AI results evolve
 - optimistic version checks prevent stale review writes
+
+
+## Phase 6 drawing area accuracy Benchmark
+
+Implemented on branch `phase6-drawing-area-benchmark`; CI verification pending:
+- matched Human Reference / AI Geometry pairs now receive area-accuracy scoring
+- pixel-area metrics work without scale calibration
+- calibrated metric-area metrics are emitted only when Human Reference page calibration exists
+- per matched region:
+  - Reference area
+  - AI area
+  - absolute error
+  - relative error
+- aggregate metrics:
+  - mean absolute error px²
+  - mean relative error
+  - 5%以内率
+  - 10%以内率
+  - calibrated mean absolute error m²
+- metric-area output is N/A without Human scale calibration
+- Area scoring uses the same one-to-one Geometry match as IoU evaluation
+- unmatched Reference/AI regions remain Geometry FN/FP and are not hidden by area metrics
+- multi-drawing area metrics use micro aggregation by scored matched region
+- Drawing Benchmark comparison API now compares:
+  - area MAE m² (lower better)
+  - mean relative error (lower better)
+  - 10%以内率 (higher better)
+- Baseline workspace displays:
+  - 面積 MAE㎡
+  - 平均相対誤差
+  - 10%以内率
+- tests cover:
+  - 5000px² Reference vs 4500px² AI
+  - 100px=2m calibration -> 2.0m² vs 1.8m²
+  - 0.2m² absolute error
+  - 10% relative error
+  - N/A metric area without calibration
+  - multi-drawing micro aggregation
+  - Benchmark Run A/B area comparison
+
+Safety:
+- metric area is never inferred without Human calibration
+- area accuracy does not replace Geometry Precision/Recall/F1
+- production area-accuracy thresholds remain a Human Gate after the first real Baseline
