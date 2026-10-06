@@ -212,7 +212,7 @@ table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid #e4e8ec;
 
 <script>
 const $=id=>document.getElementById(id);
-const state={offset:0,limit:50,total:0,selected:null,detail:null,mode:null,draft:null,drawings:[],drawingAnalysisId:null,drawingDetail:null,drawingWorkspace:null,drawingDoc:null,drawingPreviewInfo:null,drawingPageNo:1,drawingAnnotations:[],drawingAnnotation:null,drawingConsultations:[],drawingConsultation:null,drawingResponse:null,drawingBaselineReadiness:null,drawingBaselineRun:null,drawingBaselineRuns:[],drawingPageWidth:0,drawingPageHeight:0,drawingDrawPoints:[],drawingDrawActive:false,drawingEditElementIndex:null,drawingSelectedVertexIndex:null,drawingDragVertexIndex:null,drawingDragPointerId:null,drawingCalibrationMode:false,drawingCalibrationPoints:[],drawingNewElementType:'room'};
+const state={offset:0,limit:50,total:0,selected:null,detail:null,mode:null,draft:null,drawings:[],drawingAnalysisId:null,drawingDetail:null,drawingWorkspace:null,drawingDoc:null,drawingPreviewInfo:null,drawingPageNo:1,drawingAnnotations:[],drawingAnnotation:null,drawingConsultations:[],drawingConsultation:null,drawingResponse:null,drawingBaselineReadiness:null,drawingBaselineRun:null,drawingBaselineRuns:[],drawingPageWidth:0,drawingPageHeight:0,drawingDrawPoints:[],drawingDrawActive:false,drawingEditElementIndex:null,drawingSelectedVertexIndex:null,drawingDragVertexIndex:null,drawingDragPointerId:null,drawingCalibrationMode:false,drawingCalibrationPoints:[],drawingNewElementType:'room',drawingSnapEnabled:true,drawingSnapTarget:null};
 const legalReviewState={offset:0,limit:50,total:0};
 const fireState={caseId:null,detail:null,mediaType:null};
 const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
@@ -1207,7 +1207,7 @@ function closeDrawingWorkspace(){
   $('drawingWorkspaceModal').classList.add('hidden');
   state.drawingWorkspace=null;state.drawingDoc=null;state.drawingPreviewInfo=null;state.drawingPageNo=1;state.drawingAnnotations=[];state.drawingAnnotation=null;
   state.drawingConsultations=[];state.drawingConsultation=null;state.drawingResponse=null;state.drawingBaselineReadiness=null;state.drawingBaselineRun=null;state.drawingBaselineRuns=[];
-  state.drawingDrawPoints=[];state.drawingDrawActive=false;state.drawingEditElementIndex=null;state.drawingSelectedVertexIndex=null;state.drawingDragVertexIndex=null;state.drawingDragPointerId=null;state.drawingCalibrationMode=false;state.drawingCalibrationPoints=[];state.drawingNewElementType='room';state.drawingPageWidth=0;state.drawingPageHeight=0;
+  state.drawingDrawPoints=[];state.drawingDrawActive=false;state.drawingEditElementIndex=null;state.drawingSelectedVertexIndex=null;state.drawingDragVertexIndex=null;state.drawingDragPointerId=null;state.drawingCalibrationMode=false;state.drawingCalibrationPoints=[];state.drawingNewElementType='room';state.drawingSnapEnabled=true;state.drawingSnapTarget=null;state.drawingPageWidth=0;state.drawingPageHeight=0;
 }
 async function openDrawingWorkspace(id){
   try{
@@ -1258,7 +1258,7 @@ async function refreshDrawingWorkspace(){
 }
 function selectDrawingAnnotation(id){
   state.drawingAnnotation=(state.drawingAnnotations||[]).find(x=>x.drawing_annotation_set_id===id)||null;
-  state.drawingDrawPoints=[];state.drawingDrawActive=false;state.drawingEditElementIndex=null;state.drawingSelectedVertexIndex=null;state.drawingDragVertexIndex=null;state.drawingCalibrationMode=false;state.drawingCalibrationPoints=[];renderDrawingWorkspace();
+  state.drawingDrawPoints=[];state.drawingDrawActive=false;state.drawingSnapTarget=null;state.drawingEditElementIndex=null;state.drawingSelectedVertexIndex=null;state.drawingDragVertexIndex=null;state.drawingCalibrationMode=false;state.drawingCalibrationPoints=[];renderDrawingWorkspace();
 }
 function selectDrawingConsultation(id){
   state.drawingConsultation=(state.drawingConsultations||[]).find(x=>x.drawing_consultation_id===id)||null;
@@ -1280,7 +1280,7 @@ function drawingWorkspaceImageLoaded(img){
 function changeDrawingWorkspacePage(page){
   const count=state.drawingPreviewInfo?.page_count||1;
   const n=Math.max(1,Math.min(count,Number(page)||1));
-  state.drawingPageNo=n;state.drawingDrawPoints=[];state.drawingDrawActive=false;
+  state.drawingPageNo=n;state.drawingDrawPoints=[];state.drawingDrawActive=false;state.drawingSnapTarget=null;
   const info=(state.drawingPreviewInfo?.pages||[]).find(x=>Number(x.page_no)===n);
   if(info){state.drawingPageWidth=Number(info.width)||0;state.drawingPageHeight=Number(info.height)||0}
   renderDrawingWorkspace();
@@ -1487,6 +1487,52 @@ function drawingPointerPosition(ev,svg){
     Math.round(Math.max(0,Math.min(dim.h,(ev.clientY-rect.top)/rect.height*dim.h))*10)/10
   ];
 }
+function toggleDrawingSnap(){
+  state.drawingSnapEnabled=!state.drawingSnapEnabled;
+  state.drawingSnapTarget=null;
+  renderDrawingWorkspace();
+}
+function drawingSnapThreshold(svg){
+  const rect=svg.getBoundingClientRect(),dim=drawingWorkspaceDimensions();
+  const sx=dim.w/Math.max(rect.width,1),sy=dim.h/Math.max(rect.height,1);
+  return Math.max(sx,sy)*10;
+}
+function drawingProjectPointToSegment(point,a,b){
+  const px=Number(point[0]),py=Number(point[1]),ax=Number(a[0]),ay=Number(a[1]),bx=Number(b[0]),by=Number(b[1]);
+  const dx=bx-ax,dy=by-ay,len2=dx*dx+dy*dy;
+  if(len2<=1e-12)return {point:[ax,ay],distance:Math.hypot(px-ax,py-ay)};
+  const t=Math.max(0,Math.min(1,((px-ax)*dx+(py-ay)*dy)/len2));
+  const x=ax+t*dx,y=ay+t*dy;
+  return {point:[Math.round(x*10)/10,Math.round(y*10)/10],distance:Math.hypot(px-x,py-y),t};
+}
+function drawingSnapPoint(point,svg,excludeElementIndex=null){
+  if(!state.drawingSnapEnabled)return {point,target:null};
+  const threshold=drawingSnapThreshold(svg),page=Number(state.drawingPageNo||1);
+  const elements=state.drawingAnnotation?.payload?.elements||[];
+  let best=null;
+  elements.forEach((element,elementIndex)=>{
+    if(elementIndex===excludeElementIndex)return;
+    if(!['room','zone'].includes(element.element_type)||Number(element.page_no||1)!==page)return;
+    const pts=drawingGeometryPoints(element.geometry);if(pts.length<2)return;
+    pts.forEach((candidate,vertexIndex)=>{
+      const distance=Math.hypot(Number(point[0])-candidate[0],Number(point[1])-candidate[1]);
+      if(distance<=threshold&&(!best||distance<best.distance||distance===best.distance&&best.type!=='vertex')){
+        best={point:[candidate[0],candidate[1]],distance,type:'vertex',elementIndex,vertexIndex,label:element.label||element.extracted_data?.use_name||('区画 '+(elementIndex+1))};
+      }
+    });
+    pts.forEach((a,i)=>{
+      const b=pts[(i+1)%pts.length],projected=drawingProjectPointToSegment(point,a,b);
+      if(projected.distance<=threshold&&(!best||projected.distance<best.distance)){
+        best={point:projected.point,distance:projected.distance,type:'edge',elementIndex,edgeIndex:i,label:element.label||element.extracted_data?.use_name||('区画 '+(elementIndex+1))};
+      }
+    });
+  });
+  if(!best)return {point,target:null};
+  return {
+    point:[Math.round(best.point[0]*10)/10,Math.round(best.point[1]*10)/10],
+    target:best
+  };
+}
 function selectDrawingElement(index,ev){
   if(ev){ev.stopPropagation()}
   if(state.drawingAnnotation?.status!=='draft')return;
@@ -1517,14 +1563,16 @@ function drawingOverlayPointerMove(ev){
   const svg=ev.currentTarget;
   const element=state.drawingAnnotation?.payload?.elements?.[state.drawingEditElementIndex];if(!element)return;
   const pts=drawingGeometryPoints(element.geometry);if(pts.length<3)return;
-  pts[state.drawingDragVertexIndex]=drawingPointerPosition(ev,svg);
+  const raw=drawingPointerPosition(ev,svg),snapped=drawingSnapPoint(raw,svg,state.drawingEditElementIndex);
+  state.drawingSnapTarget=snapped.target;
+  pts[state.drawingDragVertexIndex]=snapped.point;
   element.geometry={points:pts};
   recalcDrawingLocalMetrics();renderDrawingOverlay();renderDrawingSelectedMetrics();
 }
 function endDrawingVertexDrag(ev){
   if(state.drawingDragVertexIndex===null)return;
   try{ev.currentTarget.releasePointerCapture(state.drawingDragPointerId)}catch{}
-  state.drawingDragVertexIndex=null;state.drawingDragPointerId=null;
+  state.drawingDragVertexIndex=null;state.drawingDragPointerId=null;state.drawingSnapTarget=null;
   recalcDrawingLocalMetrics();renderDrawingWorkspace();
 }
 function addDrawingVertex(){
@@ -1610,6 +1658,13 @@ function renderDrawingOverlay(){
     html+='<polyline points="'+esc(pt)+'" fill="rgba(140,35,35,.08)" stroke="#8c2323" stroke-width="2" stroke-dasharray="6 4"/>';
     state.drawingDrawPoints.forEach(p=>{html+='<circle cx="'+p[0]+'" cy="'+p[1]+'" r="4" fill="#8c2323"/>'});
   }
+  if(state.drawingSnapTarget){
+    const s=state.drawingSnapTarget,p=s.point;
+    html+='<circle cx="'+p[0]+'" cy="'+p[1]+'" r="9" fill="rgba(255,255,255,.7)" stroke="#147a5b" stroke-width="3"/>';
+    html+='<line x1="'+(p[0]-12)+'" y1="'+p[1]+'" x2="'+(p[0]+12)+'" y2="'+p[1]+'" stroke="#147a5b" stroke-width="1.5"/>';
+    html+='<line x1="'+p[0]+'" y1="'+(p[1]-12)+'" x2="'+p[0]+'" y2="'+(p[1]+12)+'" stroke="#147a5b" stroke-width="1.5"/>';
+    html+='<text x="'+(p[0]+13)+'" y="'+(p[1]+16)+'" font-size="12" fill="#147a5b">snap '+esc(s.type)+' '+esc(s.label||'')+'</text>';
+  }
   svg.innerHTML=html;
 }
 function drawingOverlayClick(ev){
@@ -1625,15 +1680,17 @@ function drawingOverlayClick(ev){
     renderDrawingOverlay();return;
   }
   if(!state.drawingDrawActive)return;
-  state.drawingDrawPoints.push(drawingPointerPosition(ev,svg));renderDrawingOverlay();
+  const raw=drawingPointerPosition(ev,svg),snapped=drawingSnapPoint(raw,svg,null);
+  state.drawingSnapTarget=snapped.target;
+  state.drawingDrawPoints.push(snapped.point);renderDrawingOverlay();
 }
 function startDrawingRoom(type){
   if(!state.drawingAnnotation||state.drawingAnnotation.status!=='draft')return;
   state.drawingNewElementType=type||$('humanElementType')?.value||'room';
-  state.drawingEditElementIndex=null;state.drawingSelectedVertexIndex=null;state.drawingCalibrationMode=false;state.drawingDrawActive=true;state.drawingDrawPoints=[];renderDrawingOverlay();
+  state.drawingEditElementIndex=null;state.drawingSelectedVertexIndex=null;state.drawingCalibrationMode=false;state.drawingSnapTarget=null;state.drawingDrawActive=true;state.drawingDrawPoints=[];renderDrawingOverlay();
 }
 function undoDrawingPoint(){state.drawingDrawPoints.pop();renderDrawingOverlay()}
-function cancelDrawingRoom(){state.drawingDrawActive=false;state.drawingDrawPoints=[];renderDrawingOverlay()}
+function cancelDrawingRoom(){state.drawingDrawActive=false;state.drawingDrawPoints=[];state.drawingSnapTarget=null;renderDrawingOverlay()}
 function finishDrawingRoom(){
   if(state.drawingDrawPoints.length<3){alert('区画は3点以上で囲ってください。');return}
   const label=$('humanRoomLabel')?.value.trim()||'';const use=$('humanRoomUse')?.value.trim()||'';
@@ -1646,7 +1703,7 @@ function finishDrawingRoom(){
   ann.payload.elements.push({client_ref:elementType+'-human-'+Date.now(),page_no:page,element_type:elementType,label:label||null,floor_number:Number.isFinite(floor)?floor:null,geometry:{points:state.drawingDrawPoints.map(p=>[p[0],p[1]])},extracted_data:{use_name:use||null}});
   recalcDrawingLocalMetrics();
   const dim=drawingWorkspaceDimensions();ann.page_dimensions=ann.page_dimensions||{};ann.page_dimensions[String(page)]={width:dim.w,height:dim.h};
-  state.drawingDrawActive=false;state.drawingDrawPoints=[];renderDrawingWorkspace();
+  state.drawingDrawActive=false;state.drawingDrawPoints=[];state.drawingSnapTarget=null;renderDrawingWorkspace();
 }
 function removeDrawingRoom(index){
   if(!state.drawingAnnotation||state.drawingAnnotation.status!=='draft')return;
@@ -1956,7 +2013,7 @@ function renderDrawingWorkspace(){
       '<input id="drawingReferenceImportFile" class="hidden" type="file" accept=".json,application/json" onchange="importDrawingReferenceDraftFile(event)"><div class="row">'+annSelect+'<button class="btn" onclick="chooseDrawingReferenceDraft()">別Reference Draftを読み込む</button></div>'+
       (ann.status==='draft'?'<div class="grid3" style="margin-top:8px"><div class="field"><label>追加種別</label><select id="humanElementType" onchange="state.drawingNewElementType=this.value"><option value="room">部屋</option><option value="zone">任意区画</option></select></div><div class="field"><label>区画名</label><input id="humanRoomLabel" placeholder="例：主寝室 / 防火区画A"></div><div class="field"><label>用途コード</label><input id="humanRoomUse" placeholder="例：bedroom"></div></div><div class="field" style="margin-top:8px"><label>階</label><input id="humanRoomFloor" type="number" value="1"></div>'+
       (isVisual?'<div class="row" style="margin-top:8px"><button class="btn primary" onclick="startDrawingRoom()">区画追加</button><button class="btn" onclick="undoDrawingPoint()">1点戻す</button><button class="btn" onclick="finishDrawingRoom()">追加確定</button><button class="btn" onclick="cancelDrawingRoom()">描画取消</button></div><div class="muted">区画追加：原図の角を順にクリック→追加確定。既存区画は選択すると頂点をドラッグ修正できます。</div>':'')+
-      '<div class="notice" style="margin-top:8px"><div class="row"><b class="grow">面積・縮尺</b><span class="muted">'+esc(calText)+'</span></div><div class="row"><button class="btn" onclick="startDrawingCalibration()">2点で縮尺校正</button>'+(cal?'<button class="btn" onclick="clearDrawingCalibration()">縮尺解除</button>':'')+'<button class="btn" onclick="applySelectedDrawingMeta()">選択区画へ名称・用途を反映</button><button class="btn" onclick="addDrawingVertex()">頂点追加</button><button class="btn" onclick="removeDrawingVertex()">選択頂点を削除</button><button class="btn" onclick="setDrawingFloorAreaTarget()">既知の階面積を登録</button><button class="btn" onclick="clearDrawingFloorAreaTarget()">既知面積を解除</button></div><div id="drawingSelectedMetrics" class="drawingMetric">区画を選択してください</div><div class="muted">縮尺校正：図面上の既知寸法の両端を2点クリックし、実寸(m)を入力。以後、頂点修正のたびに㎡を自動再計算します。</div></div>'+
+      '<div class="notice" style="margin-top:8px"><div class="row"><b class="grow">面積・縮尺</b><span class="muted">'+esc(calText)+'</span></div><div class="row"><button class="btn" onclick="startDrawingCalibration()">2点で縮尺校正</button>'+(cal?'<button class="btn" onclick="clearDrawingCalibration()">縮尺解除</button>':'')+'<button class="btn" onclick="applySelectedDrawingMeta()">選択区画へ名称・用途を反映</button><button class="btn" onclick="addDrawingVertex()">頂点追加</button><button class="btn" onclick="removeDrawingVertex()">選択頂点を削除</button><button class="btn" onclick="toggleDrawingSnap()">境界スナップ：'+(state.drawingSnapEnabled?'ON':'OFF')+'</button><button class="btn" onclick="setDrawingFloorAreaTarget()">既知の階面積を登録</button><button class="btn" onclick="clearDrawingFloorAreaTarget()">既知面積を解除</button></div><div id="drawingSelectedMetrics" class="drawingMetric">区画を選択してください</div><div class="muted">縮尺校正：図面上の既知寸法の両端を2点クリックし、実寸(m)を入力。以後、頂点修正のたびに㎡を自動再計算します。境界スナップON時は、頂点ドラッグ/区画追加点が表示上10px以内の他区画の頂点・辺へ吸着します。</div></div>'+
       drawingGeometrySummaryHtml(ann.payload?.geometry_summary||drawingLocalGeometrySummary())+
       '<div class="drawingRoomList" style="margin-top:8px">'+roomList+'</div><div class="row" style="margin-top:8px"><button class="btn" onclick="saveDrawingAnnotation()">下書き保存</button><button class="btn primary" onclick="reviewDrawingAnnotation()">Human確認済みにする</button></div>':
       drawingGeometrySummaryHtml(ann.payload?.geometry_summary||drawingLocalGeometrySummary())+

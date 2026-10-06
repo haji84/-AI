@@ -164,3 +164,34 @@ For example, the supplied house-plan-001 values:
 are imported automatically as floor targets.
 
 The comparison is an Annotation consistency check only. It does not certify the statutory floor area.
+
+
+## Boundary snapping
+
+Draft Annotation editing supports optional boundary snapping.
+
+Policy:
+
+- snapping is enabled by default
+- Human can toggle snapping ON/OFF
+- display-space threshold is approximately 10px
+- the threshold is converted into drawing-coordinate units from the current SVG viewport
+- only regions on the current page are considered
+- the actively edited region is excluded from its own snap targets
+- candidate snap targets:
+  - vertices of other `room` / `zone` polygons
+  - nearest projected point on edges of other `room` / `zone` polygons
+- exact nearby vertices take precedence over edges when distances are equal
+- new-region point placement uses the same snap engine
+- vertex dragging uses the same snap engine
+- a visible snap indicator shows the selected target type and region label
+- snapping changes only the coordinate selected by the Human editor; backend area/summary recalculation remains authoritative
+
+Why:
+
+- reduce tiny gaps between adjacent rooms
+- reduce accidental small overlaps
+- make shared boundaries easier to align
+- improve downstream area totals and Geometry Benchmark quality without auto-changing Human intent
+
+Snapping is a UI aid, not an automatic topology correction. It never moves an entire region or silently changes saved Geometry after the Human releases the pointer.

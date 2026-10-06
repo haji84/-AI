@@ -1630,7 +1630,7 @@ Safety:
 
 ## Phase 6 Human floor-area target comparison
 
-Implemented on branch `phase6-floor-area-targets`; CI verification pending:
+Implemented and CI-verified:
 - optional Human floor-area targets stored in Annotation payload
 - target schema:
   - floor_number
@@ -1661,3 +1661,40 @@ Safety:
 - m² difference is never emitted before room Geometry has Human scale calibration
 - arbitrary overlapping zones do not inflate the target comparison
 - backend validation remains authoritative over comparison output
+
+Verified checkpoint:
+- run: `37412861883` SUCCESS
+- backend pytest: 168 passed
+- migration parser smoke: PASS
+- frontend JavaScript syntax: PASS
+
+
+## Phase 6 Annotation boundary snapping
+
+Implemented and CI-verified:
+- Draft room/zone vertex editing now supports optional boundary snapping
+- snapping is enabled by default and can be toggled ON/OFF
+- display-space threshold is approximately 10px and is converted to drawing coordinates
+- snap candidates are limited to the current drawing page
+- actively edited polygon is excluded from its own snap candidates
+- snap targets:
+  - vertices of other room/zone polygons
+  - projected points on other room/zone edges
+- exact vertex targets win ties against edge targets
+- both existing-vertex drag and new-region point placement use the same snap engine
+- current snap target is rendered as a visible crosshair/label
+- snap state is transient and cleared after drag/new-region completion
+- backend remains authoritative for saved Geometry-derived area and summary values
+- frontend contract tests protect drag/new-point snap wiring and ON/OFF behavior
+
+Safety:
+- snapping is a Human editing aid only
+- no polygon is moved automatically after the Human finishes the gesture
+- no server-side Geometry is inferred from snapping state
+- disabling snapping restores exact freehand point placement
+
+Verified checkpoint:
+- run: `37430859727` SUCCESS
+- backend pytest: 170 passed
+- migration parser smoke: PASS
+- frontend JavaScript syntax: PASS
