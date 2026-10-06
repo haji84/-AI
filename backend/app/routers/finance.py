@@ -3,7 +3,7 @@ from fastapi.routing import APIRoute
 from sqlalchemy.exc import IntegrityError, DataError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-from ..authz import require_permission
+from ..authz import require_permission, require_mutation_permission
 from ..db import get_db
 from ..models import User
 from ..finance_models import FinanceYear, BudgetAccount
@@ -25,13 +25,13 @@ def result(db,row): svc.save(db);return svc.row_dict(row)
 def years(db:Session=Depends(get_db),user:User=Depends(require_permission('finance.read'))):
     return [svc.row_dict(r) for r in db.scalars(select(FinanceYear).order_by(FinanceYear.fiscal_year.desc()))]
 @router.post('/years',status_code=201)
-def create_year(payload:YearInput,db:Session=Depends(get_db),user:User=Depends(require_permission('finance.admin'))):
+def create_year(payload:YearInput,db:Session=Depends(get_db),user:User=Depends(require_mutation_permission('finance.admin'))):
     svc.need(db,user,'finance.read');return result(db,svc.create_year(db,user,payload))
 @router.patch('/years/{key}')
-def patch_year(key:str,payload:YearPatch,db:Session=Depends(get_db),user:User=Depends(require_permission('finance.admin'))):
+def patch_year(key:str,payload:YearPatch,db:Session=Depends(get_db),user:User=Depends(require_mutation_permission('finance.admin'))):
     svc.need(db,user,'finance.read');return result(db,svc.patch_year(db,user,key,payload))
 @router.post('/years/{key}/approve')
-def approve_year(key:str,payload:Action,db:Session=Depends(get_db),user:User=Depends(require_permission('finance.approve'))):
+def approve_year(key:str,payload:Action,db:Session=Depends(get_db),user:User=Depends(require_mutation_permission('finance.approve'))):
     svc.need(db,user,'finance.read','finance.admin');return result(db,svc.approve_year(db,user,key,payload))
 @router.get('/accounts')
 def accounts(year_id:str|None=None,leaf:bool=False,level:int|None=Query(None,ge=1,le=32),q:str=Query('',max_length=300),limit:int=Query(100,ge=1,le=200),offset:int=Query(0,ge=0),db:Session=Depends(get_db),user:User=Depends(require_permission('finance.read'))):
@@ -45,10 +45,10 @@ def accounts(year_id:str|None=None,leaf:bool=False,level:int|None=Query(None,ge=
         stmt=stmt.where(or_(*[and_(BudgetAccount.year_id==y.year_id,BudgetAccount.level==len(y.account_levels)) for y in policies])) if policies else stmt.where(False)
     return [svc.account_dict(db,r) for r in db.scalars(stmt.order_by(BudgetAccount.code,BudgetAccount.account_id).offset(offset).limit(limit))]
 @router.post('/accounts',status_code=201)
-def create_account(payload:AccountInput,db:Session=Depends(get_db),user:User=Depends(require_permission('finance.create'))):
+def create_account(payload:AccountInput,db:Session=Depends(get_db),user:User=Depends(require_mutation_permission('finance.create'))):
     svc.need(db,user,'finance.read');return result(db,svc.create_account(db,user,payload))
 @router.patch('/accounts/{key}')
-def patch_account(key:str,payload:AccountPatch,db:Session=Depends(get_db),user:User=Depends(require_permission('finance.update'))):
+def patch_account(key:str,payload:AccountPatch,db:Session=Depends(get_db),user:User=Depends(require_mutation_permission('finance.update'))):
     svc.need(db,user,'finance.read');return result(db,svc.patch_account(db,user,key,payload))
 
 from ..finance_models import FinanceProposal, FinanceJournal
@@ -65,21 +65,21 @@ def proposals(q:str=Query('',max_length=300),kind:str|None=None,status:str|None=
     if year_id:stmt=stmt.where(BudgetAccount.year_id==year_id)
     return [svc.visible(db,user,r) for r in db.scalars(stmt.order_by(FinanceProposal.created_at.desc(),FinanceProposal.proposal_id).offset(offset).limit(limit))]
 @router.post('/proposals',status_code=201)
-def create_proposal(payload:ProposalInput,db:Session=Depends(get_db),user:User=Depends(require_permission('finance.create'))):
+def create_proposal(payload:ProposalInput,db:Session=Depends(get_db),user:User=Depends(require_mutation_permission('finance.create'))):
     svc.need(db,user,'finance.read');row=svc.create_proposal(db,user,payload);svc.save(db);return svc.visible(db,user,row)
 @router.get('/proposals/{key}')
 def proposal_detail(key:str,db:Session=Depends(get_db),user:User=Depends(require_permission('finance.read'))):return svc.visible(db,user,svc.get_row(db,FinanceProposal,key))
 @router.patch('/proposals/{key}')
-def patch_proposal(key:str,payload:ProposalPatch,db:Session=Depends(get_db),user:User=Depends(require_permission('finance.update'))):
+def patch_proposal(key:str,payload:ProposalPatch,db:Session=Depends(get_db),user:User=Depends(require_mutation_permission('finance.update'))):
     svc.need(db,user,'finance.read');row=svc.patch_proposal(db,user,key,payload);svc.save(db);return svc.visible(db,user,row)
 @router.post('/proposals/{key}/review')
-def review_proposal(key:str,payload:Action,db:Session=Depends(get_db),user:User=Depends(require_permission('finance.review'))):
+def review_proposal(key:str,payload:Action,db:Session=Depends(get_db),user:User=Depends(require_mutation_permission('finance.review'))):
     svc.need(db,user,'finance.read');row=svc.proposal_action(db,user,key,payload,'review');svc.save(db);return svc.visible(db,user,row)
 @router.post('/proposals/{key}/approve')
-def approve_proposal(key:str,payload:Action,db:Session=Depends(get_db),user:User=Depends(require_permission('finance.approve'))):
+def approve_proposal(key:str,payload:Action,db:Session=Depends(get_db),user:User=Depends(require_mutation_permission('finance.approve'))):
     svc.need(db,user,'finance.read');row=svc.proposal_action(db,user,key,payload,'approve');svc.save(db);return svc.visible(db,user,row)
 @router.post('/proposals/{key}/cancel')
-def cancel_proposal(key:str,payload:Action,db:Session=Depends(get_db),user:User=Depends(require_permission('finance.admin'))):
+def cancel_proposal(key:str,payload:Action,db:Session=Depends(get_db),user:User=Depends(require_mutation_permission('finance.admin'))):
     svc.need(db,user,'finance.read');row=svc.proposal_action(db,user,key,payload,'cancel');svc.save(db);return svc.visible(db,user,row)
 @router.get('/journal')
 def journal(account_id:str|None=None,limit:int=Query(100,ge=1,le=200),offset:int=Query(0,ge=0),db:Session=Depends(get_db),user:User=Depends(require_permission('finance.read'))):
@@ -96,10 +96,10 @@ def counterparties(q:str=Query('',max_length=300),limit:int=Query(100,ge=1,le=20
     if q:stmt=stmt.where(ContractCounterparty.name.contains(q)|ContractCounterparty.registration_no.contains(q))
     return [svc.row_dict(r) for r in db.scalars(stmt.order_by(ContractCounterparty.name,ContractCounterparty.counterparty_id).offset(offset).limit(limit))]
 @router.post('/counterparties',status_code=201)
-def create_party(payload:CounterpartyInput,db:Session=Depends(get_db),user:User=Depends(require_permission('contract.create'))):
+def create_party(payload:CounterpartyInput,db:Session=Depends(get_db),user:User=Depends(require_mutation_permission('contract.create'))):
     svc.need(db,user,'contract.read');row=ContractCounterparty(**payload.model_dump());db.add(row);db.flush();svc.audit(db,user,'counterparty.create',row);return result(db,row)
 @router.patch('/counterparties/{key}')
-def patch_party(key:str,payload:CounterpartyPatch,db:Session=Depends(get_db),user:User=Depends(require_permission('contract.update'))):
+def patch_party(key:str,payload:CounterpartyPatch,db:Session=Depends(get_db),user:User=Depends(require_mutation_permission('contract.update'))):
     svc.need(db,user,'contract.read');row=svc.get_row(db,ContractCounterparty,key,True);svc.check_version(row,payload.expected_version);before=svc.row_dict(row);svc.bump(db,row,row.version,payload.model_dump(exclude={'expected_version'},exclude_unset=True));svc.audit(db,user,'counterparty.update',row,before);return result(db,row)
 @router.get('/documents')
 def documents(q:str=Query('',max_length=300),limit:int=Query(100,ge=1,le=200),offset:int=Query(0,ge=0),db:Session=Depends(get_db),user:User=Depends(require_permission('document.read'))):
@@ -113,15 +113,15 @@ def contracts(q:str=Query('',max_length=300),year_id:str|None=None,limit:int=Que
     if year_id:stmt=stmt.join(ProcurementProfile).where(ProcurementProfile.year_id==year_id)
     return [svc.contract_dict(db,user,r) for r in db.scalars(stmt.order_by(ContractCase.updated_at.desc(),ContractCase.contract_case_id).offset(offset).limit(limit))]
 @router.post('/contracts',status_code=201)
-def create_contract(payload:ContractInput,db:Session=Depends(get_db),user:User=Depends(require_permission('finance.create'))):
+def create_contract(payload:ContractInput,db:Session=Depends(get_db),user:User=Depends(require_mutation_permission('finance.create'))):
     svc.need(db,user,'finance.read');row=svc.create_contract(db,user,payload);svc.save(db);return svc.contract_dict(db,user,row)
 @router.get('/contracts/{key}')
 def contract_detail(key:str,db:Session=Depends(get_db),user:User=Depends(require_permission('contract.read'))):return svc.contract_dict(db,user,svc.get_row(db,ContractCase,key))
 @router.post('/contracts/{key}/approve')
-def approve_contract(key:str,payload:Action,db:Session=Depends(get_db),user:User=Depends(require_permission('contract.approve'))):
+def approve_contract(key:str,payload:Action,db:Session=Depends(get_db),user:User=Depends(require_mutation_permission('contract.approve'))):
     svc.need(db,user,'finance.approve');row=svc.approve_contract(db,user,key,payload);svc.save(db);return svc.contract_dict(db,user,row)
 @router.put('/contracts/{key}/profile')
-def contract_profile(key:str,payload:ProfileInput,db:Session=Depends(get_db),user:User=Depends(require_permission('finance.update'))):
+def contract_profile(key:str,payload:ProfileInput,db:Session=Depends(get_db),user:User=Depends(require_mutation_permission('finance.update'))):
     svc.need(db,user,'finance.read','contract.read','contract.update');contract=svc.get_row(db,ContractCase,key,True);svc.get_row(db,FinanceYear,payload.year_id);row=db.scalar(select(ProcurementProfile).where(ProcurementProfile.contract_case_id==key))
     if row:
         svc.check_version(row,payload.expected_version)
@@ -132,7 +132,7 @@ def contract_profile(key:str,payload:ProfileInput,db:Session=Depends(get_db),use
     svc.validate_contract_policy(db,contract,contract.amount)
     svc.audit(db,user,'contract.profile',row);return result(db,row)
 @router.post('/contracts/{key}/documents',status_code=201)
-def link_document(key:str,payload:DocumentLink,db:Session=Depends(get_db),user:User=Depends(require_permission('contract.update'))):
+def link_document(key:str,payload:DocumentLink,db:Session=Depends(get_db),user:User=Depends(require_mutation_permission('contract.update'))):
     svc.need(db,user,'contract.read');contract=svc.get_row(db,ContractCase,key,True)
     if contract.status=='approved':raise __import__('fastapi').HTTPException(409,'approved source attachments require reviewed amendment')
     svc.source_document(db,user,payload.document_id);row=ContractDocument(contract_case_id=key,**payload.model_dump());db.add(row);db.flush();svc.bump(db,contract,contract.version);svc.audit(db,user,'contract.document.link',row);return result(db,row)
@@ -148,25 +148,25 @@ def candidates(kind:str|None=None,year_id:str|None=None,q:str=Query('',max_lengt
     if year_id:stmt=stmt.where(FinanceCandidate.year_id==year_id)
     return [svc.visible(db,user,r) for r in db.scalars(stmt.order_by(FinanceCandidate.created_at.desc(),FinanceCandidate.candidate_id).offset(offset).limit(limit))]
 @router.post('/candidates',status_code=201)
-def create_candidate(payload:CandidateInput,db:Session=Depends(get_db),user:User=Depends(require_permission('finance.create'))):
+def create_candidate(payload:CandidateInput,db:Session=Depends(get_db),user:User=Depends(require_mutation_permission('finance.create'))):
     svc.need(db,user,'finance.read');row=svc.create_candidate(db,user,payload);svc.save(db);return svc.visible(db,user,row)
 @router.post('/candidates/{key}/review')
-def review_candidate(key:str,payload:Action,db:Session=Depends(get_db),user:User=Depends(require_permission('finance.review'))):
+def review_candidate(key:str,payload:Action,db:Session=Depends(get_db),user:User=Depends(require_mutation_permission('finance.review'))):
     svc.need(db,user,'finance.read');row=svc.candidate_action(db,user,key,payload,'review');svc.save(db);return svc.visible(db,user,row)
 @router.post('/candidates/{key}/cancel')
-def cancel_candidate(key:str,payload:Action,db:Session=Depends(get_db),user:User=Depends(require_permission('finance.admin'))):
+def cancel_candidate(key:str,payload:Action,db:Session=Depends(get_db),user:User=Depends(require_mutation_permission('finance.admin'))):
     svc.need(db,user,'finance.read');row=svc.candidate_action(db,user,key,payload,'cancel');svc.save(db);return svc.visible(db,user,row)
 @router.post('/contracts/{key}/amendments',status_code=201)
-def create_amendment(key:str,payload:AmendmentInput,db:Session=Depends(get_db),user:User=Depends(require_permission('finance.create'))):
+def create_amendment(key:str,payload:AmendmentInput,db:Session=Depends(get_db),user:User=Depends(require_mutation_permission('finance.create'))):
     row=svc.create_amendment(db,user,key,payload);svc.save(db);return svc.visible(db,user,row)
 @router.get('/amendments')
 def amendments(db:Session=Depends(get_db),user:User=Depends(require_permission('finance.read'))):
     svc.need(db,user,'contract.read');return [svc.visible(db,user,r) for r in db.scalars(select(FinanceContractAmendment).order_by(FinanceContractAmendment.created_at.desc()).limit(200))]
 @router.post('/amendments/{key}/review')
-def review_amendment(key:str,payload:Action,db:Session=Depends(get_db),user:User=Depends(require_permission('finance.review'))):
+def review_amendment(key:str,payload:Action,db:Session=Depends(get_db),user:User=Depends(require_mutation_permission('finance.review'))):
     row=svc.amendment_action(db,user,key,payload,'review');svc.save(db);return svc.visible(db,user,row)
 @router.post('/amendments/{key}/approve')
-def approve_amendment(key:str,payload:Action,db:Session=Depends(get_db),user:User=Depends(require_permission('finance.approve'))):
+def approve_amendment(key:str,payload:Action,db:Session=Depends(get_db),user:User=Depends(require_mutation_permission('finance.approve'))):
     row=svc.amendment_action(db,user,key,payload,'approve');svc.save(db);return svc.visible(db,user,row)
 
 from fastapi import File, Form, UploadFile, HTTPException
@@ -179,10 +179,10 @@ from ..finance_schemas import ImportConfirm,RenderInput
 def import_template(dataset:str,format:Literal['csv','xlsx']='csv',db:Session=Depends(get_db),user:User=Depends(require_permission('finance.import'))):
     svc.import_need(db,user,dataset);raw,mime=svc.tabular(svc.headers(dataset),[],format);return Response(raw,media_type=mime,headers={'Content-Disposition':f'attachment; filename="finance-{dataset}-template.{format}"','Cache-Control':'no-store'})
 @router.post('/import/{dataset}')
-def import_preview(dataset:str,file:UploadFile=File(...),document_id:str|None=Form(None),db:Session=Depends(get_db),user:User=Depends(require_permission('finance.import'))):
+def import_preview(dataset:str,file:UploadFile=File(...),document_id:str|None=Form(None),db:Session=Depends(get_db),user:User=Depends(require_mutation_permission('finance.import'))):
     row,sample=svc.preview_import(db,user,dataset,file,document_id);svc.save(db);return {**svc.row_dict(row),'row_data':None,'sample':sample,'rows':len(row.row_data),'schema_version':svc.SCHEMA_VERSION}
 @router.post('/import-previews/{key}/confirm')
-def confirm_import(key:str,payload:ImportConfirm,db:Session=Depends(get_db),user:User=Depends(require_permission('finance.import'))):
+def confirm_import(key:str,payload:ImportConfirm,db:Session=Depends(get_db),user:User=Depends(require_mutation_permission('finance.import'))):
     value=svc.confirm_import(db,user,key,payload);svc.save(db);return value
 @router.get('/export/{dataset}')
 def export(dataset:str,format:Literal['csv','xlsx']='csv',year_id:str|None=None,db:Session=Depends(get_db),user:User=Depends(require_permission('finance.export'))):
@@ -203,16 +203,16 @@ def alerts(as_of:date|None=None,days:int=Query(30,ge=0,le=365),db:Session=Depend
 def templates(db:Session=Depends(get_db),user:User=Depends(require_permission('template.read'))):
     svc.need(db,user,'document.read');return [{'form_template_id':r.form_template_id,'name':r.name,'version_label':r.version_label,'module_code':r.module_code,'document_id':r.document_id} for r in db.scalars(select(FormTemplate).where(FormTemplate.module_code.in_(['contracts','procurement','budget']),FormTemplate.status=='active'))]
 @router.post('/proposals/{key}/render',status_code=201)
-def render(key:str,payload:RenderInput,db:Session=Depends(get_db),user:User=Depends(require_permission('finance.export'))):return result(db,svc.render_proposal(db,user,key,payload))
+def render(key:str,payload:RenderInput,db:Session=Depends(get_db),user:User=Depends(require_mutation_permission('finance.export'))):return result(db,svc.render_proposal(db,user,key,payload))
 
 from ..finance_schemas import ContractPatch
 @router.patch('/contracts/{key}')
-def patch_contract(key:str,payload:ContractPatch,db:Session=Depends(get_db),user:User=Depends(require_permission('finance.update'))):
+def patch_contract(key:str,payload:ContractPatch,db:Session=Depends(get_db),user:User=Depends(require_mutation_permission('finance.update'))):
     svc.need(db,user,'finance.read');row=svc.patch_contract(db,user,key,payload);svc.save(db);return svc.contract_dict(db,user,row)
 
 from ..finance_schemas import CandidatePatch
 @router.patch('/candidates/{key}')
-def patch_candidate(key:str,payload:CandidatePatch,db:Session=Depends(get_db),user:User=Depends(require_permission('finance.update'))):
+def patch_candidate(key:str,payload:CandidatePatch,db:Session=Depends(get_db),user:User=Depends(require_mutation_permission('finance.update'))):
     svc.need(db,user,'finance.read');row=svc.patch_candidate(db,user,key,payload);svc.save(db);return svc.visible(db,user,row)
 
 from ..finance_models import ProcurementEvent
@@ -226,22 +226,22 @@ def procurement_events(contract_case_id:str|None=None,kind:str|None=None,status:
     if q:stmt=stmt.where(ProcurementEvent.description.contains(q))
     return [svc.visible(db,user,r) for r in db.scalars(stmt.order_by(ProcurementEvent.created_at.desc(),ProcurementEvent.event_id).offset(offset).limit(limit))]
 @router.post('/procurement-events',status_code=201)
-def create_event(payload:EventInput,db:Session=Depends(get_db),user:User=Depends(require_permission('finance.create'))):
+def create_event(payload:EventInput,db:Session=Depends(get_db),user:User=Depends(require_mutation_permission('finance.create'))):
     svc.need(db,user,'finance.read','contract.read');row=svc.create_event(db,user,payload);svc.save(db);return svc.visible(db,user,row)
 @router.get('/procurement-events/{key}')
 def event_detail(key:str,db:Session=Depends(get_db),user:User=Depends(require_permission('finance.read'))):
     svc.need(db,user,'contract.read');row=svc.get_row(db,ProcurementEvent,key);return {**svc.visible(db,user,row),'payments':[svc.visible(db,user,r) for r in db.scalars(select(FinanceProposal).where(FinanceProposal.invoice_id==key))]}
 @router.patch('/procurement-events/{key}')
-def patch_event(key:str,payload:EventPatch,db:Session=Depends(get_db),user:User=Depends(require_permission('finance.update'))):
+def patch_event(key:str,payload:EventPatch,db:Session=Depends(get_db),user:User=Depends(require_mutation_permission('finance.update'))):
     svc.need(db,user,'finance.read','contract.read');row=svc.patch_event(db,user,key,payload);svc.save(db);return svc.visible(db,user,row)
 @router.post('/procurement-events/{key}/review')
-def review_event(key:str,payload:Action,db:Session=Depends(get_db),user:User=Depends(require_permission('finance.review'))):
+def review_event(key:str,payload:Action,db:Session=Depends(get_db),user:User=Depends(require_mutation_permission('finance.review'))):
     svc.need(db,user,'finance.read','contract.read');row=svc.event_action(db,user,key,payload,'review');svc.save(db);return svc.visible(db,user,row)
 @router.post('/procurement-events/{key}/approve')
-def approve_event(key:str,payload:Action,db:Session=Depends(get_db),user:User=Depends(require_permission('finance.approve'))):
+def approve_event(key:str,payload:Action,db:Session=Depends(get_db),user:User=Depends(require_mutation_permission('finance.approve'))):
     svc.need(db,user,'finance.read','contract.read');row=svc.event_action(db,user,key,payload,'approve');svc.save(db);return svc.visible(db,user,row)
 @router.post('/procurement-events/{key}/cancel')
-def cancel_event(key:str,payload:Action,db:Session=Depends(get_db),user:User=Depends(require_permission('finance.admin'))):
+def cancel_event(key:str,payload:Action,db:Session=Depends(get_db),user:User=Depends(require_mutation_permission('finance.admin'))):
     svc.need(db,user,'finance.read','contract.read');row=svc.event_action(db,user,key,payload,'cancel');svc.save(db);return svc.visible(db,user,row)
 
 from ..finance_schemas import DocumentDiff,Calculation
@@ -252,12 +252,12 @@ def support(key:str,db:Session=Depends(get_db),user:User=Depends(require_permiss
 def extract(key:str,db:Session=Depends(get_db),user:User=Depends(require_permission('finance.read'))):
     return svc.extract_finance_document(db,user,key)
 @router.post('/document-diff')
-def document_diff(payload:DocumentDiff,db:Session=Depends(get_db),user:User=Depends(require_permission('finance.read'))):
+def document_diff(payload:DocumentDiff,db:Session=Depends(get_db),user:User=Depends(require_mutation_permission('finance.read'))):
     from difflib import unified_diff
     before=svc.extract_finance_document(db,user,payload.before_document_id);after=svc.extract_finance_document(db,user,payload.after_document_id)
     return {'authority':'candidate','before_source':before['source'],'after_source':after['source'],'diff':'\n'.join(unified_diff(before['text'].splitlines(),after['text'].splitlines(),fromfile=before['source']['filename'],tofile=after['source']['filename'])),'truncated':before['truncated'] or after['truncated']}
 @router.post('/calculate')
-def calculate(payload:Calculation,user:User=Depends(require_permission('finance.read'))):
+def calculate(payload:Calculation,user:User=Depends(require_mutation_permission('finance.read'))):
     from decimal import Decimal
     total=sum(payload.amounts,Decimal('0'))
     if abs(total)>=Decimal('10000000000000000'):raise HTTPException(422,'result exceeds NUMERIC(18,2) authority limits')

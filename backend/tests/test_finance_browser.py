@@ -71,5 +71,12 @@ with SessionLocal() as db:
    delivery=stage('delivery','0');inspection=stage('inspection','0',delivery);invoice=stage('invoice','100.01',inspection)
    payment=new_proposal('payment','100.01');assert payment['commitment_id']==commitment['proposal_id'] and payment['invoice_id']==invoice['event_id'];approve(payment);expect(page.locator('#financeBalance')).to_have_text('500.00');expect(page.locator('#financeContent')).to_contain_text('予約 400.00');expect(page.locator('#financeContent')).to_contain_text('執行 100.01')
    assert not errors,errors;expect(page.locator('#financeMessage')).to_be_empty()
-   artifact=Path(os.environ.get('FIRE_AI_BROWSER_ARTIFACTS',str(tmp_path/'artifacts')));artifact.mkdir(parents=True,exist_ok=True);page.screenshot(path=str(artifact/'finance-human-payment.png'),full_page=True);browser.close()
+   artifact=Path(os.environ.get('FIRE_AI_BROWSER_ARTIFACTS',str(tmp_path/'artifacts')));artifact.mkdir(parents=True,exist_ok=True);page.screenshot(path=str(artifact/'finance-human-payment.png'),full_page=True)
+   # Source links must report auth loss back to this shared-PC surface.
+   source=page.locator('#financeModal a[href^="/documents/"]').first;expect(source).to_be_visible()
+   assert page.request.post(base+'/auth/logout').status==200
+   source.click();expect(page.locator('#financeModal')).to_have_count(0)
+   assert page.evaluate('financeState.permissions.length')==0
+   assert not errors,errors
+   browser.close()
  finally:server.terminate();server.wait(timeout=10);logs.close()

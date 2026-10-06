@@ -56,3 +56,12 @@ def test_successful_permission_refresh_clears_lost_read_rights(tmp_path):
 vm.runInContext("workforceState.permissions=['workforce.read'];workforceState.employees=[{display_name:'PRIVATE'}];",context);node('workforceContent').innerHTML='PRIVATE';authorized=false;await vm.runInContext('initWorkforce()',context);
 if(node('workforceContent').innerHTML||vm.runInContext('workforceState.employees.length',context))throw Error('revoked read rights leave private workforce data');
 """)
+
+
+def test_late_roster_cannot_overwrite_new_attendance_view(tmp_path):
+    run(tmp_path,r"""
+let complete;const original=context.api;context.api=async(path,opt)=>path.startsWith('/workforce/rosters')?new Promise(resolve=>complete=resolve):original(path,opt);
+const old=vm.runInContext("workforceRoster('2026-10-10')",context);await turn();await vm.runInContext('workforceAttendance()',context);complete([]);
+try{await old}catch(e){if(!e.cancelled)throw e}
+if(node('workforceContent').innerHTML.includes('workforceRosterDate')||!node('workforceContent').innerHTML.includes('勤怠'))throw Error('late initial roster overwrote selected attendance');
+""")
