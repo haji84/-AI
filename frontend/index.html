@@ -1831,6 +1831,25 @@ async function createEmptyDrawingAnnotation(){
     state.drawingAnnotation=row;await refreshDrawingWorkspace();
   }catch(e){alert('空のAnnotationを作れません: '+e.message)}
 }
+async function reviseDrawingAnnotation(){
+  const ann=state.drawingAnnotation;
+  if(!ann||ann.status!=='reviewed')return;
+  if(!confirm('現在のHuman確認済みAnnotationを残したまま、編集可能な修正版Draftを作りますか？'))return;
+  const note=(prompt('修正理由・メモ（任意）','')||'').trim();
+  try{
+    const row=await api('/drawing-annotations/'+ann.drawing_annotation_set_id+'/revise',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({expected_version:ann.version,note:note||null})
+    });
+    state.drawingAnnotation=row;
+    drawingResetHistory();
+    await refreshDrawingWorkspace();
+  }catch(e){
+    alert('修正版Draftを作れません: '+e.message);
+  }
+}
+
 async function saveDrawingAnnotation(showMessage=true){
   const ann=state.drawingAnnotation;if(!ann||ann.status!=='draft')return ann;
   try{
@@ -2085,18 +2104,20 @@ function renderDrawingWorkspace(){
       return '<div class="drawingRoomRow '+(selected?'selected':'')+'" '+(ann.status==='draft'?'onclick="selectDrawingElement('+z.i+',event)"':'')+'><div><b>'+esc(z.x.label||z.x.extracted_data?.use_name||'名称未設定')+'</b> <span class="pill">'+esc(z.x.element_type==='zone'?'任意区画':'部屋')+'</span><div class="muted">頁 '+esc(z.x.page_no||1)+' / 用途 '+esc(z.x.extracted_data?.use_name||'－')+' / 階 '+esc(z.x.floor_number??'－')+'</div><div class="drawingMetric">'+esc(drawingMetricLabel(z.x))+'</div></div>'+(ann.status==='draft'?'<button class="btn danger" onclick="event.stopPropagation();removeDrawingRoom('+z.i+')">削除</button>':'')+'</div>'
     }).join(''):'<div class="muted">部屋・区画Annotationなし</div>';
     const pageMeta=drawingPageMeta(currentPage)||{};
+    const revisionHistory=Array.isArray(ann.payload?.revision_history)?ann.payload.revision_history:[];
+    const revisionInfo=revisionHistory.length?'<div class="muted" style="margin-top:6px">Revision '+esc(revisionHistory.length)+' / 元Annotation '+esc(revisionHistory[revisionHistory.length-1]?.source_annotation_id||'－')+'</div>':'';
     const cal=pageMeta.calibration;
     const calText=cal?.meters_per_pixel?'縮尺校正済み：1px = '+Number(cal.meters_per_pixel).toFixed(6)+'m':'縮尺未設定：面積はpx²表示';
     const historyControls=ann.status==='draft'?'<div class="row" style="margin-top:8px"><button class="btn" onclick="drawingUndo()" '+(state.drawingUndoStack.length?'':'disabled')+'>元に戻す</button><button class="btn" onclick="drawingRedo()" '+(state.drawingRedoStack.length?'':'disabled')+'>やり直す</button><span class="pill '+(state.drawingDirty?'':'active')+'">'+(state.drawingDirty?'未保存':'保存済み')+'</span><span class="muted">Ctrl/⌘+Z / Shift+Ctrl/⌘+Z</span></div>':'';
     annHtml='<div class="card"><div class="row"><div class="sectionTitle grow">Human Annotation</div><span class="pill '+(ann.status==='reviewed'?'active':'')+'">'+esc(drawingWorkspaceStatusLabel(ann.status))+'</span></div>'+historyControls+
-      '<input id="drawingReferenceImportFile" class="hidden" type="file" accept=".json,application/json" onchange="importDrawingReferenceDraftFile(event)"><div class="row">'+annSelect+'<button class="btn" onclick="chooseDrawingReferenceDraft()">別Reference Draftを読み込む</button></div>'+
+      '<input id="drawingReferenceImportFile" class="hidden" type="file" accept=".json,application/json" onchange="importDrawingReferenceDraftFile(event)"><div class="row">'+annSelect+'<button class="btn" onclick="chooseDrawingReferenceDraft()">別Reference Draftを読み込む</button></div>'+revisionInfo+
       (ann.status==='draft'?'<div class="grid3" style="margin-top:8px"><div class="field"><label>追加種別</label><select id="humanElementType" onchange="state.drawingNewElementType=this.value"><option value="room">部屋</option><option value="zone">任意区画</option></select></div><div class="field"><label>区画名</label><input id="humanRoomLabel" placeholder="例：主寝室 / 防火区画A"></div><div class="field"><label>用途コード</label><input id="humanRoomUse" placeholder="例：bedroom"></div></div><div class="field" style="margin-top:8px"><label>階</label><input id="humanRoomFloor" type="number" value="1"></div>'+
       (isVisual?'<div class="row" style="margin-top:8px"><button class="btn primary" onclick="startDrawingRoom()">区画追加</button><button class="btn" onclick="undoDrawingPoint()">1点戻す</button><button class="btn" onclick="finishDrawingRoom()">追加確定</button><button class="btn" onclick="cancelDrawingRoom()">描画取消</button></div><div class="muted">区画追加：原図の角を順にクリック→追加確定。既存区画は選択すると頂点をドラッグ修正できます。</div>':'')+
       '<div class="notice" style="margin-top:8px"><div class="row"><b class="grow">面積・縮尺</b><span class="muted">'+esc(calText)+'</span></div><div class="row"><button class="btn" onclick="startDrawingCalibration()">2点で縮尺校正</button>'+(cal?'<button class="btn" onclick="clearDrawingCalibration()">縮尺解除</button>':'')+'<button class="btn" onclick="applySelectedDrawingMeta()">選択区画へ名称・用途を反映</button><button class="btn" onclick="addDrawingVertex()">頂点追加</button><button class="btn" onclick="removeDrawingVertex()">選択頂点を削除</button><button class="btn" onclick="toggleDrawingSnap()">境界スナップ：'+(state.drawingSnapEnabled?'ON':'OFF')+'</button><button class="btn" onclick="setDrawingFloorAreaTarget()">既知の階面積を登録</button><button class="btn" onclick="clearDrawingFloorAreaTarget()">既知面積を解除</button></div><div id="drawingSelectedMetrics" class="drawingMetric">区画を選択してください</div><div class="muted">縮尺校正：図面上の既知寸法の両端を2点クリックし、実寸(m)を入力。以後、頂点修正のたびに㎡を自動再計算します。境界スナップON時は、頂点ドラッグ/区画追加点が表示上10px以内の他区画の頂点・辺へ吸着します。</div></div>'+
       drawingGeometrySummaryHtml(ann.payload?.geometry_summary||drawingLocalGeometrySummary())+
       '<div class="drawingRoomList" style="margin-top:8px">'+roomList+'</div><div class="row" style="margin-top:8px"><button class="btn" onclick="saveDrawingAnnotation()">下書き保存</button><button class="btn primary" onclick="reviewDrawingAnnotation()">Human確認済みにする</button></div>':
       drawingGeometrySummaryHtml(ann.payload?.geometry_summary||drawingLocalGeometrySummary())+
-      '<div class="drawingRoomList" style="margin-top:8px">'+roomList+'</div><div class="notice">確認済みAnnotationはBenchmark Referenceと相談入力に使用できます。面積は保存時にサーバー側で再計算済みです。</div>')+
+      '<div class="drawingRoomList" style="margin-top:8px">'+roomList+'</div><div class="notice">確認済みAnnotationはBenchmark Referenceと相談入力に使用できます。面積は保存時にサーバー側で再計算済みです。</div><div class="row" style="margin-top:8px"><button class="btn primary" onclick="reviseDrawingAnnotation()">修正版Draftを作る</button></div>')+
       '</div>';
   }
   const reviewedAnn=ann?.status==='reviewed';
