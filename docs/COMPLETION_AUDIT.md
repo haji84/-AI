@@ -1,6 +1,6 @@
 # 実運用完成監査
 
-監査基準: 2026-10-06、main `b2fc2612a35a86f7746da7ea968da570c87cb773`。
+監査基準: 2026-10-06、main base `0feb62e6ab78dcb77bceedb4154ab5aa4d8bc8da`。
 正本: GitHub haji84/-AI main。過去の会話・Phase番号・PROJECT_STATEだけで完成判定しない。
 
 ## 判定方法
@@ -105,3 +105,9 @@ PR48/50（main6bcf537）の正式仕様を採用。旧v1の説明/Phaseは履歴
 ## PR56正本確認
 
 main b2fc2612、main CI37500653453 SUCCESS、exact-headPR CI447/backend＋5/browser。HumanRole/RoleRule/期限付き・代理・本人向け根拠は基盤としてmerge済み。初期bootstrapのcontext500も修復済み。13Completed/33Partial/10Missing/1External Gateの57章分類は維持し、資格/担当selector・辞令Document候補と未実装業務を内部残差として扱う。共通Migration lexerのfinance trigger破断は内部不足として修復中。
+
+## 勤務管理統合の再監査
+
+main ea15820e / main CI37503229005 SUCCESS。既存PR53のCI失敗を修復して統合するSlice。共通人事/権限/tenantを維持し、独立レビュー13ImportantをTDD修復。章25はMissingからPartialへの基盤統合であり、team/work-result/checkout/cancel/balance/crew UI、期限/代休reconciliationは内部残差。Matrixは13Completed/34Partial/9Missing/1External Gate。CIとmergeを確認せず完成扱いしない。詳細WORKFORCE_INTEGRATION.md。
+
+PR55/main0feb62e6、main CI37507500474 SUCCESSを再取得。財務048は正本化され、重複実装しない。§26/27の共通session/permission guardと共用PCの状態消去は内部Partialとして残す。13Completed/36Partial/7Missing/1External（勤務Slice反映後。main0febのみは13/35/8/1）へ再分類。勤務PR53は新mainの両業務統合・exact-headCI待ち。

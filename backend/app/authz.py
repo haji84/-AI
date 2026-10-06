@@ -2,6 +2,7 @@ from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from .db import get_db
+from .personnel import account_change_lock,employee_available
 from .models import User, UserSession, UserRole, RolePermission, Permission
 from .security import token_digest
 from .settings import settings
@@ -60,4 +61,20 @@ def require_permission(code: str):
         if code not in permission_codes(db, user.user_id):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=f"missing permission: {code}")
         return user
+    return dependency
+
+
+def require_mutation_permission(code: str):
+    """Serialize Human writes with account changes and recheck the requesting session."""
+    def dependency(user: User = Depends(require_permission(code)),db: Session = Depends(get_db)) -> User:
+        identity=user.user_id
+        account_change_lock(db)
+        revalidate_session(db,identity)
+        fresh=db.get(User,identity,populate_existing=True)
+        if not fresh or not fresh.active or not employee_available(db,fresh):
+            raise HTTPException(status_code=403,detail='Human account no longer available')
+        current_user(fresh)
+        if code not in permission_codes(db,identity):
+            raise HTTPException(status_code=403,detail=f'mutation permission no longer effective: {code}')
+        return fresh
     return dependency

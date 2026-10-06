@@ -2,7 +2,7 @@
 
 Audit date: 2026-10-06
 Canonical specification: docs/SPECIFICATION.md v2.0
-Audited main: b2fc2612a35a86f7746da7ea968da570c87cb773
+Audited main base: 0feb62e6ab78dcb77bceedb4154ab5aa4d8bc8da (PR55; main CI37507500474 SUCCESS); this slice integrates the existing PR53 delta after review/CI.
 
 This matrix compares all 57 Master Specification chapters against the actual repository: models, migrations, routers, services, frontend surfaces, tests, deployment files and current CI evidence.
 
@@ -18,8 +18,8 @@ Status meanings:
 | Status | Count |
 |---|---:|
 | Completed | 13 |
-| Partial | 33 |
-| Missing | 10 |
+| Partial | 36 |
+| Missing | 7 |
 | External Gate | 1 |
 | Total | 57 |
 
@@ -51,9 +51,9 @@ Status meanings:
 | 22 | Incident and Dispatch | Completed | PR42, Migration040, operations models/service/router/UI/tests | cross-module dashboard/statistics integration only |
 | 23 | Fleet and Vehicle | Completed | PR42 vehicle registry/trip/fuel/inspection/service/fault/cost workflows | production acceptance and cross-module statistics only |
 | 24 | Operational Assets and Inventory | Completed | PR46, Migration042, asset/lot/balance/movement/loan/service/import/export/UI/tests | production acceptance and dashboard/statistics integration only |
-| 25 | Workforce and Duty Management | Missing | personnel/organization foundation exists, but no workforce router/models/UI | roster, staffing rules, leave, attendance, overtime, support placement, duty statistics |
-| 26 | Contract and Procurement | Partial | ContractCase/Counterparty/Document/Change models and router | quote/commitment/procurement/payment/inspection/renewal workflows and full UI |
-| 27 | Budget and Finance | Missing | no finance/budget domain router or migration | fiscal year, configurable account hierarchy, budget changes/transfers/commitments/payments/balance/requests |
+| 25 | Workforce and Duty Management | Partial | Migration044, workforce models/service/router/UI, existing personnel reuse, explicit Human working intervals, CAS/provenance, serialized balance/placement and session guards, browser and PG regressions | team/work-result, checkout/cancel/correction/balance/crew UI, explicit expiry/reconciliation policy; actual Human staffing rules and physical PC acceptance external |
+| 26 | Contract and Procurement | Partial | PR55 / Migration048 common Contract/Counterparty/Document, quote/commitment/invoice/inspection/payment/amendment/renewal UI and native PG evidence | common queued-session/permission mutation guard and shared-PC session-state completion remain internal; real originals/formal policy external |
+| 27 | Budget and Finance | Partial | PR55 / Migration048, exact Decimal, Human policy/year/account hierarchy, immutable journal, proposal review/posting/reversal, budgets/transfers/commitments/payments/requests, native PG races and browser CI | common queued-session/permission guard and shared-PC clearing remain internal, production policy/formal adoption external |
 | 28 | Council, Assembly and Inquiry Support | Missing | no inquiry domain | evidence-linked questions, answer revisions, numeric-source lineage, similar search and Human approval |
 | 29 | Fire Investigation | Partial | Migration019+, fire case/evidence/statement/timeline/cause/report APIs/UI | complete local-model worker/adapters, video path and full operational audit |
 | 30 | Fire Photo Intelligence | Partial | Migration023/024, photo metadata/quality/duplicate and drawing links | production classifier/description worker and real labeled accuracy acceptance |
@@ -134,3 +134,7 @@ After every merged slice, refresh main and update only the affected matrix rows.
 The stopping condition is the Master Specification v2.0 Definition of Done, with External Gates reported separately.
 
 Audit correction after code inspection: chapter7 was previously marked Completed too broadly. Existing appointment/permanent role selection does not provide Human-managed custom permissions/Role Rules and dedicated temporary/acting grant administration. These are internal Partial work, not an External Gate.
+
+Workforce integration safety evidence: docs/completion/WORKFORCE_INTEGRATION.md. Existing PR53 repaired rather than reimplemented; chapter25 remains Partial. No claims of actual PostgreSQL/Chromium or main merge until corresponding exact-head CI evidence is recorded.
+
+Count correction: summary is derived by recounting all57 chapter rows (13Completed/36Partial/7Missing/1External after this workforce slice). Earlier summaries inherited a one-chapter Partial/Missing mismatch. Canonical0feb main before PR53 has13Completed/35Partial/8Missing/1External; unmerged workforce remains Missing in the main-only count.
