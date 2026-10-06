@@ -214,6 +214,7 @@ def create_attendance(db,user,payload:AttendanceCreate):
     active_employee(db,payload.employee_id)
     if payload.roster_entry_id:
         roster=get_row(db,WorkforceRosterEntry,payload.roster_entry_id)
+        if roster.status!='approved':raise HTTPException(409,'linked roster must be Human-approved')
         if roster.work_date!=payload.work_date:raise HTTPException(422,'attendance work_date must match roster work_date')
         if db.scalar(select(WorkforceAttendance.attendance_id).where(WorkforceAttendance.roster_entry_id==payload.roster_entry_id).limit(1)):
             raise HTTPException(409,'attendance already exists for roster entry')
@@ -236,6 +237,7 @@ def create_time_entry(db,user,payload:TimeEntryCreate):
     if payload.attendance_id:
         attendance=get_row(db,WorkforceAttendance,payload.attendance_id)
         if attendance.employee_id!=payload.employee_id:raise HTTPException(422,'attendance belongs to another employee')
+        if payload.kind=='overtime' and attendance.status!='approved':raise HTTPException(409,'overtime source attendance must be Human-approved')
     row=WorkforceTimeEntry(**payload.model_dump(),created_by=user.user_id)
     db.add(row);db.flush();audit(db,user,'workforce.time.create',row);return row
 
@@ -297,6 +299,9 @@ def attendance_action(db,user,key,expected,action,note):
         active_employee(db,row.employee_id,True)
         if row.check_out_at is None:raise HTTPException(409,'attendance requires check-out before Human review')
         calc=attendance_calculation(db,row.employee_id,row.roster_entry_id,row.check_in_at,row.check_out_at)
+        if row.roster_entry_id:
+            roster=get_row(db,WorkforceRosterEntry,row.roster_entry_id)
+            if roster.status!='approved':raise HTTPException(409,'linked roster is no longer approved')
         if row.calculation.get('roster_version')!=calc.get('roster_version'):
             raise HTTPException(409,'roster evidence changed; refresh attendance')
         row.calculation=calc;row.worked_minutes=calc['elapsed_minutes']
@@ -336,6 +341,17 @@ def staffing_warnings(db,on_date,organization_id=None):
     rules=db.scalars(rules_stmt.order_by(WorkforceStaffingRule.organization_id)).all()
     out=[]
     for rule in rules:
+        shift=db.get(WorkforceShiftType,rule.shift_type_id)
+        organization=db.get(OrganizationUnit,rule.organization_id)
+        if not shift or not organization or shift.version!=rule.shift_type_version or organization.version!=rule.organization_version:
+            out.append({
+                'staffing_rule_id':rule.staffing_rule_id,'organization_id':rule.organization_id,
+                'shift_type_id':rule.shift_type_id,'qualification_code':rule.qualification_code,
+                'required':rule.min_staff,'available':None,'shortage':None,'status':'stale_rule',
+                'roster_entry_ids':[],'rule_version':rule.version,
+                'reason':'approved staffing rule source configuration changed',
+            })
+            continue
         rosters=db.scalars(select(WorkforceRosterEntry).where(
             WorkforceRosterEntry.organization_id==rule.organization_id,
             WorkforceRosterEntry.shift_type_id==rule.shift_type_id,
