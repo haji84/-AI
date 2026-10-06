@@ -212,7 +212,7 @@ table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid #e4e8ec;
 
 <script>
 const $=id=>document.getElementById(id);
-const state={offset:0,limit:50,total:0,selected:null,detail:null,mode:null,draft:null,drawings:[],drawingAnalysisId:null,drawingDetail:null,drawingWorkspace:null,drawingDoc:null,drawingPreviewInfo:null,drawingPageNo:1,drawingAnnotations:[],drawingAnnotation:null,drawingConsultations:[],drawingConsultation:null,drawingResponse:null,drawingBaselineReadiness:null,drawingBaselineRun:null,drawingPageWidth:0,drawingPageHeight:0,drawingDrawPoints:[],drawingDrawActive:false,drawingEditElementIndex:null,drawingSelectedVertexIndex:null,drawingDragVertexIndex:null,drawingDragPointerId:null,drawingCalibrationMode:false,drawingCalibrationPoints:[],drawingNewElementType:'room'};
+const state={offset:0,limit:50,total:0,selected:null,detail:null,mode:null,draft:null,drawings:[],drawingAnalysisId:null,drawingDetail:null,drawingWorkspace:null,drawingDoc:null,drawingPreviewInfo:null,drawingPageNo:1,drawingAnnotations:[],drawingAnnotation:null,drawingConsultations:[],drawingConsultation:null,drawingResponse:null,drawingBaselineReadiness:null,drawingBaselineRun:null,drawingBaselineRuns:[],drawingPageWidth:0,drawingPageHeight:0,drawingDrawPoints:[],drawingDrawActive:false,drawingEditElementIndex:null,drawingSelectedVertexIndex:null,drawingDragVertexIndex:null,drawingDragPointerId:null,drawingCalibrationMode:false,drawingCalibrationPoints:[],drawingNewElementType:'room'};
 const legalReviewState={offset:0,limit:50,total:0};
 const fireState={caseId:null,detail:null,mediaType:null};
 const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
@@ -1206,23 +1206,32 @@ function drawingAnswerLabel(k){
 function closeDrawingWorkspace(){
   $('drawingWorkspaceModal').classList.add('hidden');
   state.drawingWorkspace=null;state.drawingDoc=null;state.drawingPreviewInfo=null;state.drawingPageNo=1;state.drawingAnnotations=[];state.drawingAnnotation=null;
-  state.drawingConsultations=[];state.drawingConsultation=null;state.drawingResponse=null;state.drawingBaselineReadiness=null;state.drawingBaselineRun=null;
+  state.drawingConsultations=[];state.drawingConsultation=null;state.drawingResponse=null;state.drawingBaselineReadiness=null;state.drawingBaselineRun=null;state.drawingBaselineRuns=[];
   state.drawingDrawPoints=[];state.drawingDrawActive=false;state.drawingEditElementIndex=null;state.drawingSelectedVertexIndex=null;state.drawingDragVertexIndex=null;state.drawingDragPointerId=null;state.drawingCalibrationMode=false;state.drawingCalibrationPoints=[];state.drawingNewElementType='room';state.drawingPageWidth=0;state.drawingPageHeight=0;
 }
 async function openDrawingWorkspace(id){
   try{
     const analysis=await api('/drawing-analyses/'+id);
-    const [doc,previewInfo,annotations,consultations,baselineReadiness]=await Promise.all([
+    const [doc,previewInfo,annotations,consultations,baselineReadiness,benchmarkRuns]=await Promise.all([
       api('/documents/'+analysis.analysis.document_id),
       api('/drawing-analyses/'+id+'/preview-info'),
       api('/drawing-analyses/'+id+'/annotations'),
       api('/drawing-analyses/'+id+'/consultations'),
-      api('/drawing-analyses/'+id+'/baseline-readiness')
+      api('/drawing-analyses/'+id+'/baseline-readiness'),
+      api('/drawing-benchmarks?limit=100')
     ]);
     state.drawingWorkspace=analysis;
     state.drawingDoc=doc;
     state.drawingPreviewInfo=previewInfo;
     state.drawingBaselineReadiness=baselineReadiness;
+    const baselineRuns=(benchmarkRuns||[]).filter(x=>
+      x.result_payload?.execution_mode==='in_app' &&
+      x.result_payload?.manifest?.drawing_analysis_id===id
+    ).sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')));
+    state.drawingBaselineRuns=baselineRuns;
+    const currentRunId=state.drawingBaselineRun?.drawing_benchmark_run_id;
+    state.drawingBaselineRun=baselineRuns.find(x=>x.drawing_benchmark_run_id===currentRunId)
+      ||baselineRuns[0]||null;
     if(!state.drawingPageNo||state.drawingPageNo>previewInfo.page_count)state.drawingPageNo=1;
     state.drawingAnnotations=annotations||[];
     const currentAnnId=state.drawingAnnotation?.drawing_annotation_set_id;
@@ -1689,22 +1698,73 @@ async function runDrawingBaselineFromWorkspace(){
       }
     );
     state.drawingBaselineRun=result;
+    const rest=(state.drawingBaselineRuns||[]).filter(x=>x.drawing_benchmark_run_id!==result.drawing_benchmark_run_id);
+    state.drawingBaselineRuns=[result,...rest];
     renderDrawingWorkspace();
   }catch(e){
     alert('Baselineを実行できません: '+e.message);
   }
 }
+
+function selectDrawingBaselineRun(id){
+  state.drawingBaselineRun=(state.drawingBaselineRuns||[]).find(x=>x.drawing_benchmark_run_id===id)||null;
+  renderDrawingWorkspace();
+}
+async function reviewDrawingBaselineRun(decision){
+  const run=state.drawingBaselineRun;
+  if(!run||run.review_status!=='pending')return;
+  const label=decision==='accepted_baseline'?'採用':'却下';
+  if(!confirm('このBaseline Runを'+label+'しますか？'))return;
+  const note=(prompt('Human Reviewメモを入力してください', '')||'').trim();
+  try{
+    const reviewed=await api(
+      '/drawing-benchmarks/'+encodeURIComponent(run.drawing_benchmark_run_id)+'/review',
+      {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+          expected_version:run.version,
+          human_decision:decision,
+          review_notes:note||null
+        })
+      }
+    );
+    state.drawingBaselineRun=reviewed;
+    state.drawingBaselineRuns=(state.drawingBaselineRuns||[]).map(x=>
+      x.drawing_benchmark_run_id===reviewed.drawing_benchmark_run_id?reviewed:x
+    );
+    renderDrawingWorkspace();
+  }catch(e){
+    alert('Baseline Human Reviewに失敗しました: '+e.message);
+  }
+}
 function drawingBaselineRunHtml(run){
-  if(!run)return '';
-  const a=run.result_payload?.aggregate||{};
+  const runs=state.drawingBaselineRuns||[];
+  if(!run&&!runs.length)return '';
+  const selected=run||runs[0];
+  const a=selected.result_payload?.aggregate||{};
   const g=a.geometry_detection||{},facts=a.fact_candidates||{};
+  const statusLabel=selected.review_status==='reviewed'
+    ?(selected.human_decision==='accepted_baseline'?'Human採用済み':'Human却下済み')
+    :'Human Review待ち';
+  const history=runs.length>1
+    ?'<div class="row" style="margin-top:6px"><b>履歴</b><select onchange="selectDrawingBaselineRun(this.value)">'+
+      runs.map(x=>'<option value="'+esc(x.drawing_benchmark_run_id)+'" '+(x.drawing_benchmark_run_id===selected.drawing_benchmark_run_id?'selected':'')+'>'+
+        esc((x.created_at||'').replace('T',' ').slice(0,19))+' / '+esc(x.review_status==='reviewed'?(x.human_decision||'reviewed'):'pending')+
+      '</option>').join('')+'</select></div>'
+    :'';
+  const reviewButtons=selected.review_status==='pending'
+    ?'<div class="row" style="margin-top:8px"><button class="btn primary" onclick="reviewDrawingBaselineRun(\'accepted_baseline\')">このBaselineを採用</button><button class="btn danger" onclick="reviewDrawingBaselineRun(\'rejected_baseline\')">却下</button></div>'
+    :'';
   return '<div class="notice"><b>Baseline Run</b> '+
-    '<span class="pill">'+(run.created?'新規保存':'同一Evidence再利用')+'</span>'+
-    '<div class="muted">Run ID: '+esc(run.drawing_benchmark_run_id)+'</div>'+
+    (selected.created!==undefined?'<span class="pill">'+(selected.created?'新規保存':'同一Evidence再利用')+'</span>':'')+
+    '<span class="pill '+(selected.human_decision==='accepted_baseline'?'active':'')+'">'+esc(statusLabel)+'</span>'+
+    '<div class="muted">Run ID: '+esc(selected.drawing_benchmark_run_id)+'</div>'+
     '<div class="muted">Geometry F1: '+esc(g.f1??'N/A')+
       ' / mean IoU: '+esc(g.mean_iou??'N/A')+
       ' / Fact F1: '+esc(facts.f1??'N/A')+'</div>'+
-    '<div class="muted">状態: '+esc(run.review_status)+'。Benchmark採用は別のHuman Review Gateです。</div></div>';
+    (selected.review_notes?'<div class="muted">Reviewメモ: '+esc(selected.review_notes)+'</div>':'')+
+    history+reviewButtons+'</div>';
 }
 function drawingBaselineReadinessHtml(r){
   if(!r)return '';
