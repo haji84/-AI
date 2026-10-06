@@ -335,3 +335,47 @@ def test_phase6_floor_summary_marks_metric_total_incomplete_without_scale():
     assert floor["area_m2_total"] is None
     assert floor["metric_area_complete"] is False
     assert floor["uncalibrated_region_count"] == 1
+
+
+
+def test_phase6_geometry_summary_overwrites_fake_client_totals():
+    mod = _mod()
+    payload = {
+        "geometry_summary": {
+            "summary_version": "fake",
+            "region_count": 999,
+            "floor_summaries": [{"area_m2_total": 999999}],
+            "overlap_warning_count": 999,
+        },
+        "elements": [
+            {
+                "client_ref": "room-real",
+                "page_no": 1,
+                "floor_number": 1,
+                "element_type": "room",
+                "geometry": {
+                    "points": [[0, 0], [100, 0], [100, 50], [0, 50]]
+                },
+            }
+        ],
+    }
+    page_dimensions = {
+        "1": {
+            "width": 200,
+            "height": 100,
+            "calibration": {
+                "method": "two_point",
+                "point_a": [0, 0],
+                "point_b": [100, 0],
+                "reference_length_m": 2.0,
+            },
+        }
+    }
+
+    result, _ = mod.apply_geometry_metrics(payload, page_dimensions)
+    summary = result["geometry_summary"]
+
+    assert summary["summary_version"] == "drawing-geometry-summary-v1"
+    assert summary["region_count"] == 1
+    assert summary["overlap_warning_count"] == 0
+    assert summary["floor_summaries"][0]["area_m2_total"] == 2.0
