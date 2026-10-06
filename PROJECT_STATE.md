@@ -1702,7 +1702,7 @@ Verified checkpoint:
 
 ## Phase 6 Annotation Undo / Redo
 
-Implemented on branch `phase6-annotation-undo-redo`; CI verification pending:
+Implemented and CI-verified:
 - Draft Human Annotation now has bounded local Undo / Redo history
 - max retained Undo depth: 50 snapshots
 - persistent edit types covered:
@@ -1737,3 +1737,9 @@ Safety:
 - backend remains authoritative after save
 - backend still recalculates derived Geometry, m² and floor summaries
 - reviewed Annotation remains immutable through Draft editing routes
+
+Verified checkpoint:
+- run: `37438357035` SUCCESS
+- backend pytest: 175 passed
+- migration parser smoke: PASS
+- frontend JavaScript syntax: PASS
