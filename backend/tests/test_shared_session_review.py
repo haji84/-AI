@@ -89,3 +89,15 @@ def test_cancelled_module_initialization_stops_old_login_chain():
 const assert=require('node:assert/strict'),vm=require('node:vm'),fs=require('node:fs'),path=require('node:path'),root=process.argv[1];
 (async()=>{for(const [file,name,apiName] of [['assets.js','initAssets','api'],['operations.js','initOperations','api'],['emergency.js','initEmergency','api'],['workforce.js','initWorkforce','workforceAPI'],['inquiries.js','initInquiries','inquiryAPI']]){const error=Object.assign(new Error('obsolete login'),{cancelled:true}),ctx={[apiName]:async()=>{throw error}};vm.createContext(ctx);const source=fs.readFileSync(path.join(root,'frontend',file),'utf8').split('\n').find(line=>line.startsWith('async function '+name+'('));vm.runInContext(source,ctx);await assert.rejects(ctx[name](),e=>e===error,file+' swallowed the obsolete login');}})().catch(e=>{console.error(e);process.exitCode=1});
 ''')
+
+
+def test_finance_change_preflight_locks_form_before_async_authority_probe():
+ node(r'''
+const assert=require('node:assert/strict'),vm=require('node:vm'),fs=require('node:fs'),path=require('node:path'),root=process.argv[1],handlers={};let release,ran=0;
+const account={disabled:false},kind={tagName:'SELECT',disabled:false,isConnected:true,closest:selector=>selector==='#loginView'?null:kind,dispatchEvent(){assert.equal(account.disabled,false,'preflight lock not released for handler');return ctx.financeAction(async()=>{ran++})}};
+const controls=[kind,account],nodes={financeMessage:{textContent:''},financeModal:{querySelectorAll:()=>controls}};
+const window={location:{origin:'http://synthetic.local'},addEventListener(){},fetch:()=>new Promise(r=>release=()=>r(new Response(JSON.stringify({user_id:'u',session_id:'s',tenant_id:null,permissions:['finance.read']}))))};
+const ctx={window,$:id=>nodes[id],document:{addEventListener:(k,f)=>handlers[k]=f},URL,Response,WeakSet,Event};vm.createContext(ctx);
+for(const file of ['finance.js','shared-session.js'])vm.runInContext(fs.readFileSync(path.join(root,'frontend',file),'utf8'),ctx);window.FireAISession.install();
+(async()=>{const pending=handlers.change({type:'change',target:kind,preventDefault(){},stopImmediatePropagation(){}});assert(account.disabled,'account remains editable while deferred change awaits authority');release();await pending;await new Promise(r=>setImmediate(r));assert.equal(ran,1);assert.equal(account.disabled,false)})().catch(e=>{console.error(e);process.exitCode=1});
+''')

@@ -45,7 +45,11 @@ with SessionLocal() as db:
    browser=p.chromium.launch();page=browser.new_page();errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
    page.goto(base+'/ui/');page.locator('#loginUser').fill('uifinance');page.locator('#loginPass').fill('synthetic-ui-password');page.get_by_role('button',name='ログイン',exact=True).click();expect(page.locator('#financeBtn')).to_be_visible();page.locator('#financeBtn').click();expect(page.locator('#financeContent')).to_contain_text('財務処理')
    def save(fragment,status=201):
-    with page.expect_response(lambda r:fragment in r.url and r.request.method=='POST') as response:page.locator('#financeSave').click()
+    try:
+     with page.expect_response(lambda r:fragment in r.url and r.request.method=='POST') as response:page.locator('#financeSave').click()
+    except Exception:
+     print('Synthetic finance failure diagnostics:',page.evaluate("""() => ({message:document.getElementById('financeMessage')?.textContent,fields:Array.from(document.querySelectorAll('#financeForm input, #financeForm select, #financeForm textarea')).map(n=>({id:n.id,value:n.value,disabled:n.disabled,valid:n.validity.valid,missing:n.validity.valueMissing})),pending:!!financePendingAction})"""),errors)
+     raise
     assert response.value.status==status,response.value.text();return response.value.json()
    def new_proposal(kind,amount):
     page.locator('#financeProposals').click();page.locator('#financeProposalNew').click();page.locator('#financeField_kind').select_option(kind);expect(page.locator('#financeField_account_id')).to_be_visible();page.locator('#financeField_account_id').select_option(label='005 / Synthetic browser leaf');page.locator('#financeField_amount').fill(amount);page.locator('#financeField_document_id').select_option(label='Synthetic finance proof.txt');page.locator('#financeField_reason').fill('Synthetic browser '+kind)

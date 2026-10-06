@@ -74,9 +74,11 @@
     if(target.tagName==='A'&&!privatePath(target.href))return;
     event.preventDefault();event.stopImmediatePropagation();
     const ticket=generation;
+    const releasePreflight=window.financeSessionPreflight?.(target)??(()=>{});
     try{
       await observe(ticket);
       if(ticket!==generation||target.isConnected===false)return;
+      releasePreflight();
       if(target.tagName==='A'&&privatePath(target.href)){
         const response=await window.fetch(target.href);if(!response.ok)throw new Error('原本の取得が許可されません');
         const blob=await response.blob();if(ticket!==generation)return;
@@ -88,6 +90,7 @@
       if(event.type==='click'&&typeof target.click==='function')target.click();
       else target.dispatchEvent(event.type==='click'?new MouseEvent('click',{bubbles:true,cancelable:true,clientX:event.clientX,clientY:event.clientY,screenX:event.screenX,screenY:event.screenY,button:event.button,buttons:event.buttons,ctrlKey:event.ctrlKey,shiftKey:event.shiftKey,altKey:event.altKey,metaKey:event.metaKey,detail:event.detail}):new Event(event.type,{bubbles:true,cancelable:true}));
     }catch(error){if(!error.cancelled&&ticket===generation&&binding!==null)invalidate();}
+    finally{releasePreflight();}
   }
   window.FireAISession={install(options={}){
     reset=options.reset??reset;
