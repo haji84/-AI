@@ -10,6 +10,7 @@ from ..audit import write_audit
 from ..authz import require_permission
 from ..db import get_db
 from ..drawing_annotation_geometry import apply_geometry_metrics
+from ..drawing_benchmark_export import build_drawing_reference
 from ..models import (
     Document,
     DrawingAnalysis,
@@ -581,30 +582,10 @@ def export_benchmark_reference(
     if row.status != "reviewed":
         raise HTTPException(status_code=409, detail="only reviewed annotations can be exported")
 
-    analysis = db.get(DrawingAnalysis, row.drawing_analysis_id)
-    if not analysis:
-        raise HTTPException(status_code=409, detail="drawing analysis missing")
-    document = db.get(Document, analysis.document_id)
-    if not document:
-        raise HTTPException(status_code=409, detail="source drawing document missing")
-
-    body = row.payload or {}
-    return {
-        "reference_format": "fire-ai-drawing-human-reference-v1",
-        "drawing_annotation_set_id": row.drawing_annotation_set_id,
-        "drawing_analysis_id": row.drawing_analysis_id,
-        "source": {
-            "document_id": document.document_id,
-            "filename": document.original_filename,
-            "sha256": document.sha256,
-        },
-        "coordinate_space": row.coordinate_space,
-        "page_dimensions": row.page_dimensions or {},
-        "elements": body.get("elements", []),
-        "equipment_candidates": body.get("equipment_candidates", []),
-        "fact_candidates": body.get("fact_candidates", []),
-        "human_review": {
-            "status": row.status,
-            "reviewed_at": row.reviewed_at.isoformat() if row.reviewed_at else None,
-        },
-    }
+    try:
+        return build_drawing_reference(db, row)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail=str(exc),
+        )
