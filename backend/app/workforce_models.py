@@ -41,6 +41,8 @@ class WorkforceStaffingRule(Versioned,Base):
     staffing_rule_id:Mapped[str]=mapped_column(Uuid(as_uuid=False),primary_key=True,default=uuid_str)
     organization_id:Mapped[str]=mapped_column(ForeignKey('organization_units.organization_id'),nullable=False,index=True)
     shift_type_id:Mapped[str]=mapped_column(ForeignKey('workforce_shift_types.shift_type_id'),nullable=False,index=True)
+    shift_type_version:Mapped[int]=mapped_column(BigInteger,nullable=False)
+    organization_version:Mapped[int]=mapped_column(BigInteger,nullable=False)
     min_staff:Mapped[int]=mapped_column(BigInteger,nullable=False)
     qualification_code:Mapped[str|None]=mapped_column(String(100))
     effective_from:Mapped[date]=mapped_column(Date,nullable=False)
@@ -113,7 +115,7 @@ class WorkforceAttendance(Versioned,Base):
     reviewed_at:Mapped[datetime|None]=mapped_column(DateTime(timezone=True))
     approved_by:Mapped[str|None]=mapped_column(ForeignKey('app_users.user_id'))
     approved_at:Mapped[datetime|None]=mapped_column(DateTime(timezone=True))
-    __table_args__=(CheckConstraint('check_out_at IS NULL OR check_out_at > check_in_at',name='ck_workforce_attendance_period'),CheckConstraint('worked_minutes IS NULL OR worked_minutes >= 0',name='ck_workforce_attendance_minutes'),CheckConstraint("status IN ('draft','reviewed','approved','cancelled')",name='ck_workforce_attendance_status'))
+    __table_args__=(UniqueConstraint('roster_entry_id',name='uq_workforce_attendance_roster'),CheckConstraint('check_out_at IS NULL OR check_out_at > check_in_at',name='ck_workforce_attendance_period'),CheckConstraint('worked_minutes IS NULL OR worked_minutes >= 0',name='ck_workforce_attendance_minutes'),CheckConstraint("status IN ('draft','reviewed','approved','cancelled')",name='ck_workforce_attendance_status'))
 
 class WorkforceTimeEntry(Versioned,Base):
     __tablename__='workforce_time_entries'
