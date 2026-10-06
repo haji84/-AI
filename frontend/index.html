@@ -212,7 +212,7 @@ table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid #e4e8ec;
 
 <script>
 const $=id=>document.getElementById(id);
-const state={offset:0,limit:50,total:0,selected:null,detail:null,mode:null,draft:null,drawings:[],drawingAnalysisId:null,drawingDetail:null,drawingWorkspace:null,drawingDoc:null,drawingPreviewInfo:null,drawingPageNo:1,drawingAnnotations:[],drawingAnnotation:null,drawingConsultations:[],drawingConsultation:null,drawingResponse:null,drawingBaselineReadiness:null,drawingBaselineRun:null,drawingBaselineRuns:[],drawingPageWidth:0,drawingPageHeight:0,drawingDrawPoints:[],drawingDrawActive:false,drawingEditElementIndex:null,drawingSelectedVertexIndex:null,drawingDragVertexIndex:null,drawingDragPointerId:null,drawingCalibrationMode:false,drawingCalibrationPoints:[],drawingNewElementType:'room',drawingSnapEnabled:true,drawingSnapTarget:null};
+const state={offset:0,limit:50,total:0,selected:null,detail:null,mode:null,draft:null,drawings:[],drawingAnalysisId:null,drawingDetail:null,drawingWorkspace:null,drawingDoc:null,drawingPreviewInfo:null,drawingPageNo:1,drawingAnnotations:[],drawingAnnotation:null,drawingConsultations:[],drawingConsultation:null,drawingResponse:null,drawingBaselineReadiness:null,drawingBaselineRun:null,drawingBaselineRuns:[],drawingPageWidth:0,drawingPageHeight:0,drawingDrawPoints:[],drawingDrawActive:false,drawingEditElementIndex:null,drawingSelectedVertexIndex:null,drawingDragVertexIndex:null,drawingDragPointerId:null,drawingDragHistoryPushed:false,drawingCalibrationMode:false,drawingCalibrationPoints:[],drawingNewElementType:'room',drawingSnapEnabled:true,drawingSnapTarget:null,drawingUndoStack:[],drawingRedoStack:[],drawingDirty:false,drawingHistoryLimit:50};
 const legalReviewState={offset:0,limit:50,total:0};
 const fireState={caseId:null,detail:null,mediaType:null};
 const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
@@ -1203,7 +1203,57 @@ function drawingWorkspaceStatusLabel(v){
 function drawingAnswerLabel(k){
   return ({primary_use:'主用途',has_sleeping_use:'宿泊用途',has_food_service:'飲食提供',public_access:'一般利用',mixed_use:'複合用途',windowless_floor_count:'無窓階数',structure:'構造',above_ground_floors:'地上階',basement_floors:'地下階',building_area:'建築面積㎡',total_floor_area:'延べ面積㎡',occupancy_total:'収容人員',employee_total:'従業員数'})[k]||k;
 }
+function drawingDeepClone(value){return JSON.parse(JSON.stringify(value??null))}
+function drawingCurrentEditSnapshot(label=''){
+  const ann=state.drawingAnnotation;if(!ann||ann.status!=='draft')return null;
+  return {label,payload:drawingDeepClone(ann.payload||{}),page_dimensions:drawingDeepClone(ann.page_dimensions||{})};
+}
+function drawingSnapshotKey(snapshot){
+  if(!snapshot)return '';
+  return JSON.stringify({payload:snapshot.payload||{},page_dimensions:snapshot.page_dimensions||{}});
+}
+function drawingPushHistory(label){
+  const snapshot=drawingCurrentEditSnapshot(label);if(!snapshot)return;
+  const key=drawingSnapshotKey(snapshot),last=state.drawingUndoStack[state.drawingUndoStack.length-1];
+  if(!last||last.key!==key){
+    state.drawingUndoStack.push({...snapshot,key});
+    if(state.drawingUndoStack.length>state.drawingHistoryLimit)state.drawingUndoStack.shift();
+  }
+  state.drawingRedoStack=[];
+  state.drawingDirty=true;
+}
+function drawingRestoreSnapshot(snapshot){
+  const ann=state.drawingAnnotation;if(!ann||ann.status!=='draft'||!snapshot)return;
+  ann.payload=drawingDeepClone(snapshot.payload||{});
+  ann.page_dimensions=drawingDeepClone(snapshot.page_dimensions||{});
+  state.drawingEditElementIndex=null;state.drawingSelectedVertexIndex=null;state.drawingDragVertexIndex=null;state.drawingDragPointerId=null;state.drawingDragHistoryPushed=false;
+  state.drawingDrawActive=false;state.drawingDrawPoints=[];state.drawingCalibrationMode=false;state.drawingCalibrationPoints=[];state.drawingSnapTarget=null;
+  recalcDrawingLocalMetrics();renderDrawingWorkspace();
+}
+function drawingUndo(){
+  if(!state.drawingUndoStack.length||state.drawingAnnotation?.status!=='draft')return;
+  const current=drawingCurrentEditSnapshot('redo');
+  const previous=state.drawingUndoStack.pop();
+  if(current)state.drawingRedoStack.push({...current,key:drawingSnapshotKey(current)});
+  drawingRestoreSnapshot(previous);
+  state.drawingDirty=state.drawingUndoStack.length>0;
+}
+function drawingRedo(){
+  if(!state.drawingRedoStack.length||state.drawingAnnotation?.status!=='draft')return;
+  const current=drawingCurrentEditSnapshot('undo');
+  const next=state.drawingRedoStack.pop();
+  if(current)state.drawingUndoStack.push({...current,key:drawingSnapshotKey(current)});
+  drawingRestoreSnapshot(next);
+  state.drawingDirty=true;
+}
+function drawingResetHistory(){
+  state.drawingUndoStack=[];state.drawingRedoStack=[];state.drawingDirty=false;state.drawingDragHistoryPushed=false;
+}
+function drawingConfirmDiscardChanges(message='未保存のHuman Annotation変更があります。破棄して進みますか？'){
+  return !state.drawingDirty||confirm(message);
+}
 function closeDrawingWorkspace(){
+  if(!drawingConfirmDiscardChanges('未保存のHuman Annotation変更があります。閉じると破棄されます。閉じますか？'))return;
   $('drawingWorkspaceModal').classList.add('hidden');
   state.drawingWorkspace=null;state.drawingDoc=null;state.drawingPreviewInfo=null;state.drawingPageNo=1;state.drawingAnnotations=[];state.drawingAnnotation=null;
   state.drawingConsultations=[];state.drawingConsultation=null;state.drawingResponse=null;state.drawingBaselineReadiness=null;state.drawingBaselineRun=null;state.drawingBaselineRuns=[];
@@ -1258,6 +1308,8 @@ async function refreshDrawingWorkspace(){
 }
 function selectDrawingAnnotation(id){
   state.drawingAnnotation=(state.drawingAnnotations||[]).find(x=>x.drawing_annotation_set_id===id)||null;
+  if(state.drawingAnnotation?.drawing_annotation_set_id!==id&&!drawingConfirmDiscardChanges())return renderDrawingWorkspace();
+  drawingResetHistory();
   state.drawingDrawPoints=[];state.drawingDrawActive=false;state.drawingSnapTarget=null;state.drawingEditElementIndex=null;state.drawingSelectedVertexIndex=null;state.drawingDragVertexIndex=null;state.drawingCalibrationMode=false;state.drawingCalibrationPoints=[];renderDrawingWorkspace();
 }
 function selectDrawingConsultation(id){
@@ -1441,6 +1493,7 @@ function setDrawingFloorAreaTarget(){
   if(areaRaw===null)return;
   const area=Number(areaRaw);if(!Number.isFinite(area)||area<=0){alert('0より大きい面積(㎡)を入力してください。');return}
   ann.payload=ann.payload||{};ann.payload.area_targets=Array.isArray(ann.payload.area_targets)?ann.payload.area_targets:[];
+  drawingPushHistory('既知階面積登録');
   const next={floor_number:floor,target_area_m2:area,label:floor+'階',source:'human_ui',comparison_basis:'rooms_only'};
   const idx=ann.payload.area_targets.findIndex(x=>Number(x.floor_number)===floor);
   if(idx>=0)ann.payload.area_targets[idx]=next;else ann.payload.area_targets.push(next);
@@ -1453,6 +1506,7 @@ function clearDrawingFloorAreaTarget(){
   const floorRaw=prompt('既知面積を解除する階を入力してください',String(floorDefault));
   if(floorRaw===null)return;
   const floor=Number(floorRaw);if(!Number.isInteger(floor))return;
+  drawingPushHistory('既知階面積解除');
   ann.payload.area_targets=(ann.payload.area_targets||[]).filter(x=>Number(x.floor_number)!==floor);
   recalcDrawingLocalMetrics();renderDrawingWorkspace();
 }
@@ -1544,6 +1598,7 @@ function applySelectedDrawingMeta(){
   const label=$('humanRoomLabel')?.value.trim()||'';
   const use=$('humanRoomUse')?.value.trim()||'';
   const floorRaw=$('humanRoomFloor')?.value.trim()||'';
+  drawingPushHistory('区画情報変更');
   e.element_type=type;e.label=label||null;e.floor_number=floorRaw===''?null:Number(floorRaw);
   e.extracted_data=e.extracted_data||{};e.extracted_data.use_name=use||null;
   state.drawingNewElementType=type;recalcDrawingLocalMetrics();renderDrawingWorkspace();
@@ -1555,6 +1610,7 @@ function beginDrawingVertexDrag(ev,elementIndex,vertexIndex){
   state.drawingSelectedVertexIndex=Number(vertexIndex);
   state.drawingDragVertexIndex=Number(vertexIndex);
   state.drawingDragPointerId=ev.pointerId;
+  state.drawingDragHistoryPushed=false;
   const svg=ev.currentTarget.ownerSVGElement;
   try{svg.setPointerCapture(ev.pointerId)}catch{}
 }
@@ -1563,6 +1619,7 @@ function drawingOverlayPointerMove(ev){
   const svg=ev.currentTarget;
   const element=state.drawingAnnotation?.payload?.elements?.[state.drawingEditElementIndex];if(!element)return;
   const pts=drawingGeometryPoints(element.geometry);if(pts.length<3)return;
+  if(!state.drawingDragHistoryPushed){drawingPushHistory('頂点移動');state.drawingDragHistoryPushed=true}
   const raw=drawingPointerPosition(ev,svg),snapped=drawingSnapPoint(raw,svg,state.drawingEditElementIndex);
   state.drawingSnapTarget=snapped.target;
   pts[state.drawingDragVertexIndex]=snapped.point;
@@ -1572,12 +1629,13 @@ function drawingOverlayPointerMove(ev){
 function endDrawingVertexDrag(ev){
   if(state.drawingDragVertexIndex===null)return;
   try{ev.currentTarget.releasePointerCapture(state.drawingDragPointerId)}catch{}
-  state.drawingDragVertexIndex=null;state.drawingDragPointerId=null;state.drawingSnapTarget=null;
+  state.drawingDragVertexIndex=null;state.drawingDragPointerId=null;state.drawingDragHistoryPushed=false;state.drawingSnapTarget=null;
   recalcDrawingLocalMetrics();renderDrawingWorkspace();
 }
 function addDrawingVertex(){
   const idx=state.drawingEditElementIndex,element=state.drawingAnnotation?.payload?.elements?.[idx];if(!element)return;
   const pts=drawingGeometryPoints(element.geometry);if(pts.length<3)return;
+  drawingPushHistory('頂点追加');
   let start=Number.isInteger(state.drawingSelectedVertexIndex)?state.drawingSelectedVertexIndex:0;
   if(!Number.isInteger(state.drawingSelectedVertexIndex)){
     let best=-1;
@@ -1589,6 +1647,7 @@ function addDrawingVertex(){
 function removeDrawingVertex(){
   const idx=state.drawingEditElementIndex,vi=state.drawingSelectedVertexIndex,element=state.drawingAnnotation?.payload?.elements?.[idx];if(!element||!Number.isInteger(vi))return;
   const pts=drawingGeometryPoints(element.geometry);if(pts.length<=3){alert('区画は最低3頂点必要です。');return}
+  drawingPushHistory('頂点削除');
   pts.splice(vi,1);element.geometry={points:pts};state.drawingSelectedVertexIndex=null;recalcDrawingLocalMetrics();renderDrawingWorkspace();
 }
 function renderDrawingSelectedMetrics(){
@@ -1603,13 +1662,14 @@ function startDrawingCalibration(){
 function cancelDrawingCalibration(){state.drawingCalibrationMode=false;state.drawingCalibrationPoints=[];renderDrawingOverlay()}
 function setDrawingCalibration(points,referenceLengthM){
   const ann=state.drawingAnnotation,page=String(state.drawingPageNo||1),dim=drawingWorkspaceDimensions();
+  drawingPushHistory('縮尺校正');
   ann.page_dimensions=ann.page_dimensions||{};ann.page_dimensions[page]=ann.page_dimensions[page]||{width:dim.w,height:dim.h};
   const d=Math.hypot(points[1][0]-points[0][0],points[1][1]-points[0][1]);
   ann.page_dimensions[page].calibration={method:'two_point',point_a:points[0],point_b:points[1],reference_length_m:referenceLengthM,pixel_distance:d,meters_per_pixel:referenceLengthM/d};
   recalcDrawingLocalMetrics();
 }
 function clearDrawingCalibration(){
-  const ann=state.drawingAnnotation,page=String(state.drawingPageNo||1);if(ann?.page_dimensions?.[page])delete ann.page_dimensions[page].calibration;
+  const ann=state.drawingAnnotation,page=String(state.drawingPageNo||1);if(ann?.page_dimensions?.[page]){drawingPushHistory('縮尺解除');delete ann.page_dimensions[page].calibration}
   state.drawingCalibrationMode=false;state.drawingCalibrationPoints=[];recalcDrawingLocalMetrics();renderDrawingWorkspace();
 }
 function drawingWorkspaceDimensions(){
@@ -1700,6 +1760,7 @@ function finishDrawingRoom(){
   const ann=state.drawingAnnotation;ann.payload=ann.payload||{};ann.payload.elements=ann.payload.elements||[];
   const page=Number(state.drawingPageNo||1);
   const elementType=state.drawingNewElementType||'room';
+  drawingPushHistory('区画追加');
   ann.payload.elements.push({client_ref:elementType+'-human-'+Date.now(),page_no:page,element_type:elementType,label:label||null,floor_number:Number.isFinite(floor)?floor:null,geometry:{points:state.drawingDrawPoints.map(p=>[p[0],p[1]])},extracted_data:{use_name:use||null}});
   recalcDrawingLocalMetrics();
   const dim=drawingWorkspaceDimensions();ann.page_dimensions=ann.page_dimensions||{};ann.page_dimensions[String(page)]={width:dim.w,height:dim.h};
@@ -1707,6 +1768,7 @@ function finishDrawingRoom(){
 }
 function removeDrawingRoom(index){
   if(!state.drawingAnnotation||state.drawingAnnotation.status!=='draft')return;
+  drawingPushHistory('区画削除');
   state.drawingAnnotation.payload.elements.splice(index,1);
   if(state.drawingEditElementIndex===index){state.drawingEditElementIndex=null;state.drawingSelectedVertexIndex=null}
   else if(Number.isInteger(state.drawingEditElementIndex)&&state.drawingEditElementIndex>index)state.drawingEditElementIndex-=1;
@@ -1759,6 +1821,7 @@ async function saveDrawingAnnotation(showMessage=true){
   try{
     const row=await api('/drawing-annotations/'+ann.drawing_annotation_set_id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:ann.version,coordinate_space:ann.coordinate_space||'pixel',page_dimensions:ann.page_dimensions||{},payload:ann.payload||{elements:[],equipment_candidates:[],fact_candidates:[]}})});
     state.drawingAnnotation=row;
+    drawingResetHistory();
     if(showMessage)alert('Human Annotation下書きを保存しました。');
     return row;
   }catch(e){alert('Human Annotationを保存できません: '+e.message);throw e}
@@ -2009,7 +2072,8 @@ function renderDrawingWorkspace(){
     const pageMeta=drawingPageMeta(currentPage)||{};
     const cal=pageMeta.calibration;
     const calText=cal?.meters_per_pixel?'縮尺校正済み：1px = '+Number(cal.meters_per_pixel).toFixed(6)+'m':'縮尺未設定：面積はpx²表示';
-    annHtml='<div class="card"><div class="row"><div class="sectionTitle grow">Human Annotation</div><span class="pill '+(ann.status==='reviewed'?'active':'')+'">'+esc(drawingWorkspaceStatusLabel(ann.status))+'</span></div>'+
+    const historyControls=ann.status==='draft'?'<div class="row" style="margin-top:8px"><button class="btn" onclick="drawingUndo()" '+(state.drawingUndoStack.length?'':'disabled')+'>元に戻す</button><button class="btn" onclick="drawingRedo()" '+(state.drawingRedoStack.length?'':'disabled')+'>やり直す</button><span class="pill '+(state.drawingDirty?'':'active')+'">'+(state.drawingDirty?'未保存':'保存済み')+'</span><span class="muted">Ctrl/⌘+Z / Shift+Ctrl/⌘+Z</span></div>':'';
+    annHtml='<div class="card"><div class="row"><div class="sectionTitle grow">Human Annotation</div><span class="pill '+(ann.status==='reviewed'?'active':'')+'">'+esc(drawingWorkspaceStatusLabel(ann.status))+'</span></div>'+historyControls+
       '<input id="drawingReferenceImportFile" class="hidden" type="file" accept=".json,application/json" onchange="importDrawingReferenceDraftFile(event)"><div class="row">'+annSelect+'<button class="btn" onclick="chooseDrawingReferenceDraft()">別Reference Draftを読み込む</button></div>'+
       (ann.status==='draft'?'<div class="grid3" style="margin-top:8px"><div class="field"><label>追加種別</label><select id="humanElementType" onchange="state.drawingNewElementType=this.value"><option value="room">部屋</option><option value="zone">任意区画</option></select></div><div class="field"><label>区画名</label><input id="humanRoomLabel" placeholder="例：主寝室 / 防火区画A"></div><div class="field"><label>用途コード</label><input id="humanRoomUse" placeholder="例：bedroom"></div></div><div class="field" style="margin-top:8px"><label>階</label><input id="humanRoomFloor" type="number" value="1"></div>'+
       (isVisual?'<div class="row" style="margin-top:8px"><button class="btn primary" onclick="startDrawingRoom()">区画追加</button><button class="btn" onclick="undoDrawingPoint()">1点戻す</button><button class="btn" onclick="finishDrawingRoom()">追加確定</button><button class="btn" onclick="cancelDrawingRoom()">描画取消</button></div><div class="muted">区画追加：原図の角を順にクリック→追加確定。既存区画は選択すると頂点をドラッグ修正できます。</div>':'')+
@@ -2052,6 +2116,26 @@ function renderDrawingWorkspace(){
     if(fl&&selected)fl.value=selected.floor_number??'';
   },0);
 }
+
+document.addEventListener('keydown',ev=>{
+  if($('drawingWorkspaceModal')?.classList.contains('hidden'))return;
+  if(state.drawingAnnotation?.status!=='draft')return;
+  const tag=(document.activeElement?.tagName||'').toLowerCase();
+  if(['input','textarea','select'].includes(tag))return;
+  const mod=ev.ctrlKey||ev.metaKey;
+  if(!mod)return;
+  if(ev.key.toLowerCase()==='z'){
+    ev.preventDefault();
+    if(ev.shiftKey)drawingRedo();else drawingUndo();
+  }else if(ev.key.toLowerCase()==='y'){
+    ev.preventDefault();drawingRedo();
+  }
+});
+window.addEventListener('beforeunload',ev=>{
+  if(!state.drawingDirty)return;
+  ev.preventDefault();
+  ev.returnValue='';
+});
 
 async function quickAddEquipment(){
   if(!state.selected)return;
