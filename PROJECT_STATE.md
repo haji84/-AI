@@ -1892,3 +1892,28 @@ Task2 fixround1: permission-filtered mutation responses, complete mixed-source e
 Task2 latest-main adaptation consumes Run A PR41/main8323930e without tenant redesign. Canonical startup/Host/storage/DB session guards and CI PostgreSQL service are retained;040 replaces only Run B provisional039. Two-DB/source and optional PostgreSQL-lock integration evidence is recorded in task-2-report.md; refreshed-base CI/independent review/merge and actual browser/production acceptance remain pending.
 
 Task2 adaptation validation:52 focused passed/2 local PostgreSQL skips;263 full passed/2 skips;40 migration files parsed and001–038 unchanged; JS/compile/diff checks passed. The optional actual PostgreSQL source-lock test awaits inherited CI service execution.
+
+
+## Master Specification v2.0 canonicalization
+
+`docs/SPECIFICATION.md` is now the canonical Fire Service AIOS Master Specification v2.0.
+
+It consolidates:
+- historical v1.8 requirements
+- current tenant/runtime/security contracts
+- Completion Run A/B module requirements
+- deployment profiles (Cloud / connected local / closed local / fully offline / LGWAN-compatible)
+- server-side update/no per-client install policy
+- incident/dispatch, fleet, assets, workforce, finance, inquiry, statistics, dashboard
+- learning/Champion-Candidate and autonomous Change Request governance
+- release artifacts and system-wide Definition of Done
+
+Resolved architecture conflicts:
+- production PostgreSQL is mandatory; SQLite is dev/test only
+- runtime is fixed to one department identity; users cannot select tenant/DB/storage
+- original files use server-managed Document Storage, not client-written shared folders
+- common releases are activated per department rather than forced globally
+
+Review diff: `docs/SPECIFICATION_V2_DIFF.md`.
+
+Implementation status remains tracked separately in PROJECT_STATE / completion ledgers; specification scope must not be reduced merely because a module is still Missing or Partial.
