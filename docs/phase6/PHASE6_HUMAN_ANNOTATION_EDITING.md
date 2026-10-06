@@ -195,3 +195,46 @@ Why:
 - improve downstream area totals and Geometry Benchmark quality without auto-changing Human intent
 
 Snapping is a UI aid, not an automatic topology correction. It never moves an entire region or silently changes saved Geometry after the Human releases the pointer.
+
+
+## Undo / Redo and unsaved-change protection
+
+Draft Human Annotation editing keeps a bounded local edit history.
+
+Tracked persistent edits:
+
+- room/zone metadata correction
+- vertex drag
+- vertex add
+- vertex delete
+- room/zone add
+- room/zone delete
+- page scale calibration
+- page scale calibration removal
+- known floor-area target add/update
+- known floor-area target removal
+
+Behavior:
+
+- maximum retained Undo depth: 50 snapshots
+- one vertex-drag gesture creates one history checkpoint, not one checkpoint per pointer-move event
+- a new edit after Undo clears the Redo stack
+- Undo/Redo restores Annotation payload and page-dimension calibration together
+- restored Geometry immediately rebuilds local area/perimeter/floor summaries
+- saving a Draft establishes a new saved checkpoint and clears Undo/Redo history
+- the UI shows `未保存` or `保存済み`
+- keyboard shortcuts:
+  - Ctrl/Command + Z: Undo
+  - Ctrl/Command + Shift + Z: Redo
+  - Ctrl/Command + Y: Redo
+- text fields keep their native browser Undo behavior because global shortcuts are not intercepted while an input/textarea/select has focus
+
+Unsaved-change protection:
+
+- closing the Drawing workspace asks before discarding unsaved Annotation edits
+- switching to another Annotation asks before discarding unsaved edits
+- opening a different Drawing workspace asks before discarding unsaved edits
+- importing another Human Reference Draft asks before discarding unsaved edits
+- browser/tab close uses `beforeunload` while unsaved edits exist
+
+The Undo/Redo stack is a UI editing aid only. The backend remains authoritative after save and recomputes derived Geometry/area evidence from the submitted Annotation.

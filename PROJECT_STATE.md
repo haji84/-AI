@@ -1698,3 +1698,48 @@ Verified checkpoint:
 - backend pytest: 170 passed
 - migration parser smoke: PASS
 - frontend JavaScript syntax: PASS
+
+
+## Phase 6 Annotation Undo / Redo
+
+Implemented and CI-verified:
+- Draft Human Annotation now has bounded local Undo / Redo history
+- max retained Undo depth: 50 snapshots
+- persistent edit types covered:
+  - room/zone metadata correction
+  - vertex drag
+  - vertex add/remove
+  - room/zone add/remove
+  - page scale calibration add/remove
+  - Human floor-area target add/update/remove
+- one vertex drag gesture creates one history checkpoint
+- new edit after Undo clears Redo
+- restoring history restores payload + page calibration together
+- local Geometry metrics/floor summary are rebuilt after restore
+- save establishes a new saved checkpoint and clears history
+- visible `未保存 / 保存済み` state
+- keyboard shortcuts:
+  - Ctrl/Command+Z Undo
+  - Ctrl/Command+Shift+Z Redo
+  - Ctrl/Command+Y Redo
+- global shortcuts do not override native input/textarea/select Undo
+- unsaved-change guards protect:
+  - closing Drawing workspace
+  - switching Annotation
+  - opening another Drawing
+  - importing another Reference Draft
+  - browser/tab close
+- saved-state identity is tracked independently from history depth, so the 50-entry history cap cannot falsely mark an older retained state as saved
+- frontend regression tests protect edit-history wiring and discard-guard ordering
+
+Safety:
+- Undo/Redo is UI-local until save
+- backend remains authoritative after save
+- backend still recalculates derived Geometry, m² and floor summaries
+- reviewed Annotation remains immutable through Draft editing routes
+
+Verified checkpoint:
+- run: `37438357035` SUCCESS
+- backend pytest: 175 passed
+- migration parser smoke: PASS
+- frontend JavaScript syntax: PASS
