@@ -1955,3 +1955,21 @@ class DrawingBaselineReadinessOut(BaseModel):
     blockers: list[dict] = Field(default_factory=list)
     warnings: list[dict] = Field(default_factory=list)
     policy: str
+
+
+class DrawingBaselineRunCreate(BaseModel):
+    expected_analysis_version: int = Field(ge=1)
+    iou_threshold: float = Field(default=0.5, gt=0, le=1)
+    dataset_label: str | None = Field(default=None, max_length=300)
+
+class DrawingBaselineRunOut(BaseModel):
+    created: bool
+    drawing_benchmark_run_id: str
+    dataset_label: str
+    result_sha256: str
+    manifest_sha256: str | None = None
+    review_status: str
+    human_decision: str | None = None
+    version: int
+    result_payload: dict
+    created_at: str
