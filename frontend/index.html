@@ -1643,7 +1643,7 @@ function drawingOverlayPointerMove(ev){
 function endDrawingVertexDrag(ev){
   if(state.drawingDragVertexIndex===null)return;
   try{ev.currentTarget.releasePointerCapture(state.drawingDragPointerId)}catch{}
-  state.drawingDragVertexIndex=null;state.drawingDragPointerId=null;state.drawingDragHistoryPushed=false;state.drawingSnapTarget=null;
+  state.drawingDragVertexIndex=null;state.drawingDragPointerId=null;state.drawingSnapTarget=null;state.drawingDragHistoryPushed=false;
   recalcDrawingLocalMetrics();renderDrawingWorkspace();
 }
 function addDrawingVertex(){
