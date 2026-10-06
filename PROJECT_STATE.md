@@ -4,7 +4,7 @@
 
 ## 完成タスクの現在地（2026-10-06再監査）
 
-main0feb62e6（PR55）を正本として確認。小さなPRの完了はシステム完成を意味しない。
+main386582ce（PR58、勤務PR53・財務PR55統合後）を正本として確認。小さなPRの完了はシステム完成を意味しない。
 - PR41/43: 共通コード＋本部別DB/実行環境/原本/backupを固定。UUID照合、専用構成生成、PostgreSQL移行/復元/役割境界をCI検証済み。
 - PR44: 組織・職員・人事履歴・有効日権限・Humanアカウント管理・パスワード履歴/変更・セッション失効・監査閲覧。PR CI302成功、実ブラウザ1成功。main CI37476512786 SUCCESS。
 - RunB PR40/42/46の救急・事案/出動・車両・業務資産/在庫/貸出/保守を維持。main CI37482634204 SUCCESS。残り業務モジュールはRunBの連続実装対象。
@@ -1942,3 +1942,9 @@ PR56 Human Role/Rule/期限付き・代理はmain b2fc2612へmerge。exact-head 
 main ea15820e / main CI37503229005 SUCCESSを再確認。PR57共通MigrationはPG465/browser5成功でmerge。既存PR53 head e21eaa0の未merge差分を最新mainへ三者照合し、独立レビュー13Importantを1回のTDD修正passで修復。資格/人事/組織は既存正本を再利用。勤務区間のHuman設定/明示承認、滞在と正式勤務時間の分離、期限/残高全日付整合、session/permission再確認、重複配置排他、UTC、監査理由、共用PC状態消去・遅延response拒否、一覧pageを追加。新044のみ変更、既にmainの001–043/045/047は不変。§25はPartialのまま、team/work-result/checkout/cancel/balance/crew UI・期限/代休reconciliationが内部残差。詳細docs/completion/WORKFORCE_INTEGRATION.md。CI/merge/mainGreenは完了後にEvidenceを追記する。
 
 PR55財務はmain0feb62e6へmerge、main CI37507500474 SUCCESS。財務048を再実装せず正本として採用。開PR53を最新mainへ三者統合し、両業務・tenant/password/Roleを保持、browser7workflowで再検証する。Matrixは13Completed/36Partial/7Missing/1External（勤務Slice反映後。main0febのみは13/35/8/1）。財務の操作待機中session権限再確認・共用PC状態は内部Partialで継続。
+
+## 勤務統合と財務安全性の再監査
+
+PR53は既存勤務実装を修復してmerge済み。正確なhead334b3246のCI37509352367: backend546passed14skip、Chromium7passed。ログアウト時に既に消去された勤務ナビをテストが再クリックする競合はPR58でテスト側を修復。main386582ceのCI37511281181 SUCCESS。47migration/379statements。勤務はteam/work-result、編集/checkout/cancel/balance/crew UI、expiry/reconciliationを残すPartial。
+
+この差分の財務安全性は docs/completion/FINANCE_SAFETY.md に記録。共通更新guardを旧契約経路にも適用、応答/原本出力時の利用者照合、権限失効時のprivate state消去、複合権限メニューを修復。正式な金額/残額、承認ledger、Human原本確認は既存mainを再利用する。実モデル文字起こしの共通adapter等、法令Human承認、実host/実図面品質は未完扱いを維持。最新PRのexact-head CIとmain Greenを確認してから完成監査へ引き継ぐ。完成成果物はまだ未生成。

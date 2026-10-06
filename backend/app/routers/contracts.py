@@ -5,7 +5,7 @@ from sqlalchemy import update
 from sqlalchemy.orm import Session
 
 from ..audit import write_audit
-from ..authz import require_permission
+from ..authz import require_permission, require_mutation_permission
 from ..db import get_db
 from ..models import ContractCase, ContractCounterparty, User
 from ..finance_service import get_row, check_version, record_contract_change, row_dict, verify_contract_money, validate_contract_policy
@@ -26,7 +26,7 @@ def out(c: ContractCase) -> ContractOut:
         status=c.status, version=c.version)
 
 @router.post("/counterparties", response_model=ContractCounterpartyOut, status_code=201)
-def create_counterparty(payload: ContractCounterpartyCreate, db: Session = Depends(get_db), user: User = Depends(require_permission("contract.create"))):
+def create_counterparty(payload: ContractCounterpartyCreate, db: Session = Depends(get_db), user: User = Depends(require_mutation_permission("contract.create"))):
     row = ContractCounterparty(**payload.model_dump())
     db.add(row); db.flush();
     write_audit(db, user_id=user.user_id, action="contract.counterparty.create", entity_type="contract_counterparty", entity_id=row.counterparty_id, after={"name": row.name})
@@ -35,7 +35,7 @@ def create_counterparty(payload: ContractCounterpartyCreate, db: Session = Depen
                                    address=row.address, contact=row.contact, active=row.active, version=row.version)
 
 @router.post("", response_model=ContractOut, status_code=201)
-def create_contract(payload: ContractCreate, db: Session = Depends(get_db), user: User = Depends(require_permission("contract.create"))):
+def create_contract(payload: ContractCreate, db: Session = Depends(get_db), user: User = Depends(require_mutation_permission("contract.create"))):
     if payload.amount is not None and (not Decimal(str(payload.amount)).is_finite() or payload.amount<0): raise HTTPException(422,"finite nonnegative contract amount required")
     if payload.counterparty_id and not db.get(ContractCounterparty, payload.counterparty_id): raise HTTPException(status_code=404, detail="counterparty not found")
     row=ContractCase(contract_no=payload.contract_no,title=payload.title,counterparty_id=payload.counterparty_id,
@@ -50,7 +50,7 @@ def get_contract(contract_case_id: str, db: Session=Depends(get_db), user: User=
     return out(row)
 
 @router.patch("/{contract_case_id}", response_model=ContractOut)
-def patch_contract(contract_case_id: str,payload:ContractPatch,db:Session=Depends(get_db),user:User=Depends(require_permission("contract.update"))):
+def patch_contract(contract_case_id: str,payload:ContractPatch,db:Session=Depends(get_db),user:User=Depends(require_mutation_permission("contract.update"))):
     row=get_row(db,ContractCase,contract_case_id,True)
     check_version(row,payload.expected_version)
     if row.status=="approved": raise HTTPException(409,"approved contract source is immutable; use reviewed finance amendment")
@@ -71,7 +71,7 @@ def patch_contract(contract_case_id: str,payload:ContractPatch,db:Session=Depend
     row=db.get(ContractCase,contract_case_id); db.refresh(row); verify_contract_money(db,row,vals.get("amount",row.amount)); record_contract_change(db,user,row,exact_before,"Legacy authorized draft edit"); write_audit(db,user_id=user.user_id,action="contract.update",entity_type="contract",entity_id=contract_case_id,before=before,after={"title":row.title,"amount":float(row.amount) if row.amount is not None else None,"status":row.status,"version":row.version}); db.commit(); db.refresh(row); return out(row)
 
 @router.post("/{contract_case_id}/approve", response_model=ContractOut)
-def approve_contract(contract_case_id:str,payload:ContractStateChange,db:Session=Depends(get_db),user:User=Depends(require_permission("contract.approve"))):
+def approve_contract(contract_case_id:str,payload:ContractStateChange,db:Session=Depends(get_db),user:User=Depends(require_mutation_permission("contract.approve"))):
     if db.scalar(select(ProcurementProfile).where(ProcurementProfile.contract_case_id==contract_case_id)):
         from ..finance_service import approve_contract, need
         from ..finance_schemas import Action
