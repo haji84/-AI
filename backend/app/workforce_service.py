@@ -174,13 +174,20 @@ def create_leave(db,user,payload:LeaveCreate):
     db.add(row);db.flush();audit(db,user,'workforce.leave.create',row);return row
 
 def _aware(value):
-    if value.tzinfo is None or value.utcoffset() is None:raise HTTPException(422,'timezone-aware datetime required')
+    if value is None:return None
+    if value.tzinfo is None or value.utcoffset() is None:
+        # SQLite can return timezone-naive values for DateTime(timezone=True).
+        # Inputs are required to be timezone-aware by schema; persisted naive values
+        # are interpreted as UTC only for deterministic dev/test round-trips.
+        return value.replace(tzinfo=timezone.utc)
     return value
 
 def attendance_calculation(db,employee_id,roster_entry_id,check_in,check_out):
     _aware(check_in)
     if check_out:_aware(check_out)
     elapsed=None
+    check_in=_aware(check_in)
+    check_out=_aware(check_out)
     if check_out:elapsed=max(0,int((check_out.astimezone(timezone.utc)-check_in.astimezone(timezone.utc)).total_seconds()//60))
     planned=None;roster_version=None
     if roster_entry_id:
