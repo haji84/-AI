@@ -1,3 +1,5 @@
+> Current integration/safety evidence supersedes unmerged estimates below: [WORKFORCE_INTEGRATION.md](WORKFORCE_INTEGRATION.md). Chapter25 remains Partial; existing PR53 was CI-failing and is being repaired, not treated as canonical completion.
+
 # Completion Run B Task 5 — Workforce and Duty Management
 
 Status: implementation candidate on latest main after Learning PR52.
@@ -93,3 +95,4 @@ Synthetic regressions cover:
 - audit evidence
 
 Project CI additionally parses and applies all migrations on PostgreSQL and runs the repository-wide backend/frontend checks.
+

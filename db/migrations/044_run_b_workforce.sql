@@ -8,6 +8,10 @@ CREATE TABLE IF NOT EXISTS workforce_shift_types (
     timezone_name VARCHAR(80) NOT NULL DEFAULT 'Asia/Tokyo',
     cross_midnight BOOLEAN NOT NULL DEFAULT FALSE,
     payable_minutes BIGINT NOT NULL CHECK (payable_minutes > 0 AND payable_minutes <= 2880),
+    work_segments JSONB,
+    work_rule_approved_by UUID REFERENCES app_users(user_id),
+    work_rule_approved_at TIMESTAMPTZ,
+    work_rule_reason TEXT,
     active BOOLEAN NOT NULL DEFAULT TRUE,
     version BIGINT NOT NULL DEFAULT 1,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -66,6 +70,7 @@ CREATE TABLE IF NOT EXISTS workforce_roster_entries (
     starts_at TIMESTAMPTZ NOT NULL,
     ends_at TIMESTAMPTZ NOT NULL,
     payable_minutes BIGINT NOT NULL CHECK (payable_minutes > 0),
+    work_rule_snapshot JSONB,
     support_placement BOOLEAN NOT NULL DEFAULT FALSE,
     status VARCHAR(20) NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','reviewed','approved','cancelled')),
     note TEXT,
@@ -183,3 +188,4 @@ INSERT INTO role_permissions(role_id,permission_id)
 SELECT r.role_id,p.permission_id FROM roles r CROSS JOIN permissions p
 WHERE r.code='system_admin' AND POSITION('workforce.' IN p.code)=1
 ON CONFLICT DO NOTHING;
+

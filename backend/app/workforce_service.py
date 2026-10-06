@@ -26,7 +26,8 @@ SCHEMA_VERSION='workforce-v1'
 DEFAULT_TIMEZONE='Asia/Tokyo'
 
 def scalar(value):
-    if isinstance(value,(date,datetime,time)):return value.isoformat()
+    if isinstance(value,datetime):return _aware(value).astimezone(timezone.utc).isoformat()
+    if isinstance(value,(date,time)):return value.isoformat()
     return value
 
 def row_dict(row):
@@ -101,8 +102,9 @@ def shift_window(shift,work_date):
     start=datetime.combine(work_date,shift.start_time,tzinfo=tz)
     end_date=work_date+timedelta(days=1) if shift.cross_midnight or shift.end_time<=shift.start_time else work_date
     end=datetime.combine(end_date,shift.end_time,tzinfo=tz)
+    if (shift.end_time<=shift.start_time)!=shift.cross_midnight:raise HTTPException(422,'cross_midnight must match the explicit shift period')
     if end<=start:raise HTTPException(422,'shift end must follow shift start')
-    return start,end
+    return start.astimezone(timezone.utc),end.astimezone(timezone.utc)
 
 def create_shift(db,user,payload:ShiftTypeCreate):
     try:ZoneInfo(payload.timezone_name)
@@ -112,10 +114,22 @@ def create_shift(db,user,payload:ShiftTypeCreate):
 
 def patch_shift(db,user,key,payload:ShiftTypePatch):
     row=get_row(db,WorkforceShiftType,key,True);check_version(row,payload.expected_version);before=row_dict(row)
-    for k,v in payload.model_dump(exclude={'expected_version'},exclude_none=True).items():setattr(row,k,v)
+    for k,v in payload.model_dump(exclude={'expected_version'},exclude_unset=True).items():setattr(row,k,v)
     try:ZoneInfo(row.timezone_name)
     except ZoneInfoNotFoundError:raise HTTPException(422,'unknown shift timezone')
+    try:ShiftTypeCreate.model_validate({field:getattr(row,field) for field in ShiftTypeCreate.model_fields})
+    except ValueError as exc:raise HTTPException(422,'invalid merged shift/work rule configuration') from exc
+    if set(payload.model_fields_set)&{'start_time','end_time','timezone_name','cross_midnight','payable_minutes','work_segments'}:
+        row.work_rule_approved_by=None;row.work_rule_approved_at=None;row.work_rule_reason=None
+    shift_window(row,date(2026,1,1))
     row.version+=1;row.updated_at=now_utc();db.flush();audit(db,user,'workforce.shift.update',row,before);return row
+
+def approve_shift_work_rule(db,user,key,payload):
+    row=get_row(db,WorkforceShiftType,key,True);check_version(row,payload.expected_version)
+    if not row.active or not row.work_segments:raise HTTPException(409,'Human working intervals are required before approval')
+    if row.work_rule_approved_by:raise HTTPException(409,'working rule is already approved')
+    row.work_rule_approved_by=user.user_id;row.work_rule_approved_at=now_utc();row.work_rule_reason=payload.note
+    row.version+=1;row.updated_at=now_utc();db.flush();audit(db,user,'shift.work_rule.approve',row,after={**row_dict(row),'human_reason':payload.note});return row
 
 def create_qualification(db,user,payload:QualificationCreate):
     active_employee(db,payload.employee_id);require_document(db,user,payload.document_id)
@@ -159,6 +173,7 @@ def create_roster(db,user,payload:RosterCreate):
     row=WorkforceRosterEntry(
         **payload.model_dump(),assignment_id=assignment.assignment_id,assignment_version=assignment.version,
         starts_at=start,ends_at=end,payable_minutes=shift.payable_minutes,created_by=user.user_id,
+        work_rule_snapshot={'shift_version':shift.version,'segments':shift.work_segments,'approved_by':shift.work_rule_approved_by,'approved_at':scalar(shift.work_rule_approved_at),'reason':shift.work_rule_reason} if shift.work_rule_approved_by else None,
     )
     db.add(row);db.flush();audit(db,user,'workforce.roster.create',row);return row
 
@@ -177,7 +192,10 @@ def leave_balance(db,employee_id,leave_type,as_of):
 
 def create_leave(db,user,payload:LeaveCreate):
     active_employee(db,payload.employee_id)
-    row=WorkforceLeaveEntry(**payload.model_dump(),created_by=user.user_id)
+    values=payload.model_dump()
+    for key in ('leave_start_at','leave_end_at'):
+        if values[key]:values[key]=values[key].astimezone(timezone.utc)
+    row=WorkforceLeaveEntry(**values,created_by=user.user_id)
     db.add(row);db.flush();audit(db,user,'workforce.leave.create',row);return row
 
 def _aware(value):
@@ -195,16 +213,21 @@ def attendance_calculation(db,employee_id,roster_entry_id,check_in,check_out):
     elapsed=None
     check_in=_aware(check_in)
     check_out=_aware(check_out)
-    if check_out:elapsed=max(0,int((check_out.astimezone(timezone.utc)-check_in.astimezone(timezone.utc)).total_seconds()//60))
-    planned=None;roster_version=None
+    if check_out and check_out<=check_in:raise HTTPException(422,'check_out_at must follow check_in_at')
+    if check_out:elapsed=int((check_out.astimezone(timezone.utc)-check_in.astimezone(timezone.utc)).total_seconds()//60)
+    planned=None;roster_version=None;worked=None;work_rule=None
     if roster_entry_id:
         roster=get_row(db,WorkforceRosterEntry,roster_entry_id)
         if roster.employee_id!=employee_id:raise HTTPException(422,'roster entry belongs to another employee')
         planned=roster.payable_minutes;roster_version=roster.version
+        work_rule=roster.work_rule_snapshot
+        if check_out and work_rule and work_rule.get('approved_by'):
+            start=_aware(roster.starts_at).astimezone(timezone.utc)
+            worked=sum(max(0,int((min(check_out,start+timedelta(minutes=end))-max(check_in,start+timedelta(minutes=begin))).total_seconds()//60)) for begin,end in work_rule['segments'])
     return {
         'elapsed_minutes':elapsed,
         'planned_payable_minutes':planned,
-        'overtime_candidate_minutes':max(0,(elapsed or 0)-(planned or (elapsed or 0))) if elapsed is not None else None,
+        'official_worked_minutes':worked,'work_rule':work_rule,'overtime_candidate_minutes':None,
         'roster_entry_id':roster_entry_id,
         'roster_version':roster_version,
         'calculation_version':'workforce-time-v1',
@@ -219,7 +242,10 @@ def create_attendance(db,user,payload:AttendanceCreate):
         if db.scalar(select(WorkforceAttendance.attendance_id).where(WorkforceAttendance.roster_entry_id==payload.roster_entry_id).limit(1)):
             raise HTTPException(409,'attendance already exists for roster entry')
     calculation=attendance_calculation(db,payload.employee_id,payload.roster_entry_id,payload.check_in_at,payload.check_out_at)
-    row=WorkforceAttendance(**payload.model_dump(),worked_minutes=calculation['elapsed_minutes'],calculation=calculation,created_by=user.user_id)
+    values=payload.model_dump()
+    values['check_in_at']=payload.check_in_at.astimezone(timezone.utc)
+    values['check_out_at']=payload.check_out_at.astimezone(timezone.utc) if payload.check_out_at else None
+    row=WorkforceAttendance(**values,worked_minutes=calculation['official_worked_minutes'],calculation=calculation,created_by=user.user_id)
     db.add(row);db.flush();audit(db,user,'workforce.attendance.create',row);return row
 
 def patch_attendance(db,user,key,payload:AttendancePatch):
@@ -229,7 +255,7 @@ def patch_attendance(db,user,key,payload:AttendancePatch):
     check_in=payload.check_in_at or row.check_in_at
     check_out=payload.check_out_at if 'check_out_at' in payload.model_fields_set else row.check_out_at
     calculation=attendance_calculation(db,row.employee_id,row.roster_entry_id,check_in,check_out)
-    row.check_in_at=check_in;row.check_out_at=check_out;row.worked_minutes=calculation['elapsed_minutes'];row.calculation=calculation
+    row.check_in_at=_aware(check_in).astimezone(timezone.utc);row.check_out_at=_aware(check_out).astimezone(timezone.utc) if check_out else None;row.worked_minutes=calculation['official_worked_minutes'];row.calculation=calculation
     row.version+=1;row.updated_at=now_utc();db.flush();audit(db,user,'workforce.attendance.update',row,before);return row
 
 def create_time_entry(db,user,payload:TimeEntryCreate):
@@ -262,7 +288,7 @@ def transition(db,user,row,expected,action,note):
     if action=='approve':row.approved_by=user.user_id;row.approved_at=now
     row.status=target;row.version+=1;row.updated_at=now
     if hasattr(row,'rule_note') and note:row.rule_note=((row.rule_note+'\n') if row.rule_note else '')+note
-    db.flush();audit(db,user,f'workforce.{row.__tablename__}.{action}',row,before);return row
+    db.flush();audit(db,user,f'workforce.{row.__tablename__}.{action}',row,before,after={**row_dict(row),'human_reason':note});return row
 
 def staffing_action(db,user,key,expected,action,note):
     row=get_row(db,WorkforceStaffingRule,key,True)
@@ -277,6 +303,7 @@ def roster_action(db,user,key,expected,action,note):
     row=get_row(db,WorkforceRosterEntry,key,True)
     if action in ('review','approve'):
         employee=active_employee(db,row.employee_id,True)
+        if not current_roster_evidence(db,row):raise HTTPException(409,'roster assignment or approved working rule changed; recreate placement')
         assignment=db.get(EmployeeAssignment,row.assignment_id) if row.assignment_id else None
         if not assignment or assignment.version!=row.assignment_version:
             raise HTTPException(409,'assignment evidence changed; recreate roster placement')
@@ -286,11 +313,20 @@ def roster_action(db,user,key,expected,action,note):
             raise HTTPException(409,'assignment no longer supports placement')
     return transition(db,user,row,expected,action,note)
 
+def ensure_nonnegative_history(rows,proposed,date_key,effect):
+    totals={}
+    for row in [*rows,proposed]:
+        day=getattr(row,date_key);totals[day]=totals.get(day,0)+effect(row)
+    balance=0
+    for day in sorted(totals):
+        balance+=totals[day]
+        if balance<0:raise HTTPException(409,'approval would make a present or future ledger balance negative')
+
 def leave_action(db,user,key,expected,action,note):
     row=get_row(db,WorkforceLeaveEntry,key,True)
-    if action=='approve' and row.kind in ('use','adjustment_subtract','expire'):
-        balance=leave_balance(db,row.employee_id,row.leave_type,row.effective_on)
-        if balance<row.quantity_minutes:raise HTTPException(409,'leave balance would become negative')
+    if action=='approve':
+        rows=db.scalars(select(WorkforceLeaveEntry).where(WorkforceLeaveEntry.employee_id==row.employee_id,WorkforceLeaveEntry.leave_type==row.leave_type,WorkforceLeaveEntry.status=='approved')).all()
+        ensure_nonnegative_history(rows,row,'effective_on',leave_effect)
     return transition(db,user,row,expected,action,note)
 
 def attendance_action(db,user,key,expected,action,note):
@@ -304,14 +340,22 @@ def attendance_action(db,user,key,expected,action,note):
             if roster.status!='approved':raise HTTPException(409,'linked roster is no longer approved')
         if row.calculation.get('roster_version')!=calc.get('roster_version'):
             raise HTTPException(409,'roster evidence changed; refresh attendance')
-        row.calculation=calc;row.worked_minutes=calc['elapsed_minutes']
+        if calc['official_worked_minutes'] is None:raise HTTPException(409,'official attendance requires a roster with Human-approved working rule')
+        row.calculation=calc;row.worked_minutes=calc['official_worked_minutes']
     return transition(db,user,row,expected,action,note)
 
 def time_action(db,user,key,expected,action,note):
     row=get_row(db,WorkforceTimeEntry,key,True)
-    if action=='approve' and row.kind=='comp_use':
-        if time_balance(db,row.employee_id,row.occurred_on)<row.minutes:raise HTTPException(409,'compensatory balance would become negative')
+    if action=='approve' and row.kind in ('comp_grant','comp_use'):
+        rows=db.scalars(select(WorkforceTimeEntry).where(WorkforceTimeEntry.employee_id==row.employee_id,WorkforceTimeEntry.status=='approved',WorkforceTimeEntry.kind.in_(['comp_grant','comp_use']))).all()
+        ensure_nonnegative_history(rows,row,'occurred_on',lambda entry:entry.minutes if entry.kind=='comp_grant' else -entry.minutes)
     return transition(db,user,row,expected,action,note)
+
+def current_roster_evidence(db,roster):
+    assignment=effective_assignment(db,roster.employee_id,roster.work_date)
+    organization=db.get(OrganizationUnit,roster.organization_id)
+    shift=db.get(WorkforceShiftType,roster.shift_type_id);snapshot=roster.work_rule_snapshot
+    return bool(shift and shift.active and snapshot and snapshot.get('approved_by') and snapshot.get('shift_version')==shift.version and assignment and assignment.assignment_id==roster.assignment_id and assignment.version==roster.assignment_version and organization and organization.active and (roster.support_placement or assignment.organization_id==roster.organization_id))
 
 def approved_leave_overlaps(db,employee_id,start,end):
     return bool(db.scalar(select(WorkforceLeaveEntry.leave_entry_id).where(
@@ -358,8 +402,9 @@ def staffing_warnings(db,on_date,organization_id=None):
             WorkforceRosterEntry.work_date==on_date,
             WorkforceRosterEntry.status=='approved',
         )).all()
-        eligible=[]
+        eligible=[];stale=[]
         for roster in rosters:
+            if not current_roster_evidence(db,roster):stale.append(roster.roster_entry_id);continue
             employee=db.get(Employee,roster.employee_id)
             if not employee or not employee.active or approved_leave_overlaps(db,roster.employee_id,roster.starts_at,roster.ends_at):continue
             if rule.qualification_code and not valid_qualification(db,roster.employee_id,rule.qualification_code,on_date):continue
@@ -370,7 +415,7 @@ def staffing_warnings(db,on_date,organization_id=None):
             'required':rule.min_staff,'available':len(eligible),'shortage':max(0,rule.min_staff-len(eligible)),
             'status':'shortage' if len(eligible)<rule.min_staff else 'ok',
             'roster_entry_ids':[r.roster_entry_id for r in eligible],
-            'rule_version':rule.version,
+            'rule_version':rule.version,'stale_roster_entry_ids':stale,
         })
     return out
 
@@ -384,6 +429,7 @@ def available_crew(db,on_date,organization_id=None,shift_type_id=None):
     if shift_type_id:stmt=stmt.where(WorkforceRosterEntry.shift_type_id==shift_type_id)
     out=[]
     for roster,employee in db.execute(stmt).all():
+        if not current_roster_evidence(db,roster):continue
         if approved_leave_overlaps(db,employee.employee_id,roster.starts_at,roster.ends_at):continue
         quals=db.scalars(select(WorkforceEmployeeQualification).where(
             WorkforceEmployeeQualification.employee_id==employee.employee_id,
@@ -466,7 +512,7 @@ def import_preview(db,user,blob,filename,document_id=None):
 
 def confirm_import(db,user,key,expected_version,file_sha256):
     preview=get_row(db,WorkforceImportPreview,key,True);check_version(preview,expected_version)
-    if preview.status!='preview' or preview.expires_at<now_utc():raise HTTPException(409,'import preview expired or already applied')
+    if preview.status!='preview' or _aware(preview.expires_at)<now_utc():raise HTTPException(409,'import preview expired or already applied')
     if preview.file_sha256!=file_sha256:raise HTTPException(409,'source file changed')
     created=[]
     for item in preview.row_data:
@@ -486,7 +532,7 @@ def export_rosters(db,format,from_date=None,to_date=None):
     if from_date:stmt=stmt.where(WorkforceRosterEntry.work_date>=from_date)
     if to_date:stmt=stmt.where(WorkforceRosterEntry.work_date<=to_date)
     rows=[]
-    for roster,employee,org,shift in db.execute(stmt.order_by(WorkforceRosterEntry.work_date,org.code,employee.display_name)).all():
+    for roster,employee,org,shift in db.execute(stmt.order_by(WorkforceRosterEntry.work_date,OrganizationUnit.code,Employee.display_name)).all():
         rows.append([
             employee.employee_code or '',employee.display_name,org.code,org.name,shift.code,shift.name,
             roster.work_date.isoformat(),roster.starts_at.isoformat(),roster.ends_at.isoformat(),roster.payable_minutes,
@@ -500,3 +546,4 @@ def export_rosters(db,format,from_date=None,to_date=None):
     wb=Workbook();ws=wb.active;ws.title='rosters';ws.append(headers)
     for row in safe:ws.append(row)
     out=BytesIO();wb.save(out);return out.getvalue(),'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+

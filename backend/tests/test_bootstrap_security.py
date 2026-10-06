@@ -33,3 +33,17 @@ def test_bootstrap_records_initial_password_and_human_audit_without_secrets(tmp_
     assert result.returncode!=0
     with engine.connect() as db:assert db.execute(text("SELECT COUNT(*) FROM audit_logs WHERE action='account.bootstrap'")).scalar_one()==1
     engine.dispose()
+
+
+def test_bootstrap_applies_human_department_password_age_policy(tmp_path,monkeypatch):
+    from datetime import datetime,timedelta
+    monkeypatch.setenv('FIRE_AI_PASSWORD_MAX_AGE_DAYS','7')
+    result,url=invoke(tmp_path,'synthetic-policy-bootstrap-password')
+    assert result.returncode==0,result.stderr
+    engine=create_engine(url)
+    with engine.connect() as db:
+        changed,expiry=db.execute(text('SELECT password_changed_at,password_expires_at FROM app_users')).one()
+        assert datetime.fromisoformat(expiry)-datetime.fromisoformat(changed)==timedelta(days=7)
+        event=db.execute(text("SELECT after_data FROM audit_logs WHERE action='account.bootstrap'")).scalar_one()
+        assert 'password_max_age_days' in str(event) and 'synthetic-policy-bootstrap-password' not in str(event)
+    engine.dispose()

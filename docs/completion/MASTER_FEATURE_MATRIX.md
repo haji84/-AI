@@ -1,8 +1,8 @@
 # Fire AIOS Master Feature Matrix
 
-Audit date: 2026-10-07
+Audit date: 2026-10-06
 Canonical specification: docs/SPECIFICATION.md v2.0
-Audited main: 6bcf537936915d3c891e9176b71a38f4886197e1
+Audited main base: ea15820e57a73dd4ea721d43247fb63345271a53 (main CI37503229005 SUCCESS); this slice integrates the existing PR53 delta after review/CI.
 
 This matrix compares all 57 Master Specification chapters against the actual repository: models, migrations, routers, services, frontend surfaces, tests, deployment files and current CI evidence.
 
@@ -17,9 +17,9 @@ Status meanings:
 
 | Status | Count |
 |---|---:|
-| Completed | 16 |
-| Partial | 32 |
-| Missing | 8 |
+| Completed | 13 |
+| Partial | 34 |
+| Missing | 9 |
 | External Gate | 1 |
 | Total | 57 |
 
@@ -33,7 +33,7 @@ Status meanings:
 | 4 | Update, Release and Rollback | Partial | Module registry, Feature Flag/Change Request foundation, signed legal Update Bundle | full application Release updater, staged rollout and rollback across all deployment profiles |
 | 5 | Common Data Principles | Completed | UUID records, optimistic versions, audit, logical lifecycle patterns across core models | module-specific exceptions must continue to follow these rules |
 | 6 | Employee, Organization and Account | Partial | PR44, Migration041, personnel.py, routers/administration.py, admin UI/tests | Document-driven personnel transfer/import flow; remaining account lifecycle polish |
-| 7 | Authorization | Completed | authz.py, rbac_seed.py, backend permission dependencies, effective-dated personnel roles | production role/organization acceptance external |
+| 7 | Authorization | Partial | authz.py, RBAC, backend permission dependencies, effective-dated appointment roles | PR56 customRole/RoleRule/timed/acting and own explanation are merged with PG/browser CI; qualification/duty-derived selector extension remains internal; production role acceptance is external |
 | 8 | Audit | Partial | audit.py, AuditLog, administration audit APIs/UI, broad write auditing | complete paging/filter/admin operations and production DB immutability evidence |
 | 9 | Document Platform | Completed | Document model, managed storage, SHA-256, source/original separation, document router | continue module adapters without duplicating originals |
 | 10 | Document Intake and OCR | Partial | document_intake.py, intake router/UI, PDF/image/DOCX/XLSX/text paths | HEIC path, multi-image document assembly, correction/quality pipeline and all target-module adapters |
@@ -51,7 +51,7 @@ Status meanings:
 | 22 | Incident and Dispatch | Completed | PR42, Migration040, operations models/service/router/UI/tests | cross-module dashboard/statistics integration only |
 | 23 | Fleet and Vehicle | Completed | PR42 vehicle registry/trip/fuel/inspection/service/fault/cost workflows | production acceptance and cross-module statistics only |
 | 24 | Operational Assets and Inventory | Completed | PR46, Migration042, asset/lot/balance/movement/loan/service/import/export/UI/tests | production acceptance and dashboard/statistics integration only |
-| 25 | Workforce and Duty Management | Completed | Migration044; workforce models/service/router; shared Employee/Organization/Assignment; Human-approved staffing/roster/leave/attendance/overtime/comp-time; qualifications; warnings; statistics; CSV/XLSX; search/UI/tests | production-site acceptance and cross-module dispatch/work-result E2E remain under #51/#54 |
+| 25 | Workforce and Duty Management | Partial | Migration044, workforce models/service/router/UI, existing personnel reuse, explicit Human working intervals, CAS/provenance, serialized balance/placement and session guards, browser and PG regressions | team/work-result, checkout/cancel/correction/balance/crew UI, explicit expiry/reconciliation policy; actual Human staffing rules and physical PC acceptance external |
 | 26 | Contract and Procurement | Partial | ContractCase/Counterparty/Document/Change models and router | quote/commitment/procurement/payment/inspection/renewal workflows and full UI |
 | 27 | Budget and Finance | Missing | no finance/budget domain router or migration | fiscal year, configurable account hierarchy, budget changes/transfers/commitments/payments/balance/requests |
 | 28 | Council, Assembly and Inquiry Support | Missing | no inquiry domain | evidence-linked questions, answer revisions, numeric-source lineage, similar search and Human approval |
@@ -63,7 +63,7 @@ Status meanings:
 | 34 | Cross-module Statistics, Annual Reports and Surveys | Missing | emergency-specific reports exist only | unified statistics service across all modules, prior-year comparison, snapshot lineage, official surveys |
 | 35 | Unified Search | Partial | permission-aware routers/search.py, facilities/fire/legal/docs/contracts/operations/assets integration | add all remaining modules, filters/pagination quality and production performance evidence |
 | 36 | Dashboard and Personal Work Queue | Missing | facility dashboard exists, no system-wide personal work queue | permission-aware today/unprocessed/review/deadline/task aggregation across modules |
-| 37 | Learning Platform | Completed | PR52; Migration043; Human-reviewed corrections, fixed evaluation dataset, Candidate/Champion comparison, Human promotion and rollback, browser UI and PostgreSQL/Chromium tests | real model-training quality remains governed by #49; current engine is an explainable literal-correction baseline |
+| 37 | Learning Platform | Partial | PR52: eight correction targets, frozen Human references, server comparison, immutable dictionary Candidate, Human Champion promotion/current-tip rollback, PostgreSQL and Chromium CI | model/worker adapters and actual-model integration are internal; real quality acceptance is external |
 | 38 | Autonomous Task and Self-extension Platform | Partial | ChangeRequest/extensibility models and review concepts | bounded task runner, sandbox execution, test/evidence orchestration, approved deployment/rollback loop |
 | 39 | AI Decision Levels | Partial | Human Gate patterns exist across legal/drawing/fire/emergency | central machine-readable level/policy enforcement and coverage audit across all modules |
 | 40 | AI Failure Mode | Completed | core CRUD/API modules do not require LLM availability; deterministic/manual paths exist | ensure all new modules preserve this contract |
@@ -89,12 +89,14 @@ Status meanings:
 
 ### P0: missing operational domains with foundations already available
 
-1. Budget and Finance (#27) plus completion of Contract/Procurement (#26)
-2. Violations and Corrective Actions (#13)
-3. Hazardous Materials (#16)
-4. Council / Inquiry Support (#28)
-5. Cross-module Statistics (#34)
-6. Dashboard / Personal Work Queue (#36)
+1. Workforce and Duty Management (#25)
+2. Budget and Finance (#27) plus completion of Contract/Procurement (#26)
+3. Violations and Corrective Actions (#13)
+4. Hazardous Materials (#16)
+5. Council / Inquiry Support (#28)
+6. Cross-module Statistics (#34)
+7. Dashboard / Personal Work Queue (#36)
+8. Learning Platform (#37)
 
 ### P1: completion of strong Partial domains
 
@@ -130,3 +132,7 @@ Development must continue from this matrix rather than Phase numbering.
 A single PR or module completion is not a stopping condition.
 After every merged slice, refresh main and update only the affected matrix rows.
 The stopping condition is the Master Specification v2.0 Definition of Done, with External Gates reported separately.
+
+Audit correction after code inspection: chapter7 was previously marked Completed too broadly. Existing appointment/permanent role selection does not provide Human-managed custom permissions/Role Rules and dedicated temporary/acting grant administration. These are internal Partial work, not an External Gate.
+
+Workforce integration safety evidence: docs/completion/WORKFORCE_INTEGRATION.md. Existing PR53 repaired rather than reimplemented; chapter25 remains Partial. No claims of actual PostgreSQL/Chromium or main merge until corresponding exact-head CI evidence is recorded.

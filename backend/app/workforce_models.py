@@ -20,6 +20,10 @@ class WorkforceShiftType(Versioned,Base):
     timezone_name:Mapped[str]=mapped_column(String(80),nullable=False,default='Asia/Tokyo')
     cross_midnight:Mapped[bool]=mapped_column(Boolean,nullable=False,default=False)
     payable_minutes:Mapped[int]=mapped_column(BigInteger,nullable=False)
+    work_segments:Mapped[list|None]=mapped_column(JSON)
+    work_rule_approved_by:Mapped[str|None]=mapped_column(ForeignKey('app_users.user_id'))
+    work_rule_approved_at:Mapped[datetime|None]=mapped_column(DateTime(timezone=True))
+    work_rule_reason:Mapped[str|None]=mapped_column(Text)
     active:Mapped[bool]=mapped_column(Boolean,nullable=False,default=True)
     __table_args__=(CheckConstraint('payable_minutes > 0 AND payable_minutes <= 2880',name='ck_workforce_shift_payable'),)
 
@@ -68,6 +72,7 @@ class WorkforceRosterEntry(Versioned,Base):
     starts_at:Mapped[datetime]=mapped_column(DateTime(timezone=True),nullable=False)
     ends_at:Mapped[datetime]=mapped_column(DateTime(timezone=True),nullable=False)
     payable_minutes:Mapped[int]=mapped_column(BigInteger,nullable=False)
+    work_rule_snapshot:Mapped[dict|None]=mapped_column(JSON)
     support_placement:Mapped[bool]=mapped_column(Boolean,nullable=False,default=False)
     status:Mapped[str]=mapped_column(String(20),nullable=False,default='draft')
     note:Mapped[str|None]=mapped_column(Text)
@@ -147,3 +152,4 @@ class WorkforceImportPreview(Versioned,Base):
     created_by:Mapped[str]=mapped_column(ForeignKey('app_users.user_id'),nullable=False)
     expires_at:Mapped[datetime]=mapped_column(DateTime(timezone=True),nullable=False)
     __table_args__=(CheckConstraint("dataset IN ('rosters')",name='ck_workforce_import_dataset'),CheckConstraint("status IN ('preview','applied')",name='ck_workforce_import_status'))
+

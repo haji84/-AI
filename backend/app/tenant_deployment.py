@@ -23,6 +23,8 @@ def render_department(*, slug, tenant_id, host, port, release_id):
 FIRE_AI_TENANT_ID={tenant_id}
 FIRE_AI_TRUSTED_HOSTS='{json.dumps([host])}'
 FIRE_AI_COOKIE_SECURE=true
+# Human optional password-age policy,1..3650days; unset means explicit scheduling.
+# FIRE_AI_PASSWORD_MAX_AGE_DAYS=
 FIRE_AI_STORAGE_ROOT={storage}
 '''
     runtime = common + f'FIRE_AI_DATABASE_URL=postgresql+psycopg://{application}:REPLACE_WITH_URLENCODED_PASSWORD@127.0.0.1:5432/{database}\n'

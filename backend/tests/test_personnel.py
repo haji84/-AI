@@ -132,7 +132,8 @@ def test_human_account_role_changes_preserve_last_administrator_and_versions(env
     assert client.patch('/administration/accounts/'+account['user_id'],json={'expected_version':1,'active':False,'reason':'Human無効化'}).status_code==409
     with Session(engine) as db:
         record=db.scalar(select(AuditLog).where(AuditLog.action=='account.update'))
-        assert record and 'password' not in str(record.after_data)
+        assert record and 'password_hash' not in str(record.after_data)
+        assert '$argon2' not in str(record.after_data) and 'synthetic-second-password' not in str(record.after_data)
 
 
 def test_self_password_change_revokes_sessions_and_prevents_reuse(environment):

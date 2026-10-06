@@ -6,12 +6,13 @@ from .db import Base, engine, SessionLocal
 from .models import User, Employee, UserRole
 # Register additive domain tables before the development-only create_all.
 # Production still uses append-only migrations and the canonical bound session.
-from . import operations_models, assets_models, workforce_models, emergency_models, personnel, learning_models
+from . import operations_models, assets_models, workforce_models, emergency_models, personnel, learning_models, tenant
 from .rbac_seed import seed_rbac
 from .module_seed import seed_modules
 from .submission_seed import seed_submission_types
 from .equipment_seed import seed_equipment_types
 from .security import hash_password
+from .password_policy import initial_password_dates,password_metadata
 from .personnel import PasswordHistory,account_change_lock
 from .audit import write_audit
 
@@ -38,13 +39,13 @@ def main():
         emp = Employee(display_name=args.display_name)
         db.add(emp)
         db.flush()
-        user = User(employee_id=emp.employee_id, username=args.username, password_hash=hash_password(password))
+        user = User(employee_id=emp.employee_id, username=args.username, password_hash=hash_password(password),**initial_password_dates())
         db.add(user)
         db.flush()
         db.add(UserRole(user_id=user.user_id, role_id=roles["system_admin"].role_id))
         db.add(PasswordHistory(user_id=user.user_id,password_hash=user.password_hash))
         write_audit(db,user_id=user.user_id,action='account.bootstrap',entity_type='user',entity_id=user.user_id,
-            after={'username':user.username,'employee_id':emp.employee_id,'role_codes':['system_admin'],'reason':'Human server bootstrap'})
+            after={'username':user.username,'employee_id':emp.employee_id,'role_codes':['system_admin'],'reason':'Human server bootstrap',**password_metadata(user)})
         db.commit()
         print(f"created admin user: {args.username}")
 

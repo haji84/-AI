@@ -2,13 +2,14 @@ from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from .db import get_db
+from .personnel import account_change_lock,employee_available
 from .models import User, UserSession, UserRole, RolePermission, Permission
 from .security import token_digest
 from .settings import settings
 from .personnel import employee_available, effective_role_ids
 from datetime import datetime, timezone
 
-def current_user(request: Request, db: Session = Depends(get_db)) -> User:
+def authenticated_user(request: Request, db: Session = Depends(get_db)) -> User:
     raw = request.cookies.get(settings.cookie_name)
     if not raw:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="not authenticated")
@@ -25,8 +26,24 @@ def current_user(request: Request, db: Session = Depends(get_db)) -> User:
     user = db.get(User, session.user_id)
     if not user or not user.active or not employee_available(db, user):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="user disabled")
+    db.info['authenticated_session_token_hash']=digest
     session.last_seen_at = now
     db.commit()
+    return user
+
+def revalidate_session(db: Session,user_id: str):
+    digest=db.info.get('authenticated_session_token_hash')
+    session=db.scalar(select(UserSession).where(UserSession.token_hash==digest,UserSession.user_id==user_id,UserSession.revoked_at.is_(None)).execution_options(populate_existing=True)) if digest else None
+    if not session:raise HTTPException(401,'originating session no longer valid')
+    expires=session.expires_at
+    if expires.tzinfo is None:expires=expires.replace(tzinfo=timezone.utc)
+    if expires<=datetime.now(timezone.utc):raise HTTPException(401,'originating session expired')
+
+
+def current_user(user: User = Depends(authenticated_user)) -> User:
+    from .password_policy import password_expired
+    if password_expired(user.password_expires_at):
+        raise HTTPException(403,detail={'code':'password_expired','message':'パスワードの有効期限が切れています。更新してください。','renewal_url':'/ui/password.html'},headers={'X-FireAI-Password-Renewal':'required'})
     return user
 
 def permission_codes(db: Session, user_id: str) -> set[str]:
@@ -44,4 +61,20 @@ def require_permission(code: str):
         if code not in permission_codes(db, user.user_id):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=f"missing permission: {code}")
         return user
+    return dependency
+
+
+def require_mutation_permission(code: str):
+    """Serialize Human writes with account changes and recheck the requesting session."""
+    def dependency(user: User = Depends(require_permission(code)),db: Session = Depends(get_db)) -> User:
+        identity=user.user_id
+        account_change_lock(db)
+        revalidate_session(db,identity)
+        fresh=db.get(User,identity,populate_existing=True)
+        if not fresh or not fresh.active or not employee_available(db,fresh):
+            raise HTTPException(status_code=403,detail='Human account no longer available')
+        current_user(fresh)
+        if code not in permission_codes(db,identity):
+            raise HTTPException(status_code=403,detail=f'mutation permission no longer effective: {code}')
+        return fresh
     return dependency

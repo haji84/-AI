@@ -7,7 +7,7 @@ from sqlalchemy import select,update,text
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from ..db import get_db
-from ..authz import require_permission,permission_codes
+from ..authz import require_permission,permission_codes,current_user,revalidate_session
 from ..audit import write_audit
 from ..models import Document,FeatureFlag,User
 from ..personnel import account_change_lock,employee_available
@@ -96,8 +96,10 @@ def authority(db,actor,task,synthetic=False):
 
 def human_lock(db,actor,permission):
     account_change_lock(db)
+    revalidate_session(db,actor.user_id)
     current=db.scalar(select(User).where(User.user_id==actor.user_id).execution_options(populate_existing=True))
     if not current or not current.active or not employee_available(db,current) or permission not in permission_codes(db,actor.user_id):raise HTTPException(403,'Human authority no longer effective')
+    current_user(current)
 
 
 def audit(db,actor,action,row,reason=None):

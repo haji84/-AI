@@ -1,5 +1,6 @@
 from datetime import date,datetime,time
 from typing import Literal
+from zoneinfo import ZoneInfo
 from pydantic import BaseModel,ConfigDict,Field,model_validator
 
 class Strict(BaseModel):
@@ -19,10 +20,19 @@ class ShiftTypeCreate(Strict):
     timezone_name:str=Field(default='Asia/Tokyo',min_length=1,max_length=80)
     cross_midnight:bool=False
     payable_minutes:int=Field(gt=0,le=2880)
+    work_segments:list[tuple[int,int]]|None=Field(None,min_length=1,max_length=100)
     @model_validator(mode='after')
     def explicit_midnight(self):
         if self.end_time<=self.start_time and not self.cross_midnight:raise ValueError('cross_midnight must be explicit when end_time is not after start_time')
         if self.end_time>self.start_time and self.cross_midnight:raise ValueError('cross_midnight is inconsistent with same-day end_time')
+        if self.work_segments:
+            minutes=lambda t:t.hour*60+t.minute+t.second/60
+            duration=minutes(self.end_time)-minutes(self.start_time)+(1440 if self.cross_midnight else 0)
+            previous=0
+            for start,end in self.work_segments:
+                if start<previous or end<=start or end>duration:raise ValueError('work segments must be ordered, disjoint and inside shift window')
+                previous=end
+            if sum(end-start for start,end in self.work_segments)!=self.payable_minutes:raise ValueError('work segments must total the Human configured payable minutes')
         return self
 
 class ShiftTypePatch(Version):
@@ -32,6 +42,7 @@ class ShiftTypePatch(Version):
     timezone_name:str|None=Field(None,min_length=1,max_length=80)
     cross_midnight:bool|None=None
     payable_minutes:int|None=Field(None,gt=0,le=2880)
+    work_segments:list[tuple[int,int]]|None=Field(None,min_length=1,max_length=100)
     active:bool|None=None
 
 class QualificationCreate(Strict):
@@ -92,7 +103,7 @@ class LeaveCreate(Strict):
             for value in (self.leave_start_at,self.leave_end_at):
                 if value.tzinfo is None or value.utcoffset() is None:raise ValueError('leave timestamps require timezone')
             if self.leave_end_at<=self.leave_start_at:raise ValueError('leave_end_at must follow leave_start_at')
-            if self.leave_start_at.date()!=self.effective_on:raise ValueError('effective_on must match leave_start_at date')
+            if self.leave_start_at.astimezone(ZoneInfo('Asia/Tokyo')).date()!=self.effective_on:raise ValueError('effective_on must match leave_start_at date')
         elif self.leave_start_at or self.leave_end_at:
             raise ValueError('leave period is allowed only for leave use')
         return self
@@ -130,3 +141,4 @@ class TimeEntryCreate(Strict):
 
 class ImportConfirm(Version):
     file_sha256:str=Field(pattern='^[a-f0-9]{64}$')
+

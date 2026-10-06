@@ -2,11 +2,12 @@
 import os
 os.environ['FIRE_AI_DATABASE_URL']='sqlite+pysqlite:///:memory:'
 
-from datetime import date,datetime,timezone
+from datetime import date,datetime,timezone,timedelta
 from io import BytesIO
 from pathlib import Path
 import csv
 import subprocess
+import sys
 
 import pytest
 from fastapi.testclient import TestClient
@@ -17,7 +18,7 @@ from app.main import app
 from app.models import Employee,User,Role,Permission,RolePermission,UserRole,AuditLog
 from app.personnel import OrganizationUnit,EmployeeAssignment
 from app.security import hash_password
-from app.workforce_models import WorkforceRosterEntry,WorkforceLeaveEntry
+from app.workforce_models import WorkforceRosterEntry,WorkforceLeaveEntry,WorkforceImportPreview
 
 CODES=[
     'workforce.read','workforce.create','workforce.update','workforce.review','workforce.approve',
@@ -59,9 +60,12 @@ def refs():
         assignment=db.scalar(select(EmployeeAssignment).where(EmployeeAssignment.employee_id==emp.employee_id))
         return emp.employee_id,main.organization_id,support.organization_id,assignment.assignment_id
 
-def shift(client,code='DAY',start='08:30:00',end='17:15:00',cross=False,payable=465):
-    r=client.post('/workforce/shift-types',json={'code':code,'name':code,'start_time':start,'end_time':end,'timezone_name':'Asia/Tokyo','cross_midnight':cross,'payable_minutes':payable})
-    assert r.status_code==201,r.text;return r.json()
+def shift(client,code='DAY',start='08:30:00',end='17:15:00',cross=False,payable=465,approve=True):
+    r=client.post('/workforce/shift-types',json={'code':code,'name':code,'start_time':start,'end_time':end,'timezone_name':'Asia/Tokyo','cross_midnight':cross,'payable_minutes':payable,'work_segments':[[0,payable]]})
+    assert r.status_code==201,r.text;row=r.json()
+    if approve:
+        r=client.post('/workforce/shift-types/'+row['shift_type_id']+'/approve-work-rule',json={'expected_version':row['version'],'note':'Human synthetic approved intervals'});assert r.status_code==200,r.text;row=r.json()
+    return row
 
 def action(client,path,row,action='review',status=200):
     r=client.post('/workforce/'+path+'/'+action,json={'expected_version':row['version'],'note':'Synthetic Human decision'})
@@ -82,7 +86,7 @@ def create_roster(client,day='2026-10-10',org=None,shift_id=None,support=False):
 def test_shift_explicit_cross_midnight_and_stale_update(client):
     bad=client.post('/workforce/shift-types',json={'code':'NIGHTBAD','name':'Night','start_time':'16:00:00','end_time':'08:00:00','timezone_name':'Asia/Tokyo','cross_midnight':False,'payable_minutes':945})
     assert bad.status_code==422
-    night=shift(client,'NIGHT','16:00:00','08:00:00',True,945)
+    night=shift(client,'NIGHT','16:00:00','08:00:00',True,945,approve=False)
     assert night['payable_minutes']==945
     r=client.patch('/workforce/shift-types/'+night['shift_type_id'],json={'expected_version':1,'name':'Night updated'})
     assert r.status_code==200 and r.json()['version']==2
@@ -101,7 +105,11 @@ def test_roster_uses_effective_assignment_support_and_blocks_overlap_and_stale_s
     with SessionLocal() as db:
         a=db.get(EmployeeAssignment,assignment_id);a.version+=1;db.commit()
     assert client.post('/workforce/rosters/'+stale['roster_entry_id']+'/review',json={'expected_version':1,'note':'Review stale'}).status_code==409
-    approved=approve_roster(client,normal)
+    for changed in (normal,support_row):
+        assert client.post('/workforce/rosters/'+changed['roster_entry_id']+'/review',json={'expected_version':1,'note':'Must reject old evidence'}).status_code==409
+    replacement=create_roster(client,'2026-10-13',main,s['shift_type_id'])
+    assert replacement['assignment_version']==2
+    approved=approve_roster(client,replacement)
     assert approved['status']=='approved' and approved['approved_by']
 
 def test_staffing_rule_qualification_and_partial_leave_overlap(client):
@@ -131,7 +139,7 @@ def test_attendance_time_ledgers_timezone_human_gate_and_comp_balance(client):
     assert naive.status_code==422
     r=client.post('/workforce/attendance',json={'employee_id':emp,'roster_entry_id':roster['roster_entry_id'],'work_date':'2026-10-15','check_in_at':'2026-10-15T08:00:00+09:00','check_out_at':'2026-10-15T17:00:00+09:00'})
     assert r.status_code==201,r.text;attendance=r.json()
-    assert attendance['worked_minutes']==540 and attendance['calculation']['overtime_candidate_minutes']==60
+    assert attendance['worked_minutes']==480 and attendance['calculation']['elapsed_minutes']==540 and attendance['calculation']['overtime_candidate_minutes'] is None
     attendance=action(client,'attendance/'+attendance['attendance_id'],attendance,'review');attendance=action(client,'attendance/'+attendance['attendance_id'],attendance,'approve')
     overtime=client.post('/workforce/time-entries',json={'employee_id':emp,'attendance_id':attendance['attendance_id'],'kind':'overtime','minutes':60,'occurred_on':'2026-10-15','note':'Synthetic overtime'}).json()
     overtime=action(client,'time-entries/'+overtime['time_entry_id'],overtime,'review');action(client,'time-entries/'+overtime['time_entry_id'],overtime,'approve')
@@ -143,7 +151,7 @@ def test_attendance_time_ledgers_timezone_human_gate_and_comp_balance(client):
     too_much=client.post('/workforce/time-entries',json={'employee_id':emp,'kind':'comp_use','minutes':120,'occurred_on':'2026-10-18'}).json()
     too_much=action(client,'time-entries/'+too_much['time_entry_id'],too_much,'review')
     assert client.post('/workforce/time-entries/'+too_much['time_entry_id']+'/approve',json={'expected_version':too_much['version'],'note':'Too much'}).status_code==409
-    stats=client.get('/workforce/statistics?year=2026&month=10').json();assert stats['worked_minutes']==540 and stats['overtime_minutes']==60
+    stats=client.get('/workforce/statistics?year=2026&month=10').json();assert stats['worked_minutes']==480 and stats['overtime_minutes']==60
 
 def test_import_export_search_privacy_and_fresh_registration(client):
     s=shift(client);emp,main,_,_=refs()
@@ -173,10 +181,28 @@ def test_workforce_ui_and_bootstrap_registration():
     js=(root/'frontend/workforce.js').read_text()
     assert 'id="workforceBtn"' in html and '/ui/workforce.js' in html and 'await initWorkforce()' in html
     assert '最低人員' in js and '休暇Ledger' in js and '時間外/代休Ledger' in js
-    r=subprocess.run(['python','-c',"import os;os.environ['FIRE_AI_DATABASE_URL']='sqlite+pysqlite:///:memory:';import app.bootstrap;from app.db import Base;assert 'workforce_roster_entries' in Base.metadata.tables"],cwd=root/'backend',capture_output=True,text=True)
+    r=subprocess.run([sys.executable,'-c',"import os;os.environ['FIRE_AI_DATABASE_URL']='sqlite+pysqlite:///:memory:';import app.bootstrap;from app.db import Base;assert 'workforce_roster_entries' in Base.metadata.tables"],cwd=root/'backend',capture_output=True,text=True)
     assert r.returncode==0,r.stderr
 
 def test_workforce_audit_is_written(client):
     shift(client)
     with SessionLocal() as db:
         assert db.scalar(select(AuditLog).where(AuditLog.action=='workforce.shift.create'))
+
+
+
+def test_import_preview_expiry_and_replay_refuse_without_inserting_roster(client):
+    shift(client)
+    raw=b'schema_version,employee_code,organization_code,shift_code,work_date,support_placement,note\nworkforce-v1,E001,MAIN,DAY,2026-10-20,false,Synthetic\n'
+    preview=client.post('/workforce/import/rosters',files={'file':('synthetic.csv',raw,'text/csv')}).json()
+    payload={'expected_version':1,'file_sha256':preview['file_sha256']}
+    path='/workforce/import-previews/'+preview['preview_id']+'/confirm'
+    with SessionLocal() as db:
+        row=db.get(WorkforceImportPreview,preview['preview_id']);row.expires_at=datetime.now(timezone.utc)-timedelta(seconds=1);db.commit()
+    assert client.post(path,json=payload).status_code==409
+    assert client.get('/workforce/rosters').json()==[]
+    with SessionLocal() as db:
+        row=db.get(WorkforceImportPreview,preview['preview_id']);row.expires_at=datetime.now(timezone.utc)+timedelta(hours=1);db.commit()
+    assert client.post(path,json=payload).status_code==200
+    assert client.post(path,json={**payload,'expected_version':2}).status_code==409
+    assert len(client.get('/workforce/rosters').json())==1
