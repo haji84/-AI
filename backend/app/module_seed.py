@@ -4,6 +4,7 @@ from .models import ModuleDefinition, FeatureFlag
 
 MODULES = {
     "operational_assets": {"name": "資機材・在庫", "version": "1.0.0"},
+    "workforce": {"name": "勤務・人員配置", "version": "1.0.0"},
     "operations": {"name": "事案・出動", "version": "1.0.0"},
     "fleet": {"name": "車両運用", "version": "1.0.0"},
     "prevention": {"name": "予防業務", "version": "1.0.0"},
@@ -32,6 +33,9 @@ def seed_modules(db: Session) -> dict[str, ModuleDefinition]:
         if code == "operational_assets":
             row.version = cfg["version"]
             row.manifest = {**(row.manifest or {}), "operational_api": "/assets", "surface": "/ui/"}
+        if code == "workforce":
+            row.version = cfg["version"]
+            row.manifest = {**(row.manifest or {}), "operational_api": "/workforce", "surface": "/ui/"}
         out[code] = row
         key = f"module.{code}.enabled"
         flag = db.scalar(select(FeatureFlag).where(FeatureFlag.key == key))
