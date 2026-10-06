@@ -35,6 +35,8 @@ CREATE TABLE IF NOT EXISTS workforce_staffing_rules (
     staffing_rule_id UUID PRIMARY KEY,
     organization_id UUID NOT NULL REFERENCES organization_units(organization_id),
     shift_type_id UUID NOT NULL REFERENCES workforce_shift_types(shift_type_id),
+    shift_type_version BIGINT NOT NULL,
+    organization_version BIGINT NOT NULL,
     min_staff BIGINT NOT NULL CHECK (min_staff > 0),
     qualification_code VARCHAR(100),
     effective_from DATE NOT NULL,
@@ -110,7 +112,7 @@ CREATE INDEX IF NOT EXISTS workforce_leave_employee_date ON workforce_leave_entr
 CREATE TABLE IF NOT EXISTS workforce_attendance (
     attendance_id UUID PRIMARY KEY,
     employee_id UUID NOT NULL REFERENCES employees(employee_id),
-    roster_entry_id UUID REFERENCES workforce_roster_entries(roster_entry_id),
+    roster_entry_id UUID REFERENCES workforce_roster_entries(roster_entry_id) UNIQUE,
     work_date DATE NOT NULL,
     check_in_at TIMESTAMPTZ NOT NULL,
     check_out_at TIMESTAMPTZ,
