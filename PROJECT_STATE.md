@@ -1511,7 +1511,7 @@ Safety:
 
 ## Phase 6 Drawing Baseline Human Review UI
 
-Implemented on branch `phase6-baseline-review-ui`; CI verification pending:
+Implemented and CI-verified:
 - drawing workspace reloads recent drawing Benchmark Runs
 - only in-app Runs for the current DrawingAnalysis are shown
 - Run history remains visible after reopening the workspace
@@ -1530,6 +1530,12 @@ Implemented on branch `phase6-baseline-review-ui`; CI verification pending:
 - accepted Baseline is visually distinguished from pending/rejected Runs
 - selecting an older Run never changes current DrawingAnalysis/Annotation evidence
 - Baseline execution and Baseline acceptance remain separate actions
+
+Verified checkpoint:
+- run: `37393291076` SUCCESS
+- backend pytest: 152 passed
+- migration parser smoke: PASS
+- frontend JavaScript syntax: PASS
 
 Safety:
 - no Baseline is auto-accepted after a good F1/IoU score
