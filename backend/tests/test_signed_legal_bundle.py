@@ -246,3 +246,20 @@ def test_collector_blocks_redirect_before_following_other_origin(target):
     request=urllib.request.Request('https://laws.e-gov.go.jp/bulkdownload')
     with pytest.raises(ValueError):guard.redirect_request(request,None,302,'redirect',{},target)
     assert guard.redirect_request(request,None,302,'redirect',{},'https://laws.e-gov.go.jp/approved').full_url.endswith('/approved')
+
+
+def test_collector_rejects_final_response_before_reading_unapproved_body(monkeypatch):
+    import importlib.util,urllib.request
+    spec=importlib.util.spec_from_file_location('synthetic_final_download',Path(__file__).resolve().parents[2]/'scripts/official_download.py')
+    module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+    class Response:
+        closed=False
+        def geturl(self):return 'https://unapproved.invalid/raw'
+        def close(self):self.closed=True
+        def read(self):raise AssertionError('unapproved body must not be read')
+    response=Response()
+    class Opener:
+        def open(self,request,timeout):return response
+    monkeypatch.setattr(module.urllib.request,'build_opener',lambda handler:Opener())
+    with pytest.raises(ValueError):module.open_official(urllib.request.Request('https://laws.e-gov.go.jp/bulkdownload'),timeout=5)
+    assert response.closed
