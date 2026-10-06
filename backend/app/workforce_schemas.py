@@ -80,11 +80,20 @@ class LeaveCreate(Strict):
     kind:Literal['grant','use','adjustment_add','adjustment_subtract','expire']
     quantity_minutes:int=Field(gt=0,le=1000000)
     effective_on:date
+    leave_start_at:datetime|None=None
+    leave_end_at:datetime|None=None
     expires_on:date|None=None
     private_reason:str|None=Field(None,max_length=4000)
     @model_validator(mode='after')
     def dates(self):
         if self.expires_on and self.expires_on<self.effective_on:raise ValueError('expires_on cannot precede effective_on')
+        if self.kind=='use':
+            if not self.leave_start_at or not self.leave_end_at:raise ValueError('leave use requires start/end timestamps')
+            for value in (self.leave_start_at,self.leave_end_at):
+                if value.tzinfo is None or value.utcoffset() is None:raise ValueError('leave timestamps require timezone')
+            if self.leave_end_at<=self.leave_start_at:raise ValueError('leave_end_at must follow leave_start_at')
+        elif self.leave_start_at or self.leave_end_at:
+            raise ValueError('leave period is allowed only for leave use')
         return self
 
 class AttendanceCreate(Strict):
