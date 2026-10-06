@@ -65,6 +65,7 @@ MODULE_PERMISSIONS: dict[str, tuple[str, ...]] = {
     "contracts": ("contract.read",),
     "procurement": ("finance.read",),
     "budget": ("finance.read",),
+    "inquiries": ("inquiry.read",),
     "templates": ("template.read",),
     "extensions": ("extension.read",),
 }
@@ -642,6 +643,17 @@ def _search_documents(db: Session, q: str, limit: int) -> list[UnifiedSearchHitO
         .order_by(Document.created_at.desc())
         .limit(limit)
     ).all()
+    from ..inquiries_service import guard_document
+    from types import SimpleNamespace
+    user=SimpleNamespace(user_id=db.info['inquiry_search_user_id'])
+    allowed=[]
+    for row in rows:
+        try:guard_document(db,user,row)
+        except HTTPException as exc:
+            if exc.status_code==403:continue
+            raise
+        allowed.append(row)
+    rows=allowed
     return [
         _hit(
             q,
@@ -860,7 +872,25 @@ def _search_violations(db,q,limit):
     return [_hit(q,module='violations',source_type='violation_cases',source_id=r.case_id,title=r.possible_issue,body=r.status,required_permission='violation.read',navigation={'surface':'violations','case_id':r.case_id},evidence={'record_version':r.version,'status':r.status,'formal_confirmed':bool(r.confirmed_by)}) for r in rows]
 
 
+def _search_inquiries(db,q,limit,perms):
+    from ..inquiries_models import Inquiry
+    from ..inquiries_service import authorized
+    from types import SimpleNamespace
+    # Search receives the actual authenticated user via db.info in unified_search.
+    user=SimpleNamespace(user_id=db.info['inquiry_search_user_id'])
+    hits=[]
+    for row in db.scalars(select(Inquiry).where(Inquiry.deleted.is_(False)).order_by(Inquiry.updated_at.desc(),Inquiry.inquiry_id)):
+        try:authorized(db,user,row)
+        except HTTPException as exc:
+            if exc.status_code==403:continue
+            raise
+        if lexical_score(q,title=row.question,body=row.draft)>0:
+            hits.append(_hit(q,module='inquiries',source_type='inquiry',source_id=row.inquiry_id,title=row.question,body=row.draft,required_permission='inquiry.read',navigation={'surface':'inquiries','record_id':row.inquiry_id},evidence={'record_version':row.version,'status':row.status}))
+        if len(hits)>=limit:break
+    return hits
+
 SEARCHERS = {
+    "inquiries":_search_inquiries,
     "violations": lambda db,q,limit,perms: _search_violations(db,q,limit),
     "budget": lambda db,q,limit,perms: _search_finance(db,q,limit,perms,"budget"),
     "procurement": lambda db,q,limit,perms: _search_finance(db,q,limit,perms,"procurement"),
@@ -919,6 +949,7 @@ def unified_search(
     source_limit = max(1, min(per_module_limit, 100))
     hits: list[UnifiedSearchHitOut] = []
     for module in selected:
+        db.info["inquiry_search_user_id"]=user.user_id
         hits.extend(SEARCHERS[module](db, query, source_limit, perms))
 
     hits.sort(

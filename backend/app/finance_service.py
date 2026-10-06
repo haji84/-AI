@@ -80,6 +80,8 @@ from .finance_schemas import ProposalInput
 def money(value):return format(Decimal(value).quantize(Decimal('.01')),'f')
 def source_document(db,user,key,lock=False):
     need(db,user,'document.read');doc=get_row(db,Document,key,lock)
+    from .inquiries_service import guard_document
+    guard_document(db,user,doc)
     return {'document_id':doc.document_id,'sha256':doc.sha256,'filename':doc.original_filename}
 def lock_sources(db,user,contract_ids=(),document_ids=(),counterparty_ids=()):
     """Refresh and hold all common evidence in contract/vendor/Document UUID order."""

@@ -1,5 +1,5 @@
 from pathlib import Path
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, Response
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from ..db import get_db
@@ -37,9 +37,12 @@ def upload_document(
                        document_type=doc.document_type)
 
 @router.get("/{document_id}", response_model=DocumentOut)
-def get_document(document_id: str, db: Session = Depends(get_db), user: User = Depends(require_permission("document.read"))):
+def get_document(document_id: str, response:Response, db: Session = Depends(get_db), user: User = Depends(require_permission("document.read"))):
     doc=db.get(Document,document_id)
     if not doc: raise HTTPException(status_code=404,detail="document not found")
+    from ..inquiries_service import guard_document
+    guard_document(db,user,doc)
+    if doc.document_type in ('inquiry_import_original','inquiry_rendered_original'):response.headers['Cache-Control']='no-store'
     return DocumentOut(document_id=doc.document_id, building_id=doc.building_id,
                        original_filename=doc.original_filename, sha256=doc.sha256,
                        size_bytes=doc.size_bytes, mime_type=doc.mime_type,
@@ -54,6 +57,8 @@ def download_document(
     doc=db.get(Document,document_id)
     if not doc:
         raise HTTPException(status_code=404,detail="document not found")
+    from ..inquiries_service import guard_document
+    guard_document(db,user,doc)
     root=Path(settings.storage_root).resolve()
     path=(root/doc.storage_path).resolve()
     if path != root and root not in path.parents:
@@ -64,4 +69,6 @@ def download_document(
         str(path),
         media_type=doc.mime_type or "application/octet-stream",
         filename=doc.original_filename,
+        headers={'Cache-Control':'no-store'} if doc.document_type in ('inquiry_import_original','inquiry_rendered_original') else None,
     )
+

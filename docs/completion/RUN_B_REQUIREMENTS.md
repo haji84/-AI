@@ -1,6 +1,6 @@
 # Completion Run B — requirement acceptance ledger
 
-Live audit as of mainea15820e57a73dd4ea721d43247fb63345271a53. This is not a completion claim. Grouped rows retain every requested business function; final review must split a row if only some members pass.
+Live audit as of main0feb62e6ab78dcb77bceedb4154ab5aa4d8bc8da. This is not a completion claim. Grouped rows retain every requested business function; final review must split a row if only some members pass.
 
 Completed requires merged API/models/migration/UI and applicable tests, not a scaffold or API alone. Partial/Missing remain internal backlog. External Gate is reserved for actual approved deployment, official originals/code meanings, formal Human decisions and measured real-model evaluation. Synthetic tests do not prove deployment or clinical accuracy.
 
@@ -39,17 +39,18 @@ Completed requires merged API/models/migration/UI and applicable tests, not a sc
 | assets | 点検・修繕・更新・廃棄・耐圧検査 | Completed | PR46/mainc4e692ed; task-3-report.md; CI37482188445 PostgreSQL + actual Chromium |
 | assets | 使用期限・校正期限・警告 | Completed | PR46/mainc4e692ed; task-3-report.md; CI37482188445 PostgreSQL + actual Chromium |
 | assets | 消耗品・薬剤・在庫・発注候補 | Completed | PR46/mainc4e692ed; task-3-report.md; CI37482188445 PostgreSQL + actual Chromium |
-| procurement | 既存契約台帳・業者・期間・契約額・文書 | Partial | RUN_B_STATUS.md; final module report and acceptance evidence required |
-| procurement | 支出・支出負担行為・見積 | Missing | RUN_B_STATUS.md; final module report and acceptance evidence required |
-| procurement | 更新期限・検索・警告・年度管理 | Partial | RUN_B_STATUS.md; final module report and acceptance evidence required |
-| budget | 年度・当初予算・補正・流用 | Missing | RUN_B_STATUS.md; final module report and acceptance evidence required |
-| budget | 設定可能な科目階層（既定款・項・目・節・細節） | Missing | RUN_B_STATUS.md; final module report and acceptance evidence required |
-| budget | 執行額・残額・契約支出連携 | Missing | RUN_B_STATUS.md; final module report and acceptance evidence required |
-| budget | 予算要求・次年度見積・集計・CSV/Excel | Missing | RUN_B_STATUS.md; final module report and acceptance evidence required |
-| budget | 正式処理Human Gate・証拠・取消訂正履歴 | Missing | RUN_B_STATUS.md; final module report and acceptance evidence required |
-| inquiries | 過去質問・回答案・年度検索・類似質問検索 | Missing | RUN_B_STATUS.md; final module report and acceptance evidence required |
-| inquiries | 根拠資料・数値出典・関係データリンク | Missing | RUN_B_STATUS.md; final module report and acceptance evidence required |
-| inquiries | AI Draft・Human確認・Evidence必須数値 | Missing | RUN_B_STATUS.md; final module report and acceptance evidence required |
+| procurement | 既存契約台帳・業者・期間・契約額・文書 | Completed | PR55/main0feb62e6; task-4-report.md; CI37506769584 PostgreSQL/backend513 + actual Chromium6 passed |
+| procurement | 支出・支出負担行為・見積 | Completed | PR55/main0feb62e6; task-4-report.md; CI37506769584 PostgreSQL/backend513 + actual Chromium6 passed |
+| procurement | 更新期限・検索・警告・年度管理 | Completed | PR55/main0feb62e6; task-4-report.md; CI37506769584 PostgreSQL/backend513 + actual Chromium6 passed |
+| budget | 年度・当初予算・補正・流用 | Completed | PR55/main0feb62e6; task-4-report.md; CI37506769584 PostgreSQL/backend513 + actual Chromium6 passed |
+| budget | 設定可能な科目階層（既定款・項・目・節・細節） | Completed | PR55/main0feb62e6; task-4-report.md; CI37506769584 PostgreSQL/backend513 + actual Chromium6 passed |
+| budget | 執行額・残額・契約支出連携 | Completed | PR55/main0feb62e6; task-4-report.md; CI37506769584 PostgreSQL/backend513 + actual Chromium6 passed |
+| budget | 予算要求・次年度見積・CSV/Excel | Completed | PR55/main0feb62e6; task-4-report.md; CI37506769584 PostgreSQL/backend513 + actual Chromium6 passed |
+| budget | 共有統計への集計接続 | Partial | Internal Task7; finance journal queries exist, cross-module lineage remains |
+| budget | 正式処理Human Gate・証拠・取消訂正履歴 | Completed | PR55/main0feb62e6; task-4-report.md; CI37506769584 PostgreSQL/backend513 + actual Chromium6 passed |
+| inquiries | 過去質問・回答案・年度検索・類似質問検索 | Partial | Local d0ec712/task-6-report.md; e35e218 independent Spec/Quality PASS, final-head CI and main merge pending |
+| inquiries | 根拠資料・数値出典・関係データリンク | Partial | Local d0ec712/task-6-report.md; e35e218 independent Spec/Quality PASS, final-head CI and main merge pending |
+| inquiries | AI Draft・Human確認・Evidence必須数値 | Partial | Local d0ec712/task-6-report.md; e35e218 independent Spec/Quality PASS, final-head CI and main merge pending |
 | statistics | 救急・火災・救助統計 | Partial | RUN_B_STATUS.md; final module report and acceptance evidence required |
 | statistics | 査察・届出・設備統計 | Partial | RUN_B_STATUS.md; final module report and acceptance evidence required |
 | statistics | 人員・車両・その他業務統計 | Missing | RUN_B_STATUS.md; final module report and acceptance evidence required |
@@ -78,3 +79,5 @@ Merged main code and all green CI; migrations; APIs; shared-shell UI; tests; mod
 Merged-main evidence: workflow37470396667 job112292064798 reports286 passed,168 warnings,88.90s; no skipped tests in CI. This includes the4 PostgreSQL tests skipped in the local SQLite-only environment.
 
 Finance checkpointbc597a9 remains unmerged. Independent Task4 review found four defects requiring fixes; the 408-pass local checkpoint does not establish completed finance or PostgreSQL/browser acceptance. Main54 adaptation uses unmerged finance046; all procurement/budget acceptance rows remain Partial/Missing until reviewed, CI-green and merged. Pending workforce PR53 is audited for reuse and residuals, not treated as main/completed.
+
+Finance PR55 is merged and CI Green; earlier unmerged/failure notes are historical. Task4 acceptance rows above now have merged proof. Shared statistics/dashboard/audio are still internal later tasks. Main push CI is tracked separately, and overall completion remains pending.

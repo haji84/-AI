@@ -1,7 +1,7 @@
 # Completion Run B — integration handoff (live)
 
 Status: IN PROGRESS; not the final completion handoff.
-Latest inspected main: ea15820e57a73dd4ea721d43247fb63345271a53. Run B PR40/42/46 merged; Run A personnel, legal, maintenance/backup and Human-gated learning foundations preserved.
+Latest inspected main: 027e1d025ea9947ca7ae2d0a015a943c297466f6. Run B PR40/42/46/55 merged; Run A personnel, legal, maintenance/backup and Human-gated learning foundations preserved. Canonical PR59 financial authority/shared-PC fixes are being adopted; main CI37513897759 is Green (backend566 passed/14 declared skips, actual Chromium7 passed).
 Detailed remaining scope: docs/completion/RUN_B_STATUS.md.
 
 ## Added module surface
@@ -135,3 +135,25 @@ Latest-main PR56 Human role/exact rule/timed acting grants supersedes the financ
 Main57 supplies canonical complete-statement SQL preflight, PostgreSQL function/dollar-quote support and no_parameters execution. All seven files are retained exactly. Finance048 independently avoids driver-dependent %ROWTYPE declarations by using RECORD with unchanged SELECT INTO/guards; native test calls the same runner execution option. Refreshed PR55 actual browser6passed; native CI exposed driver conversion and duplicate synthetic originals, now fixed in ea48ba3. Native Document uniqueness remains unchanged. Another actual CI must pass before finance can be merged/completed.
 
 Native trigger namespace correction (fix4): finance_account_identity_guard resolves year and parent from quoted TG_TABLE_SCHEMA with parameterized UUIDs; absence uses primary-key null checks because dynamic EXECUTE does not set FOUND. Native tests cover quoted owning schema, pg_catalog-only callers and conflicting same-name shadow policies/parents. Guard behavior/payment races remain; this corrects the sole remaining failure in actual native CI (511passed/1failed/8skipped), not a second financial data source or tenant selector. Reviewed-head full CI is still pending.
+
+Task4 merged proof: PR55/main0feb62e6, Migration048. CI37506769584 allGreen (backend513 passed/8 opt-in skips; separate actual Chromium6 passed). Finance source interfaces above now exist in main. Shared statistics/dashboard/audio remain internal later tasks; this is still a live, unfinished handoff.
+
+Merged-main CI37507500474 SUCCESS on0feb62e6: backend513 passed/8 opt-in skips/227 warnings in250.04s; separate actual Chromium6 passed in59.69s. Both jobs Green on authoritative main; finance bounded integration verified. Remaining Run B internal tasks continue.
+
+## Canonical workforce reuse boundary
+
+PR53/main7b320db supplies app.workforce_models/schemas/service, routers.workforce `/workforce`, `/ui/workforce.js`, shared registration/search/PC hooks and immutable historical Migration044. Tables: workforce_shift_types, workforce_employee_qualifications, workforce_staffing_rules, workforce_roster_entries, workforce_leave_entries, workforce_attendance, workforce_time_entries, workforce_import_previews. Common Employee/OrganizationUnit/EmployeeAssignment/Document IDs remain authoritative; no separate personnel master. Permissions: workforce.read/create/update/review/approve/admin/import/export/aggregate plus source gates. Canonical authz.require_mutation_permission is retained. Core browser/PG/safety tests live in test_run_b_workforce.py and test_workforce_{browser,browser_state,concurrency,safety}. This existing slice remains Partial; Task5 extends the verified residuals, and Task11 closes queued-session/shared-PC integration across modules. No new background process or paid dependency. Main browser synchronization repair is pending actual CI.
+
+Canonical workforce browser repair PR58/main386582ce adopted exactly; mainCI37511281181 backend546 passed/14 skips and real Chromium7 passed, both Green. No duplicate workforce implementation or parallel browser fix retained. Task5 residual functionality and shared session integration still require completion.
+
+## Task6 inquiry integration — pending review and merge
+
+Local inquiry product with reviewed security and UI corrections extends the existing shared app with `/inquiries` and `/ui/inquiries.js`, module registration and fresh bootstrap. Append-only Migration050 (renumbered after canonical main049_violation_correction.sql; provisional until pre-PR refresh) adds inquiries, inquiry_evidence, inquiry_candidates and inquiry_rendered_forms. Evidence references existing source UUIDs and optional common Document; rendered forms reference common FormTemplate and Document; creators/reviewers/approvers reference app_users. Approved inquiry revisions link the original inquiry ID. No additional personnel, incident or document master is created.
+
+Permissions: inquiry.read/create/update/review/approve/admin/import/export plus cumulative underlying source permissions. Typed adapters cover Document/personnel/emergency/facility/contracts/finance/incident/vehicle/assets/workforce/legal/fire. Answer prose and numbers, candidates, search/counts, originals and rendered outputs retain source confidentiality. Generic audits contain IDs/state/version/counts and change/source hashes, with raw content retained behind inquiry/source access. Human review and approval require fresh evidence and originating session; candidates remain separate.
+
+PC surface supplies source selection, exact quotes/numeric claims, editing, review/approval, revisions, year/lexical search, CSV/XLSX exchange and original-template rendering. Local-model adapter is optional in-process; deterministic evidence extraction is labeled. There is no new background worker, paid dependency or external endpoint. Model work and import decoding precede short canonical mutation decisions. DOCX/XLSX/PDF use existing original renderer; mapped Excel text remains exact literal strings and unmapped formulas remain unchanged.
+
+Tests: test_run_b_inquiries.py, test_inquiries_browser_state.py and test_inquiries_browser.py; native PostgreSQL and actual Chromium CI are wired. Latest corrective focused run67 passed/2 environment skips and actual audit-only regression1 passed. Historical full-suite coverage is explicitly pre-delta. Independent Spec/Quality review, final-head full/native/browser CI and main merge remain internal gates. Evidence provenance and source Document guards connect existing download/search/intake/finance consumers; canonical PR59 finance authority/shared-PC changes are preserved.
+
+Canonical PR60/main027e1d violations/corrective-evidence code is retained. Main CI37520767373 is Green (backend605 passed/18 declared skips; actual Chromium8 passed). Shared hooks preserve these modules and add inquiry as the ninth browser workflow. PR61 initial native/backend596 passed but browser adoption race failed; source-readiness correction and latest-main rebase are under independent review. No canonical Migration049 was edited.

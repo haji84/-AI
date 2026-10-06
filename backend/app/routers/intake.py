@@ -25,6 +25,11 @@ from .submissions import _date, _link_documents, _submission_out, _sync_speciali
 router = APIRouter(tags=["document-intake"])
 
 
+def _guard_inquiry_analysis(db,user,analysis):
+    from ..inquiries_service import guard_document
+    doc=db.get(Document,analysis.document_id)
+    if doc:guard_document(db,user,doc)
+
 def _analysis_out(row: DocumentAnalysis) -> DocumentAnalysisOut:
     return DocumentAnalysisOut(
         document_analysis_id=row.document_analysis_id,
@@ -68,7 +73,14 @@ def list_analyses(
     if status_filter:
         stmt = stmt.where(DocumentAnalysis.status == status_filter)
     rows = db.scalars(stmt.order_by(DocumentAnalysis.created_at.desc()).limit(max(1, min(limit, 200)))).all()
-    return [_analysis_out(x) for x in rows]
+    allowed=[]
+    for row in rows:
+        try:_guard_inquiry_analysis(db,user,row)
+        except HTTPException as exc:
+            if exc.status_code==403:continue
+            raise
+        allowed.append(_analysis_out(row))
+    return allowed
 
 
 @router.post("/document-analyses", response_model=DocumentAnalysisOut, status_code=201)
@@ -80,6 +92,8 @@ def analyze_document(
     doc = db.get(Document, payload.document_id)
     if not doc:
         raise HTTPException(status_code=404, detail="document not found")
+    from ..inquiries_service import guard_document
+    guard_document(db,user,doc)
     try:
         text, method, page_count, extraction_evidence = extract_document(doc, payload.force_ocr)
     except (ValueError, FileNotFoundError) as exc:
@@ -118,6 +132,7 @@ def get_analysis(
     row = db.get(DocumentAnalysis, analysis_id)
     if not row:
         raise HTTPException(status_code=404, detail="analysis not found")
+    _guard_inquiry_analysis(db,user,row)
     return _analysis_out(row)
 
 
@@ -131,6 +146,7 @@ def review_analysis(
     row = db.get(DocumentAnalysis, analysis_id)
     if not row:
         raise HTTPException(status_code=404, detail="analysis not found")
+    _guard_inquiry_analysis(db,user,row)
     facility = db.get(Facility, payload.building_id)
     if not facility:
         raise HTTPException(status_code=404, detail="facility not found")
@@ -171,6 +187,8 @@ def list_change_proposals(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("intake.read")),
 ):
+    analysis=db.get(DocumentAnalysis,analysis_id)
+    if analysis:_guard_inquiry_analysis(db,user,analysis)
     rows = db.scalars(select(FacilityChangeProposal).where(FacilityChangeProposal.document_analysis_id == analysis_id).order_by(FacilityChangeProposal.created_at)).all()
     return [_proposal_out(x) for x in rows]
 
@@ -185,6 +203,7 @@ def confirm_receipt(
     analysis = db.get(DocumentAnalysis, analysis_id)
     if not analysis:
         raise HTTPException(status_code=404, detail="analysis not found")
+    _guard_inquiry_analysis(db,user,analysis)
     if analysis.version != payload.expected_version:
         raise HTTPException(status_code=409, detail={"message": "analysis was updated by another user", "current": _analysis_out(analysis).model_dump(mode="json")})
     if analysis.status != "reviewed" or not analysis.selected_building_id or not analysis.selected_submission_type_code:
@@ -227,6 +246,8 @@ def apply_change_proposal(
     proposal = db.get(FacilityChangeProposal, proposal_id)
     if not proposal:
         raise HTTPException(status_code=404, detail="change proposal not found")
+    analysis=db.get(DocumentAnalysis,proposal.document_analysis_id)
+    if analysis:_guard_inquiry_analysis(db,user,analysis)
     if proposal.status != "pending":
         raise HTTPException(status_code=409, detail="proposal is not pending")
     if proposal.version != payload.expected_version:

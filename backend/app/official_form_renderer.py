@@ -117,6 +117,8 @@ def render_excel(
         value = _required_value(values, key, mapping)
         ws = wb[sheet]
         ws[cell] = value
+        if isinstance(value, str):
+            ws[cell].data_type = "s"
         applied.append({"key": key, "sheet": sheet, "cell": cell})
     wb.save(destination)
     return {
@@ -198,3 +200,4 @@ def flatten_values(value: Any, prefix: str = "") -> dict[str, Any]:
     else:
         out[prefix] = value
     return out
+
