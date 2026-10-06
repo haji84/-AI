@@ -185,6 +185,12 @@ ROLE_POLICY: dict[str, dict] = {
 }
 
 
+for _action in ("read","create","update","review","approve","admin","import","export","borrower.read","borrower.manage"):
+    PERMISSIONS[f"asset.{_action}"] = f"Operational asset {_action}"
+ROLE_POLICY["system_admin"]["permissions"].update(code for code in PERMISSIONS if code.startswith("asset."))
+ROLE_POLICY["asset_editor"] = {"name":"資機材担当", "system_role":True, "permissions":{"search.use","system.health.read", *[f"asset.{a}" for a in ("read","create","update","import","export","borrower.read","borrower.manage")]}}
+ROLE_POLICY["asset_reviewer"] = {"name":"資機材確認者", "system_role":True, "permissions":{"search.use","system.health.read", *[f"asset.{a}" for a in ("read","review","approve")]}}
+
 ROLE_POLICY["emergency_editor"] = {
     "name": "救急記録担当", "system_role": True,
     "permissions": {"system.health.read", "search.use", "emergency.case.read",

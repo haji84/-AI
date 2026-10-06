@@ -1,7 +1,7 @@
 # Completion Run B — live implementation audit
 
 Status: IN PROGRESS. This document is not a system-completion claim.
-Source inspected: main0335b59edb268b49e7e35cafedc1966c0a901d08; Run A PR41/43 and emergency PR40 merged. Task2/PR42 is adapted to this base and awaits refreshed-base independent review/CI/merge.
+Source inspected: main00f128cdc7cfc23d44fbe0083537124b2cadaeb5; Run A PR41/43/44/45 and Run B PR40/42 merged. Task3 assets PR46 is open; signed-legal dependency adaptation is active, not yet merged.
 Run A owns tenant/auth/organization/audit administration/legal/drawing/deployment foundations.
 
 ## Requirement coverage
@@ -9,11 +9,11 @@ Run A owns tenant/auth/organization/audit administration/legal/drawing/deploymen
 | Module | Status | Existing implementation and remaining work |
 |---|---|---|
 | Emergency | Partial | Existing normalized Case/Patient/Crew/import reused. This slice adds operational editing, treatments, input warnings, Human clinical review, reviewed report snapshots and case search. Existing main aggregate/export reused. Missing hospital/severity name masters, structured post-review/lifesaving forms, normalized CSV intake, record retirement/correction history UI, full time/day offsets and template export. |
-| Incident/dispatch | Partial | Task2 implements shared incident/dispatch/crew/activity/report, configured allowance candidates and Human review/approval, imports/exports, source-case links and same-shell UI. Independent review/CI/merge and later statistics/dashboard and production tenant acceptance remain; synthetic two-DB integration checks are added. |
+| Incident/dispatch | Partial | Task2 implements shared incident/dispatch/crew/activity/report, configured allowance candidates and Human review/approval, imports/exports, source-case links and same-shell UI. PR42 merged with independent review and PostgreSQL CI success. Later statistics/dashboard and production acceptance remain; synthetic two-DB integration checks passed. |
 | Fire investigation | Partial | Existing case/media/photo/plan links/transcript/statement/timeline/cause/Human Gate/report-template APIs retained. Full operational coverage and actual AI worker execution still need audit/implementation. |
-| Workforce | Missing | Common Employee exists, but organization and assignment history belong to Run A. Rosters, leave balances, staffing rules and attendance are not implemented by this slice. |
-| Vehicles | Partial | Task2 implements shared vehicle registry/trips/fuel allocated stock/inspection/repair/fault resolution/cost/deadlines/use history/dispatch links. Independent review/CI/merge and later statistics/dashboard and production tenant acceptance remain; synthetic two-DB integration checks are added. |
-| Assets/inventory | Missing | FacilityEquipment is installed building equipment, NOT an operational assets/inventory ledger. Do not reuse it as a different kind of equipment. |
+| Workforce | Missing | Common Employee, OrganizationUnit and effective-dated EmployeeAssignment now exist in main PR44. Rosters, leave balances, staffing rules and attendance are not implemented by this slice. |
+| Vehicles | Partial | Task2 implements shared vehicle registry/trips/fuel allocated stock/inspection/repair/fault resolution/cost/deadlines/use history/dispatch links. PR42 merged with independent review and PostgreSQL CI success. Later statistics/dashboard and production acceptance remain; synthetic two-DB integration checks passed. |
+| Assets/inventory | Partial | Task3 review candidate implements SKU/lot registry, balances, movement/loans/services, Human disposal/date gates, warnings, imports/exports, search and shared PC UI. Independent spec/quality re-review passed after three fixes; latest-main adaptation and actual PostgreSQL/Chromium CI pending. Not yet main merged. FacilityEquipment stays the installed-building domain. |
 | Contracts/procurement | Partial | ContractCase/Counterparty/Document/Change exist. Procurement, commitment/payment/quote/fiscal-year workflows and UI remain. |
 | Budgets | Missing | Fiscal-year/account hierarchy/amendment/transfer/execution/request integration not implemented. |
 | Council/inquiries | Missing | Evidence-linked questions and Human-reviewed answer drafts not implemented. |
@@ -51,12 +51,16 @@ Missing/Partial items above are internal implementation backlog, not relabeled E
 
 A PR completing one slice does not end Completion Run B. Overall DoD has NOT been achieved.
 
-## Task 2 review candidate
+## Task 2 merged evidence
 
-Local commit15da8c2e7c4405ee94787ee69600aa3f800e2d56; operations/fleet share /operations and /ui/operations.js. Append-only Migration040, following canonical Run A tenant-identity039, creates nine operational tables. Initial fixround1 focused31/full242 passed; latest-main adaptation focused52/full263 passed with2 explicit PostgreSQL skips;40 migrations parsed; JS/compile/diff passed. Independent review is pending. Actual PostgreSQL concurrency and browser interaction have not passed in this workspace. Exact coverage/interfaces: task-2-report.md.
+PR42 merged into main89e87e1739add38d2e5de7afac195c14e58b6a4f. Modules operations/fleet share /operations and /ui/operations.js. Append-only Migration040 follows Run A039 and creates nine operational tables;001–039 unchanged. Full local regression282 passed with4 explicit PostgreSQL skips,40 migrations parsed, JS/compile/diff passed. Independent spec and quality reviews PASS; refreshed-head CI37470033732 SUCCESS includes actual PostgreSQL migration, tenant and lock tests. Main push CI37470396667 SUCCESS.
 
-Task2 fixround1: permission-filtered mutation responses, complete mixed-source export columns, and separate fuel purchase expense/issue valuation implemented;31 focused and242 full tests passed. Scoped independent re-review is pending.
+Permission-filtered mutation responses, complete mixed-source export columns and separate fuel purchase expense/issue valuation are implemented. Canonical PR43 runtime/backup/storage/DB/Host/session guards retained. Two synthetic server-bound databases test source/export/search/session isolation; PostgreSQL checks prove linked-source locking and stale approval rejection. Actual deployed LAN/PC-browser acceptance is unverified. Exact interfaces: task-2-report.md.
 
-Latest-main adaptation uses exact PR41 files and retains canonical guard semantics, plus operational two-DB/source integration and optional PostgreSQL locking regressions. Historical039/39-file parser evidence is superseded by040 allocation. See task-2-report.md for fresh results and explicit local PostgreSQL skips; refreshed CI/merge remains pending.
+Bounded Task2 operational scope is complete; shared dashboard/statistics/template integration remains internal backlog. Task3 assets active: unmerged Migration renumbered042 after canonical Run A041 personnel administration; subject to another pre-PR main refresh. No overall completion claim.
 
-PR43 compatibility adaptation: local4dce9e6; canonical backup/runtime/deployment guards retained, operational startup test follows validate_runtime_binding. Focused40/full282 passed with4 explicit local PostgreSQL skips; refreshed CI and merge remain pending. Earlier scoped reviews passed; latest adaptation review is pending.
+Merged-main evidence: workflow37470396667 job112292064798 reports286 passed,168 warnings,88.90s; no skipped tests in CI. This includes the4 PostgreSQL tests skipped in the local SQLite-only environment.
+
+Latest Run A integration: mainfb2c9900 personnel/organization/effective-dated permissions and actual administration Chromium CI are available. Main workflow37476512786 SUCCESS. Task3 retains these guards and adds an assets Chromium workflow test. Task3 fixround1 local308 passed/5 explicit PostgreSQL skips; independent re-review PASS. Latest-main adaptation verification remains pending.
+
+Task3 personnel-main adaptation67221ef independent Spec/Quality PASS; stable full323 passed/8 explicit local PostgreSQL/browser skips, focused72 passed/4 skips. PR46 published against fb2c9900 with migration042. PR45 subsequently merged signed-legal verification and dependencies; re-adaptation to00f128cd is required before merge, retaining all canonical legal changes. Initial PR46 CI37481145661 succeeded: backend329 passed/2 browser skips; separate actual Chromium2 passed. Latest-main45 adaptation25067d25 preserves canonical16 files except the additive tzdata dependency; stable full349 passed/8 explicit local skips. Refreshed-head review/CI remain pending.

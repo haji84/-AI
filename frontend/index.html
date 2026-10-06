@@ -45,7 +45,7 @@ table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid #e4e8ec;
 </style>
 </head>
 <body>
-<header><strong>消防業務 Local AI</strong><span class="pill active">Phase 10</span><span class="muted">対象物・査察・届出・法令・図面・火災調査・横断検索</span><span class="grow"></span><button id="unifiedSearchBtn" class="btn hidden" onclick="openUnifiedSearch()">横断検索</button><button id="operationsBtn" class="btn hidden" onclick="openOperations()">事案・車両</button><button id="emergencyBtn" class="btn hidden" onclick="openEmergency()">救急業務</button><button id="fireInvestigationBtn" class="btn hidden" onclick="openFireInvestigations()">火災調査</button><button id="legalReviewBtn" class="btn hidden" onclick="openLegalReview()">法令レビュー</button><a id="emergencyReportBtn" class="btn hidden" href="/ui/emergency.html">救急集計</a><button id="logoutBtn" class="btn hidden" onclick="logout()">ログアウト</button></header>
+<header><strong>消防業務 Local AI</strong><span class="pill active">Phase 10</span><span class="muted">対象物・査察・届出・法令・図面・火災調査・横断検索</span><span class="grow"></span><button id="unifiedSearchBtn" class="btn hidden" onclick="openUnifiedSearch()">横断検索</button><button id="assetsBtn" class="btn hidden" onclick="openAssets()">資機材・在庫</button><button id="operationsBtn" class="btn hidden" onclick="openOperations()">事案・車両</button><button id="emergencyBtn" class="btn hidden" onclick="openEmergency()">救急業務</button><button id="fireInvestigationBtn" class="btn hidden" onclick="openFireInvestigations()">火災調査</button><button id="legalReviewBtn" class="btn hidden" onclick="openLegalReview()">法令レビュー</button><a id="emergencyReportBtn" class="btn hidden" href="/ui/emergency.html">救急集計</a><button id="logoutBtn" class="btn hidden" onclick="logout()">ログアウト</button></header>
 
 <section id="loginView" class="loginBox card">
 <h1>ログイン</h1>
@@ -225,12 +225,15 @@ async function openUnifiedSearch(){
 }
 function closeUnifiedSearch(){$('unifiedSearchModal').classList.add('hidden')}
 const unifiedModuleLabels={
-  operations:'事案・出動',fleet:'車両',facilities:'対象物',inspections:'査察',submissions:'届出',equipment:'設備',
+  operational_assets:'資機材・在庫',operations:'事案・出動',fleet:'車両',facilities:'対象物',inspections:'査察',submissions:'届出',equipment:'設備',
   drawings:'図面',fire:'火災調査',legal:'法令',documents:'文書',
   contracts:'契約',templates:'正式様式',extensions:'変更要求'
 };
 function unifiedSearchAction(hit){
   const nav=hit.navigation||{};
+  if(nav.surface==='operational_assets'){
+    return '<button class="btn" onclick="openUnifiedSearchHit(\''+esc(hit.module)+'\',\''+esc(hit.source_type)+'\',\''+esc(hit.source_id)+'\',\'\',\''+esc(nav.asset_id||hit.parent_id||hit.source_id)+'\')">開く</button>';
+  }
   if(nav.surface==='operations'){
     return '<button class="btn" onclick="openUnifiedSearchHit(\''+esc(hit.module)+'\',\''+esc(hit.source_type)+'\',\''+esc(hit.source_id)+'\',\'\',\'\')">開く</button>';
   }
@@ -251,6 +254,7 @@ function unifiedSearchAction(hit){
 async function openUnifiedSearchHit(module,sourceType,sourceId,buildingId,caseId){
   closeUnifiedSearch();
   try{
+    if(module==='operational_assets'){await openAssets();await assetsDetail(caseId||sourceId);return;}
     if(module==='operations'||module==='fleet'){await openOperations();await (module==='fleet'?operationsVehicleDetail(sourceId):operationsIncidentDetail(sourceId));return;}
     if(caseId){
       await openFireInvestigations();
@@ -283,7 +287,7 @@ async function runUnifiedSearch(){
   }
 }
 
-async function login(){try{await api('/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:$('loginUser').value,password:$('loginPass').value})});$('loginView').classList.add('hidden');$('appView').classList.remove('hidden');$('logoutBtn').classList.remove('hidden');const ownPermissions=await api('/auth/permissions');$('emergencyReportBtn').classList.toggle('hidden',!ownPermissions.permissions.includes('emergency.report.read'));$('unifiedSearchBtn').classList.remove('hidden');$('legalReviewBtn').classList.remove('hidden');$('fireInvestigationBtn').classList.remove('hidden');await initEmergency();await initOperations();await loadFacilities(0)}catch(e){$('loginMsg').textContent='ログインできません。ユーザー名・パスワードを確認してください。'}}
+async function login(){try{await api('/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:$('loginUser').value,password:$('loginPass').value})});$('loginView').classList.add('hidden');$('appView').classList.remove('hidden');$('logoutBtn').classList.remove('hidden');const ownPermissions=await api('/auth/permissions');$('emergencyReportBtn').classList.toggle('hidden',!ownPermissions.permissions.includes('emergency.report.read'));$('unifiedSearchBtn').classList.remove('hidden');$('legalReviewBtn').classList.remove('hidden');$('fireInvestigationBtn').classList.remove('hidden');await initEmergency();await initOperations();await initAssets();await loadFacilities(0)}catch(e){$('loginMsg').textContent='ログインできません。ユーザー名・パスワードを確認してください。'}}
 async function logout(){try{await fetch('/auth/logout',{method:'POST'})}catch{}location.reload()}
 
 async function loadFacilities(offset=state.offset){state.offset=Math.max(0,offset);const p=new URLSearchParams({offset:state.offset,limit:state.limit,sort_by:$('sortBy').value,sort_dir:$('sortDir').value});if($('searchQ').value.trim())p.set('q',$('searchQ').value.trim());if($('statusFilter').value)p.set('status_filter',$('statusFilter').value);try{const d=await api('/facilities?'+p);state.total=d.total;renderList(d.items)}catch(e){if(e.status===401){location.reload();return}$('facilityList').innerHTML='<div class="empty">一覧を取得できません</div>'}}
@@ -2342,6 +2346,7 @@ async function runRequirementEvaluation(domain){
 </script>
 <script src="/ui/emergency.js"></script>
 <script src="/ui/operations.js"></script>
+<script src="/ui/assets.js"></script>
 <p><a href="/ui/admin.html">職員・組織・人事履歴・アカウント管理</a></p>
 </body>
 </html>

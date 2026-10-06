@@ -40,6 +40,7 @@ from ..unified_search import SEARCH_VERSION, lexical_score, make_snippet, query_
 
 router = APIRouter(prefix="/search", tags=["search"])
 
+from ..assets_models import OperationalAsset, AssetLot
 from ..operations_models import Incident, Vehicle
 from ..operations_service import incident_dict
 
@@ -48,6 +49,7 @@ MODULE_PERMISSIONS: dict[str, tuple[str, ...]] = {
     "emergency": ("emergency.case.read",),
     "operations": ("incident.read",),
     "fleet": ("fleet.read",),
+    "operational_assets": ("asset.read",),
     "inspections": ("inspection.read",),
     "submissions": ("submission.read",),
     "equipment": ("equipment.read",),
@@ -795,7 +797,18 @@ def _search_fleet(db,q,limit):
     return [_hit(q,module='fleet',source_type='vehicle',source_id=r.vehicle_id,title=f'{r.code} / {r.name}',body=' / '.join(x for x in [r.registration,r.notes] if x),required_permission='fleet.read',navigation={'surface':'operations','vehicle_id':r.vehicle_id},evidence={'record_version':r.version}) for r in rows]
 
 
+def _search_assets(db,q,limit):
+    rows=db.scalars(select(OperationalAsset).where(_like_condition(q,OperationalAsset.code,OperationalAsset.name,OperationalAsset.category)).order_by(OperationalAsset.updated_at.desc()).limit(limit))
+    hits=[_hit(q,module='operational_assets',source_type='operational_asset',source_id=r.asset_id,title=f'{r.code} / {r.name}',body=' / '.join([r.category,r.unit]),required_permission='asset.read',navigation={'surface':'operational_assets','asset_id':r.asset_id},evidence={'record_version':r.version,'active':r.active}) for r in rows]
+    remaining=limit-len(hits)
+    if remaining:
+        lots=db.execute(select(AssetLot,OperationalAsset).join(OperationalAsset,OperationalAsset.asset_id==AssetLot.asset_id).where(_like_condition(q,AssetLot.batch_code,AssetLot.provenance)).order_by(AssetLot.updated_at.desc(),AssetLot.lot_id).limit(remaining))
+        hits.extend(_hit(q,module='operational_assets',source_type='asset_lot',source_id=lot.lot_id,parent_id=asset.asset_id,title=f'{asset.code} / {asset.name} / {lot.batch_code}',body=' / '.join(x for x in [lot.provenance,str(lot.expires_on) if lot.expires_on else None,asset.unit] if x),required_permission='asset.read',navigation={'surface':'operational_assets','asset_id':asset.asset_id,'lot_id':lot.lot_id},evidence={'record_version':lot.version,'active':lot.active}) for lot,asset in lots)
+    return hits
+
+
 SEARCHERS = {
+    "operational_assets": lambda db,q,limit,perms: _search_assets(db,q,limit),
     "operations": _search_operations,
     "fleet": lambda db,q,limit,perms: _search_fleet(db,q,limit),
     "emergency": lambda db, q, limit, perms: _search_emergency(db, q, limit),

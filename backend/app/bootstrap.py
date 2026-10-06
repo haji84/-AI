@@ -4,6 +4,9 @@ from sqlalchemy import select
 
 from .db import Base, engine, SessionLocal
 from .models import User, Employee, UserRole
+# Register additive domain tables before the development-only create_all.
+# Production still uses append-only migrations and the canonical bound session.
+from . import operations_models, assets_models, emergency_models, personnel
 from .rbac_seed import seed_rbac
 from .module_seed import seed_modules
 from .submission_seed import seed_submission_types
@@ -40,3 +43,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
