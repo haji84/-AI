@@ -83,3 +83,44 @@ A scale from page 1 is never automatically reused on page 2.
 Both `room` and `zone` require a label or use code before Human review.
 
 Geometry edits and scale changes update the saved Reference SHA and therefore invalidate stale downstream Benchmark evidence naturally.
+
+
+## Floor / region summary
+
+Every save/review also rebuilds a server-authoritative `geometry_summary`.
+
+The summary includes:
+
+- total annotated region count
+- per-floor region count
+- per-floor room count
+- per-floor arbitrary-zone count
+- per-floor annotated area total in px²
+- per-floor annotated area total in m² when calibrated
+- calibrated / uncalibrated region counts
+- `metric_area_complete`
+- interior-overlap warnings
+
+The browser recalculates the same summary immediately while vertices are edited, but the backend overwrites the client summary on save/review.
+
+### Overlap warning policy
+
+Two regions are warned only when their interiors overlap.
+
+Normal shared boundaries between adjacent rooms are not warnings.
+
+Regions on different pages are never compared.
+
+Regions with two explicit different floor numbers are not treated as overlapping even if their drawing coordinates happen to coincide.
+
+Overlap warnings are review aids. They do not automatically reject the Annotation because some intentional arbitrary zones may overlap other regions.
+
+### Important meaning of totals
+
+`area_m2_total` is the sum of annotated room/zone polygons.
+
+It is **not** automatically the statutory or architectural floor-area determination.
+
+Walls, shafts, voids, open-plan functional zones, intentionally overlapping arbitrary zones, and incomplete Annotation coverage can make the annotated sum differ from a formal floor area.
+
+The UI therefore labels it as an annotated-region total and keeps overlap warnings visible for Human review.
