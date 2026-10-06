@@ -1747,7 +1747,7 @@ Verified checkpoint:
 
 ## Phase 6 reviewed Annotation revision workflow
 
-Implemented on branch `phase6-annotation-revision`; CI verification pending:
+Implemented and CI-verified:
 - reviewed Human Annotation remains immutable
 - reviewed Annotation can create a new editable Revision Draft
 - optimistic source Annotation version check
@@ -1791,3 +1791,9 @@ Safety:
 - Revision does not inherit review approval
 - old Benchmark evidence remains reproducible
 - downstream Baseline still requires explicit Human Review of the Revision
+
+Verified checkpoint:
+- run: `37439190828` SUCCESS
+- backend pytest: 178 passed
+- migration parser smoke: PASS
+- frontend JavaScript syntax: PASS
