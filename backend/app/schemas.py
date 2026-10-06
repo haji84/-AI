@@ -1938,3 +1938,20 @@ class DrawingBenchmarkHypothesisOut(BaseModel):
     equipment_candidates: list[dict] = Field(default_factory=list)
     fact_candidates: list[dict] = Field(default_factory=list)
     policy: str
+
+
+class DrawingBaselineReadinessOut(BaseModel):
+    readiness_format: str
+    drawing_analysis_id: str
+    analysis_method: str
+    analysis_status: str
+    model_version: str | None = None
+    source: dict
+    human_reference: dict
+    ai_hypothesis: dict
+    area_measurement: dict
+    geometry_baseline_ready: bool
+    area_measurement_ready: bool
+    blockers: list[dict] = Field(default_factory=list)
+    warnings: list[dict] = Field(default_factory=list)
+    policy: str

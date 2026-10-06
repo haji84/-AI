@@ -114,3 +114,25 @@ def test_phase6_reference_draft_import_ui_is_wired_to_editable_annotation():
     ]
     missing = [x for x in required_fragments if x not in html]
     assert not missing, f"Reference Draft import UI wiring missing: {missing}"
+
+
+
+def test_phase6_drawing_workspace_shows_baseline_readiness():
+    html = (
+        Path(__file__).resolve().parents[2]
+        / "frontend"
+        / "index.html"
+    ).read_text(encoding="utf-8")
+
+    required_fragments = [
+        "/baseline-readiness",
+        "drawingBaselineReadiness",
+        "drawingBaselineReadinessHtml(",
+        "初回Baseline Readiness",
+        "Geometry ",
+        "Human Reference",
+        "AI Hypothesis",
+        "面積校正",
+    ]
+    missing = [x for x in required_fragments if x not in html]
+    assert not missing, f"Baseline readiness UI wiring missing: {missing}"
