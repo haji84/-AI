@@ -12,7 +12,7 @@ from ..workforce_models import (
     WorkforceRosterEntry,WorkforceLeaveEntry,WorkforceAttendance,WorkforceTimeEntry,
 )
 from ..workforce_schemas import (
-    ShiftTypeCreate,ShiftTypePatch,QualificationCreate,StaffingRuleCreate,RosterCreate,
+    ShiftTypeCreate,ShiftTypePatch,QualificationCreate,QualificationPatch,StaffingRuleCreate,RosterCreate,
     LeaveCreate,AttendanceCreate,AttendancePatch,TimeEntryCreate,HumanAction,ImportConfirm,
 )
 from .. import workforce_service as svc
@@ -56,6 +56,10 @@ def qualifications(employee_id:str|None=None,db:Session=Depends(get_db),user:Use
 @router.post('/qualifications',status_code=201,dependencies=[Depends(no_store)])
 def create_qualification(payload:QualificationCreate,db:Session=Depends(get_db),user:User=Depends(require_permission('workforce.admin'))):
     row=svc.create_qualification(db,user,payload);svc.save(db);return svc.visible(db,user,row)
+
+@router.patch('/qualifications/{key}',dependencies=[Depends(no_store)])
+def patch_qualification(key:str,payload:QualificationPatch,db:Session=Depends(get_db),user:User=Depends(require_permission('workforce.admin'))):
+    row=svc.patch_qualification(db,user,key,payload);svc.save(db);return svc.visible(db,user,row)
 
 @router.get('/staffing-rules',dependencies=[Depends(no_store)])
 def staffing_rules(organization_id:str|None=None,db:Session=Depends(get_db),user:User=Depends(require_permission('workforce.read'))):
