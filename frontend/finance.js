@@ -50,7 +50,6 @@ function financeSessionPreflight(target){
  const operation={controls:new Map(),generation:financeState.generation};financePendingAction=operation;financeLockNewControls();
  return ()=>{if(financePendingAction===operation){financeReleaseAction(operation);financePendingAction=null;}};
 }
-window.financeSessionPreflight=financeSessionPreflight;
 async function financeAction(fn){
  if(financePendingAction)return;
  const operation={controls:new Map(),generation:financeState.generation};financePendingAction=operation;

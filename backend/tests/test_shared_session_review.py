@@ -98,6 +98,6 @@ const account={disabled:false},kind={tagName:'SELECT',disabled:false,isConnected
 const controls=[kind,account],nodes={financeMessage:{textContent:''},financeModal:{querySelectorAll:()=>controls}};
 const window={location:{origin:'http://synthetic.local'},addEventListener(){},fetch:()=>new Promise(r=>release=()=>r(new Response(JSON.stringify({user_id:'u',session_id:'s',tenant_id:null,permissions:['finance.read']}))))};
 const ctx={window,$:id=>nodes[id],document:{addEventListener:(k,f)=>handlers[k]=f},URL,Response,WeakSet,Event};vm.createContext(ctx);
-for(const file of ['finance.js','shared-session.js'])vm.runInContext(fs.readFileSync(path.join(root,'frontend',file),'utf8'),ctx);window.FireAISession.install();
+vm.runInContext(fs.readFileSync(path.join(root,'frontend/finance.js'),'utf8'),ctx);window.financeSessionPreflight=ctx.financeSessionPreflight;vm.runInContext(fs.readFileSync(path.join(root,'frontend/shared-session.js'),'utf8'),ctx);window.FireAISession.install();
 (async()=>{const pending=handlers.change({type:'change',target:kind,preventDefault(){},stopImmediatePropagation(){}});assert(account.disabled,'account remains editable while deferred change awaits authority');release();await pending;await new Promise(r=>setImmediate(r));assert.equal(ran,1);assert.equal(account.disabled,false)})().catch(e=>{console.error(e);process.exitCode=1});
 ''')
