@@ -10,6 +10,7 @@ dependencies = [
   "argon2-cffi>=25,<26",
   "cryptography>=48,<49",
   "pydantic-settings>=2.14,<3",
+  "tzdata>=2025.2,<2027",
   "python-multipart>=0.0.20,<1",
   "pypdf>=5,<7",
   "PyMuPDF>=1.26,<2",

@@ -1,7 +1,7 @@
 # Completion Run B — integration handoff (live)
 
 Status: IN PROGRESS; not the final completion handoff.
-Baseline: main8323930e659e6818a1cf85ccebc02dc34abc4e5f (Run A PR41 merged; emergency PR40 retained).
+Baseline: main89e87e1739add38d2e5de7afac195c14e58b6a4f (Run A PR41/43 and Run B PR40/42 merged).
 Detailed remaining scope: docs/completion/RUN_B_STATUS.md.
 
 ## Added module surface
@@ -68,13 +68,13 @@ Migration parser and frontend JavaScript syntax are required. Production Postgre
 - Case/patient deletion/retirement and treatment/report editing UI are not implemented in this slice.
 - Text candidate rules are intentionally conservative and not a clinical classifier.
 - Clinical candidates have database-unique source fingerprints; parent-case/patient row locks serialize PostgreSQL clinical/record/report operations. Actual PostgreSQL concurrent-client acceptance remains required.
-- Run A's tenant boundary is available in main8323930e; actual deployment acceptance and the common temporal organization/history contract remain coordinated dependencies before workforce acceptance.
+- Run A's tenant boundary is available in main89e87e17; actual deployment acceptance remains coordinated; the common temporal OrganizationUnit/EmployeeAssignment contract is now available in PR44.
 - Task2 implements shared Incident/Dispatch and operational fleet; assets, budgets/contracts execution, inquiries/statistics/dashboard remain Run B backlog.
 - Full Run B completion and system release are not declared.
 
-## Operations and fleet — Task 2 review candidate
+## Operations and fleet — Task 2 merged
 
-Local product15da8c2 plus latest-main adaptation; refreshed-base independent review/CI/merge pending. Exact contracts and limitations: docs/completion/task-2-report.md.
+PR42 merged main89e87e17 after refreshed-head CI37470033732 success and independent spec/quality reviews PASS. Local full282 passed with4 explicit PostgreSQL skips; CI runs actual PostgreSQL. Exact contracts and limitations: docs/completion/task-2-report.md.
 Modules operations/fleet; router app.routers.operations, prefix /operations; frontend /ui/operations.js in the same header/session/search shell.
 Tables: operation_incidents, operation_vehicles, operation_allowance_rates, operation_dispatches, operation_dispatch_crew, operation_vehicle_trips, operation_fuel_entries, operation_vehicle_services, operation_import_previews.
 Append-only Migration040 follows canonical Run A tenant-identity039. Historical001–038 are unchanged; the original Task2 provisional039 allocation is superseded.
@@ -83,9 +83,23 @@ Permissions: incident/fleet read/create/update/review/approve/admin/aggregate/im
 Human gate: configured approved rates/rounding -> allowance candidate -> dispatch review -> approval; cancellation preserves approved decision and excludes it from current totals. Service deadlines and explicit fault resolution apply only through Human approval.
 Imports: actual CSV/XLSX preview with file SHA/uploader/expiry/schema validation, explicit version-bound confirmation and atomic rechecks. No official decisions imported. Exports are formula-safe operational data, not invented official layouts.
 Background process/dependencies: none added; existing SQLAlchemy/session/audit/RBAC/storage and openpyxl reused. Deployment re-runs RBAC seed and existing migration runner.
-Integration tests: backend/tests/test_run_b_operations.py (31 tests), test_run_b_operations_tenant_integration.py (5 local cases +1 optional PostgreSQL case), and canonical test_tenant_boundary.py. Latest focused52 passed/2 PostgreSQL skips; full263 passed/2 skips. Parser40 migrations passed. Actual local PostgreSQL concurrency/browser acceptance is not claimed.
-Run A connection: get_db/authz/Employee/Document/source-case IDs, no client tenant selector; organization/history and tenant acceptance remain coordinated dependencies. Subsequent Run B statistics/dashboard/templates adapters consume vehicle_id/incident_id/dispatch_id and /operations statistics/history services.
+Integration tests: backend/tests/test_run_b_operations.py (31 tests), test_run_b_operations_tenant_integration.py (5 local cases +1 optional PostgreSQL case), and canonical test_tenant_boundary.py. Historical PR41 focused52/full263 passed with2 local PostgreSQL skips; latest PR43 focused40/full282 passed with4 local skips. Parser40 migrations passed. Actual local PostgreSQL concurrency/browser acceptance is not claimed.
+Run A connection: get_db/authz/Employee/Document/source-case IDs, no client tenant selector; effective-dated organization/history is available in PR44; actual tenant deployment acceptance remains coordinated. Subsequent Run B statistics/dashboard/templates adapters consume vehicle_id/incident_id/dispatch_id and /operations statistics/history services.
 
-Task2 fixround1: permission-filtered mutation responses, complete mixed-source export columns, and separate fuel purchase expense/issue valuation implemented;31 focused and242 full tests passed. Scoped independent re-review is pending.
+Task2 fixround1: permission-filtered mutation responses, complete mixed-source export columns, and separate fuel purchase expense/issue valuation implemented;31 focused and242 full tests passed. Scoped independent re-review passed.
 
-Task2 latest-main adaptation: exact Run A PR41 snapshot preserves startup, HTTP Host/storage/DB guards, BoundSession and initializer. Operational integration tests use two synthetic server-bound databases and an optional PostgreSQL source-lock/stale-approval check; test evidence and local skips are recorded in task-2-report.md. No refreshed-base CI or real-browser result is inferred from earlier PR42 CI.
+Task2 latest-main adaptation: exact Run A PR41 snapshot preserves startup, HTTP Host/storage/DB guards, BoundSession and initializer. Operational integration tests use two synthetic server-bound databases and an optional PostgreSQL source-lock/stale-approval check; test evidence and local skips are recorded in task-2-report.md. Fresh-base PR42 CI37470033732 is successful; no real-browser result is inferred from CI.
+
+Canonical PR43 integration retains validate_runtime_binding startup, department-bound backup/restore and isolated deployment generation. PR42 fresh-base CI37470033732 succeeded, including PostgreSQL migration/locking/tenant tests. Main push CI37470396667 SUCCESS; actual deployed LAN/browser acceptance remains unverified.
+
+Merged-main evidence: workflow37470396667 job112292064798 reports286 passed,168 warnings,88.90s; no skipped tests in CI. This includes the4 PostgreSQL tests skipped in the local SQLite-only environment.
+
+## Operational assets — Task 3 review candidate
+
+Local implementation7a6bb633 plus fix2493c877; independent re-review PASS, latest-main adaptation/publication/CI/merge pending. Module operational_assets, router app.routers.assets, /assets, /ui/assets.js in the shared shell. Unmerged migration renamed042_run_b_operational_assets.sql after canonical Run A041; pre-PR main refresh remains required.
+Tables: operational_assets, asset_locations, asset_lots, asset_balances, asset_loans, asset_movements, asset_services, asset_import_previews. SKU/lot separation, composite lot/asset and loan lineage FKs; common Facility.building_id, Employee.employee_id, Document.document_id and Task2 Vehicle/Incident IDs reused.
+Permissions: asset.read/create/update/review/approve/admin/import/export and asset.borrower.read/manage; linked source permissions remain necessary. Stock is version-bound/locked/idempotent; disposal and service dates require Human review and approval with source versions and Document SHA binding. Imports cannot insert reviewed/official signatures. Date lineage is occurred_on versus created_at; no historical-as-of stock reconstruction claim.
+Configuration: FIRE_AI_ASSET_BUSINESS_TIMEZONE defaults Asia/Tokyo; report as_of cannot alter actual issue expiry enforcement. No background process or paid AI dependency. Declared tzdata>=2025.2,<2027 supports hosts without an OS timezone database; isolated fresh import verified with PYTHONTZPATH empty. Existing CLI bootstrap registers emergency/operations/assets and canonical personnel models before SQLite create_all; PostgreSQL migrations and tenant boundaries preserved.
+Integration tests: test_run_b_assets.py, fixround1 focused26 passed/1 explicit local PG skip; full308 passed/5 local PG skips; independent re-review PASS. Latest-main adaptation focused72 passed/4 explicit PostgreSQL/browser skips;42 migration parser/schema and JS/compile/diff success; stable full adaptation run pending. Actual PostgreSQL042 stock locks and test_assets_browser.py Chromium workflow execute in project CI after publication; production/Human acceptance is unclaimed. Exact API/coverage/limits: docs/completion/task-3-report.md. Subsequent statistics/dashboard/template adapters use asset/lot/location/movement/loan/service IDs and permission-aware services.
+
+Task3 latest-main adaptation67221ef independently passed specification/security review; stable full323 passed with6 PostgreSQL and2 browser local skips, focused72/4. PR46 is published but unmerged. Main00f128cd PR45 adds signed-legal dependencies; assets is re-adapting canonical dependency file before refreshed CI/merge. Initial PR46 CI37481145661 executed PostgreSQL042 and actual assets/admin Chromium successfully. Latest-main45 adaptation25067d25 stable full349 passed/8 local skips; refreshed-head review/CI remain pending.
