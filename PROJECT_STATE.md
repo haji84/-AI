@@ -1405,3 +1405,41 @@ Safety:
 - source mismatch blocks import
 - imported acceptance metadata is provenance only
 - Human review remains mandatory before benchmark truth export
+
+
+## Phase 6 Drawing Baseline readiness
+
+Implemented on branch `phase6-drawing-baseline-readiness`; CI verification pending:
+- per-DrawingAnalysis Baseline readiness evaluator
+- readiness checks:
+  - source drawing Document exists
+  - Human-reviewed Annotation exists
+  - reviewed Reference contains at least one Geometry element
+  - AI DrawingAnalysis is exportable as a benchmark Hypothesis
+  - AI model_version is present
+  - AI Hypothesis source SHA-256 matches the source drawing Document
+- Geometry Baseline readiness and metric-area readiness are separated
+- Geometry can be READY even when scale calibration is still missing
+- metric-area readiness additionally requires calibration on every page used by Reference Geometry
+- readiness output includes:
+  - selected reviewed Annotation/version
+  - draft/reviewed Annotation counts
+  - Reference element/fact/equipment counts
+  - Hypothesis element/fact/equipment counts
+  - source SHA match
+  - used/calibrated/uncalibrated pages
+  - explicit blockers and warnings
+  - direct Human Reference / AI Hypothesis endpoints
+- multiple reviewed References produce an explicit warning; latest reviewed Reference is selected
+- E2E covers:
+  1. no Reference + pending AI -> BLOCKED
+  2. AI analyzed + Human Reference reviewed -> Geometry READY
+  3. no scale calibration -> metric-area not ready
+  4. calibrated reviewed Reference -> metric-area READY
+- drawing workspace renders a Baseline Readiness card with Geometry / area state and blockers
+
+Safety:
+- readiness never marks a Draft Annotation as Human Reference truth
+- metric area is not treated as ready without page calibration
+- source mismatch remains a hard blocker
+- readiness does not itself run or accept a Benchmark
