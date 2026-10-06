@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -23,6 +24,7 @@ from ..models import (
 from ..schemas import (
     DrawingAnnotationReferenceImport,
     DrawingAnnotationReview,
+    DrawingAnnotationRevisionCreate,
     DrawingAnnotationSeedCreate,
     DrawingAnnotationSetCreate,
     DrawingAnnotationSetOut,
@@ -493,6 +495,98 @@ def seed_annotation_from_analysis(
         },
         ai_used=analysis.analysis_method == "ai",
         ai_model_version=analysis.model_version,
+    )
+    db.commit()
+    return _annotation_out(row)
+
+
+
+
+@router.post(
+    "/drawing-annotations/{annotation_id}/revise",
+    response_model=DrawingAnnotationSetOut,
+    status_code=201,
+)
+def revise_annotation(
+    annotation_id: str,
+    payload: DrawingAnnotationRevisionCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("drawing.review")),
+):
+    current = db.get(DrawingAnnotationSet, annotation_id)
+    if not current:
+        raise HTTPException(status_code=404, detail="drawing annotation set not found")
+    if current.status != "reviewed":
+        raise HTTPException(
+            status_code=409,
+            detail="only reviewed annotations can create a revision draft",
+        )
+    if current.version != payload.expected_version:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": "drawing annotation was updated",
+                "current_version": current.version,
+            },
+        )
+
+    body = deepcopy(current.payload or {})
+    history = body.get("revision_history")
+    if not isinstance(history, list):
+        history = []
+    history.append(
+        {
+            "source_annotation_id": current.drawing_annotation_set_id,
+            "source_annotation_version": current.version,
+            "source_reviewed_at": (
+                current.reviewed_at.isoformat()
+                if current.reviewed_at
+                else None
+            ),
+            "note": payload.note,
+            "revised_at": datetime.now(timezone.utc).isoformat(),
+        }
+    )
+    body["revision_history"] = history
+
+    try:
+        body, page_dimensions = apply_geometry_metrics(
+            body,
+            deepcopy(current.page_dimensions or {}),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+    row = DrawingAnnotationSet(
+        drawing_analysis_id=current.drawing_analysis_id,
+        annotation_kind=current.annotation_kind,
+        coordinate_space=current.coordinate_space,
+        page_dimensions=page_dimensions,
+        payload=body,
+        source_method="manual",
+        status="draft",
+        created_by=user.user_id,
+    )
+    db.add(row)
+    db.flush()
+
+    write_audit(
+        db,
+        user_id=user.user_id,
+        action="drawing_annotation.revise",
+        entity_type="drawing_annotation_set",
+        entity_id=row.drawing_annotation_set_id,
+        before={
+            "source_annotation_id": current.drawing_annotation_set_id,
+            "source_annotation_version": current.version,
+            "source_status": current.status,
+        },
+        after={
+            "revision_annotation_id": row.drawing_annotation_set_id,
+            "revision_status": row.status,
+            "revision_version": row.version,
+            "note": payload.note,
+        },
     )
     db.commit()
     return _annotation_out(row)
