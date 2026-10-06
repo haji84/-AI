@@ -64,6 +64,28 @@ def validate_binding(engine, config):
         raise TenantBoundaryError('Department binding could not be verified') from None
 
 
+def validate_runtime_binding(engine, config):
+    result = validate_binding(engine, config)
+    if not config.production_mode:
+        return result
+    try:
+        if engine.dialect.name != 'postgresql':
+            raise TenantBoundaryError('Production runtime requires PostgreSQL')
+        with engine.connect() as connection:
+            flags = connection.execute(text("SELECT rolsuper, rolcreatedb, rolcreaterole, rolbypassrls FROM pg_roles WHERE rolname = current_user")).one()
+            if any(flags):
+                raise TenantBoundaryError('Privileged PostgreSQL role is forbidden for application runtime')
+            mutable_identity = connection.execute(text("SELECT has_table_privilege(current_user, 'public.tenant_identity', 'INSERT,UPDATE,DELETE,TRUNCATE')")).scalar_one()
+            mutable_audit = connection.execute(text("SELECT has_table_privilege(current_user, 'public.audit_logs', 'UPDATE,DELETE,TRUNCATE')")).scalar_one()
+            if mutable_identity or mutable_audit:
+                raise TenantBoundaryError('Runtime role must not modify department identity or existing audit records')
+        return result
+    except TenantBoundaryError:
+        raise
+    except Exception:
+        raise TenantBoundaryError('Runtime database privileges could not be verified') from None
+
+
 def initialize_tenant(engine, config, name, adopt_existing=False):
     if not config.tenant_id or not name.strip() or len(name) > 200:
         raise TenantBoundaryError('Configured department UUID and name are required')
@@ -128,7 +150,7 @@ class TenantBoundaryMiddleware(BaseHTTPMiddleware):
             if len(hosts) != 1 or hostname not in self.config.trusted_hosts:
                 return JSONResponse({'detail': 'Unrecognized department host'}, status_code=421)
             try:
-                await run_in_threadpool(validate_binding, self.engine, self.config)
+                await run_in_threadpool(validate_runtime_binding, self.engine, self.config)
             except TenantBoundaryError:
                 return JSONResponse({'detail': 'Department binding unavailable'}, status_code=503)
         return await call_next(request)

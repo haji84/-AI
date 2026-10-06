@@ -5,6 +5,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import shutil
 import sqlite3
 import subprocess
@@ -13,6 +14,9 @@ import tempfile
 from pathlib import Path
 
 from sqlalchemy.engine import make_url
+from app.settings import settings
+from app.backup_contract import postgres_args as connection_args, verify_restore_department, record_admin_audit
+from app.tenant import TenantBoundaryError
 
 
 def sha256(path: Path) -> str:
@@ -23,22 +27,8 @@ def sha256(path: Path) -> str:
     return h.hexdigest()
 
 
-def postgres_args(database_url: str) -> tuple[list[str], dict[str, str]]:
-    url = make_url(database_url)
-    args: list[str] = []
-    if url.host:
-        args += ["-h", url.host]
-    if url.port:
-        args += ["-p", str(url.port)]
-    if url.username:
-        args += ["-U", url.username]
-    if url.database:
-        args += ["-d", url.database]
-    env = os.environ.copy()
-    if url.password:
-        env["PGPASSWORD"] = url.password
-    return args, env
-
+def postgres_args(database_url):
+    return connection_args(database_url, restore=True)
 
 def verify_manifest(folder: Path) -> dict:
     manifest = json.loads((folder / "manifest.json").read_text(encoding="utf-8"))
@@ -74,17 +64,36 @@ def restore_sqlite(source: Path, database_url: str) -> None:
 def main() -> None:
     p = argparse.ArgumentParser(description="Restore into an explicitly supplied target. Never overwrites the current DB implicitly.")
     p.add_argument("backup", type=Path)
-    p.add_argument("--target-database-url", required=True)
+    target = p.add_mutually_exclusive_group(required=True)
+    target.add_argument("--target-database-url")
+    target.add_argument("--target-database-env", help="Name of protected environment variable containing the explicit recovery DSN")
     p.add_argument("--target-storage-root", type=Path, required=True)
     p.add_argument("--confirm-restore", action="store_true")
+    p.add_argument("--confirm-writers-stopped", action="store_true")
+    p.add_argument("--target-tenant-id")
+    p.add_argument("--expected-release-id")
     args = p.parse_args()
+    if args.target_database_env:
+        if not re.fullmatch(r'[A-Z][A-Z0-9_]*', args.target_database_env):
+            raise SystemExit("invalid recovery environment variable name")
+        args.target_database_url = os.environ.get(args.target_database_env)
+        if not args.target_database_url or not args.target_database_url.startswith(("postgresql", "sqlite")):
+            raise SystemExit("explicit recovery database environment variable unavailable")
     if not args.confirm_restore:
         raise SystemExit("restore requires --confirm-restore")
 
     folder = args.backup.resolve()
     manifest = verify_manifest(folder)
     db_file = folder / manifest["database_file"]
+    tenant_id = settings.tenant_id or args.target_tenant_id
+    if settings.tenant_id and args.target_tenant_id and settings.tenant_id != args.target_tenant_id:
+        raise SystemExit("target tenant must match server configuration")
+    bound = bool(tenant_id or manifest.get("tenant_id") or settings.production_mode or args.target_database_url.startswith("postgresql"))
+    if bound and (not tenant_id or not args.confirm_writers_stopped):
+        raise SystemExit("department restore requires configured UUID and --confirm-writers-stopped")
 
+    if bound and (not args.expected_release_id or manifest.get("release_id") != args.expected_release_id):
+        raise SystemExit("backup release does not match explicitly selected recovery release")
     target_storage = args.target_storage_root.resolve()
     if target_storage == Path(target_storage.anchor):
         raise SystemExit("storage target must not be a filesystem root")
@@ -129,6 +138,18 @@ def main() -> None:
                     dest.parent.mkdir(parents=True, exist_ok=True)
                     with tf.extractfile(member) as source, dest.open("wb") as output:
                         shutil.copyfileobj(source, output)
+        if bound:
+            try:
+                verify_restore_department(manifest, db_file, staged, args.target_database_url, target_storage, tenant_id)
+            except TenantBoundaryError as exc:
+                raise SystemExit(str(exc)) from None
+        # A root-run restore must remain readable by the dedicated service account.
+        # Never trust archived UIDs; retain the already validated target owner's identity.
+        if bound and hasattr(os, 'chown'):
+            owner = target_storage.stat()
+            for path in [staged, *staged.rglob('*')]:
+                os.chown(path, owner.st_uid, owner.st_gid)
+                path.chmod(0o700 if path.is_dir() else 0o600)
         if is_postgres:
             pg_args, env = postgres_args(args.target_database_url)
             cmd = ["pg_restore", "--exit-on-error", "--single-transaction", "--clean", "--if-exists", "--no-owner", *pg_args, str(db_file)]
@@ -145,6 +166,10 @@ def main() -> None:
             if previous.exists():
                 previous.rename(target_storage)
             raise
+    if bound:
+        record_admin_audit(args.target_database_url, tenant_id, 'tenant.restore.completed',
+                           {'release_id': manifest['release_id'], 'database_sha256': manifest['database_sha256'],
+                            'storage_sha256': manifest['storage_sha256'], 'backup_created_at': manifest.get('created_at')})
     print(json.dumps({"restored": True, "database_kind": manifest["database_kind"]}, ensure_ascii=False))
 
 

@@ -22,3 +22,17 @@ Task1 audit records tenant.initialize/adoption in same DB transaction; idempoten
 Task1 local verification: `python -m pytest backend/tests -q` → 227 passed,1 skipped,139 warnings; migration parser39/39; compileall and diff whitespace clean.
 Fresh whole-Slice review: no Critical/Important remaining; independently tenant16 pass1skip, Session guard and audit rollback verified.
 Final: minor (deferred): simultaneous same-UUID initialization can reject a stale storage marker snapshot; retry succeeds. Provisioning must serialize initialization for one department; binding never silently changes.
+
+Task1 complete: PR41 merged8323930e659e6818a1cf85ccebc02dc34abc4e5f; PR CI37465769671 SUCCESS228 passed; main CI37466019056 SUCCESS.
+Task2 in progress: manifestUUID/release/migrations/offline acknowledgement, source dump+original marker+target identity preflight; explicit env DSN to avoid process arguments; target service ownership maintained; per-department deployment generator and guarded runtime DB roles.
+Task2 RED→GREEN evidence: backup3 failures→matching recovery/mismatch refusal; deployment8 failures→8 pass; runtime validator missing→pass; explicit recovery env/release2 failures→pass; service ownership failure→pass.
+Latest full suite before ownership change244 passed3 skipped139 warnings. Real PostgreSQL recovery/role tests execute in CI, never counted as local pass.
+Ruling: migration/restore administrative connections use identity validation but application/API/normalCLI additionally forbid privileged DB roles and mutable identity/audit; otherwise migration could not initialize protected identity. Incorrect use of administrative credentials in runtime is rejected.
+Ruling: tenant production restore requires an already identified target; disaster recovery initializes an empty same-UUID target before restore. This avoids guessing ownership of unmarked live data; it costs one explicit initialization step.
+Ruling: legacy unbound SQLite restore remains dev-test-only for existing tests; PostgreSQL or bound/production restore requires UUID, stopped-writer acknowledgement and matching selected release.
+Task2 admin audit RED→GREEN: tenant.backup.started is captured in dump; tenant.restore.completed stores source hashes/release provenance after successful DB/filesystem restore.
+Task2 fresh review: no Critical/Important on generated deployment/documented recovery path. Focused42 passed3 skipped (PostgreSQL runs in CI).
+Final: minor (deferred): runtime checks do not detect column-only grants or NOINHERIT membership allowing SET ROLE. Generated app roles have neither; deployment must retain generated no-membership/no-column-grant contract.
+Final: minor (deferred): custom dump recovery CI exercise uses disposable administrator credentials; combined app-backup/owner-restore/grant-reapply exercise remains useful additional coverage.
+Final: minor (deferred): manually supplied PostgreSQL database names could have connection-string interpretation in CLI tools; generated fi_<slug> names avoid this. Operational database naming must follow generated identifiers.
+Task2 final local verification: full suite246 passed3 skipped139 warnings; compileall, frontendJS syntax and diff whitespace checks pass. PostgreSQL full migration/restore/role jobs remain CI-required before merge.
