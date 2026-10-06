@@ -44,3 +44,5 @@ jobs:
           Path("/tmp/fire-ai-frontend.js").write_text("\n".join(scripts), encoding="utf-8")
           PY
           node --check /tmp/fire-ai-frontend.js
+          for file in frontend/*.js; do [ ! -f "$file" ] || node --check "$file"; done
+

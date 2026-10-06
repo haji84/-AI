@@ -63,6 +63,18 @@ PERMISSIONS: dict[str, str] = {
     "search.use": "権限範囲内の横断検索",
 }
 
+PERMISSIONS.update({
+    "emergency.case.create": "救急事案登録",
+    "emergency.case.update": "救急事案訂正",
+    "emergency.patient.create": "傷病者登録",
+    "emergency.patient.update": "傷病者・処置訂正",
+    "emergency.crew.manage": "共通職員から隊員登録",
+    "emergency.clinical.generate": "CPA・アレルギー候補作成",
+    "emergency.clinical.review": "臨床分類候補Human確認",
+    "emergency.report.create": "救急報告・事後検証・救命処置録Draft作成",
+    "emergency.report.review": "救急帳票DraftHuman確認",
+})
+
 ROLE_POLICY: dict[str, dict] = {
     "system_admin": {
         "name": "システム管理者",
@@ -163,6 +175,21 @@ ROLE_POLICY: dict[str, dict] = {
     },
 }
 
+
+ROLE_POLICY["emergency_editor"] = {
+    "name": "救急記録担当", "system_role": True,
+    "permissions": {"system.health.read", "search.use", "emergency.case.read",
+        "emergency.case.create", "emergency.case.update", "emergency.patient.read",
+        "emergency.patient.create", "emergency.patient.update", "emergency.crew.read",
+        "emergency.crew.manage", "emergency.report.read", "emergency.report.create",
+        "emergency.clinical.generate"},
+}
+ROLE_POLICY["emergency_reviewer"] = {
+    "name": "救急記録確認者", "system_role": True,
+    "permissions": {"system.health.read", "search.use", "emergency.case.read",
+        "emergency.patient.read", "emergency.crew.read", "emergency.report.read",
+        "emergency.clinical.review", "emergency.report.review"},
+}
 
 SEARCH_ENABLED_ROLES = {
     "prevention_editor",

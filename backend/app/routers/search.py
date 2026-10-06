@@ -12,6 +12,7 @@ from ..authz import current_user, permission_codes
 from ..db import get_db
 from ..models import (
     ChangeRequest,
+    EmergencyCase,
     ContractCase,
     ContractCounterparty,
     Document,
@@ -41,6 +42,7 @@ router = APIRouter(prefix="/search", tags=["search"])
 
 MODULE_PERMISSIONS: dict[str, tuple[str, ...]] = {
     "facilities": ("facility.read",),
+    "emergency": ("emergency.case.read",),
     "inspections": ("inspection.read",),
     "submissions": ("submission.read",),
     "equipment": ("equipment.read",),
@@ -756,7 +758,20 @@ def _search_extensions(db: Session, q: str, limit: int) -> list[UnifiedSearchHit
     ]
 
 
+def _search_emergency(db, q, limit):
+    rows = db.scalars(select(EmergencyCase).where(
+        _like_condition(q, EmergencyCase.dispatch_number, EmergencyCase.incident_address,
+                        EmergencyCase.command_text)).limit(limit)).all()
+    return [_hit(q, module="emergency", source_type="emergency_case",
+        source_id=r.emergency_case_id, title=f"{r.station_code or ''} / {r.dispatch_number or ''}",
+        body=" / ".join(x for x in [r.incident_address, r.command_text] if x),
+        occurred_at=r.call_date, required_permission="emergency.case.read",
+        navigation={"surface": "emergency", "emergency_case_id": r.emergency_case_id},
+        evidence={"record_version": r.version}) for r in rows]
+
+
 SEARCHERS = {
+    "emergency": lambda db, q, limit, perms: _search_emergency(db, q, limit),
     "facilities": lambda db, q, limit, perms: _search_facilities(db, q, limit),
     "inspections": lambda db, q, limit, perms: _search_inspections(db, q, limit),
     "submissions": lambda db, q, limit, perms: _search_submissions(db, q, limit),
@@ -845,6 +860,7 @@ def unified_search(
         note=(
             "Search results are permission-filtered and provenance-linked. "
             "The raw query is not written to the audit log. "
-            "Emergency personal records are not included in this Phase 10 slice."
+            "Emergency case search uses separate case-read permission; patient text is excluded."
         ),
     )
+
