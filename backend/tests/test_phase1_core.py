@@ -7645,3 +7645,92 @@ def test_phase6_in_app_drawing_baseline_run_is_ready_gated_and_idempotent():
     )
     assert reviewed.status_code==200
     assert reviewed.json()["human_decision"]=="accepted_baseline"
+
+
+
+def test_phase6_drawing_benchmark_compare_includes_area_accuracy():
+    login()
+
+    def payload(marker, mae, rel, within10):
+        return {
+            "benchmark_format":"fire-ai-drawing-benchmark-v1",
+            "manifest_sha256":marker*64,
+            "aggregate":{
+                "drawing_count":1,
+                "geometry_detection":{
+                    "true_positive":1,
+                    "false_positive":0,
+                    "false_negative":0,
+                    "precision":1.0,
+                    "recall":1.0,
+                    "f1":1.0,
+                    "mean_iou":0.9,
+                    "element_type_accuracy":1.0,
+                },
+                "symbol_classification":{
+                    "reference_scored":0,
+                    "correct":0,
+                    "accuracy":None,
+                    "applicable":False,
+                },
+                "area_accuracy":{
+                    "pixel":{
+                        "reference_scored":1,
+                        "mean_absolute_error":500.0,
+                        "mean_relative_error":rel,
+                        "within_10_percent_rate":within10,
+                        "applicable":True,
+                    },
+                    "metric":{
+                        "reference_scored":1,
+                        "mean_absolute_error":mae,
+                        "mean_relative_error":rel,
+                        "within_10_percent_rate":within10,
+                        "applicable":True,
+                    },
+                },
+                "equipment_candidates":{
+                    "true_positive":0,
+                    "false_positive":0,
+                    "false_negative":0,
+                    "precision":None,
+                    "recall":None,
+                    "f1":None,
+                    "applicable":False,
+                },
+                "fact_candidates":{
+                    "true_positive":0,
+                    "false_positive":0,
+                    "false_negative":0,
+                    "precision":None,
+                    "recall":None,
+                    "f1":None,
+                    "applicable":False,
+                },
+            },
+        }
+
+    left=client.post("/drawing-benchmarks",json={
+        "dataset_label":"Area A",
+        "result_payload":payload("e",0.30,0.15,0.4),
+    })
+    right=client.post("/drawing-benchmarks",json={
+        "dataset_label":"Area B",
+        "result_payload":payload("f",0.10,0.05,0.9),
+    })
+    assert left.status_code==201
+    assert right.status_code==201
+
+    compared=client.get("/drawing-benchmarks/compare",params={
+        "left_id":left.json()["drawing_benchmark_run_id"],
+        "right_id":right.json()["drawing_benchmark_run_id"],
+    })
+    assert compared.status_code==200
+    metrics=compared.json()["metrics"]
+
+    assert round(metrics["area_mae_m2"]["delta_right_minus_left"],6)==-0.2
+    assert metrics["area_mae_m2"]["lower_is_better"] is True
+    assert round(metrics["area_mean_relative_error"]["delta_right_minus_left"],6)==-0.1
+    assert metrics["area_mean_relative_error"]["lower_is_better"] is True
+    assert round(metrics["area_within_10_percent_rate"]["delta_right_minus_left"],6)==0.5
+    assert metrics["area_within_10_percent_rate"]["higher_is_better"] is True
