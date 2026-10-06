@@ -155,6 +155,311 @@ def bbox_iou(left: dict, right: dict) -> float:
     return inter / (area_a + area_b - inter)
 
 
+
+def _geometry_points_for_area(
+    geometry: dict,
+) -> list[tuple[float, float]]:
+    if not isinstance(geometry, dict):
+        return []
+    points = geometry.get("points")
+    if isinstance(points, list):
+        out = []
+        for point in points:
+            if (
+                isinstance(point, dict)
+                and "x" in point
+                and "y" in point
+            ):
+                out.append(
+                    (float(point["x"]), float(point["y"]))
+                )
+            elif (
+                isinstance(point, (list, tuple))
+                and len(point) >= 2
+            ):
+                out.append(
+                    (float(point[0]), float(point[1]))
+                )
+        if len(out) >= 3:
+            return out
+
+    box = _bbox(geometry)
+    if box is None:
+        return []
+    x1, y1, x2, y2 = box
+    return [
+        (x1, y1),
+        (x2, y1),
+        (x2, y2),
+        (x1, y2),
+    ]
+
+
+def _polygon_area(
+    points: list[tuple[float, float]],
+) -> float:
+    if len(points) < 3:
+        return 0.0
+    total = 0.0
+    for index, (x1, y1) in enumerate(points):
+        x2, y2 = points[
+            (index + 1) % len(points)
+        ]
+        total += x1 * y2 - x2 * y1
+    return abs(total) / 2.0
+
+
+def _page_meters_per_pixel(
+    reference_payload: dict,
+    page_no: int,
+) -> float | None:
+    dimensions = reference_payload.get(
+        "page_dimensions"
+    )
+    if not isinstance(dimensions, dict):
+        return None
+    page = (
+        dimensions.get(str(page_no))
+        or dimensions.get(page_no)
+    )
+    if not isinstance(page, dict):
+        return None
+    calibration = page.get("calibration")
+    if not isinstance(calibration, dict):
+        return None
+    value = calibration.get("meters_per_pixel")
+    try:
+        result = float(value)
+    except (TypeError, ValueError):
+        return None
+    return result if result > 0 else None
+
+
+def _summarize_area_samples(
+    samples: list[dict],
+    *,
+    unit: str,
+) -> dict:
+    count = len(samples)
+    if count == 0:
+        return {
+            "unit": unit,
+            "reference_scored": 0,
+            "absolute_error_sum": 0.0,
+            "relative_error_sum": 0.0,
+            "mean_absolute_error": None,
+            "mean_relative_error": None,
+            "within_5_percent_count": 0,
+            "within_5_percent_rate": None,
+            "within_10_percent_count": 0,
+            "within_10_percent_rate": None,
+            "applicable": False,
+        }
+
+    abs_sum = sum(
+        float(x["absolute_error"])
+        for x in samples
+    )
+    rel_sum = sum(
+        float(x["relative_error"])
+        for x in samples
+    )
+    within5 = sum(
+        1
+        for x in samples
+        if float(x["relative_error"])
+        <= 0.05 + 1e-12
+    )
+    within10 = sum(
+        1
+        for x in samples
+        if float(x["relative_error"])
+        <= 0.10 + 1e-12
+    )
+    return {
+        "unit": unit,
+        "reference_scored": count,
+        "absolute_error_sum": abs_sum,
+        "relative_error_sum": rel_sum,
+        "mean_absolute_error": abs_sum / count,
+        "mean_relative_error": rel_sum / count,
+        "within_5_percent_count": within5,
+        "within_5_percent_rate":
+            within5 / count,
+        "within_10_percent_count": within10,
+        "within_10_percent_rate":
+            within10 / count,
+        "applicable": True,
+    }
+
+
+def _area_metrics(
+    reference_payload: dict,
+    hypothesis_payload: dict,
+    element_pairs: list[tuple[int, int, float]],
+) -> dict:
+    reference = _rows(
+        reference_payload,
+        "elements",
+    )
+    hypothesis = _rows(
+        hypothesis_payload,
+        "elements",
+    )
+    pixel_samples = []
+    metric_samples = []
+
+    for ri, hi, _iou in element_pairs:
+        ref = reference[ri]
+        hyp = hypothesis[hi]
+        ref_area_px2 = _polygon_area(
+            _geometry_points_for_area(
+                ref.get("geometry") or {}
+            )
+        )
+        hyp_area_px2 = _polygon_area(
+            _geometry_points_for_area(
+                hyp.get("geometry") or {}
+            )
+        )
+        if ref_area_px2 <= 0:
+            continue
+
+        abs_error_px2 = abs(
+            hyp_area_px2 - ref_area_px2
+        )
+        relative_error = (
+            abs_error_px2 / ref_area_px2
+        )
+        pixel_samples.append(
+            {
+                "reference_index": ri,
+                "hypothesis_index": hi,
+                "page_no": int(
+                    ref.get("page_no", 1) or 1
+                ),
+                "reference_area":
+                    ref_area_px2,
+                "hypothesis_area":
+                    hyp_area_px2,
+                "absolute_error":
+                    abs_error_px2,
+                "relative_error":
+                    relative_error,
+            }
+        )
+
+        page_no = int(
+            ref.get("page_no", 1) or 1
+        )
+        mpp = _page_meters_per_pixel(
+            reference_payload,
+            page_no,
+        )
+        if mpp is None:
+            continue
+        factor = mpp * mpp
+        ref_area_m2 = ref_area_px2 * factor
+        hyp_area_m2 = hyp_area_px2 * factor
+        metric_samples.append(
+            {
+                "reference_index": ri,
+                "hypothesis_index": hi,
+                "page_no": page_no,
+                "reference_area":
+                    ref_area_m2,
+                "hypothesis_area":
+                    hyp_area_m2,
+                "absolute_error":
+                    abs(
+                        hyp_area_m2
+                        - ref_area_m2
+                    ),
+                "relative_error":
+                    relative_error,
+            }
+        )
+
+    return {
+        "pixel": _summarize_area_samples(
+            pixel_samples,
+            unit="px2",
+        ),
+        "metric": _summarize_area_samples(
+            metric_samples,
+            unit="m2",
+        ),
+        "pixel_samples": pixel_samples,
+        "metric_samples": metric_samples,
+    }
+
+
+def _aggregate_area_bucket(
+    drawings: list[dict],
+    *,
+    bucket: str,
+    unit: str,
+) -> dict:
+    rows = [
+        x["metrics"]["area_accuracy"][bucket]
+        for x in drawings
+        if "area_accuracy" in x["metrics"]
+    ]
+    count = sum(
+        int(x.get("reference_scored", 0))
+        for x in rows
+    )
+    abs_sum = sum(
+        float(x.get("absolute_error_sum", 0))
+        for x in rows
+    )
+    rel_sum = sum(
+        float(x.get("relative_error_sum", 0))
+        for x in rows
+    )
+    within5 = sum(
+        int(x.get("within_5_percent_count", 0))
+        for x in rows
+    )
+    within10 = sum(
+        int(x.get("within_10_percent_count", 0))
+        for x in rows
+    )
+    return {
+        "unit": unit,
+        "reference_scored": count,
+        "absolute_error_sum": abs_sum,
+        "relative_error_sum": rel_sum,
+        "mean_absolute_error":
+            abs_sum / count if count else None,
+        "mean_relative_error":
+            rel_sum / count if count else None,
+        "within_5_percent_count": within5,
+        "within_5_percent_rate":
+            within5 / count if count else None,
+        "within_10_percent_count": within10,
+        "within_10_percent_rate":
+            within10 / count if count else None,
+        "applicable": count > 0,
+    }
+
+
+def _aggregate_area(
+    drawings: list[dict],
+) -> dict:
+    return {
+        "pixel": _aggregate_area_bucket(
+            drawings,
+            bucket="pixel",
+            unit="px2",
+        ),
+        "metric": _aggregate_area_bucket(
+            drawings,
+            bucket="metric",
+            unit="m2",
+        ),
+    }
+
 def _prf(tp: int, fp: int, fn: int) -> dict:
     if tp == 0 and fp == 0 and fn == 0:
         return {
@@ -461,9 +766,15 @@ def score_drawing(
         hypothesis_payload,
         pairs,
     )
+    area = _area_metrics(
+        reference_payload,
+        hypothesis_payload,
+        pairs,
+    )
     return {
         "geometry_detection": geometry,
         "symbol_classification": symbols,
+        "area_accuracy": area,
         "equipment_candidates": equipment,
         "fact_candidates": facts,
     }
@@ -564,6 +875,8 @@ def aggregate_drawings(
             ),
             "applicable": symbol_total > 0,
         },
+        "area_accuracy":
+            _aggregate_area(drawings),
         "equipment_candidates":
             sum_prf("equipment_candidates"),
         "fact_candidates":
