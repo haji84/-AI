@@ -46,3 +46,5 @@
 本Slice/PRが通ってもシステム完成ではない。財務統合、正式違反、危険物、図面AI/worker、横断E2E、本部別導入・更新・復元構成と最終release成果物まで同じ完成タスクを継続する。
 
 最終local全体453成功58skip210warnings201.23秒、exit0。46migration/348statements、compile/diff/frontend syntax成功。独立レビュー1回＋修正pass1回を完了。PG並行処理5ケースとChromium勤務workflowはCI実行待ち。
+
+CI repair: PR53 exact-head3a9c5f9 / CI37506984502のChromiumは5成功1失敗54.26秒。新fixtureのEmployeeAssignment.title必須値省略が原因。PG concurrency fixtureにも同じ省略があるため合成役職名を追加。実モデルのNOT NULLを維持。実browser fixtureの同じseedをlocal subprocessで実行しexit0、勤怠/時間Ledger/承認勤務Ruleの合成workflowを確認。改めてexact-headCIを実行する。

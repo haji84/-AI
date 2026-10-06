@@ -18,7 +18,7 @@ def workforce_pg(learning_environment):
     client.app.include_router(workforce.router)
     with Session(engine) as db:
         org=OrganizationUnit(code='SYNTHETIC',name='Synthetic PG organization');emp=Employee(display_name='Synthetic PG employee')
-        db.add_all([org,emp]);db.flush();db.add(EmployeeAssignment(employee_id=emp.employee_id,organization_id=org.organization_id,kind='primary',valid_from=date(2026,1,1)));db.commit()
+        db.add_all([org,emp]);db.flush();db.add(EmployeeAssignment(employee_id=emp.employee_id,organization_id=org.organization_id,title='Synthetic duty member',kind='primary',valid_from=date(2026,1,1)));db.commit()
         refs={'employee_id':emp.employee_id,'organization_id':org.organization_id}
     row=client.post('/workforce/shift-types',json={'code':'SYNTHETIC','name':'Synthetic','start_time':'08:00','end_time':'17:00','payable_minutes':480,'work_segments':[[0,480]]}).json()
     r=client.post('/workforce/shift-types/'+row['shift_type_id']+'/approve-work-rule',json={'expected_version':1,'note':'Human synthetic intervals'});assert r.status_code==200,r.text

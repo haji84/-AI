@@ -31,7 +31,7 @@ Base.metadata.create_all(engine)
 with SessionLocal() as db:
  roles=seed_rbac(db);org=OrganizationUnit(code='SYNTHETIC',name='Synthetic organization');db.add(org);db.flush()
  employee=Employee(display_name='ZZ Synthetic target',employee_code='LAST');db.add(employee);db.flush()
- db.add(EmployeeAssignment(employee_id=employee.employee_id,organization_id=org.organization_id,kind='primary',valid_from=date(2026,1,1)))
+ db.add(EmployeeAssignment(employee_id=employee.employee_id,organization_id=org.organization_id,title='Synthetic duty member',kind='primary',valid_from=date(2026,1,1)))
  user=User(employee_id=employee.employee_id,username='uiworkforce',password_hash=hash_password('synthetic-ui-password'));db.add(user);db.flush();db.add(UserRole(user_id=user.user_id,role_id=roles['system_admin'].role_id))
  db.add_all([Employee(display_name=f'AA Synthetic {i:03}',employee_code=f'PAGE-{i:03}') for i in range(205)])
  db.commit();emp=employee.employee_id;organization=org.organization_id
