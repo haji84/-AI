@@ -65,6 +65,8 @@ def _metric_values(payload: dict) -> dict:
     symbols = aggregate.get("symbol_classification") or {}
     equipment = aggregate.get("equipment_candidates") or {}
     facts = aggregate.get("fact_candidates") or {}
+    area = aggregate.get("area_accuracy") or {}
+    area_metric = area.get("metric") or {}
     drawing_count = max(1, int(aggregate.get("drawing_count", 1)))
     return {
         "geometry_f1": _optional_float(geometry.get("f1")),
@@ -73,6 +75,9 @@ def _metric_values(payload: dict) -> dict:
         "symbol_accuracy": _optional_float(symbols.get("accuracy")),
         "equipment_f1": _optional_float(equipment.get("f1")),
         "fact_f1": _optional_float(facts.get("f1")),
+        "area_mae_m2": _optional_float(area_metric.get("mean_absolute_error")),
+        "area_mean_relative_error": _optional_float(area_metric.get("mean_relative_error")),
+        "area_within_10_percent_rate": _optional_float(area_metric.get("within_10_percent_rate")),
         "geometry_false_positives_per_drawing": float(geometry.get("false_positive", 0)) / drawing_count,
     }
 
@@ -119,8 +124,32 @@ def compare_drawing_benchmarks(
     lm = _metric_values(left.result_payload or {})
     rm = _metric_values(right.result_payload or {})
     metrics = {}
-    for name in ("geometry_f1", "mean_iou", "element_type_accuracy", "symbol_accuracy", "equipment_f1", "fact_f1"):
-        metrics[name] = _comparison_metric(lm[name], rm[name], higher_is_better=True)
+    for name in (
+        "geometry_f1",
+        "mean_iou",
+        "element_type_accuracy",
+        "symbol_accuracy",
+        "equipment_f1",
+        "fact_f1",
+        "area_within_10_percent_rate",
+    ):
+        metrics[name] = _comparison_metric(
+            lm[name],
+            rm[name],
+            higher_is_better=True,
+        )
+    for name in (
+        "area_mae_m2",
+        "area_mean_relative_error",
+    ):
+        item = _comparison_metric(
+            lm[name],
+            rm[name],
+            higher_is_better=False,
+        )
+        item["lower_is_better"] = True
+        item.pop("higher_is_better", None)
+        metrics[name] = item
     name = "geometry_false_positives_per_drawing"
     metrics[name] = {
         "left": lm[name],
