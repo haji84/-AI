@@ -36,3 +36,16 @@ Final: minor (deferred): runtime checks do not detect column-only grants or NOIN
 Final: minor (deferred): custom dump recovery CI exercise uses disposable administrator credentials; combined app-backup/owner-restore/grant-reapply exercise remains useful additional coverage.
 Final: minor (deferred): manually supplied PostgreSQL database names could have connection-string interpretation in CLI tools; generated fi_<slug> names avoid this. Operational database naming must follow generated identifiers.
 Task2 final local verification: full suite246 passed3 skipped139 warnings; compileall, frontendJS syntax and diff whitespace checks pass. PostgreSQL full migration/restore/role jobs remain CI-required before merge.
+
+Task2 complete: PR43 merged0335b59edb268b49e7e35cafedc1966c0a901d08; PR CI37468087421 SUCCESS249 passed; main CI37468465476 SUCCESS.
+Canonical refresh: RunB PR42 merged main89e87e1739add38d2e5de7afac195c14e58b6a4f; exact-head main CI37470396667 SUCCESS; no open PR at audit. Migration040 and operations router/UI retained.
+Task3 in progress: human organization/staff/assignment/transfer history, date-effective roles, account lifecycle/password history/session revocation, audit API and browser admin UI. Migration041; fresh branch review pending.
+Task3 RED→GREEN: missing personnel4 tests, account/password2 tests, grant-boundary/enddate/audit3 tests. Focused9 passed1skip; integrated full291 passed5skip168warnings. PostgreSQL exclusion test waits for CI.
+Ruling: RunB disabledcrew test now disables a separate synthetic crew member, not the logged-in operator; expected authentication rejection is retained. Otherwise the test bypasses the new retirement safety contract.
+Ruling: system_admin remains explicit permanent Human-granted role; temporal assignments cannot accidentally expire the only administrator. Other assignment roles additionally require account.manage.
+Remaining independent work: password expiry, audit pagination, formal-spec remaining common and drawing/legal modules, operational/release package; do not declare project complete from this Slice.
+Task3 fresh-context review: no Critical; Important organization/employee activation authority, role-bearing assignment validity authority and reset/login race fixed. Each regression first failed then passed. Login shares PostgreSQL transaction advisory lock with Human administration; CI includes actual blocked-login/reset interleaving.
+Final: fixed history boundary too: current plus five previous distinct generations, no duplicate hash history rows. Fifth-generation reuse regression RED→GREEN.
+Final: fixed account-only UI staff selector: narrow account.manage employee picker; personnel detail API remains personnel.read protected. Picker regression RED→GREEN.
+Local Chromium blocked by managed Unix socket policy; no local browser pass claimed. Add separate real Chromium CI job, synthetic-only server/data, screenshot artifact. This runs before merge alongside PostgreSQL migrations and recovery.
+Task3 publication verification: `/tmp/fire-ai-venv/bin/python -m pytest backend/tests -q` → 297 passed,6 skipped,168 warnings,104.55s. PostgreSQL + real browser are CI-required and not locally counted. JS/compile/diff checks pass.

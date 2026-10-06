@@ -40,6 +40,7 @@ class Employee(Base):
     display_name: Mapped[str] = mapped_column(String(200), nullable=False)
     organization_unit: Mapped[str | None] = mapped_column(String(200))
     title: Mapped[str | None] = mapped_column(String(200))
+    version: Mapped[int] = mapped_column(BigInteger, nullable=False, default=1)
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)

@@ -83,3 +83,7 @@ tenant分離は現行コードに存在しない。
 本部分離の設計判断は利用者承認済み。署所ごとのDB分割は行わない。
 最新共通基盤Evidenceは `completion/RUN_A_STATUS.md`、未完業務モジュールの担当・Evidenceは `completion/RUN_B_STATUS.md`。
 分類は上表の範囲を維持し、本Sliceのtenant境界実装だけでtenant全体や本番導入をCompletedにしない。
+
+## Run A 職員管理Slice（未merge）
+
+main89e87e17 / PR42を照合し、RunB機能を維持。組織・主所属/兼務・異動履歴・有効日権限・アカウント管理・パスワード履歴/変更・監査閲覧を実装中。専用9件、統合291件成功、5skip。PostgreSQL・画面操作・PR CI確認前のためCompletedとはしない。仕様のパスワード期限、実LAN受入、最終成果物は引き続きPartial/External Gateとして残す。詳細はcompletion/PERSONNEL_ADMINISTRATION.md。

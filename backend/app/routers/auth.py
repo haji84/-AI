@@ -9,13 +9,15 @@ from ..security import verify_password, new_session_token, session_expiry, token
 from ..settings import settings
 from ..authz import current_user, permission_codes
 from ..audit import write_audit
+from ..personnel import employee_available, account_change_lock
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 @router.post("/login", response_model=UserOut)
 def login(payload: LoginRequest, response: Response, db: Session = Depends(get_db)):
+    account_change_lock(db)
     user = db.scalar(select(User).where(User.username == payload.username))
-    if not user or not user.active or not verify_password(user.password_hash, payload.password):
+    if not user or not user.active or not employee_available(db, user) or not verify_password(user.password_hash, payload.password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid credentials")
     raw, digest = new_session_token()
     db.add(UserSession(user_id=user.user_id, token_hash=digest, expires_at=session_expiry(settings.session_hours)))

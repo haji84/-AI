@@ -5,6 +5,7 @@ from .db import get_db
 from .models import User, UserSession, UserRole, RolePermission, Permission
 from .security import token_digest
 from .settings import settings
+from .personnel import employee_available, effective_role_ids
 from datetime import datetime, timezone
 
 def current_user(request: Request, db: Session = Depends(get_db)) -> User:
@@ -22,18 +23,21 @@ def current_user(request: Request, db: Session = Depends(get_db)) -> User:
     if expires_at < now:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="session expired")
     user = db.get(User, session.user_id)
-    if not user or not user.active:
+    if not user or not user.active or not employee_available(db, user):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="user disabled")
     session.last_seen_at = now
     db.commit()
     return user
 
 def permission_codes(db: Session, user_id: str) -> set[str]:
-    q=(select(Permission.code)
-       .join(RolePermission, RolePermission.permission_id == Permission.permission_id)
-       .join(UserRole, UserRole.role_id == RolePermission.role_id)
-       .where(UserRole.user_id == user_id))
-    return set(db.scalars(q).all())
+    roles = effective_role_ids(db, user_id)
+    if not roles:
+        return set()
+    query = (select(Permission.code)
+             .join(RolePermission, RolePermission.permission_id == Permission.permission_id)
+             .where(RolePermission.role_id.in_(roles)))
+    return set(db.scalars(query))
+
 
 def require_permission(code: str):
     def dependency(user: User = Depends(current_user), db: Session = Depends(get_db)) -> User:
