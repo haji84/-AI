@@ -68,7 +68,8 @@ def create_staffing_rule(payload:StaffingRuleCreate,db:Session=Depends(get_db),u
     row=svc.create_staffing_rule(db,user,payload);svc.save(db);return svc.visible(db,user,row)
 
 @router.post('/staffing-rules/{key}/{action}',dependencies=[Depends(no_store)])
-def staffing_rule_action(key:str,action:Literal['review','approve','cancel'],payload:HumanAction,db:Session=Depends(get_db),user:User=Depends(require_permission('workforce.approve'))):
+def staffing_rule_action(key:str,action:Literal['review','approve','cancel'],payload:HumanAction,db:Session=Depends(get_db),user:User=Depends(require_permission('workforce.review'))):
+    if action=='approve':svc.need(db,user,'workforce.approve')
     row=svc.staffing_action(db,user,key,payload.expected_version,action,payload.note);svc.save(db);return svc.visible(db,user,row)
 
 @router.get('/rosters',dependencies=[Depends(no_store)])
