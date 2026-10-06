@@ -7471,3 +7471,177 @@ def test_phase6_drawing_baseline_readiness_progression():
     assert any(x["code"]=="multiple_reviewed_references" for x in body["warnings"])
     assert body["human_reference"]["endpoint"].endswith("/benchmark-reference")
     assert body["ai_hypothesis"]["endpoint"].endswith("/benchmark-hypothesis")
+
+
+
+def test_phase6_in_app_drawing_baseline_run_is_ready_gated_and_idempotent():
+    login()
+    facility=client.post(
+        "/facilities",
+        json={"name":"In-app Baseline対象"},
+    ).json()
+    bid=facility["building_id"]
+    upload=client.post(
+        "/documents/upload",
+        files={"file":("baseline-inapp.png",b"baseline-inapp-source","image/png")},
+        data={"document_type":"drawing","building_id":bid},
+    ).json()
+
+    analysis=client.post(
+        f"/facilities/{bid}/drawing-analyses",
+        json={
+            "document_id":upload["document_id"],
+            "analysis_method":"ai",
+            "model_version":"local-vision-inapp-v1",
+        },
+    )
+    assert analysis.status_code==201
+    aid=analysis.json()["drawing_analysis_id"]
+
+    blocked=client.post(
+        f"/drawing-analyses/{aid}/baseline-run",
+        json={
+            "expected_analysis_version":1,
+            "iou_threshold":0.5,
+            "dataset_label":"In-app test",
+        },
+    )
+    assert blocked.status_code==409
+    assert "not ready" in str(blocked.json())
+
+    manifest=client.post(
+        f"/drawing-analyses/{aid}/manifest",
+        json={
+            "expected_version":1,
+            "model_version":"local-vision-inapp-v1",
+            "page_count":1,
+            "elements":[{
+                "client_ref":"ai-room",
+                "page_no":1,
+                "element_type":"room",
+                "label":"Room",
+                "floor_number":1,
+                "geometry":{"x":0,"y":0,"width":100,"height":50},
+                "extracted_data":{"use_name":"room"},
+                "confidence":0.9,
+            }],
+            "equipment_candidates":[],
+            "fact_candidates":[{
+                "drawing_element_ref":"ai-room",
+                "target_path":"detail.total_floor_area",
+                "proposed_value":{"value":12.5},
+                "confidence":0.9,
+            }],
+        },
+    )
+    assert manifest.status_code==200
+    assert manifest.json()["analysis"]["version"]==2
+
+    ann=client.post(
+        f"/drawing-analyses/{aid}/annotations",
+        json={
+            "coordinate_space":"pixel",
+            "page_dimensions":{"1":{"width":1000,"height":800}},
+            "source_method":"manual",
+            "payload":{
+                "elements":[{
+                    "client_ref":"human-room",
+                    "page_no":1,
+                    "element_type":"room",
+                    "label":"Room",
+                    "floor_number":1,
+                    "geometry":{"points":[[0,0],[100,0],[100,50],[0,50]]},
+                    "extracted_data":{"use_name":"room"},
+                }],
+                "equipment_candidates":[],
+                "fact_candidates":[{
+                    "drawing_element_ref":"human-room",
+                    "target_path":"detail.total_floor_area",
+                    "proposed_value":{"value":12.5},
+                }],
+            },
+        },
+    )
+    assert ann.status_code==201
+    ann_id=ann.json()["drawing_annotation_set_id"]
+    assert client.post(
+        f"/drawing-annotations/{ann_id}/review",
+        json={"expected_version":1,"status":"reviewed"},
+    ).status_code==200
+
+    readiness=client.get(
+        f"/drawing-analyses/{aid}/baseline-readiness"
+    )
+    assert readiness.status_code==200
+    assert readiness.json()["geometry_baseline_ready"] is True
+
+    conflict=client.post(
+        f"/drawing-analyses/{aid}/baseline-run",
+        json={
+            "expected_analysis_version":1,
+            "iou_threshold":0.5,
+        },
+    )
+    assert conflict.status_code==409
+
+    first=client.post(
+        f"/drawing-analyses/{aid}/baseline-run",
+        json={
+            "expected_analysis_version":2,
+            "iou_threshold":0.5,
+            "dataset_label":"In-app test",
+        },
+    )
+    assert first.status_code==201
+    body=first.json()
+    assert body["created"] is True
+    run_id=body["drawing_benchmark_run_id"]
+    assert body["review_status"]=="pending"
+    assert body["human_decision"] is None
+    assert len(body["result_sha256"])==64
+    assert len(body["manifest_sha256"])==64
+    result=body["result_payload"]
+    assert result["benchmark_format"]=="fire-ai-drawing-benchmark-v1"
+    assert result["execution_mode"]=="in_app"
+    assert result["aggregate"]["drawing_count"]==1
+    assert result["aggregate"]["geometry_detection"]["f1"]==1.0
+    assert result["aggregate"]["fact_candidates"]["f1"]==1.0
+    assert result["manifest"]["drawing_analysis_id"]==aid
+    assert result["manifest"]["analysis_version"]==2
+    assert result["manifest"]["drawing_annotation_set_id"]==ann_id
+    assert result["drawings"][0]["reference"]["endpoint"].endswith("/benchmark-reference")
+    assert result["drawings"][0]["hypothesis"]["endpoint"].endswith("/benchmark-hypothesis")
+
+    second=client.post(
+        f"/drawing-analyses/{aid}/baseline-run",
+        json={
+            "expected_analysis_version":2,
+            "iou_threshold":0.5,
+            "dataset_label":"Different label must not duplicate evidence",
+        },
+    )
+    assert second.status_code==201
+    repeat=second.json()
+    assert repeat["created"] is False
+    assert repeat["drawing_benchmark_run_id"]==run_id
+    assert repeat["result_sha256"]==body["result_sha256"]
+
+    listed=client.get("/drawing-benchmarks")
+    assert listed.status_code==200
+    matches=[
+        x for x in listed.json()
+        if x["drawing_benchmark_run_id"]==run_id
+    ]
+    assert len(matches)==1
+    assert matches[0]["review_status"]=="pending"
+
+    reviewed=client.post(
+        f"/drawing-benchmarks/{run_id}/review",
+        json={
+            "expected_version":1,
+            "human_decision":"accepted_baseline",
+            "review_notes":"Human accepted unit-test Baseline",
+        },
+    )
+    assert reviewed.status_code==200
+    assert reviewed.json()["human_decision"]=="accepted_baseline"
