@@ -4,7 +4,7 @@ function clearAssets(){Object.assign(assetsState,{permissions:[],asset:null,q:''
 const assetsCan=p=>assetsState.permissions.includes(p);
 const assetsJSON=(method,data)=>({method,headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
 async function assetsAction(fn){$('assetsMessage').textContent='';try{await fn()}catch(e){if(e.cancelled||!$('assetsMessage'))return;$('assetsMessage').textContent=e.status===409?'更新競合があります。再読込して最新の在庫・確認状態を確認してください。':(Array.isArray(e.body?.detail)?e.body.detail.map(d=>d.loc.join('.')+': '+d.msg).join(' / '):String(e.message))}}
-async function initAssets(){try{const r=await api('/auth/permissions');assetsState.permissions=r.permissions;$('assetsBtn').classList.toggle('hidden',!assetsCan('asset.read'))}catch{}}
+async function initAssets(){try{const r=await api('/auth/permissions');assetsState.permissions=r.permissions;$('assetsBtn').classList.toggle('hidden',!assetsCan('asset.read'))}catch(e){if(e.cancelled)throw e;}}
 function assetsButton(id,label,permission){return !permission||assetsCan(permission)?`<button class="btn" type="button" id="${id}">${esc(label)}</button>`:''}
 function assetsBind(id,fn){if($(id))$(id).onclick=()=>assetsAction(fn)}
 function assetsOptions(rows,key,label){return [['','未指定'],...rows.map(r=>[r[key],label(r)])]}

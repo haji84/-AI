@@ -4,7 +4,7 @@ function clearEmergency(){Object.assign(emergencyState,{permissions:[],case:null
 const emergencyCan=p=>emergencyState.permissions.includes(p);
 const emergencyJSON=(method,data)=>({method,headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
 async function emergencyAction(action){try{await action()}catch(e){if(e.cancelled||!$('emergencyMessage'))return;$('emergencyMessage').textContent=e.status===409?'別の更新または根拠変更があります。一覧を読み直してください。':String(e.message)}}
-async function initEmergency(){try{const r=await api('/auth/permissions');emergencyState.permissions=r.permissions;$('emergencyBtn').classList.toggle('hidden',!r.permissions.some(p=>p.startsWith('emergency.')))}catch{}}
+async function initEmergency(){try{const r=await api('/auth/permissions');emergencyState.permissions=r.permissions;$('emergencyBtn').classList.toggle('hidden',!r.permissions.some(p=>p.startsWith('emergency.')))}catch(e){if(e.cancelled)throw e;}}
 async function openEmergency(){
   await initEmergency();
   if(!$('emergencyModal')){

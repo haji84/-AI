@@ -4,7 +4,7 @@ function clearOperations(){Object.assign(operationsState,{permissions:[],inciden
 const operationsCan=p=>operationsState.permissions.includes(p);
 const operationsJSON=(method,data)=>({method,headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
 async function operationsAction(fn){$('operationsMessage').textContent='';try{await fn()}catch(e){if(e.cancelled||!$('operationsMessage'))return;$('operationsMessage').textContent=e.status===409?'更新競合または根拠変更があります。「再読込」で最新記録を開いてください。':(Array.isArray(e.body?.detail)?e.body.detail.map(d=>d.loc.join('.')+': '+d.msg).join(' / '):String(e.message))}}
-async function initOperations(){try{const r=await api('/auth/permissions');operationsState.permissions=r.permissions;$('operationsBtn').classList.toggle('hidden',!r.permissions.some(p=>p.startsWith('incident.')||p.startsWith('fleet.')))}catch{}}
+async function initOperations(){try{const r=await api('/auth/permissions');operationsState.permissions=r.permissions;$('operationsBtn').classList.toggle('hidden',!r.permissions.some(p=>p.startsWith('incident.')||p.startsWith('fleet.')))}catch(e){if(e.cancelled)throw e;}}
 function operationsButton(id,label,permission){return !permission||operationsCan(permission)?`<button class="btn" id="${id}" type="button">${esc(label)}</button>`:''}
 function operationsBind(id,fn){if($(id))$(id).onclick=()=>operationsAction(fn)}
 const operationKinds=[['fire','火災'],['rescue','救助'],['emergency_support','救急支援'],['watch','警戒'],['storm','風水害'],['other','その他']];

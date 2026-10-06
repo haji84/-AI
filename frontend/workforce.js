@@ -28,7 +28,7 @@ function workforceLocalTime(value){return value.length===16?value+':00+09:00':va
 const workforceCan=p=>workforceState.permissions.includes(p);
 const workforceJSON=(method,data)=>({method,headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
 async function workforceAction(fn){try{await fn();if($('workforceMessage'))$('workforceMessage').textContent=''}catch(e){if(e.cancelled)return;if($('workforceMessage'))$('workforceMessage').textContent=e.status===409?'更新競合または根拠変更があります。最新データを再読込してください。':String(e.message)}}
-async function initWorkforce(){try{const r=await workforceAPI('/auth/permissions');if(!r.permissions.includes('workforce.read'))clearWorkforce();workforceState.permissions=r.permissions;$('workforceBtn')?.classList.toggle('hidden',!r.permissions.some(p=>p.startsWith('workforce.')))}catch{}}
+async function initWorkforce(){try{const r=await workforceAPI('/auth/permissions');if(!r.permissions.includes('workforce.read'))clearWorkforce();workforceState.permissions=r.permissions;$('workforceBtn')?.classList.toggle('hidden',!r.permissions.some(p=>p.startsWith('workforce.')))}catch(e){if(e.cancelled)throw e;}}
 function workforceButton(id,label,permission){return !permission||workforceCan(permission)?`<button class="btn" id="${id}" type="button">${esc(label)}</button>`:''}
 function workforceBind(id,fn){if($(id))$(id).onclick=()=>workforceAction(fn)}
 function workforceOptions(rows,key,label,blank=true){return [...(blank?[['','未指定']]:[]),...rows.map(r=>[r[key],label(r)])]}

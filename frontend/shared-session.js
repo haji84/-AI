@@ -66,7 +66,7 @@
     }catch(error){if(ticket!==generation)throw cancelled();throw error;}
   };
   async function cachedAction(event){
-    const target=event.target?.closest?.('button, a, input, select, textarea, form, [onclick]');
+    const target=event.target?.closest?.('button, a, input, select, textarea, form, summary, [onclick]');
     if(!target||redispatch.has(target)){if(target)redispatch.delete(target);return;}
     if(target.closest?.('#loginView')||target.id==='logoutBtn'||target.disabled)return;
     if(event.type==='click'&&['INPUT','SELECT','TEXTAREA'].includes(target.tagName))return;
@@ -86,7 +86,7 @@
       }
       redispatch.add(target);
       if(event.type==='click'&&typeof target.click==='function')target.click();
-      else target.dispatchEvent(new Event(event.type,{bubbles:true,cancelable:true}));
+      else target.dispatchEvent(event.type==='click'?new MouseEvent('click',{bubbles:true,cancelable:true,clientX:event.clientX,clientY:event.clientY,screenX:event.screenX,screenY:event.screenY,button:event.button,buttons:event.buttons,ctrlKey:event.ctrlKey,shiftKey:event.shiftKey,altKey:event.altKey,metaKey:event.metaKey,detail:event.detail}):new Event(event.type,{bubbles:true,cancelable:true}));
     }catch(error){if(!error.cancelled&&ticket===generation&&binding!==null)invalidate();}
   }
   window.FireAISession={install(options={}){
@@ -96,6 +96,7 @@
     for(const name of ['click','change','submit'])document.addEventListener(name,cachedAction,true);
     const refresh=()=>{if(binding!==null)observe(generation).catch(()=>{});};
     window.addEventListener('focus',refresh);
+    window.addEventListener('unhandledrejection',event=>{if(event.reason?.cancelled)event.preventDefault();});
     document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')refresh();});
-  },check:()=>observe(generation),invalidate};
+  },check:()=>observe(generation),currentGeneration:()=>generation,invalidate};
 })();

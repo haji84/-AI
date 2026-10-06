@@ -775,7 +775,7 @@ def test_review_picker_uses_selected_entity_identity(tmp_path):
  root=Path(__file__).resolve().parents[2];script=tmp_path/'picker.cjs'
  script.write_text(r'''
 const fs=require('fs'),vm=require('vm'),assert=require('assert');const nodes=new Map();const get=id=>{if(!nodes.has(id))nodes.set(id,{value:'',innerHTML:'',remove(){},closest(){return {append(){}}}});return nodes.get(id)};
-let rows=[];const ctx={URLSearchParams,$:get,esc:String,document:{createElement(){return {}}},api:async()=>rows};vm.createContext(ctx);vm.runInContext(fs.readFileSync(process.argv[2],'utf8'),ctx);
+let rows=[];const ctx={URLSearchParams,$:get,esc:String,document:{createElement(){return {}},contains:node=>[...nodes.values()].includes(node)},api:async()=>rows};vm.createContext(ctx);vm.runInContext(fs.readFileSync(process.argv[2],'utf8'),ctx);
 (async()=>{for(const [key,row,want] of [['commitment_id',{proposal_id:'COMMITMENT',commitment_id:null,account_id:'ACCOUNT',kind:'commitment',amount:'1',currency:'JPY'},'COMMITMENT'],['invoice_id',{event_id:'INVOICE',contract_case_id:'CONTRACT',kind:'invoice',amount:'1',currency:'JPY'},'INVOICE'],['related_event_id',{event_id:'INSPECTION',related_event_id:'DELIVERY',kind:'inspection',amount:'1',currency:'JPY'},'INSPECTION']]){rows=[row];await ctx.financePicker(key,'/synthetic','Synthetic');assert(get('financeField_'+key).innerHTML.includes('value="'+want+'"'),get('financeField_'+key).innerHTML)}})().catch(e=>{console.error(e);process.exit(1)});
 ''')
  r=subprocess.run(['node',str(script),str(root/'frontend/finance.js')],capture_output=True,text=True);assert r.returncode==0,r.stderr

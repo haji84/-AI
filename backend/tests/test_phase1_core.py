@@ -6809,6 +6809,7 @@ def test_phase6_pdf_drawing_preview_info_and_page_png():
         f"/drawing-analyses/{aid}/pages/1/preview"
     )
     assert preview.status_code == 200
+    assert preview.headers["cache-control"] == "no-store"
     assert preview.headers["content-type"].startswith(
         "image/png"
     )
@@ -6820,6 +6821,7 @@ def test_phase6_pdf_drawing_preview_info_and_page_png():
         f"/drawing-analyses/{aid}/pages/2/preview"
     )
     assert second.status_code == 200
+    assert second.headers["cache-control"] == "no-store"
     assert second.headers["x-drawing-page-width"] == "600"
     assert second.headers["x-drawing-page-height"] == "1000"
 
