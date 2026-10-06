@@ -410,3 +410,13 @@ def test_phase6_drawing_benchmark_accepts_same_source_reference_hypothesis(tmp_p
 
     result = mod.score_pair(ref_path, hyp_path)
     assert result["metrics"]["geometry_detection"]["applicable"] is False
+
+
+
+def test_phase6_drawing_benchmark_cli_uses_shared_core():
+    from app import drawing_benchmark_core as core
+
+    mod = _mod()
+    assert mod.score_drawing is core.score_drawing
+    assert mod._aggregate is not core.aggregate_drawings
+    assert mod._aggregate([], 0.5) == core.aggregate_drawings([], 0.5)
