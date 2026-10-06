@@ -3,6 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import date, datetime, time, timezone
 from decimal import Decimal
+from .finance_money import ExactMoney
 
 from sqlalchemy import (
     BigInteger,
@@ -404,7 +405,7 @@ class ContractCase(Base):
     title: Mapped[str] = mapped_column(String(500), nullable=False, index=True)
     counterparty_id: Mapped[str | None] = mapped_column(ForeignKey("contract_counterparties.counterparty_id"), index=True)
     contract_method: Mapped[str | None] = mapped_column(String(150))
-    amount: Mapped[Decimal | None] = mapped_column(Numeric(18, 2))
+    amount: Mapped[Decimal | None] = mapped_column(ExactMoney())
     currency: Mapped[str] = mapped_column(String(10), nullable=False, default="JPY")
     start_date: Mapped[date | None] = mapped_column(Date)
     end_date: Mapped[date | None] = mapped_column(Date)
