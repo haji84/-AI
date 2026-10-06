@@ -1671,7 +1671,7 @@ Verified checkpoint:
 
 ## Phase 6 Annotation boundary snapping
 
-Implemented on branch `phase6-annotation-snapping`; CI verification pending:
+Implemented and CI-verified:
 - Draft room/zone vertex editing now supports optional boundary snapping
 - snapping is enabled by default and can be toggled ON/OFF
 - display-space threshold is approximately 10px and is converted to drawing coordinates
@@ -1692,3 +1692,9 @@ Safety:
 - no polygon is moved automatically after the Human finishes the gesture
 - no server-side Geometry is inferred from snapping state
 - disabling snapping restores exact freehand point placement
+
+Verified checkpoint:
+- run: `37430859727` SUCCESS
+- backend pytest: 170 passed
+- migration parser smoke: PASS
+- frontend JavaScript syntax: PASS
