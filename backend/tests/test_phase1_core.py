@@ -7734,3 +7734,76 @@ def test_phase6_drawing_benchmark_compare_includes_area_accuracy():
     assert metrics["area_mean_relative_error"]["lower_is_better"] is True
     assert round(metrics["area_within_10_percent_rate"]["delta_right_minus_left"],6)==0.5
     assert metrics["area_within_10_percent_rate"]["higher_is_better"] is True
+
+
+
+def test_phase6_import_reference_derives_floor_area_targets_from_source_observations():
+    login()
+    facility = client.post(
+        "/facilities",
+        json={"name":"Reference Floor Area Target対象"},
+    ).json()
+    bid = facility["building_id"]
+    upload = client.post(
+        "/documents/upload",
+        files={"file":("area-target-source.png",b"area-target-source","image/png")},
+        data={"document_type":"drawing","building_id":bid},
+    ).json()
+    aid = client.post(
+        f"/facilities/{bid}/drawing-analyses",
+        json={
+            "document_id":upload["document_id"],
+            "analysis_method":"manual",
+        },
+    ).json()["drawing_analysis_id"]
+
+    imported = client.post(
+        f"/drawing-analyses/{aid}/annotations/import-reference",
+        json={
+            "reference":{
+                "reference_format":"fire-ai-drawing-human-reference-draft-v1",
+                "reference_status":"pending_human_acceptance",
+                "source":{
+                    "sha256":upload["sha256"],
+                    "pixel_width":1000,
+                    "pixel_height":800,
+                    "filename":"area-target-source.png",
+                },
+                "elements":[],
+                "equipment_candidates":[],
+                "fact_candidates":[],
+                "source_observations":{
+                    "floor_area_m2":{
+                        "1F":78.66,
+                        "2F":33.44,
+                    }
+                },
+            }
+        },
+    )
+    assert imported.status_code == 201
+    body = imported.json()
+
+    assert body["status"] == "draft"
+    assert body["payload"]["area_targets"] == [
+        {
+            "floor_number":1,
+            "target_area_m2":78.66,
+            "label":"1F",
+            "source":"reference.source_observations.floor_area_m2",
+            "note":None,
+            "comparison_basis":"rooms_only",
+        },
+        {
+            "floor_number":2,
+            "target_area_m2":33.44,
+            "label":"2F",
+            "source":"reference.source_observations.floor_area_m2",
+            "note":None,
+            "comparison_basis":"rooms_only",
+        },
+    ]
+
+    comparisons = body["payload"]["geometry_summary"]["area_target_comparisons"]
+    assert len(comparisons) == 2
+    assert {x["status"] for x in comparisons} == {"missing_floor_annotation"}
