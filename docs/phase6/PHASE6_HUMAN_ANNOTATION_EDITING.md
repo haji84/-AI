@@ -124,3 +124,43 @@ It is **not** automatically the statutory or architectural floor-area determinat
 Walls, shafts, voids, open-plan functional zones, intentionally overlapping arbitrary zones, and incomplete Annotation coverage can make the annotated sum differ from a formal floor area.
 
 The UI therefore labels it as an annotated-region total and keeps overlap warnings visible for Human review.
+
+
+## Human floor-area targets
+
+A reviewer can optionally register a known floor area in square meters for each floor.
+
+Example:
+
+```json
+{
+  "floor_number": 1,
+  "target_area_m2": 78.66,
+  "label": "1階",
+  "source": "printed_area_table",
+  "comparison_basis": "rooms_only"
+}
+```
+
+Rules:
+
+- at most one target per floor
+- target area must be greater than 0
+- targets are Human evidence, not derived values
+- arbitrary `zone` polygons are excluded from the target comparison
+- the comparison uses the sum of calibrated `room` polygons only
+- if any room on the floor is uncalibrated, difference m² / % remains unresolved
+- if no room Annotation exists for the target floor, the target is marked `missing_floor_annotation`
+
+Reference Draft import can derive targets from:
+
+`source_observations.floor_area_m2`
+
+For example, the supplied house-plan-001 values:
+
+- 1F = 78.66 m²
+- 2F = 33.44 m²
+
+are imported automatically as floor targets.
+
+The comparison is an Annotation consistency check only. It does not certify the statutory floor area.

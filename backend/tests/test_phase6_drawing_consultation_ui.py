@@ -214,9 +214,32 @@ def test_phase6_annotation_ui_shows_live_floor_area_summary_and_overlap_warning(
         "drawingGeometrySummaryHtml(",
         "drawingPolygonsOverlapInterior(",
         "階別 区画面積サマリー",
-        "区画面積合計",
+        "全区画合計",
+        "部屋合計",
         "重なり警告",
         "法令上の床面積確定値ではありません",
     ]
     missing = [x for x in required if x not in html]
     assert not missing, f"floor-area summary UI wiring missing: {missing}"
+
+
+
+def test_phase6_annotation_ui_supports_human_floor_area_targets():
+    html = (
+        Path(__file__).resolve().parents[2]
+        / "frontend"
+        / "index.html"
+    ).read_text(encoding="utf-8")
+
+    required = [
+        "setDrawingFloorAreaTarget()",
+        "clearDrawingFloorAreaTarget()",
+        "既知の階面積を登録",
+        "既知面積を解除",
+        "comparison_basis:'rooms_only'",
+        "difference_m2",
+        "difference_pct",
+        "既知面積との比較はroom区画合計のみ",
+    ]
+    missing = [x for x in required if x not in html]
+    assert not missing, f"floor-area target UI wiring missing: {missing}"
