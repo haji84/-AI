@@ -4,7 +4,7 @@
 
 ## 完成タスクの現在地（2026-10-06再監査）
 
-main24a0ea8（PR54）を正本として確認。小さなPRの完了はシステム完成を意味しない。
+main b2fc2612（PR56）を正本として確認。小さなPRの完了はシステム完成を意味しない。
 - PR41/43: 共通コード＋本部別DB/実行環境/原本/backupを固定。UUID照合、専用構成生成、PostgreSQL移行/復元/役割境界をCI検証済み。
 - PR44: 組織・職員・人事履歴・有効日権限・Humanアカウント管理・パスワード履歴/変更・セッション失効・監査閲覧。PR CI302成功、実ブラウザ1成功。main CI37476512786 SUCCESS。
 - RunB PR40/42/46の救急・事案/出動・車両・業務資産/在庫/貸出/保守を維持。main CI37482634204 SUCCESS。残り業務モジュールはRunBの連続実装対象。
@@ -1931,6 +1931,8 @@ Completion work must now follow the Matrix backlog rather than historical Phase 
 A PR/module completion is not a stopping condition.
 After each merged completion slice, refresh main and update the affected Matrix rows only.
 
-## Task8 Human権限管理（main未反映）
+## Task8 Human権限管理（PR56 merge済み）
 
-main24a0ea8とmain CI37494620742 SUCCESS、開PR53、Migration001–043/045、実コード・テスト・未完Gateを再監査。customRole、完全一致RoleRule、期限付き/代理grant、本人向け根拠、原本preview hash、CAS・監査・session失効・ブラウザ操作を実装中。内部PartialをExternal Gateに移さず、CI/review/merge後に判定する。詳細docs/completion/HUMAN_ROLE_MANAGEMENT.md。
+main24a0ea8とmain CI37494620742 SUCCESS、開PR53、Migration001–043/045、実コード・テスト・未完Gateを再監査。customRole、完全一致RoleRule、期限付き/代理grant、本人向け根拠、原本preview hash、CAS・監査・session失効・ブラウザ操作をPR56でmerge。レビュー6件とbootstrap500をRED→GREEN修正、PR backend447/実browser5成功。資格/担当selectorと辞令Document候補は内部Partialのまま継続する。詳細docs/completion/HUMAN_ROLE_MANAGEMENT.md。
+
+PR56 Human Role/Rule/期限付き・代理はmain b2fc2612へmerge。exact-head CI447/backend＋5/browser成功、main CI37500653453 SUCCESS確認済み。資格/担当selector・辞令Document候補は内部Partial。共通Migrationのdollar-quoted immutable trigger/percent/preflight不足を次Sliceで修復中。詳細docs/completion/MIGRATION_SQL_SUPPORT.md。

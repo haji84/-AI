@@ -2,7 +2,7 @@
 
 Audit date: 2026-10-06
 Canonical specification: docs/SPECIFICATION.md v2.0
-Audited main: 24a0ea8db84a152a5bcf56a206c5c15181b18083
+Audited main: b2fc2612a35a86f7746da7ea968da570c87cb773
 
 This matrix compares all 57 Master Specification chapters against the actual repository: models, migrations, routers, services, frontend surfaces, tests, deployment files and current CI evidence.
 
@@ -33,7 +33,7 @@ Status meanings:
 | 4 | Update, Release and Rollback | Partial | Module registry, Feature Flag/Change Request foundation, signed legal Update Bundle | full application Release updater, staged rollout and rollback across all deployment profiles |
 | 5 | Common Data Principles | Completed | UUID records, optimistic versions, audit, logical lifecycle patterns across core models | module-specific exceptions must continue to follow these rules |
 | 6 | Employee, Organization and Account | Partial | PR44, Migration041, personnel.py, routers/administration.py, admin UI/tests | Document-driven personnel transfer/import flow; remaining account lifecycle polish |
-| 7 | Authorization | Partial | authz.py, RBAC, backend permission dependencies, effective-dated appointment roles | audited custom permission/Role Rule management and explicit temporary/acting grant administration remain internally missing; production role acceptance is external |
+| 7 | Authorization | Partial | authz.py, RBAC, backend permission dependencies, effective-dated appointment roles | PR56 customRole/RoleRule/timed/acting and own explanation are merged with PG/browser CI; qualification/duty-derived selector extension remains internal; production role acceptance is external |
 | 8 | Audit | Partial | audit.py, AuditLog, administration audit APIs/UI, broad write auditing | complete paging/filter/admin operations and production DB immutability evidence |
 | 9 | Document Platform | Completed | Document model, managed storage, SHA-256, source/original separation, document router | continue module adapters without duplicating originals |
 | 10 | Document Intake and OCR | Partial | document_intake.py, intake router/UI, PDF/image/DOCX/XLSX/text paths | HEIC path, multi-image document assembly, correction/quality pipeline and all target-module adapters |
