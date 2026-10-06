@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="ja">
 <head><script src="/ui/auth-session.js"></script>
+<script src="/ui/shared-session.js"></script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>消防業務 Local AI</title>
@@ -218,7 +219,27 @@ const fireState={caseId:null,detail:null,mediaType:null};
 const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
 const val=v=>(v===null||v===undefined||v==='')?'－':esc(v);
 
-async function api(url,opt={}){const r=await fetch(url,opt);let body=null;try{body=await r.json()}catch{}if(!r.ok){const e=new Error(body?.detail?.message||body?.detail||`HTTP ${r.status}`);e.status=r.status;e.body=body;throw e}return body}
+const initialPrivateState=JSON.parse(JSON.stringify({state,legalReviewState,fireState}));
+const initialPrivateDOM=new Map(Array.from(document.querySelectorAll('#appView, .modalWrap')).map(node=>[node.id,node.innerHTML]));
+function clearSharedPrivateState(){
+  clearDrawingPreviewResource();
+  for(const clear of [window.clearFinance,window.clearWorkforce,window.clearViolations,window.clearInquiries,window.clearAssets,window.clearOperations,window.clearEmergency])if(typeof clear==='function')clear();
+  for(const [object,key] of [[state,'state'],[legalReviewState,'legalReviewState'],[fireState,'fireState']]){
+    for(const property of Object.keys(object))delete object[property];
+    Object.assign(object,JSON.parse(JSON.stringify(initialPrivateState[key])));
+  }
+  for(const node of document.querySelectorAll('#appView, .modalWrap')){
+    if(initialPrivateDOM.has(node.id)){node.innerHTML=initialPrivateDOM.get(node.id);node.classList.add('hidden');}
+    else node.remove();
+  }
+  document.querySelectorAll('header button, header a').forEach(node=>node.classList.add('hidden'));
+  $('loginUser').value='';$('loginPass').value='';
+  $('loginView').classList.remove('hidden');$('loginMsg').textContent='セッションまたは権限が変わりました。再ログインしてください。';
+}
+window.FireAISession.install({reset:clearSharedPrivateState});
+
+
+async function api(url,opt={}){const r=await fetch(url,opt);let body=null;try{body=await r.json()}catch(error){if(error.cancelled||error.status)throw error;}if(!r.ok){const e=new Error(body?.detail?.message||body?.detail||`HTTP ${r.status}`);e.status=r.status;e.body=body;throw e}return body}
 async function openUnifiedSearch(){
   $('unifiedSearchModal').classList.remove('hidden');
   setTimeout(()=>$('unifiedSearchQ')?.focus(),0);
@@ -274,7 +295,7 @@ async function openUnifiedSearchHit(module,sourceType,sourceId,buildingId,caseId
       await selectFacility(buildingId);
       return;
     }
-  }catch(e){alert('元データを開けません: '+e.message)}
+  }catch(e){if(e.cancelled)throw e;alert('元データを開けません: '+e.message)}
 }
 async function runUnifiedSearch(){
   const q=$('unifiedSearchQ').value.trim();
@@ -290,16 +311,16 @@ async function runUnifiedSearch(){
       '<div class="muted">出典 '+esc(hit.source_type)+' / '+esc(hit.source_id)+' ・ 必要権限 '+esc(hit.required_permission)+(hit.occurred_at?' ・ '+esc(hit.occurred_at):'')+'</div>'+
       '<div class="row" style="margin-top:8px">'+unifiedSearchAction(hit)+'</div></div>'
     ).join(''):'<div class="empty">権限範囲内に一致するデータはありません。</div>';
-  }catch(e){
+  }catch(e){if(e.cancelled)throw e;
     $('unifiedSearchSummary').textContent='';
     box.innerHTML='<div class="conflict">横断検索できません: '+esc(e.message)+'</div>';
   }
 }
 
-async function login(){try{await api('/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:$('loginUser').value,password:$('loginPass').value})});$('loginView').classList.add('hidden');$('appView').classList.remove('hidden');$('logoutBtn').classList.remove('hidden');const ownPermissions=await api('/auth/permissions');$('emergencyReportBtn').classList.toggle('hidden',!ownPermissions.permissions.includes('emergency.report.read'));$('unifiedSearchBtn').classList.remove('hidden');$('legalReviewBtn').classList.remove('hidden');$('fireInvestigationBtn').classList.remove('hidden');await initEmergency();await initOperations();await initAssets();await initFinance();await initWorkforce();await initViolations();await initInquiries();await loadFacilities(0)}catch(e){$('loginMsg').textContent='ログインできません。ユーザー名・パスワードを確認してください。'}}
+async function login(){try{await api('/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:$('loginUser').value,password:$('loginPass').value})});$('loginView').classList.add('hidden');$('appView').classList.remove('hidden');$('logoutBtn').classList.remove('hidden');const ownPermissions=await api('/auth/permissions');$('emergencyReportBtn').classList.toggle('hidden',!ownPermissions.permissions.includes('emergency.report.read'));$('unifiedSearchBtn').classList.remove('hidden');$('legalReviewBtn').classList.remove('hidden');$('fireInvestigationBtn').classList.remove('hidden');await initEmergency();await initOperations();await initAssets();await initFinance();await initWorkforce();await initViolations();await initInquiries();await loadFacilities(0)}catch(e){if(e.cancelled)throw e;$('loginMsg').textContent='ログインできません。ユーザー名・パスワードを確認してください。'}}
 async function logout(){try{await fetch('/auth/logout',{method:'POST'})}catch{}location.reload()}
 
-async function loadFacilities(offset=state.offset){state.offset=Math.max(0,offset);const p=new URLSearchParams({offset:state.offset,limit:state.limit,sort_by:$('sortBy').value,sort_dir:$('sortDir').value});if($('searchQ').value.trim())p.set('q',$('searchQ').value.trim());if($('statusFilter').value)p.set('status_filter',$('statusFilter').value);try{const d=await api('/facilities?'+p);state.total=d.total;renderList(d.items)}catch(e){if(e.status===401){location.reload();return}$('facilityList').innerHTML='<div class="empty">一覧を取得できません</div>'}}
+async function loadFacilities(offset=state.offset){state.offset=Math.max(0,offset);const p=new URLSearchParams({offset:state.offset,limit:state.limit,sort_by:$('sortBy').value,sort_dir:$('sortDir').value});if($('searchQ').value.trim())p.set('q',$('searchQ').value.trim());if($('statusFilter').value)p.set('status_filter',$('statusFilter').value);try{const d=await api('/facilities?'+p);state.total=d.total;renderList(d.items)}catch(e){if(e.cancelled)throw e;if(e.status===401){location.reload();return}$('facilityList').innerHTML='<div class="empty">一覧を取得できません</div>'}}
 function renderList(items){$('listSummary').textContent=`${state.total}件`;const current=state.selected?.building_id;$('facilityList').innerHTML=items.map(x=>`<div class="facilityItem ${x.building_id===current?'selected':''}" onclick="selectFacility('${x.building_id}')"><b>${esc(x.name)}</b><div class="meta">${esc(x.address||'所在地未登録')}</div><div class="meta">整理番号 ${esc(x.legacy_serial_no||'－')} ・ ${x.status==='active'?'使用中':'廃止'}</div></div>`).join('')||'<div class="empty">該当なし</div>';const page=Math.floor(state.offset/state.limit)+1,totalPages=Math.max(1,Math.ceil(state.total/state.limit));$('pageInfo').textContent=`${page} / ${totalPages}`;$('prevBtn').disabled=state.offset===0;$('nextBtn').disabled=state.offset+state.limit>=state.total}
 function changePage(dir){loadFacilities(state.offset+dir*state.limit)}
 function drawingStatusLabel(status){
@@ -307,7 +328,7 @@ function drawingStatusLabel(status){
 }
 
 
-async function selectFacility(id){try{const [d,h,l,dash,ins,subs,equipment,drawings]=await Promise.all([api(`/facilities/${id}/detail`),api(`/facilities/${id}/history`),api(`/facilities/${id}/legacy-review`),api(`/facilities/${id}/dashboard`),api(`/inspections?building_id=${id}`),api(`/submissions?building_id=${id}`),api(`/facilities/${id}/equipment`),api(`/facilities/${id}/drawing-analyses`)]);state.selected=d.facility;state.detail=d;state.dashboard=dash;state.inspections=ins;state.submissions=subs;state.equipment=equipment;state.drawings=drawings;renderDetail(d,h,l,dash,ins,subs,equipment,drawings);await loadFacilities(state.offset)}catch(e){alert('対象物を取得できません: '+e.message)}}
+async function selectFacility(id){try{const [d,h,l,dash,ins,subs,equipment,drawings]=await Promise.all([api(`/facilities/${id}/detail`),api(`/facilities/${id}/history`),api(`/facilities/${id}/legacy-review`),api(`/facilities/${id}/dashboard`),api(`/inspections?building_id=${id}`),api(`/submissions?building_id=${id}`),api(`/facilities/${id}/equipment`),api(`/facilities/${id}/drawing-analyses`)]);state.selected=d.facility;state.detail=d;state.dashboard=dash;state.inspections=ins;state.submissions=subs;state.equipment=equipment;state.drawings=drawings;renderDetail(d,h,l,dash,ins,subs,equipment,drawings);await loadFacilities(state.offset)}catch(e){if(e.cancelled)throw e;alert('対象物を取得できません: '+e.message)}}
 function renderDetail(d,history,legacy,dash={},inspections=[],submissions=[],equipment=[],drawings=[]){$('noSelection').classList.add('hidden');$('detailView').classList.remove('hidden');const f=d.facility,x=d.detail||{},c=d.contact||{},floors=d.floors||[];const st=Object.fromEntries((dash.submission_statuses||[]).map(x=>[x.code,x]));const badge=(code,label)=>{const a=st[code],ok=a&&a.state!=='not_submitted';return `<div class="field"><label>${esc(label)}</label><div class="value"><span class="pill ${ok?'active':''}">${ok?'提出記録あり':'登録確認なし・要否未判定'}</span>${a?.latest_submitted_at?` <span class="muted">${esc(a.latest_submitted_at)}</span>`:''}</div></div>`};$('detailView').innerHTML=`<div class="card"><div class="hero"><div class="grow"><h1>${esc(f.name)}</h1><div class="muted">${esc(f.address||'所在地未登録')} ・ 整理番号 ${esc(f.legacy_serial_no||'－')} ・ Version ${f.version}</div></div><span class="pill ${f.status==='active'?'active':''}">${f.status==='active'?'使用中':'廃止'}</span></div><div class="toolbar" style="margin-top:12px"><button class="btn primary" onclick="openEdit()" ${f.status!=='active'?'disabled':''}>編集</button>${f.status==='active'?`<button class="btn danger" onclick="changeFacilityState('abolish')">廃止</button>`:`<button class="btn" onclick="changeFacilityState('restore')">復元</button>`}</div></div>
 <div class="card"><div class="sectionTitle">確認ダッシュボード</div><div class="grid3">${badge('equipment_inspection_report','消防用設備等点検結果報告')}${badge('fire_manager_appointment','防火管理者')}${badge('fire_plan','消防計画')}</div><div class="row" style="margin-top:10px"><span class="pill">査察 ${dash.inspections_total||0}件</span><span class="pill ${(dash.open_findings||0)>0?'dangerText':''}">未完了指摘 ${dash.open_findings||0}件</span><span class="muted">最終査察 ${esc(dash.latest_inspection_at||'未登録')}</span></div></div>
 <div class="card"><div class="row"><div class="sectionTitle grow">査察履歴</div><button class="btn primary" onclick="quickAddInspection()">＋ 査察登録</button></div>${inspections.length?`<div class="scroll"><table><thead><tr><th>実施日</th><th>種別</th><th>状態</th><th>指摘</th></tr></thead><tbody>${inspections.map(i=>`<tr><td>${esc(i.inspected_at)}</td><td>${esc(i.inspection_type)}</td><td>${esc(i.status)}</td><td>${i.findings.length?i.findings.map(q=>`<div>${esc(q.finding_text)} <span class="pill">${esc(q.corrective_status)}</span>${q.corrective_status!=='completed'?` <button class="btn" onclick="completeFinding('${q.finding_id}',${q.version})">是正完了</button>`:''}</div>`).join(''):'－'}</td></tr>`).join('')}</tbody></table></div>`:'<div class="muted">査察履歴なし</div>'}</div>
@@ -332,17 +353,17 @@ function floorEditRow(fl={},i){return `<tr data-floor-row><td><input style="widt
 function addFloorRow(){const tb=$('floorRows'),i=tb.children.length;tb.insertAdjacentHTML('beforeend',floorEditRow({},i))}
 function n(id){const v=$(id).value.trim();return v===''?null:Number(v)}function s(id){const v=$(id).value.trim();return v===''?null:v}
 function readDraft(){const floors=[...document.querySelectorAll('[data-floor-row]')].map(r=>{const o={};r.querySelectorAll('[data-k]').forEach(i=>{const k=i.dataset.k,v=i.value.trim();o[k]=i.type==='number'?(v===''?null:Number(v)):(v===''?null:v)});return o});return {name:s('e_name'),phone:s('e_phone'),address:s('e_address'),legacy_serial_no:s('e_serial'),detail:{legacy_book_type:s('e_book'),content_as_of:s('e_asof'),classification_code:s('e_class'),classification_detail_1:s('e_class1'),classification_detail_2:s('e_class2'),zoning:s('e_zoning'),article8_partition:s('e_a8'),structure:s('e_structure'),above_ground_floors:n('e_ag'),basement_floors:n('e_bg'),building_area:n('e_ba'),total_floor_area:n('e_ta')},contact:{representative_name:s('e_repname'),representative_title:s('e_reptitle'),representative_address:s('e_repaddr'),representative_phone:s('e_repphone')},floors}}
-async function saveFacility(){const p=readDraft();if(!p.name){$('editNotice').innerHTML='<div class="notice">名称は必須です。</div>';return}try{let r;if(state.mode==='create'){r=await api('/facilities',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)})}else{p.expected_version=state.detail.facility.version;r=await api(`/facilities/${state.detail.facility.building_id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)})}closeEdit();await loadFacilities(state.offset);await selectFacility(r.building_id)}catch(e){if(e.status===409){renderConflict(e.body?.detail?.current,p);return}$('editNotice').innerHTML=`<div class="notice dangerText">保存できません: ${esc(e.message)}</div>`}}
+async function saveFacility(){const p=readDraft();if(!p.name){$('editNotice').innerHTML='<div class="notice">名称は必須です。</div>';return}try{let r;if(state.mode==='create'){r=await api('/facilities',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)})}else{p.expected_version=state.detail.facility.version;r=await api(`/facilities/${state.detail.facility.building_id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)})}closeEdit();await loadFacilities(state.offset);await selectFacility(r.building_id)}catch(e){if(e.cancelled)throw e;if(e.status===409){renderConflict(e.body?.detail?.current,p);return}$('editNotice').innerHTML=`<div class="notice dangerText">保存できません: ${esc(e.message)}</div>`}}
 function flatten(o,p='',out={}){if(o===null||typeof o!=='object'||Array.isArray(o)){out[p]=JSON.stringify(o);return out}for(const [k,v] of Object.entries(o))flatten(v,p?`${p}.${k}`:k,out);return out}
 function renderConflict(current,local){const c=flatten(current||{}),l=flatten(local||{}),keys=[...new Set([...Object.keys(c),...Object.keys(l)])].filter(k=>c[k]!==l[k]&&/(name|address|phone|classification|structure|area|representative|floors)/.test(k)).slice(0,20);$('editNotice').innerHTML=`<div class="conflict"><b>他の職員が先に更新しています。</b><p class="muted">上書きは停止しました。最新データを読み直してから、必要な変更だけ再入力してください。</p>${keys.map(k=>`<div class="diffRow"><b>${esc(k)}</b><div>あなた: ${esc(l[k]??'')}</div><div>最新: ${esc(c[k]??'')}</div></div>`).join('')}<div style="margin-top:8px"><button class="btn" onclick="reloadConflict()">最新データを読み直す</button></div></div>`}
 async function reloadConflict(){const id=state.detail.facility.building_id;const d=await api(`/facilities/${id}/detail`);state.detail=d;state.draft=JSON.parse(JSON.stringify(d));openEditor(state.draft,'対象物を編集（最新データ）')}
-async function changeFacilityState(action){if(!state.detail)return;const label=action==='abolish'?'廃止':'復元';if(!confirm(`${state.detail.facility.name}を${label}しますか？`))return;try{const r=await api(`/facilities/${state.detail.facility.building_id}/${action}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:state.detail.facility.version})});await loadFacilities(state.offset);await selectFacility(r.building_id)}catch(e){if(e.status===409){alert('他の職員が先に更新しています。最新情報を読み直します。');await selectFacility(state.detail.facility.building_id);return}alert(`${label}できません: ${e.message}`)}}
+async function changeFacilityState(action){if(!state.detail)return;const label=action==='abolish'?'廃止':'復元';if(!confirm(`${state.detail.facility.name}を${label}しますか？`))return;try{const r=await api(`/facilities/${state.detail.facility.building_id}/${action}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:state.detail.facility.version})});await loadFacilities(state.offset);await selectFacility(r.building_id)}catch(e){if(e.cancelled)throw e;if(e.status===409){alert('他の職員が先に更新しています。最新情報を読み直します。');await selectFacility(state.detail.facility.building_id);return}alert(`${label}できません: ${e.message}`)}}
 
-async function quickAddInspection(){if(!state.detail)return;const inspected_at=prompt('査察実施日 YYYY-MM-DD',new Date().toISOString().slice(0,10));if(!inspected_at)return;const inspection_type=prompt('査察種別','定期査察')||'general';const finding=prompt('指摘事項（なければ空欄）','')||'';const payload={building_id:state.detail.facility.building_id,inspected_at,inspection_type,findings:finding?[{finding_text:finding,corrective_status:'open'}]:[]};try{await api('/inspections',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});await selectFacility(state.detail.facility.building_id)}catch(e){alert('査察を登録できません: '+e.message)}}
-async function completeFinding(id,version){try{await api(`/inspections/findings/${id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:version,corrective_status:'completed',completed_at:new Date().toISOString().slice(0,10)})});await selectFacility(state.detail.facility.building_id)}catch(e){alert('指摘事項を更新できません: '+e.message)}}
-async function quickReceiveSubmission(){if(!state.detail)return;let types;try{types=await api('/submissions/types')}catch(e){alert('届出種別を取得できません: '+e.message);return}const menu=types.map((x,i)=>`${i+1}: ${x.name}`).join('\n');const choice=Number(prompt(`届出種別を番号で選択してください\n${menu}`,'1'));if(!choice||!types[choice-1])return;const type=types[choice-1];const official_number=prompt('正式届出番号（数字のみ。未取得なら空欄）','')||null;if(official_number&&!/^\d+$/.test(official_number)){alert('正式届出番号は数字のみです。');return}const submitted_at=prompt('提出日 YYYY-MM-DD',new Date().toISOString().slice(0,10));if(!submitted_at)return;const fileInput=document.createElement('input');fileInput.type='file';fileInput.accept='.pdf,.jpg,.jpeg,.png,.webp,.tif,.tiff,.xlsx,.xlsm,.docx,.txt,.csv,.tsv';fileInput.onchange=async()=>{const file=fileInput.files?.[0];if(!file)return;try{const fd=new FormData();fd.append('file',file);fd.append('document_type','submission_source');fd.append('building_id',state.detail.facility.building_id);const doc=await api('/documents/upload',{method:'POST',body:fd});const payload={building_id:state.detail.facility.building_id,submission_type_code:type.code,official_number,submitted_at,document_ids:[doc.document_id],payload_data:{}};if(type.code==='fire_manager_appointment'){payload.payload_data.manager_name=prompt('防火管理者氏名（任意）','')||null}await api('/submissions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});await selectFacility(state.detail.facility.building_id)}catch(e){alert('届出を受付できません: '+e.message)}};fileInput.click()}
+async function quickAddInspection(){if(!state.detail)return;const inspected_at=prompt('査察実施日 YYYY-MM-DD',new Date().toISOString().slice(0,10));if(!inspected_at)return;const inspection_type=prompt('査察種別','定期査察')||'general';const finding=prompt('指摘事項（なければ空欄）','')||'';const payload={building_id:state.detail.facility.building_id,inspected_at,inspection_type,findings:finding?[{finding_text:finding,corrective_status:'open'}]:[]};try{await api('/inspections',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});await selectFacility(state.detail.facility.building_id)}catch(e){if(e.cancelled)throw e;alert('査察を登録できません: '+e.message)}}
+async function completeFinding(id,version){try{await api(`/inspections/findings/${id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:version,corrective_status:'completed',completed_at:new Date().toISOString().slice(0,10)})});await selectFacility(state.detail.facility.building_id)}catch(e){if(e.cancelled)throw e;alert('指摘事項を更新できません: '+e.message)}}
+async function quickReceiveSubmission(){if(!state.detail)return;let types;try{types=await api('/submissions/types')}catch(e){if(e.cancelled)throw e;alert('届出種別を取得できません: '+e.message);return}const menu=types.map((x,i)=>`${i+1}: ${x.name}`).join('\n');const choice=Number(prompt(`届出種別を番号で選択してください\n${menu}`,'1'));if(!choice||!types[choice-1])return;const type=types[choice-1];const official_number=prompt('正式届出番号（数字のみ。未取得なら空欄）','')||null;if(official_number&&!/^\d+$/.test(official_number)){alert('正式届出番号は数字のみです。');return}const submitted_at=prompt('提出日 YYYY-MM-DD',new Date().toISOString().slice(0,10));if(!submitted_at)return;const fileInput=document.createElement('input');fileInput.type='file';fileInput.accept='.pdf,.jpg,.jpeg,.png,.webp,.tif,.tiff,.xlsx,.xlsm,.docx,.txt,.csv,.tsv';fileInput.onchange=async()=>{const file=fileInput.files?.[0];if(!file)return;try{const fd=new FormData();fd.append('file',file);fd.append('document_type','submission_source');fd.append('building_id',state.detail.facility.building_id);const doc=await api('/documents/upload',{method:'POST',body:fd});const payload={building_id:state.detail.facility.building_id,submission_type_code:type.code,official_number,submitted_at,document_ids:[doc.document_id],payload_data:{}};if(type.code==='fire_manager_appointment'){payload.payload_data.manager_name=prompt('防火管理者氏名（任意）','')||null}await api('/submissions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});await selectFacility(state.detail.facility.building_id)}catch(e){if(e.cancelled)throw e;alert('届出を受付できません: '+e.message)}};fileInput.click()}
 
-async function smartReceiveSubmission(){if(!state.detail)return;const input=document.createElement('input');input.type='file';input.accept='.pdf,.jpg,.jpeg,.png,.webp,.tif,.tiff,.xlsx,.xlsm,.docx,.txt,.csv,.tsv';input.onchange=async()=>{const file=input.files?.[0];if(!file)return;try{const fd=new FormData();fd.append('file',file);fd.append('document_type','submission_source');const doc=await api('/documents/upload',{method:'POST',body:fd});const analysis=await api('/document-analyses',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({document_id:doc.document_id})});const method=analysis.extraction_method||'unknown',conf=analysis.confidence==null?'－':Math.round(analysis.confidence*100)+'%';alert(`文書解析完了\n抽出方式: ${method}\n書類種別候補: ${analysis.detected_submission_type_code||'判定できず'}\n信頼度: ${conf}\n\n正式登録はまだ行っていません。`);const candidates=analysis.facility_candidates||[];let buildingId=state.detail.facility.building_id;if(candidates.length){const menu=candidates.map((x,i)=>`${i+1}: ${x.name} / ${x.address||'所在地未登録'} / ${Math.round((x.score||0)*100)}%`).join('\n');const currentIndex=candidates.findIndex(x=>x.building_id===buildingId);const choice=Number(prompt(`対象物候補を確認してください\n${menu}\n\n0: 現在開いている対象物 ${state.detail.facility.name}`,currentIndex>=0?String(currentIndex+1):'0'));if(Number.isNaN(choice))return;if(choice>0&&candidates[choice-1])buildingId=candidates[choice-1].building_id}else if(!confirm(`対象物候補を自動特定できませんでした。\n現在開いている「${state.detail.facility.name}」としてレビューしますか？`)){return}const types=await api('/submissions/types');const detected=analysis.detected_submission_type_code;const defaultIndex=Math.max(0,types.findIndex(x=>x.code===detected));const typeMenu=types.map((x,i)=>`${i+1}: ${x.name}${x.code===detected?' [解析候補]':''}`).join('\n');const typeChoice=Number(prompt(`書類種別を確認してください\n${typeMenu}`,String(defaultIndex+1)));if(!typeChoice||!types[typeChoice-1])return;const type=types[typeChoice-1];const reviewed=await api(`/document-analyses/${analysis.document_analysis_id}/review`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:analysis.version,building_id:buildingId,submission_type_code:type.code})});const diffs=reviewed.difference_candidates||{};if(Object.keys(diffs).length){const diffText=Object.entries(diffs).map(([k,v])=>`${k}\n 現在: ${v.current??'－'}\n 読取: ${v.proposed??'－'}`).join('\n\n');alert(`台帳との差分候補があります。\nこの時点では台帳を変更しません。\n\n${diffText}`)}const official=prompt('正式届出番号（既存の番号取得システムで取得した数字のみ。未取得なら空欄）','')||null;if(official&&!/^\d+$/.test(official)){alert('正式届出番号は数字のみです。');return}const submitted=prompt('提出日 YYYY-MM-DD',new Date().toISOString().slice(0,10));if(!submitted)return;const payloadData={};if(type.code==='fire_manager_appointment'&&reviewed.detected_fields?.manager_name)payloadData.manager_name=reviewed.detected_fields.manager_name;if(!confirm(`受付を確定します。\n対象物ID: ${buildingId}\n種別: ${type.name}\n届出番号: ${official||'未登録'}\n提出日: ${submitted}\n\nよろしいですか？`))return;await api(`/document-analyses/${analysis.document_analysis_id}/confirm-receipt`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:reviewed.version,official_number:official,submitted_at:submitted,payload_data:payloadData})});const proposals=await api(`/document-analyses/${analysis.document_analysis_id}/change-proposals`);const pending=proposals.find(x=>x.status==='pending');if(pending){const accepted=[];for(const [path,diff] of Object.entries(pending.changes||{})){if(confirm(`台帳変更候補\n${path}\n現在: ${diff.current??'－'}\n読取: ${diff.proposed??'－'}\n\nこの項目を台帳へ反映しますか？`))accepted.push(path)}if(accepted.length){try{await api(`/facility-change-proposals/${pending.facility_change_proposal_id}/apply`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:pending.version,expected_facility_version:pending.expected_facility_version,accepted_paths:accepted})})}catch(e){alert('台帳差分は反映されませんでした。対象物が他の職員に更新された可能性があります: '+e.message)}}}await loadFacilities(state.offset);await selectFacility(buildingId);alert('受付を登録しました。')}catch(e){alert('文書解析受付を完了できません: '+e.message)}};input.click()}
+async function smartReceiveSubmission(){if(!state.detail)return;const input=document.createElement('input');input.type='file';input.accept='.pdf,.jpg,.jpeg,.png,.webp,.tif,.tiff,.xlsx,.xlsm,.docx,.txt,.csv,.tsv';input.onchange=async()=>{const file=input.files?.[0];if(!file)return;try{const fd=new FormData();fd.append('file',file);fd.append('document_type','submission_source');const doc=await api('/documents/upload',{method:'POST',body:fd});const analysis=await api('/document-analyses',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({document_id:doc.document_id})});const method=analysis.extraction_method||'unknown',conf=analysis.confidence==null?'－':Math.round(analysis.confidence*100)+'%';alert(`文書解析完了\n抽出方式: ${method}\n書類種別候補: ${analysis.detected_submission_type_code||'判定できず'}\n信頼度: ${conf}\n\n正式登録はまだ行っていません。`);const candidates=analysis.facility_candidates||[];let buildingId=state.detail.facility.building_id;if(candidates.length){const menu=candidates.map((x,i)=>`${i+1}: ${x.name} / ${x.address||'所在地未登録'} / ${Math.round((x.score||0)*100)}%`).join('\n');const currentIndex=candidates.findIndex(x=>x.building_id===buildingId);const choice=Number(prompt(`対象物候補を確認してください\n${menu}\n\n0: 現在開いている対象物 ${state.detail.facility.name}`,currentIndex>=0?String(currentIndex+1):'0'));if(Number.isNaN(choice))return;if(choice>0&&candidates[choice-1])buildingId=candidates[choice-1].building_id}else if(!confirm(`対象物候補を自動特定できませんでした。\n現在開いている「${state.detail.facility.name}」としてレビューしますか？`)){return}const types=await api('/submissions/types');const detected=analysis.detected_submission_type_code;const defaultIndex=Math.max(0,types.findIndex(x=>x.code===detected));const typeMenu=types.map((x,i)=>`${i+1}: ${x.name}${x.code===detected?' [解析候補]':''}`).join('\n');const typeChoice=Number(prompt(`書類種別を確認してください\n${typeMenu}`,String(defaultIndex+1)));if(!typeChoice||!types[typeChoice-1])return;const type=types[typeChoice-1];const reviewed=await api(`/document-analyses/${analysis.document_analysis_id}/review`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:analysis.version,building_id:buildingId,submission_type_code:type.code})});const diffs=reviewed.difference_candidates||{};if(Object.keys(diffs).length){const diffText=Object.entries(diffs).map(([k,v])=>`${k}\n 現在: ${v.current??'－'}\n 読取: ${v.proposed??'－'}`).join('\n\n');alert(`台帳との差分候補があります。\nこの時点では台帳を変更しません。\n\n${diffText}`)}const official=prompt('正式届出番号（既存の番号取得システムで取得した数字のみ。未取得なら空欄）','')||null;if(official&&!/^\d+$/.test(official)){alert('正式届出番号は数字のみです。');return}const submitted=prompt('提出日 YYYY-MM-DD',new Date().toISOString().slice(0,10));if(!submitted)return;const payloadData={};if(type.code==='fire_manager_appointment'&&reviewed.detected_fields?.manager_name)payloadData.manager_name=reviewed.detected_fields.manager_name;if(!confirm(`受付を確定します。\n対象物ID: ${buildingId}\n種別: ${type.name}\n届出番号: ${official||'未登録'}\n提出日: ${submitted}\n\nよろしいですか？`))return;await api(`/document-analyses/${analysis.document_analysis_id}/confirm-receipt`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:reviewed.version,official_number:official,submitted_at:submitted,payload_data:payloadData})});const proposals=await api(`/document-analyses/${analysis.document_analysis_id}/change-proposals`);const pending=proposals.find(x=>x.status==='pending');if(pending){const accepted=[];for(const [path,diff] of Object.entries(pending.changes||{})){if(confirm(`台帳変更候補\n${path}\n現在: ${diff.current??'－'}\n読取: ${diff.proposed??'－'}\n\nこの項目を台帳へ反映しますか？`))accepted.push(path)}if(accepted.length){try{await api(`/facility-change-proposals/${pending.facility_change_proposal_id}/apply`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:pending.version,expected_facility_version:pending.expected_facility_version,accepted_paths:accepted})})}catch(e){if(e.cancelled)throw e;alert('台帳差分は反映されませんでした。対象物が他の職員に更新された可能性があります: '+e.message)}}}await loadFacilities(state.offset);await selectFacility(buildingId);alert('受付を登録しました。')}catch(e){if(e.cancelled)throw e;alert('文書解析受付を完了できません: '+e.message)}};input.click()}
 
 
 
@@ -393,7 +414,7 @@ async function loadLegalDrafts(){
         (x.citations||[]).map(draftCitationHtml).join('')+
         '<div class="row" style="margin-top:10px">'+actions+'</div></div>';
     }).join('')||'<div class="empty">該当するRule草案はありません。</div>';
-  }catch(e){
+  }catch(e){if(e.cancelled)throw e;
     $('legalReviewSummary').textContent='';
     box.innerHTML='<div class="conflict">Rule草案を取得できません: '+esc(e.message)+'</div>';
   }
@@ -419,7 +440,7 @@ async function saveLegalDraftEdit(){
   try{
     conditions=JSON.parse($('legalDraftConditions').value||'{}');
     outcome=JSON.parse($('legalDraftOutcome').value||'{}');
-  }catch(e){$('legalDraftEditMsg').textContent='JSON形式を確認してください。';return}
+  }catch(e){if(e.cancelled)throw e;$('legalDraftEditMsg').textContent='JSON形式を確認してください。';return}
   try{
     await api('/legal-rule-drafts/'+state.legalDraftEditId,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({
       expected_version:state.legalDraftEditVersion,
@@ -431,14 +452,14 @@ async function saveLegalDraftEdit(){
     })});
     closeLegalDraftEdit();
     await loadLegalDrafts();
-  }catch(e){$('legalDraftEditMsg').textContent='保存できません: '+e.message}
+  }catch(e){if(e.cancelled)throw e;$('legalDraftEditMsg').textContent='保存できません: '+e.message}
 }
 
 async function reviewLegalDraft(id,version,nextStatus){
   try{
     await api('/legal-rule-drafts/'+id+'/review',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:version,status:nextStatus})});
     await loadLegalDrafts();
-  }catch(e){alert('Reviewできません: '+e.message)}
+  }catch(e){if(e.cancelled)throw e;alert('Reviewできません: '+e.message)}
 }
 
 async function promoteLegalDraft(id,version){
@@ -449,7 +470,7 @@ async function promoteLegalDraft(id,version){
     await api('/legal-rule-drafts/'+id+'/promote',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:version,effective_from:from,effective_to:to||null})});
     await loadLegalDrafts();
     alert('Draft Rule Versionへ昇格しました。正式承認はまだ行われていません。');
-  }catch(e){alert('Draft Ruleへ昇格できません: '+e.message)}
+  }catch(e){if(e.cancelled)throw e;alert('Draft Ruleへ昇格できません: '+e.message)}
 }
 
 const legalCategoryLabels={
@@ -558,7 +579,7 @@ async function loadLegalReview(offset=legalReviewState.offset){
         '<div class="row" style="margin-top:10px">'+actions+'</div>'+
         '</div>';
     }).join('')||'<div class="empty">該当候補はありません。</div>';
-  }catch(e){
+  }catch(e){if(e.cancelled)throw e;
     $('legalReviewSummary').textContent='';
     $('legalReviewStats').innerHTML='';
     $('legalCoverageStats').innerHTML='';
@@ -574,7 +595,7 @@ async function updateLegalReview(id,version,nextStatus){
   try{
     await api('/legal-review-queue/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:version,status:nextStatus})});
     await loadLegalReview(legalReviewState.offset);
-  }catch(e){alert('更新できません: '+e.message)}
+  }catch(e){if(e.cancelled)throw e;alert('更新できません: '+e.message)}
 }
 
 async function draftLegalRuleFromReview(id,version,defaultName){
@@ -584,7 +605,7 @@ async function draftLegalRuleFromReview(id,version,defaultName){
     await api('/legal-review-queue/'+id+'/draft',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:version,proposed_name:name||null})});
     await loadLegalReview(legalReviewState.offset);
     alert('未解釈のRule草案を作成しました。条件・結論の職員入力後にReviewできます。');
-  }catch(e){alert('Rule草案を作成できません: '+e.message)}
+  }catch(e){if(e.cancelled)throw e;alert('Rule草案を作成できません: '+e.message)}
 }
 
 $('searchQ').addEventListener('keydown',e=>{if(e.key==='Enter')loadFacilities(0)});$('loginPass').addEventListener('keydown',e=>{if(e.key==='Enter')login()});
@@ -624,7 +645,7 @@ async function runSubmissionCompliance(){
       unmapped+
       (items||'<div class="muted">照合対象となる承認済Ruleはありません。</div>')+
       '<div class="muted">'+esc(r.note)+'</div>';
-  }catch(e){
+  }catch(e){if(e.cancelled)throw e;
     box.innerHTML='<div class="conflict">届出照合できません: '+esc(e.message)+'</div>';
   }
 }
@@ -656,7 +677,7 @@ async function loadFireCases(){
       '<div class="meta">'+esc(x.location_text||'場所未登録')+'</div>'+
       '<div class="meta">'+esc(x.occurred_at?formatDate(x.occurred_at):'日時未登録')+' ・ '+esc(x.status)+'</div></div>'
     ).join('')||'<div class="empty">火災調査Caseなし</div>';
-  }catch(e){box.innerHTML='<div class="conflict">Case一覧を取得できません: '+esc(e.message)+'</div>'}
+  }catch(e){if(e.cancelled)throw e;box.innerHTML='<div class="conflict">Case一覧を取得できません: '+esc(e.message)+'</div>'}
 }
 async function createFireCase(){
   const title=prompt('火災調査Caseの件名');
@@ -676,7 +697,7 @@ async function createFireCase(){
     })});
     await loadFireCases();
     await openFireCase(row.fire_investigation_case_id);
-  }catch(e){alert('火災調査Caseを作成できません: '+e.message)}
+  }catch(e){if(e.cancelled)throw e;alert('火災調査Caseを作成できません: '+e.message)}
 }
 async function openFireCase(id){
   try{
@@ -686,7 +707,7 @@ async function openFireCase(id){
     await loadFireCases();
     renderFireCase(d);
     await loadFireEvidenceComparisons();
-  }catch(e){$('fireCaseDetail').innerHTML='<div class="conflict">Caseを取得できません: '+esc(e.message)+'</div>'}
+  }catch(e){if(e.cancelled)throw e;$('fireCaseDetail').innerHTML='<div class="conflict">Caseを取得できません: '+esc(e.message)+'</div>'}
 }
 function fireCauseActions(x,caseVersion){
   if(x.status==='candidate')return '<button class="btn primary" onclick="reviewFireCause(\''+x.fire_cause_candidate_id+'\','+x.version+',\'reviewed\')">レビュー済み</button> <button class="btn" onclick="reviewFireCause(\''+x.fire_cause_candidate_id+'\','+x.version+',\'rejected\')">却下</button>';
@@ -758,7 +779,7 @@ async function searchFireTranscripts(){
         (uncertainty?'<div class="notice">不確実表現: '+esc(uncertainty)+'</div>':'')+
         '<div class="muted">Segment '+esc(s.fire_transcript_segment_id||'')+'</div></div>';
     }).join('')||'<div class="muted">該当する確認済み文字起こしはありません。</div>';
-  }catch(e){box.innerHTML='<div class="conflict">文字起こし検索に失敗: '+esc(e.message)+'</div>'}
+  }catch(e){if(e.cancelled)throw e;box.innerHTML='<div class="conflict">文字起こし検索に失敗: '+esc(e.message)+'</div>'}
 }
 function fireEvidenceRefText(ref){
   if(!ref)return '－';
@@ -786,13 +807,13 @@ async function loadFireEvidenceComparisons(){
         (uncertainty.length?'<div class="notice">参照Evidenceに不確実表現があります。比較結果を事実確定として扱わないでください。</div>':'')+
         '<div class="row" style="margin-top:8px">'+actions+'</div></div>';
     }).join('')||'<div class="muted">証拠比較候補なし</div>';
-  }catch(e){box.innerHTML='<div class="conflict">証拠比較候補を取得できません: '+esc(e.message)+'</div>'}
+  }catch(e){if(e.cancelled)throw e;box.innerHTML='<div class="conflict">証拠比較候補を取得できません: '+esc(e.message)+'</div>'}
 }
 async function reviewFireEvidenceComparison(id,version,status){
   try{
     await api('/fire-investigations/evidence-comparisons/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:version,status})});
     await loadFireEvidenceComparisons();
-  }catch(e){alert('証拠比較を更新できません: '+e.message)}
+  }catch(e){if(e.cancelled)throw e;alert('証拠比較を更新できません: '+e.message)}
 }
 
 function triggerFireMediaUpload(type){
@@ -816,14 +837,14 @@ async function uploadFireMediaFile(event){
       media_type:fireState.mediaType
     })});
     await openFireCase(fireState.caseId);
-  }catch(e){alert('証拠原本を登録できません: '+e.message)}
+  }catch(e){if(e.cancelled)throw e;alert('証拠原本を登録できません: '+e.message)}
   finally{event.target.value=''}
 }
 async function analyzeFirePhoto(mediaId){
   try{
     const p=await api('/fire-photos/media/'+mediaId+'/analyze',{method:'POST'});
     await showFirePhotoProfile(mediaId,p);
-  }catch(e){alert('写真メタデータを解析できません: '+e.message)}
+  }catch(e){if(e.cancelled)throw e;alert('写真メタデータを解析できません: '+e.message)}
 }
 function firePhotoQualityLabel(flags){
   if(!flags||!flags.length)return '品質警告なし';
@@ -866,7 +887,7 @@ async function showFirePhotoProfile(mediaId,known=null){
       '<div class="muted">画質判定: '+esc(firePhotoQualityLabel(p.quality_flags))+'</div>'+rawExif+
       mapLinks+
       '<div class="muted">※ 画質指標・近似重複・AI位置候補は派生情報です。原本写真は変更されません。</div></div>';
-  }catch(e){
+  }catch(e){if(e.cancelled)throw e;
     if(e.status===404){alert('まだ写真解析されていません。「写真解析」を実行してください。');return}
     alert('写真メタデータを取得できません: '+e.message)
   }
@@ -886,7 +907,7 @@ async function searchFirePhotos(){
           anns.map(a=>'<div>'+esc(a.description||'')+'<div class="muted">'+esc((a.tags||[]).join(' / '))+'</div></div>').join('')+
           '<button class="btn" onclick="showFirePhotoProfile(\''+x.media.fire_investigation_media_id+'\')">メタデータ</button> <button class="btn" onclick="showFirePhotoEvidence(\''+x.media.fire_investigation_media_id+'\')">AI注釈</button></div>';
       }).join(''):'<div class="muted">一致するHuman承認済み注釈・メタデータはありません。</div>')+'</div>';
-  }catch(e){alert('写真検索できません: '+e.message)}
+  }catch(e){if(e.cancelled)throw e;alert('写真検索できません: '+e.message)}
 }
 async function showFirePhotoDuplicates(){
   if(!fireState.caseId)return;
@@ -897,7 +918,7 @@ async function showFirePhotoDuplicates(){
         '<div class="muted">dHash距離 '+esc(x.profile?.duplicate_distance??'－')+' ・ 距離0は完全重複Hashまたは同一知覚Hash候補</div>'+
         '<button class="btn" onclick="showFirePhotoProfile(\''+x.media.fire_investigation_media_id+'\')">確認</button></div>').join(''):'<div class="muted">重複候補なし</div>')+
       '<div class="muted">近似重複は自動削除しません。確認用候補だけです。</div></div>';
-  }catch(e){alert('重複候補を取得できません: '+e.message)}
+  }catch(e){if(e.cancelled)throw e;alert('重複候補を取得できません: '+e.message)}
 }
 
 async function showFirePhotoEvidence(mediaId){
@@ -905,7 +926,7 @@ async function showFirePhotoEvidence(mediaId){
     const rows=await api('/fire-investigations/media/'+mediaId+'/photo-annotations');
     $('fireEvidencePanel').innerHTML='<div class="card"><div class="sectionTitle">写真AI注釈</div>'+
       (rows.length?rows.map(x=>'<div class="history"><span class="pill">'+esc(x.status)+'</span> '+esc(x.description||'説明なし')+'<div class="muted">'+esc((x.tags||[]).join(' / '))+'</div>'+(x.status==='pending'?'<button class="btn primary" onclick="reviewFirePhotoAnnotation(\''+x.fire_photo_annotation_id+'\','+x.version+',\'accepted\')">承認</button> <button class="btn" onclick="reviewFirePhotoAnnotation(\''+x.fire_photo_annotation_id+'\','+x.version+',\'rejected\')">却下</button>':'')+'</div>').join(''):'<div class="muted">AI注釈なし</div>')+'</div>';
-  }catch(e){alert('写真注釈を取得できません: '+e.message)}
+  }catch(e){if(e.cancelled)throw e;alert('写真注釈を取得できません: '+e.message)}
 }
 async function promptFireTranscriptSearch(){
   if(!fireState.caseId)return;
@@ -922,7 +943,7 @@ async function promptFireTranscriptSearch(){
           '<div class="muted">'+esc(s.start_ms??'－')+'ms - '+esc(s.end_ms??'－')+'ms ・ Media '+esc(x.media.fire_investigation_media_id)+'</div>'+
           (markers.length?'<div class="notice">'+esc(markers.map(m=>m.text).join(' / '))+'</div>':'')+'</div>';
       }).join(''):'<div class="muted">Human承認済み文字起こしに一致なし</div>')+'</div>';
-  }catch(e){alert('文字起こし検索できません: '+e.message)}
+  }catch(e){if(e.cancelled)throw e;alert('文字起こし検索できません: '+e.message)}
 }
 function fireEvidenceRefLabel(ref){
   if(!ref)return '証拠不明';
@@ -941,13 +962,13 @@ async function showFireEvidenceComparisons(){
         '<div class="grid2"><div><b>A</b><div class="muted">'+esc(fireEvidenceRefLabel(x.left_ref))+'</div></div><div><b>B</b><div class="muted">'+esc(fireEvidenceRefLabel(x.right_ref))+'</div></div></div>'+
         '<div class="muted">信頼度 '+esc(x.confidence===null||x.confidence===undefined?'－':Math.round(x.confidence*100)+'%')+' ・ '+esc(x.model_version||x.extraction_method)+'</div>'+
         (x.status==='pending'?'<button class="btn primary" onclick="reviewFireEvidenceComparison(\''+x.fire_evidence_comparison_candidate_id+'\','+x.version+',\'accepted\')">レビューで採用</button> <button class="btn" onclick="reviewFireEvidenceComparison(\''+x.fire_evidence_comparison_candidate_id+'\','+x.version+',\'rejected\')">却下</button>':'')+'</div>').join(''):'<div class="muted">比較候補なし</div>')+'</div>';
-  }catch(e){alert('矛盾・整合候補を取得できません: '+e.message)}
+  }catch(e){if(e.cancelled)throw e;alert('矛盾・整合候補を取得できません: '+e.message)}
 }
 async function reviewFireEvidenceComparison(id,version,next){
   try{
     await api('/fire-investigations/evidence-comparisons/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:version,status:next})});
     await showFireEvidenceComparisons();
-  }catch(e){alert('比較候補を更新できません: '+e.message)}
+  }catch(e){if(e.cancelled)throw e;alert('比較候補を更新できません: '+e.message)}
 }
 
 async function showFireTranscript(mediaId){
@@ -964,15 +985,15 @@ async function showFireTranscript(mediaId){
           (markers.length?'<div class="notice">曖昧表現: '+esc(markers.map(m=>m.text).join(' / '))+'</div>':'')+
           (x.review_status==='pending'?'<button class="btn primary" onclick="reviewFireTranscript(\''+x.fire_transcript_segment_id+'\','+x.version+',\'accepted\')">承認</button> <button class="btn" onclick="reviewFireTranscript(\''+x.fire_transcript_segment_id+'\','+x.version+',\'rejected\')">却下</button>':'')+'</div>';
       }).join(''):'<div class="muted">文字起こしなし</div>')+'</div>';
-  }catch(e){alert('文字起こしを取得できません: '+e.message)}
+  }catch(e){if(e.cancelled)throw e;alert('文字起こしを取得できません: '+e.message)}
 }
 async function reviewFirePhotoAnnotation(id,version,next){
   try{await api('/fire-investigations/photo-annotations/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:version,status:next})});await openFireCase(fireState.caseId)}
-  catch(e){alert('写真注釈を更新できません: '+e.message)}
+  catch(e){if(e.cancelled)throw e;alert('写真注釈を更新できません: '+e.message)}
 }
 async function reviewFireTranscript(id,version,next){
   try{await api('/fire-investigations/transcript-segments/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:version,status:next})});await openFireCase(fireState.caseId)}
-  catch(e){alert('文字起こしを更新できません: '+e.message)}
+  catch(e){if(e.cancelled)throw e;alert('文字起こしを更新できません: '+e.message)}
 }
 async function reviewFireStatement(id,version,next,hasUncertainty=false){
   let uncertaintyReviewed=false;
@@ -983,11 +1004,11 @@ async function reviewFireStatement(id,version,next,hasUncertainty=false){
   try{
     await api('/fire-investigations/statements/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:version,status:next,uncertainty_reviewed:uncertaintyReviewed})});
     await openFireCase(fireState.caseId)
-  }catch(e){alert('供述Draftを更新できません: '+e.message)}
+  }catch(e){if(e.cancelled)throw e;alert('供述Draftを更新できません: '+e.message)}
 }
 async function reviewFireTimeline(id,version,next){
   try{await api('/fire-investigations/timeline/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:version,status:next})});await openFireCase(fireState.caseId)}
-  catch(e){alert('タイムラインを更新できません: '+e.message)}
+  catch(e){if(e.cancelled)throw e;alert('タイムラインを更新できません: '+e.message)}
 }
 async function createManualFireCause(){
   if(!fireState.caseId)return;
@@ -997,16 +1018,16 @@ async function createManualFireCause(){
   try{
     await api('/fire-investigations/'+fireState.caseId+'/cause-candidates',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cause_category:category||null,cause_text:text,extraction_method:'manual'})});
     await openFireCase(fireState.caseId);
-  }catch(e){alert('原因候補を作成できません: '+e.message)}
+  }catch(e){if(e.cancelled)throw e;alert('原因候補を作成できません: '+e.message)}
 }
 async function reviewFireCause(id,version,next){
   try{await api('/fire-investigations/cause-candidates/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:version,status:next})});await openFireCase(fireState.caseId)}
-  catch(e){alert('原因候補を更新できません: '+e.message)}
+  catch(e){if(e.cancelled)throw e;alert('原因候補を更新できません: '+e.message)}
 }
 async function approveFireCause(id,caseVersion){
   if(!confirm('このHuman-reviewed候補を正式火災原因として承認しますか？'))return;
   try{await api('/fire-investigations/'+fireState.caseId+'/official-cause',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_case_version:caseVersion,cause_candidate_id:id})});await openFireCase(fireState.caseId)}
-  catch(e){alert('正式原因を承認できません: '+e.message)}
+  catch(e){if(e.cancelled)throw e;alert('正式原因を承認できません: '+e.message)}
 }
 async function createFireEvidenceSnapshot(){
   if(!fireState.caseId)return;
@@ -1014,7 +1035,7 @@ async function createFireEvidenceSnapshot(){
     const s=await api('/fire-investigations/'+fireState.caseId+'/evidence-snapshots',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({metadata:{created_from:'ui'}})});
     await openFireCase(fireState.caseId);
     alert('Evidence Snapshotを作成しました。Hash: '+(s.snapshot_sha256||'').slice(0,12));
-  }catch(e){alert('Evidence Snapshotを作成できません: '+e.message)}
+  }catch(e){if(e.cancelled)throw e;alert('Evidence Snapshotを作成できません: '+e.message)}
 }
 
 async function createFireReportDraft(){
@@ -1025,18 +1046,18 @@ async function createFireReportDraft(){
   try{
     await api('/fire-investigations/'+fireState.caseId+'/report-drafts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({report_type:type,narrative_text:text||null,ai_generated:false})});
     await openFireCase(fireState.caseId);
-  }catch(e){alert('報告Draftを作成できません: '+e.message)}
+  }catch(e){if(e.cancelled)throw e;alert('報告Draftを作成できません: '+e.message)}
 }
 async function reviewFireReport(id,version,next){
   try{await api('/fire-investigations/report-drafts/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:version,status:next})});await openFireCase(fireState.caseId)}
-  catch(e){alert('報告Draftを更新できません: '+e.message)}
+  catch(e){if(e.cancelled)throw e;alert('報告Draftを更新できません: '+e.message)}
 }
 async function renderFireReportForm(id,version,caseVersion){
   try{
     const x=await api('/fire-investigations/report-drafts/'+id+'/render-form',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_report_version:version})});
     await showFireReportExports(id,caseVersion);
     alert('正式様式のコピーへ差し込みました。生成帳票を開いて確認後、正式出力確認を行ってください。');
-  }catch(e){alert('正式様式へ出力できません: '+e.message)}
+  }catch(e){if(e.cancelled)throw e;alert('正式様式へ出力できません: '+e.message)}
 }
 
 async function showFireReportExports(id,caseVersion){
@@ -1049,7 +1070,7 @@ async function showFireReportExports(id,caseVersion){
       const verify=x.status==='rendered'?'<button class="btn primary" onclick="verifyFireReportExport(\''+x.fire_report_export_id+'\','+caseVersion+',\''+id+'\')">正式出力確認</button>':'';
       return '<div class="history"><span class="pill">'+esc(x.status)+'</span> '+esc(x.output_format.toUpperCase())+' ・ Template SHA '+esc((x.template_sha256||'').slice(0,12))+'<div class="row" style="margin-top:6px">'+open+verify+'</div>'+(x.error_detail?'<div class="conflict">'+esc(x.error_detail)+'</div>':'')+'</div>';
     }).join(''):'出力履歴なし';
-  }catch(e){box.innerHTML='<div class="conflict">出力履歴を取得できません: '+esc(e.message)+'</div>'}
+  }catch(e){if(e.cancelled)throw e;box.innerHTML='<div class="conflict">出力履歴を取得できません: '+esc(e.message)+'</div>'}
 }
 
 async function verifyFireReportExport(exportId,caseVersion,reportId){
@@ -1057,13 +1078,13 @@ async function verifyFireReportExport(exportId,caseVersion,reportId){
   try{
     await api('/fire-investigations/report-exports/'+exportId+'/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_case_version:caseVersion})});
     await openFireCase(fireState.caseId);
-  }catch(e){alert('正式出力確認できません: '+e.message)}
+  }catch(e){if(e.cancelled)throw e;alert('正式出力確認できません: '+e.message)}
 }
 
 async function approveFireReport(id,version){
   if(!confirm('Human-reviewed報告Draftを正式承認しますか？'))return;
   try{await api('/fire-investigations/report-drafts/'+id+'/approve',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:version})});await openFireCase(fireState.caseId)}
-  catch(e){alert('報告Draftを承認できません: '+e.message)}
+  catch(e){if(e.cancelled)throw e;alert('報告Draftを承認できません: '+e.message)}
 }
 
 function triggerDrawingUpload(){
@@ -1092,7 +1113,7 @@ async function uploadDrawingFile(event){
     });
     await selectFacility(state.selected.building_id);
     alert('図面を登録しました。状態は「解析待ち」です。候補生成後もHuman Reviewまでは台帳へ反映されません。');
-  }catch(e){
+  }catch(e){if(e.cancelled)throw e;
     alert('図面を登録できません: '+e.message);
   }finally{
     event.target.value='';
@@ -1112,7 +1133,7 @@ async function openDrawingAnalysis(id){
     state.drawingDetail=d;
     $('drawingReviewModal').classList.remove('hidden');
     renderDrawingAnalysis(d);
-  }catch(e){alert('図面解析を取得できません: '+e.message)}
+  }catch(e){if(e.cancelled)throw e;alert('図面解析を取得できません: '+e.message)}
 }
 
 function renderDrawingAnalysis(d){
@@ -1169,7 +1190,7 @@ async function reviewDrawingEquipment(id,version,nextStatus){
   try{
     await api('/drawing-equipment-candidates/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:version,status:nextStatus})});
     await openDrawingAnalysis(state.drawingAnalysisId);
-  }catch(e){alert('設備候補を更新できません: '+e.message)}
+  }catch(e){if(e.cancelled)throw e;alert('設備候補を更新できません: '+e.message)}
 }
 
 async function promoteDrawingEquipment(id,version,suggestedCode){
@@ -1183,14 +1204,14 @@ async function promoteDrawingEquipment(id,version,suggestedCode){
     const aid=state.drawingAnalysisId;
     await selectFacility(state.selected.building_id);
     await openDrawingAnalysis(aid);
-  }catch(e){alert('設備候補を昇格できません: '+e.message)}
+  }catch(e){if(e.cancelled)throw e;alert('設備候補を昇格できません: '+e.message)}
 }
 
 async function reviewDrawingFact(id,version,nextStatus){
   try{
     await api('/drawing-fact-candidates/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:version,status:nextStatus})});
     await openDrawingAnalysis(state.drawingAnalysisId);
-  }catch(e){alert('対象物情報候補を更新できません: '+e.message)}
+  }catch(e){if(e.cancelled)throw e;alert('対象物情報候補を更新できません: '+e.message)}
 }
 
 async function applyDrawingFact(id,version){
@@ -1202,7 +1223,7 @@ async function applyDrawingFact(id,version){
     await api('/drawing-fact-candidates/'+id+'/apply',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:version,expected_facility_version:state.selected.version})});
     await selectFacility(bid);
     await openDrawingAnalysis(aid);
-  }catch(e){alert('対象物情報を反映できません: '+e.message)}
+  }catch(e){if(e.cancelled)throw e;alert('対象物情報を反映できません: '+e.message)}
 }
 
 async function reviewDrawingAnalysis(id,version){
@@ -1210,7 +1231,7 @@ async function reviewDrawingAnalysis(id,version){
     await api('/drawing-analyses/'+id+'/review',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:version})});
     await selectFacility(state.selected.building_id);
     await openDrawingAnalysis(id);
-  }catch(e){alert('解析レビューを完了できません: '+e.message)}
+  }catch(e){if(e.cancelled)throw e;alert('解析レビューを完了できません: '+e.message)}
 }
 
 
@@ -1280,6 +1301,7 @@ function drawingConfirmDiscardChanges(message='未保存のHuman Annotation変�
 }
 function closeDrawingWorkspace(){
   if(!drawingConfirmDiscardChanges('未保存のHuman Annotation変更があります。閉じると破棄されます。閉じますか？'))return;
+  clearDrawingPreviewResource();
   $('drawingWorkspaceModal').classList.add('hidden');
   state.drawingWorkspace=null;state.drawingDoc=null;state.drawingPreviewInfo=null;state.drawingPageNo=1;state.drawingAnnotations=[];state.drawingAnnotation=null;
   state.drawingConsultations=[];state.drawingConsultation=null;state.drawingResponse=null;state.drawingBaselineReadiness=null;state.drawingBaselineRun=null;state.drawingBaselineRuns=[];
@@ -1330,7 +1352,7 @@ async function openDrawingWorkspace(id){
     }
     $('drawingWorkspaceModal').classList.remove('hidden');
     renderDrawingWorkspace();
-  }catch(e){alert('図面相談ワークスペースを開けません: '+e.message)}
+  }catch(e){if(e.cancelled)throw e;alert('図面相談ワークスペースを開けません: '+e.message)}
 }
 async function refreshDrawingWorkspace(){
   const id=state.drawingWorkspace?.analysis?.drawing_analysis_id||state.drawingAnalysisId;
@@ -1349,6 +1371,46 @@ function selectDrawingConsultation(id){
   renderDrawingWorkspace();
   if(state.drawingConsultation)loadDrawingWorkspaceResponse();
 }
+let drawingPreviewResource=null,drawingPreviewGeneration=0;
+function clearDrawingPreviewResource(){
+  drawingPreviewGeneration++;
+  if(drawingPreviewResource?.url)URL.revokeObjectURL(drawingPreviewResource.url);
+  drawingPreviewResource=null;
+}
+async function loadDrawingWorkspacePreview(){
+  const img=$('drawingWorkspaceImage'),source=img?.dataset.previewUrl;
+  if(!source){clearDrawingPreviewResource();return;}
+  if(drawingPreviewResource?.source!==source)clearDrawingPreviewResource();
+  const ticket=++drawingPreviewGeneration;
+  let entry=drawingPreviewResource;
+  if(!entry){
+    entry={source,url:null,promise:null};drawingPreviewResource=entry;
+    entry.promise=(async()=>{
+      const response=await fetch(source,{cache:'no-store'});
+      if(!response.ok)throw new Error('図面プレビューを取得できません');
+      const blob=await response.blob();
+      await window.FireAISession.check();
+      if(drawingPreviewResource!==entry)return null;
+      entry.url=URL.createObjectURL(blob);return entry.url;
+    })();
+  }
+  const owned=()=>ticket===drawingPreviewGeneration&&drawingPreviewResource===entry&&$('drawingWorkspaceImage')===img;
+  try{
+    const url=await entry.promise;
+    await window.FireAISession.check();
+    if(!url||!owned())return;
+    img.onload=async()=>{
+      try{await window.FireAISession.check();if(!owned())return;img.style.visibility='visible';drawingWorkspaceImageLoaded(img);}
+      catch(error){if(owned())img.style.visibility='hidden';}
+    };
+    img.src=url;
+  }catch(error){
+    if(!owned())return;
+    img.style.visibility='hidden';
+    clearDrawingPreviewResource();
+  }
+}
+
 function drawingWorkspaceImageLoaded(img){
   state.drawingPageWidth=img.naturalWidth||state.drawingPageWidth||1024;
   state.drawingPageHeight=img.naturalHeight||state.drawingPageHeight||768;
@@ -1868,7 +1930,7 @@ async function importDrawingReferenceDraftFile(ev){
     state.drawingSelectedVertexIndex=null;
     state.drawingPageNo=1;
     await refreshDrawingWorkspace();
-  }catch(e){
+  }catch(e){if(e.cancelled)throw e;
     alert('Reference Draftを読み込めません: '+e.message);
   }finally{
     if(input)input.value='';
@@ -1884,14 +1946,14 @@ async function seedDrawingAnnotation(){
     const a=state.drawingWorkspace.analysis,dim=drawingWorkspaceDimensions();
     const row=await api('/drawing-analyses/'+a.drawing_analysis_id+'/annotations/seed',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_analysis_version:a.version,coordinate_space:'pixel',page_dimensions:{[String(state.drawingPageNo||1)]:{width:dim.w,height:dim.h}}})});
     state.drawingAnnotation=row;await refreshDrawingWorkspace();
-  }catch(e){alert('Annotation下書きを作れません: '+e.message)}
+  }catch(e){if(e.cancelled)throw e;alert('Annotation下書きを作れません: '+e.message)}
 }
 async function createEmptyDrawingAnnotation(){
   try{
     const a=state.drawingWorkspace.analysis,dim=drawingWorkspaceDimensions();
     const row=await api('/drawing-analyses/'+a.drawing_analysis_id+'/annotations',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({coordinate_space:'pixel',page_dimensions:{[String(state.drawingPageNo||1)]:{width:dim.w,height:dim.h}},payload:{elements:[],equipment_candidates:[],fact_candidates:[]},source_method:'manual'})});
     state.drawingAnnotation=row;await refreshDrawingWorkspace();
-  }catch(e){alert('空のAnnotationを作れません: '+e.message)}
+  }catch(e){if(e.cancelled)throw e;alert('空のAnnotationを作れません: '+e.message)}
 }
 async function reviseDrawingAnnotation(){
   const ann=state.drawingAnnotation;
@@ -1907,7 +1969,7 @@ async function reviseDrawingAnnotation(){
     state.drawingAnnotation=row;
     drawingResetHistory();
     await refreshDrawingWorkspace();
-  }catch(e){
+  }catch(e){if(e.cancelled)throw e;
     alert('修正版Draftを作れません: '+e.message);
   }
 }
@@ -1920,7 +1982,7 @@ async function saveDrawingAnnotation(showMessage=true){
     drawingResetHistory();
     if(showMessage)alert('Human Annotation下書きを保存しました。');
     return row;
-  }catch(e){alert('Human Annotationを保存できません: '+e.message);throw e}
+  }catch(e){if(e.cancelled)throw e;alert('Human Annotationを保存できません: '+e.message);throw e}
 }
 async function reviewDrawingAnnotation(){
   try{
@@ -1933,7 +1995,7 @@ async function reviewDrawingAnnotation(){
     const ann=await saveDrawingAnnotation(false);if(!ann)return;
     await api('/drawing-annotations/'+ann.drawing_annotation_set_id+'/review',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:ann.version,status:'reviewed'})});
     await refreshDrawingWorkspace();
-  }catch(e){if(!e?.message?.includes('Annotationを保存'))alert('Human Annotationを確認済みにできません: '+e.message)}
+  }catch(e){if(e.cancelled)throw e;if(!e?.message?.includes('Annotationを保存'))alert('Human Annotationを確認済みにできません: '+e.message)}
 }
 function drawingAnswerInput(key,snapshot={},editable=true){
   const v=snapshot[key];
@@ -1956,7 +2018,7 @@ async function createDrawingConsultation(){
   try{
     const row=await api('/drawing-analyses/'+state.drawingWorkspace.analysis.drawing_analysis_id+'/consultations',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({drawing_annotation_set_id:ann.drawing_annotation_set_id,answers:collectDrawingConsultationAnswers(),notes:'図面相談UIから作成'})});
     state.drawingConsultation=row;await refreshDrawingWorkspace();
-  }catch(e){alert('図面相談を開始できません: '+e.message)}
+  }catch(e){if(e.cancelled)throw e;alert('図面相談を開始できません: '+e.message)}
 }
 async function saveDrawingConsultationAnswers(){
   const row=state.drawingConsultation;if(!row)return null;
@@ -1969,7 +2031,7 @@ async function classifyDrawingConsultation(){
     let row=await saveDrawingConsultationAnswers();if(!row)return;
     row=await api('/drawing-consultations/'+row.drawing_consultation_id+'/classify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:row.version})});
     state.drawingConsultation=row;state.drawingResponse=null;renderDrawingWorkspace();
-  }catch(e){alert('項候補を判定できません: '+e.message)}
+  }catch(e){if(e.cancelled)throw e;alert('項候補を判定できません: '+e.message)}
 }
 async function confirmDrawingClassification(index){
   const row=state.drawingConsultation,candidate=row?.classification_results?.[index];if(!candidate)return;
@@ -1978,7 +2040,7 @@ async function confirmDrawingClassification(index){
   try{
     const updated=await api('/drawing-consultations/'+row.drawing_consultation_id+'/classification/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:row.version,classification_code:o.classification_code,classification_label:o.classification_label,candidate_rule_version_id:candidate.legal_rule_version_id,review_note:'図面相談UIでHuman確認'})});
     state.drawingConsultation=updated;renderDrawingWorkspace();
-  }catch(e){alert('項を確定できません: '+e.message)}
+  }catch(e){if(e.cancelled)throw e;alert('項を確定できません: '+e.message)}
 }
 async function manualConfirmDrawingClassification(){
   const row=state.drawingConsultation;if(!row)return;
@@ -1988,19 +2050,19 @@ async function manualConfirmDrawingClassification(){
   try{
     state.drawingConsultation=await api('/drawing-consultations/'+row.drawing_consultation_id+'/classification/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:row.version,classification_code:code,classification_label:label,review_note:note})});
     renderDrawingWorkspace();
-  }catch(e){alert('項を手動確定できません: '+e.message)}
+  }catch(e){if(e.cancelled)throw e;alert('項を手動確定できません: '+e.message)}
 }
 async function evaluateDrawingConsultationEquipment(){
   const row=state.drawingConsultation;if(!row)return;
   try{
     state.drawingConsultation=await api('/drawing-consultations/'+row.drawing_consultation_id+'/equipment/evaluate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:row.version})});
     await loadDrawingWorkspaceResponse();
-  }catch(e){alert('必要設備を判定できません: '+e.message)}
+  }catch(e){if(e.cancelled)throw e;alert('必要設備を判定できません: '+e.message)}
 }
 async function loadDrawingWorkspaceResponse(){
   const row=state.drawingConsultation;if(!row)return;
   try{state.drawingResponse=await api('/drawing-consultations/'+row.drawing_consultation_id+'/response');renderDrawingWorkspace()}
-  catch(e){state.drawingResponse=null;renderDrawingWorkspace()}
+  catch(e){if(e.cancelled)throw e;state.drawingResponse=null;renderDrawingWorkspace()}
 }
 async function reviewDrawingWorkspaceResponse(){
   const row=state.drawingConsultation,r=state.drawingResponse;if(!row||!r)return;
@@ -2009,7 +2071,7 @@ async function reviewDrawingWorkspaceResponse(){
   try{
     const reviewed=await api('/drawing-consultations/'+row.drawing_consultation_id+'/response/review',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:row.version,review_notes:'図面相談UIでHuman Review'})});
     state.drawingResponse=reviewed;await refreshDrawingWorkspace();
-  }catch(e){alert('相談回答を確認済みにできません: '+e.message)}
+  }catch(e){if(e.cancelled)throw e;alert('相談回答を確認済みにできません: '+e.message)}
 }
 function drawingCoverageHtml(cov={}){
   const item=(label,x)=>'<div><b>'+esc(label)+'</b><div style="margin-top:4px"><span class="pill '+(x?.complete?'active':'')+'">'+(x?.complete?'完了':'未完了')+'</span></div>'+(x?.blockers?.length?'<div class="muted">'+x.blockers.map(esc).join('<br>')+'</div>':'')+'</div>';
@@ -2058,7 +2120,7 @@ async function runDrawingBaselineFromWorkspace(){
     const rest=(state.drawingBaselineRuns||[]).filter(x=>x.drawing_benchmark_run_id!==result.drawing_benchmark_run_id);
     state.drawingBaselineRuns=[result,...rest];
     renderDrawingWorkspace();
-  }catch(e){
+  }catch(e){if(e.cancelled)throw e;
     alert('Baselineを実行できません: '+e.message);
   }
 }
@@ -2091,7 +2153,7 @@ async function reviewDrawingBaselineRun(decision){
       x.drawing_benchmark_run_id===reviewed.drawing_benchmark_run_id?reviewed:x
     );
     renderDrawingWorkspace();
-  }catch(e){
+  }catch(e){if(e.cancelled)throw e;
     alert('Baseline Human Reviewに失敗しました: '+e.message);
   }
 }
@@ -2158,7 +2220,7 @@ function renderDrawingWorkspace(){
   const pageNav=pageCount>1?'<div class="row" style="margin-bottom:8px"><b>ページ</b><select onchange="changeDrawingWorkspacePage(this.value)">'+Array.from({length:pageCount},(_,i)=>'<option value="'+(i+1)+'" '+(currentPage===i+1?'selected':'')+'>'+(i+1)+' / '+pageCount+'</option>').join('')+'</select><span class="muted">'+esc(previewInfo.render_scale_policy||'')+'</span></div>':'';
   let preview='';
   if(isVisual){
-    preview=pageNav+'<div class="drawingStage"><img id="drawingWorkspaceImage" src="/drawing-analyses/'+encodeURIComponent(a.drawing_analysis_id)+'/pages/'+encodeURIComponent(currentPage)+'/preview" onload="drawingWorkspaceImageLoaded(this)"><svg id="drawingOverlay" class="drawingOverlay" onclick="drawingOverlayClick(event)" onpointermove="drawingOverlayPointerMove(event)" onpointerup="endDrawingVertexDrag(event)" onpointercancel="endDrawingVertexDrag(event)"></svg></div>';
+    preview=pageNav+'<div class="drawingStage"><img id="drawingWorkspaceImage" data-preview-url="/drawing-analyses/'+encodeURIComponent(a.drawing_analysis_id)+'/pages/'+encodeURIComponent(currentPage)+'/preview" style="visibility:hidden"><svg id="drawingOverlay" class="drawingOverlay" onclick="drawingOverlayClick(event)" onpointermove="drawingOverlayPointerMove(event)" onpointerup="endDrawingVertexDrag(event)" onpointercancel="endDrawingVertexDrag(event)"></svg></div>';
   }else{
     preview='<div class="empty">この形式は画面プレビュー対象外です。原本を別タブで確認してください。</div>';
   }
@@ -2211,6 +2273,7 @@ function renderDrawingWorkspace(){
   const hypothesisLink=(a.analysis_method==='ai'&&['analyzed','reviewed'].includes(a.status))?'<a class="btn" target="_blank" href="/drawing-analyses/'+encodeURIComponent(a.drawing_analysis_id)+'/benchmark-hypothesis">AI Hypothesis JSON</a>':'';
   const referenceLink=(ann?.status==='reviewed')?'<a class="btn" target="_blank" href="/drawing-annotations/'+encodeURIComponent(ann.drawing_annotation_set_id)+'/benchmark-reference">Human Reference JSON</a>':'';
   $('drawingWorkspaceBody').innerHTML='<div class="drawingWorkspaceGrid"><div><div class="row" style="margin-bottom:8px"><b class="grow">'+esc(doc.original_filename)+'</b>'+referenceLink+hypothesisLink+'<a class="btn" target="_blank" href="/documents/'+encodeURIComponent(doc.document_id)+'/download">原本を開く</a></div>'+preview+'</div><div class="drawingWorkspaceSide">'+baselineHtml+annHtml+consultHtml+responseHtml+'</div></div>';
+  void loadDrawingWorkspacePreview();
   setTimeout(()=>{
     renderDrawingOverlay();renderDrawingSelectedMetrics();
     const selected=state.drawingAnnotation?.payload?.elements?.[state.drawingEditElementIndex];
@@ -2222,13 +2285,16 @@ function renderDrawingWorkspace(){
   },0);
 }
 
-document.addEventListener('keydown',ev=>{
+document.addEventListener('keydown',async ev=>{
   if($('drawingWorkspaceModal')?.classList.contains('hidden'))return;
   if(state.drawingAnnotation?.status!=='draft')return;
   const tag=(document.activeElement?.tagName||'').toLowerCase();
   if(['input','textarea','select'].includes(tag))return;
   const mod=ev.ctrlKey||ev.metaKey;
   if(!mod)return;
+  if(!['z','y'].includes(ev.key.toLowerCase()))return;
+  ev.preventDefault();
+  try{await window.FireAISession.check();}catch{return;}
   if(ev.key.toLowerCase()==='z'){
     ev.preventDefault();
     if(ev.shiftKey)drawingRedo();else drawingUndo();
@@ -2272,7 +2338,7 @@ async function quickAddEquipment(){
       })
     });
     await selectFacility(state.selected.building_id);
-  }catch(e){alert('設備を登録できません: '+e.message)}
+  }catch(e){if(e.cancelled)throw e;alert('設備を登録できません: '+e.message)}
 }
 
 async function verifyEquipment(id,version){
@@ -2289,7 +2355,7 @@ async function verifyEquipment(id,version){
       })
     });
     await selectFacility(state.selected.building_id);
-  }catch(e){alert('設備を確認済みにできません: '+e.message)}
+  }catch(e){if(e.cancelled)throw e;alert('設備を確認済みにできません: '+e.message)}
 }
 
 async function runEquipmentCompliance(){
@@ -2326,7 +2392,7 @@ async function runEquipmentCompliance(){
       unmapped+
       (items||'<div class="muted">照合対象となる承認済Ruleはありません。</div>')+
       '<div class="muted">'+esc(r.note)+'</div>';
-  }catch(e){
+  }catch(e){if(e.cancelled)throw e;
     box.innerHTML='<div class="conflict">設備照合できません: '+esc(e.message)+'</div>';
   }
 }
@@ -2350,7 +2416,7 @@ async function runRequirementEvaluation(domain){
       }).join('');
       return '<div class="history"><b>候補: '+esc(label)+'</b><div class="muted">Rule '+esc(x.rule_code)+' v'+esc(x.version_no)+' ・ '+esc(source)+'</div>'+citations+'<div class="muted">一致根拠: '+(evidence||'－')+'</div><span class="pill">職員確認待ち</span></div>';
     }).join('');
-  }catch(e){box.innerHTML='<span class="dangerText">判定できません: '+esc(e.message)+'</span>'}
+  }catch(e){if(e.cancelled)throw e;box.innerHTML='<span class="dangerText">判定できません: '+esc(e.message)+'</span>'}
 }
 </script>
 <script src="/ui/emergency.js"></script>

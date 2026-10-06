@@ -2,7 +2,7 @@
 
 Audit date: 2026-10-06
 Canonical specification: docs/SPECIFICATION.md v2.0
-Audited main base: ecbd0a7d5e81bbf98100bee19c879df2ba892eac (PR59; main CI37513897759 SUCCESS). PR60 violation/correction work is not yet merged and does not change main classification.
+Audited main base: 922d292c48fa0d7e4082432116e608825f6fe154 (PR61; main CI37523158483 SUCCESS). Shared session/body guards are under implementation and do not yet change main classification.
 
 This matrix compares all 57 Master Specification chapters against the actual repository: models, migrations, routers, services, frontend surfaces, tests, deployment files and current CI evidence.
 
@@ -17,9 +17,9 @@ Status meanings:
 
 | Status | Count |
 |---|---:|
-| Completed | 13 |
-| Partial | 36 |
-| Missing | 7 |
+| Completed | 14 |
+| Partial | 37 |
+| Missing | 5 |
 | External Gate | 1 |
 | Total | 57 |
 
@@ -34,12 +34,12 @@ Status meanings:
 | 5 | Common Data Principles | Completed | UUID records, optimistic versions, audit, logical lifecycle patterns across core models | module-specific exceptions must continue to follow these rules |
 | 6 | Employee, Organization and Account | Partial | PR44, Migration041, personnel.py, routers/administration.py, admin UI/tests | Document-driven personnel transfer/import flow; remaining account lifecycle polish |
 | 7 | Authorization | Partial | authz.py, RBAC, backend permission dependencies, effective-dated appointment roles | PR56 customRole/RoleRule/timed/acting and own explanation are merged with PG/browser CI; qualification/duty-derived selector extension remains internal; production role acceptance is external |
-| 8 | Audit | Partial | audit.py, AuditLog, administration audit APIs/UI, broad write auditing | complete paging/filter/admin operations and production DB immutability evidence |
+| 8 | Audit | Completed | audit.py; administration audit API/UI keyset paging and action/entity filters; test_personnel keyset regression; real PostgreSQL tenant application-role DELETE denial test included in Green main CI37520767373 | production-site operator acceptance remains external; preserve append-only application-role grants |
 | 9 | Document Platform | Completed | Document model, managed storage, SHA-256, source/original separation, document router | continue module adapters without duplicating originals |
 | 10 | Document Intake and OCR | Partial | document_intake.py, intake router/UI, PDF/image/DOCX/XLSX/text paths | HEIC path, multi-image document assembly, correction/quality pipeline and all target-module adapters |
 | 11 | Facility Registry | Completed | facility models/router/UI, details/contacts/floors, legacy import, optimistic conflict flow | real LAN user acceptance external |
 | 12 | Inspection | Partial | inspection/finding models/router/UI and tests | richer workflow, scheduled follow-up, direct violation/correction lifecycle integration |
-| 13 | Violations and Corrective Actions | Missing | main has legal-authoring metadata only; PR60 API/UI/049/evidence history remains unmerged | merge only after exact-head PG/browser Green; common AI candidate producer remains internal integration work |
+| 13 | Violations and Corrective Actions | Partial | PR60 merged: API/UI/Migration049, immutable correction history, source-bound Human confirmation; CI37519910509 backend605/browser8 and main CI37520767373 SUCCESS | common AI candidate producer remains internal integration work |
 | 14 | Submission and Application | Partial | submission type master, receipt records, document links, intake apply and facility UI | complete configurable review flows, attachment requirements and all official submission families |
 | 15 | Submission Requirement Tracking | Partial | Rule engine evaluates submission requirements; facility dashboard has submission state | durable required/received/next-due lifecycle and full approved-Rule coverage |
 | 16 | Hazardous Materials | Missing | legal authoring category exists | operational hazardous-material facility/case/permit/inspection/document module |
@@ -54,7 +54,7 @@ Status meanings:
 | 25 | Workforce and Duty Management | Partial | Migration044, workforce models/service/router/UI, existing personnel reuse, explicit Human working intervals, CAS/provenance, serialized balance/placement and session guards, browser and PG regressions | team/work-result, checkout/cancel/correction/balance/crew UI, explicit expiry/reconciliation policy; actual Human staffing rules and physical PC acceptance external |
 | 26 | Contract and Procurement | Partial | PR55 / Migration048 common Contract/Counterparty/Document, quote/commitment/invoice/inspection/payment/amendment/renewal UI and native PG evidence | PR59 mutation and identity clearing merged; common AI/STT adapter and post-response same-user permission checks remain internal; real originals/formal policy external |
 | 27 | Budget and Finance | Partial | PR55 / Migration048, exact Decimal, Human policy/year/account hierarchy, immutable journal, proposal review/posting/reversal, budgets/transfers/commitments/payments/requests, native PG races and browser CI | PR59 mutation/identity guard merged; shared-shell post-response same-user permission revocation checks remain internal; production policy/formal adoption external |
-| 28 | Council, Assembly and Inquiry Support | Missing | no inquiry domain | evidence-linked questions, answer revisions, numeric-source lineage, similar search and Human approval |
+| 28 | Council, Assembly and Inquiry Support | Partial | PR61/Migration050 evidence-linked questions, revisions, Decimal numeric/source lineage, year/lexical search, source-gated exchanges/templates and Human review/approval; PR CI37522253547 backend639/browser9 and main CI37523158483 SUCCESS | shared production local-model worker adapter and common statistics/dashboard integration remain internal; deterministic evidence extraction is explicitly labelled |
 | 29 | Fire Investigation | Partial | Migration019+, fire case/evidence/statement/timeline/cause/report APIs/UI | complete local-model worker/adapters, video path and full operational audit |
 | 30 | Fire Photo Intelligence | Partial | Migration023/024, photo metadata/quality/duplicate and drawing links | production classifier/description worker and real labeled accuracy acceptance |
 | 31 | Voice, Statement and Evidence Comparison | Partial | Migration025/026, transcript semantics, statement/evidence comparison workflow and benchmark | actual STT/diarization worker and real audio baseline |

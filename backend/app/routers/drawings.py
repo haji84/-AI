@@ -603,7 +603,7 @@ def get_drawing_page_preview(
             str(path),
             media_type=doc.mime_type or "application/octet-stream",
             headers={
-                "Cache-Control": "private, max-age=300",
+                "Cache-Control": "no-store",
                 "ETag": f'"{doc.sha256}-page-1"',
             },
         )
@@ -644,7 +644,7 @@ def get_drawing_page_preview(
             content=png,
             media_type="image/png",
             headers={
-                "Cache-Control": "private, max-age=300",
+                "Cache-Control": "no-store",
                 "ETag": f'"{doc.sha256}-page-{page_no}-{scale:.6f}"',
                 "X-Drawing-Page-Width": str(pix.width),
                 "X-Drawing-Page-Height": str(pix.height),
