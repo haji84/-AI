@@ -1,588 +1,690 @@
-# 消防業務ローカルAI 統合システム仕様書 v1.8
+# 消防業務AIOS Master Specification v2.0
 
-作成基準日: 2026-10-04
+作成基準日: 2026-10-07
 
-## 1. 目的
+本書は消防業務AIOSの唯一のMaster Specificationとする。
+旧v1.8までの仕様、2026-10-06までに確定したGitHub上の後発設計、Completion Run A/B、TENANT_OPERATIONS、各Task brief、および会話で確定した追加要件を統合した。
 
-既存の査察台帳、届出、PDF、図面、写真、録音、火災調査資料等を庁内LAN上で統合し、複数職員が同時利用できるローカルWebシステムを構築する。JUST Calc/Excelマクロの有無に依存せず、通常業務はAI停止時も継続できる構成とする。
+実装状況はPROJECT_STATE.md、docs/completion/RUN_A_STATUS.md、docs/completion/RUN_B_STATUS.md、INTEGRATION_HANDOFF.mdを参照する。
+本書は「何を作るか」を定義し、PROJECT_STATE等は「どこまで作ったか」を定義する。
 
-## 2. 基本構成
+---
 
-- 利用者PC: Webブラウザのみを基本とする。
-- 業務サーバー: Webアプリ/API/認証/権限/監査ログを提供する。
-- DB: PostgreSQLを第一候補とし、複数同時更新・トランザクション・履歴管理に対応する。
-- 共有フォルダ: 原本PDF、写真、録音、図面、添付資料、エクスポート、バックアップを保存する。
-- Local AI: LLM、Vision、OCR、Speech-to-Text、Embedding/Rerankerを用途別に組み合わせる。
-- 法令ルールエンジン: AIと分離し、版管理された正式ルールを適用する。
+## 1. Product Vision
 
-### 2.1 本部別の分離（2026-10-06確定）
+消防業務AIOSは、単一業務アプリの集合ではなく、消防本部全体の業務データ、文書、法令、判断根拠、Human Review、監査、AI支援を1つの共通基盤で接続するモジュール型業務OSとする。
 
-共通コードを使用し、本部ごとにPostgreSQL DB、アプリ実行環境、原本、バックアップを分離する。
-同一本部の複数署所・複数PCは同じサーバーDBをブラウザから利用する。
-本部の不変UUIDとDB・原本保存先を照合し、未設定・不一致は本番起動を拒否する。
-本部追加・移行・更新・復元は [本部別運用契約](architecture/TENANT_OPERATIONS.md) に従う。
-HTTP利用者は本部接続先を指定できない。人事履歴・認証・監査・法令承認・AI候補も本部専用DBに保存する。
+目的は以下。
 
-## 3. 同時利用・競合制御
+- 二重入力、転記、集計、照合、検索、期限確認、下書き作成を極小化する。
+- 事実を一元管理し、同じ情報を業務ごとに複製しない。
+- AI候補と正式データを厳格に分離する。
+- 正式判断はHuman Gateを通す。
+- すべての重要な結論を元データ・原本・Rule・Human Reviewへ遡れるようにする。
+- AI停止時も通常業務を継続できる。
+- 1つの共通コードを複数の消防本部へ導入できる。
+- 各消防本部は必要Moduleを選択でき、後から追加できる。
+- 本部ごとの条例、規則、内規、帳票、承認フロー、権限、予算構造、勤務条件、手当条件、UI設定を個別管理できる。
+- 最終的に、対象物、予防、救急、警防、火災調査、人事、勤務、車両、資機材、契約、予算、議会、統計、文書を横断して利用できる1つのシステムとする。
 
-- 複数職員の同時閲覧・同時編集に対応する。
-- 1個のJSON/SQLiteファイルを共有フォルダから各PCが直接同時更新する方式は採用しない。
-- 更新時にrecord_versionまたはupdated_atを比較する楽観ロックを採用し、他職員の変更を無断で上書きしない。
-- 競合時は差分表示し、再読込・再編集・権限に応じたマージを行う。
+---
 
-## 4. 共通基盤
+## 2. Canonical Architecture
 
-- 職員ID/アカウント
-- 所属・役職・権限
-- ロールベースアクセス制御
+### 2.1 共通コードと本部分離
+
+共通AIOSコードを使用し、本部ごとに以下を分離する。
+
+- PostgreSQL DB
+- アプリ実行環境
+- Document Storage
+- Backup
+- 設定
+- 人事
+- 権限
 - 監査ログ
-- バージョン履歴
-- 論理削除・復元
-- 自動バックアップ・復元テスト
-- 全データへの不変ID付与
+- AI候補
+- Human Review
+- 法令Rule
+- 正式様式
+- Release適用状態
 
-## 5. 防火対象物台帳
+各本部は不変のdepartment UUIDを持つ。
+DB、アプリ設定、Storage marker、Backup manifestは同じdepartment UUIDに固定する。
 
-対象物ごとに不変のbuilding_idを付与し、名称変更・代表者変更・用途変更があっても同一対象物の履歴として保持する。
+本番起動時にUUID不一致、未設定、Storage不一致を検出した場合はFail Closedとする。
 
-主な情報:
-- 名称、所在地、電話
-- 代表者・管理者
-- 用途・令別表区分
-- 構造、地上/地下階数
-- 建築面積、延べ面積、階別面積
-- 階別用途、収容人員、従業員数
-- 無窓階、防炎等
-- 消防用設備
-- 防火管理情報
-- 査察、届出、違反・指導、図面、写真、火災履歴
+HTTP利用者がtenant、本部UUID、DB接続先、Storage接続先を選択する機能は持たせない。
 
-## 6. 査察
+同一消防本部内の複数署所、分署、分駐所、複数PCは同じ本部DBを利用し、リアルタイムに同一データを共有する。
 
-- 査察案件・実施日・担当者・種別
-- 指摘事項を1件1レコードで管理
-- 改善状況・完了日・関連写真/文書を紐付け
-- 次回査察時に過去指摘、未処理事項、提出状況、台帳差分をAIが要約
+別消防本部間では、データ、職員、アカウント、権限、監査、原本、Backupへ相互アクセスできない。
 
-## 7. 届出・申請受付
+### 2.2 jurisdictionとtenantを分離する
 
-システム内で受付、分類、審査、処理完了まで管理する。
+消防本部のtenant境界と法令適用範囲は別概念とする。
 
-対象例:
-- 消防用設備等点検結果報告
-- 防火管理者選任・解任関係
-- 消防計画
-- 防火対象物使用開始関係
-- 消防用設備関係
-- 訓練関係
-- その他の届出・申請
+1本部DB内に複数の自治体、組合、管轄地域、法令Profileを持つことは可能とする。
+法令判定時には適用jurisdiction、評価日、法令Version、条例Version、Rule Versionを固定する。
 
-書類種別はマスタ化し追加可能とする。
+### 2.3 本番DB
 
-## 8. PDF/OCR/事務処理支援
+本番DBはPostgreSQLを必須とする。
 
-PDF登録後、文字PDFは直接抽出し、スキャンPDFはOCRを行う。AIは書類種別、対象物候補、届出者、日付、設備、面積、用途、収容人員等を抽出する。
+SQLiteは以下に限定する。
 
-台帳との差分を提示し、正式反映は職員確認後とする。原本PDFは上書きせず、ハッシュを保持する。
+- 開発
+- Unit Test
+- 軽量Fixture
+- 一部CI
 
-## 9. 提出状況管理
+本番で共有SQLiteや共有JSONを複数PCが直接更新する方式は禁止する。
 
-対象物ごとに、必要性・提出状況・最終提出日・次回期限・審査状態を管理する。ダッシュボードで未提出候補、期限接近、審査中、AI確認待ちを表示する。
+### 2.4 Document Storage
 
-## 10. 必要書類・消防用設備判定支援
+旧仕様の「共有フォルダ」は、サーバー管理Document Storageへ置き換える。
 
-AIが図面/PDF/入力値から条件を抽出し、正式な法令ルールエンジンがルール適用する。AIは結果を説明し、根拠ルール・使用データ・信頼度を表示する。
+利用者PCはStorageを直接更新しない。
+原本の登録、閲覧、派生物生成、出力はWeb/API経由で行う。
 
-AI単独で法令要否を確定しない。重要判断はHuman Gateを通す。
+Storageには以下を保存できる。
 
-## 11. 図面AI
+- PDF
+- Word
+- Excel
+- CSV
+- 画像
+- 動画
+- 音声
+- 図面
+- 添付資料
+- AI派生物
+- 帳票出力
+- Update Bundle
+- Backup対象原本
 
-PDF/画像図面から以下を候補抽出する。
-- 階・部屋・用途
-- 面積・開口部・階段・出入口・防火区画
-- 設備記号
-- 消火器、感知器、発信機、誘導灯、消火栓等
+原本と派生物を同じfile identityとして扱わない。
 
-各抽出結果にはConfidenceを付与し、低信頼度値は自動採用しない。職員確認後に正式データ化する。
+---
 
-## 12. 火災調査
+## 3. Deployment Profiles
 
-火災ごとにfire_case_idを付与し、対象物、関係者、写真、動画、音声、図面、現場メモ、聴取、調査書、原因検討資料を一元管理する。
+同一コードベースから以下のDeployment Profileを構成可能とする。
 
-AIは火災原因を独断で確定せず、確認事実、仮説、支持情報、反証情報、不足情報、追加調査候補を整理する。
+1. Cloud
+2. Internet-connected Local
+3. Closed-network Local
+4. Fully Offline
+5. LGWAN / Government Network compatible
 
-## 13. 火災調査写真
+5種類の別製品を作るのではなく、共通AIOSにDeployment Adapter、Policy、Update方式を組み合わせる。
 
-- EXIF/撮影日時取得
-- 重複検出・品質確認
-- 外観、出火室、焼損、電気、ガス、設備等へ分類
-- 写真番号・タグ自動付与
-- 写真説明文の下書き
-- 自然文写真検索
-- 図面上の撮影位置との紐付け
+### 3.1 Cloud
 
-原写真は変更禁止とし、AI生成情報は派生データとして管理する。
+- 本部ごとのDB/Runtime/Storage/Backup分離を維持する。
+- 公開Internetへ業務データを不用意に出さない。
+- 外部AIを利用する場合は組織Policyに従い、送信項目を明示制御する。
 
-## 14. 録音・供述
+### 3.2 Internet-connected Local
 
-音声をローカルで文字起こしし、話者分離・タイムスタンプを保持する。
+- 本部内サーバーまたは専用親PCでAIOSを稼働する。
+- 各PCはブラウザから接続する。
+- 公式法令等の外部更新を直接取得可能とする。
 
-原音声 → 文字起こし → AI整理 → 職員確認済み正式記録を別レイヤーで保持する。
+### 3.3 Closed-network Local
 
-AIは「たぶん」「頃」「と思う」等の不確実性を削除しない。複数供述・時系列間の矛盾候補を示し、該当原音声位置へ戻れるようにする。
+- 本体は閉域内で稼働する。
+- 外部更新は署名済みUpdate Bundle等を承認経路で搬入する。
 
-## 15. 火災調査書作成支援
+### 3.4 Fully Offline
 
-案件データから、火災概要、建物概要、発見状況、通報、初期消火、避難、焼損、供述、時系列等の文章案を作成する。各文章案は根拠データへ遡れることを必須とする。
+- 外部Networkを前提としない。
+- CRUD、検索、受付、帳票、ローカルAI等はオフラインで利用可能とする。
+- 法令・モデル・Releaseは物理または承認済みBundleで更新する。
 
-## 16. Local AI横断検索
+### 3.5 LGWAN等
 
-権限範囲内で対象物・査察・届出・図面・写真・供述・火災調査・内部文書を横断検索する。
+LGWAN等ではPolicy Gateway/Adapterを用い、閉域側処理と外部側処理を分離可能とする。
+外部側Agentへ送る情報は権限・機密区分・許可Policyで制御し、必要最小限の結果のみ戻す。
+
+### 3.6 初期正式クライアント
+
+初期正式クライアントはPC Web Browserとする。
+
+初期正式スコープに以下を必須としない。
+
+- 個人スマートフォン
+- PWA
+- スマホカメラ直接受付
+- QR主体の現場運用
+
+将来の組織管理モバイル端末へ拡張可能な構造は維持する。
+
+---
+
+## 4. Update, Release and Rollback
+
+### 4.1 クライアント更新不要
+
+利用者PCへModuleごとのInstallerやHTMLファイルを配布しない。
+
+原則:
+
+Server Release更新
+→ AIOS Runtime更新
+→ Browser再読込
+→ 同一本部の利用者へ反映
+
+利用者PCごとのDownload、Install、Macro更新を必要としない。
+
+### 4.2 本部ごとのRelease適用
+
+共通コードReleaseを作成しても、全本部を強制同時更新しない。
+
+各本部は以下を持つ。
+
+- current release
+- previous release
+- migration version
+- feature flags
+- deployment evidence
+- rollback history
+
+本部ごとに承認、更新、Rollbackできる。
+
+### 4.3 Module Registry
+
+各Moduleは以下を持つ。
+
+- module_id
+- version
+- manifest
+- dependency
+- required permission
+- feature flag
+- migration dependency
+- release compatibility
+
+本部ごとに必要Moduleを有効化できる。
+
+### 4.4 Change Request
+
+自然文要望をHuman Change Requestとして保存できる。
 
 例:
-- 「去年から査察していない飲食店」
-- 「消防計画が確認できない対象物」
-- 「点検報告と台帳で設備が違うところ」
-- 「この対象物について全部」
-- 「コンセントが写っている写真」
+「対象物詳細画面へ未提出件数を表示し、クリックすると受付一覧へ移動したい」
 
-## 17. 自己学習
+AIは以下を候補として生成できる。
 
-AIは職員の修正をLearning DBへ保存し、以下を改善対象とする。
-- OCR補正
-- 書類分類
-- 対象物紐付け
-- 地名・固有名詞辞書
-- 写真分類
-- 音声認識補正
-- 文書修正傾向
-- 業務確認パターン
+- 対象Module
+- 画面影響
+- DB影響
+- API影響
+- Permission影響
+- Audit影響
+- Migration候補
+- Test候補
+- Risk
+- Acceptance Criteria
 
-本番AIを即時自己改変しない。
+変更手順は原則:
 
-Champion → 学習 → Candidate → 固定評価セット → 比較 → 承認条件 → Champion昇格の手順を採用し、性能悪化時はRollback可能とする。
+Request
+→ Impact Analysis
+→ Candidate implementation
+→ Sandbox
+→ Automated Test
+→ Human Gate
+→ Deployment
+→ Monitoring
+→ Rollback可能
 
-## 18. 自動変更禁止領域
+AIが直接本番変更を確定しない。
 
-AIは以下を独断で変更・確定しない。
-- 法令・条例・告示・正式ルール
-- 権限
-- セキュリティ設定
-- 証拠原本
-- 監査ログ
-- 正式な違反確定
-- 火災原因の最終確定
-- 対象物の物理削除
+---
 
-## 19. AI判断レベル
+## 5. Common Data Principles
 
-- Level 0: OCR、全文検索、重複候補等の低リスク処理
-- Level 1: 書類分類、タグ、対象物候補等。低Confidence時は停止
-- Level 2: 台帳変更候補、届出不足候補等。職員承認必須
-- Level 3: 法令上の設備要否、重要な違反判断、火災原因等。AIは補助のみ
+### 5.1 Single Source of Truth
 
-## 20. AI停止時の要件
+同じ事実をModuleごとにコピーしない。
 
-AIが停止しても以下は利用可能とする。
-- 対象物閲覧・検索
-- 新規登録・編集・保存・廃止
-- 査察登録
-- 届出受付
-- 写真/PDF/文書登録
-- 通常検索
+共通IDを使用する。
 
-## 21. 既存査察台帳移行
+例:
 
-「★新査察台帳システム.xlsm」を移行元とし、旧列→新DBマッピング、型正規化、重複・欠損検査を実施する。内部キーは旧IDとして保持し、新DB主キーはUUID等の不変IDを別に発行する。
+- employee_id
+- organization_unit_id
+- building_id
+- document_id
+- incident_id
+- vehicle_id
+- equipment/asset ID
+- contract ID
+- fiscal year/account ID
 
-## 22. 開発フェーズ
+### 5.2 訂正と履歴
 
-- Phase 0: 現行台帳監査、DB設計、移行マッピング
-- Phase 1: 共通基盤（DB/認証/権限/監査）
-- Phase 2: 防火対象物台帳
-- Phase 3: 査察
-- Phase 4: 届出・PDF
-- Phase 5: 法令ルール/消防設備判定支援
-- Phase 6: 図面AI
-- Phase 7: 火災調査
-- Phase 8: 写真AI
-- Phase 9: 音声・供述AI
-- Phase 10: 横断AI検索
-- Phase 11: 学習基盤
-- Phase 12: AI自律タスク
-- Phase 13: 本番評価・改善
+正式データの訂正は履歴付きUpdateとする。
 
-## 23. 完成原則
+最低限保持する。
 
-AIにすべてを任せることではなく、転記・検索・照合・整理・下書き・不足検出をAIへ移し、人間は正式判断に集中できることを完成基準とする。
+- before
+- after
+- changed_at
+- changed_by
+- reason
+- source evidence
+- approval
+- version
 
+重要データを訂正のたびに物理削除して作り直さない。
 
-## 24. 届出種別マスタと受付対象の拡張
+### 5.3 楽観ロック
 
-受付対象は固定列・固定画面で実装せず、`submission_type_master` で追加可能とする。
+同時編集可能なRecordはversion等で競合検出する。
+stale updateは409等で拒否し、後勝ち上書きをしない。
 
-対象には少なくとも以下を含む。
-- 消防用設備等点検結果報告
-- 防火管理者選任・解任関係
-- 消防計画
-- 火災予防条例関係の各種届出
-- 消防法令適合通知書関係
-- 防火対象物使用開始関係
-- 消防用設備関係
-- 訓練関係
-- その他の申請・通知・届出
+### 5.4 論理削除
 
-届出種別ごとに、抽出項目、必須項目、添付書類、審査フロー、対象物DB更新先、更新可否、Human Gate、適用ルールを設定できる。
+正式業務Recordは原則、廃止、取消、無効、退職、retired等の状態で残す。
 
-## 25. 受付から査察台帳への即時反映
+原本、監査ログ、Human-reviewed evidenceをAIが物理削除しない。
 
-「届出DB」と「査察台帳」を別々に転記管理しない。
+---
 
-受付確定時に以下を同一DBトランザクションとして処理する。
-1. 受付履歴を保存
-2. 原本ファイルを紐付け
-3. 対象物基本情報の変更候補を確定反映
-4. 必要に応じて消防用設備、防火管理、消防計画、査察関連情報を更新
-5. 変更履歴・監査ログを保存
-6. 査察台帳画面へ即時反映
+## 6. Employee, Organization and Account
 
-査察台帳画面は対象物DB等を参照するView/UIとして構成し、二重入力・転記漏れ・不一致を構造的に防止する。
+職員マスタとLogin Accountを分離する。
 
-## 26. 正式届出番号
+職員はemployee_id等の不変IDで管理する。
 
-正式届出番号は既存の番号取得システムを正本とする。
+管理対象:
 
-- Local AI側で正式番号を勝手に採番しない。
-- 正式届出番号は原則として数字のみを保存・表示する。例: `1234`
-- `submission_id` はシステム内部の不変IDとして別途発行する。
-- 年度、届出種別等は別フィールドで保持する。
-- 「予防第」「号」等の接頭辞・接尾辞をAIが推測で付加しない。
+- 職員
+- 組織
+- 署所
+- 課/係
+- 役職
+- 本務
+- 兼務
+- 異動履歴
+- 有効期間
+- 資格
+- 担当業務
+- 状態
 
-## 27. 任意ファイル名への対応
+Account:
 
-受付ファイル名は業務情報として信頼しない。
+- login ID
+- password hash
+- password history
+- password expiry
+- account state
+- session revocation
+- last login等
 
-以下のような名称を正常系として扱う。
-- `scan0001.pdf`
-- `IMG_4821.jpg`
-- `20261004_001.pdf`
-- 任意の日本語名
+Passwordは平文保存禁止。
 
-書類種別、対象物、届出者、日付、届出内容はPDF/画像の実内容からOCR・文書解析・Visionで判定する。
+権限は現在の所属・役職・担当・Human設定されたRole Ruleから算出する。
+AIが権限を決めない。
 
-原本ファイル名は監査情報として保持し、内部管理は`document_id`・`submission_id`で行う。人間向けの論理表示名を別フィールドで持つことができる。
+対応可能な権限形態:
 
-## 28. PDF・写真文書受付
+- Role
+- Module permission
+- temporary grant
+- acting/代理
+- 期限付き権限
+- 将来日付の異動/権限予約
+- Humanによる明示grant/revoke
 
-受付はPDFに限定しない。
+最後の重要管理者を失わせる変更等は保護する。
 
-対応対象:
+---
+
+## 7. Authorization
+
+Frontend表示だけで権限制御しない。
+Backend endpointで必ず確認する。
+
+Moduleに応じて以下を定義可能とする。
+
+- read
+- create
+- update
+- delete/retire
+- review
+- approve
+- admin
+- import
+- export
+- aggregate
+- AI use
+- sensitive read
+
+救急、職員、財務、火災調査等は必要に応じて追加のSensitive Permissionを持つ。
+
+権限のないRecordの存在をDashboard件数やSearch snippetから推測できないようにする。
+
+内部Rule ID等は一般利用者へ無理に露出せず、人間が理解できる名称・根拠・条文・理由を優先表示する。
+監査・管理権限では内部IDを確認可能とする。
+
+---
+
+## 8. Audit
+
+重要操作を監査する。
+
+例:
+
+- Login
+- Logout
+- Data create/update/retire/restore
+- Human Review
+- Approval
+- Rule approval
+- AI generation
+- Import
+- Export
+- Search of sensitive data
+- Backup
+- Restore
+- Tenant initialize
+- Account/permission change
+- Release/rollback
+
+Auditは原則append-only。
+通常アプリRoleにAudit改変権限を与えない。
+
+---
+
+## 9. Document Platform
+
+Documentを全Module共通基盤とする。
+
+対応入力:
+
 - PDF
+- DOCX
+- XLSX/XLSM
+- CSV/TSV
+- TXT
 - JPEG/JPG
 - PNG
-- HEIC等の一般的な画像形式
+- WebP
+- TIFF
+- HEIC等はdecoder availabilityに応じて有効化
+- 音声
+- 動画
 
-複数画像を1件の届出の複数ページとして束ねることができる。
+保存:
 
-画像文書について解析用派生データでは以下を実行できる。
-- 回転補正
-- 傾き補正
-- 台形歪み補正
-- 明るさ/コントラスト補正
-- 余白検出
-- OCR
-- ページ順推定
-- 重複ページ検出
-- ページ欠落候補検出
-- 読取不能箇所警告
+- original SHA-256
+- media type
+- original filename
+- logical display name
+- source module
+- uploader
+- created time
+- derived documents
+- extraction method
+- provenance
 
-原本PDF・原画像は変更せず保存し、解析用派生物と分離する。
+ファイル名は業務内容の正本にしない。
 
-## 29. 初期クライアント対象
+Document解析の標準フロー:
 
-初期バージョンでは庁内PCブラウザを正式クライアントとする。
+Original
+→ deterministic extraction
+→ OCR/Vision/AI when needed
+→ candidate
+→ Human Review
+→ explicit apply
 
-個人スマートフォンを業務端末として利用しないため、以下は初期スコープから除外する。
-- スマートフォン受付
-- PWA
-- スマートフォンカメラ直接取込
-- QRコードによる現場運用
+AI/OCR結果を原本へ書き戻さない。
 
-将来、組織管理下のモバイル端末が導入された場合に追加可能な構造は維持する。
+---
 
-## 30. GitHub管理
+## 10. Document Intake and OCR
 
-GitHubリポジトリには仕様、ソースコード、テスト、DB Schema、migration、匿名化された開発用fixtureのみを保存する。
+解析候補:
 
-以下をGitへ保存しない。
-- 実運用対象物データ
-- 個人情報
-- 原本届出PDF
-- 火災調査写真/録音
-- 本番DBダンプ
-- 秘密鍵・パスワード・APIキー
-- 現行xlsmの実運用データ
+- document type
+- submission type
+- facility
+- submitter
+- date
+- content
+- equipment
+- area
+- usage
+- occupancy
+- attachment relationship
+- destination module
+- target fields
 
-業務データは庁内環境のみで管理する。
+複数画像を1受付の複数ページとして束ねられる。
 
+派生画像処理:
 
-## 29. 救急報告・集計モジュール
+- rotation
+- deskew
+- perspective correction
+- brightness/contrast
+- margin detection
+- page order candidate
+- duplicate page detection
+- missing page warning
+- unreadable area warning
 
-既存 `救急報告関係.xlsm` の機能を、VBA依存ではなく共通DB上の救急業務モジュールとして統合する。
+安全上限は設定可能とし、v1系互換の初期値として以下を利用できる。
 
-### 29.1 入力源
+- sync file: 100MB
+- OCR: 20 pages
+- extracted text: 250,000 chars
 
-現行ブックで確認した入力源は以下。
+これらは運用設定で変更可能だが、無制限処理は禁止。
 
-- 事案台帳: 117列
-- 救護者台帳: 160列
-- 出動隊員: 7列
+---
 
-入力ファイルはCSV等からサーバー側へ取り込み、利用者PCのExcel/マクロ機能を必要としない。再取込時は事案キー等により重複登録を防止する。
+## 11. Facility Registry
 
-### 29.2 正規化データ
+building_idを不変IDとする。
 
-少なくとも以下へ分離する。
+管理:
 
-- `emergency_cases`: 事案単位
-- `emergency_patients`: 傷病者単位
-- `emergency_crew_assignments`: 出動隊員単位
-- 病院マスタ
-- 傷病程度マスタ
-- 取込バッチ・原本ハッシュ
-- 帳票生成履歴
+- name
+- address
+- phone
+- owner/representative
+- manager
+- occupancy
+- 令別表分類
+- structure
+- above/below ground floors
+- building area
+- total floor area
+- floor area
+- floor use
+- occupancy count
+- employee count
+- windowless classification
+- flame-retardant information
+- fire safety equipment
+- fire management
+- inspections
+- submissions
+- violations/corrections
+- drawings
+- photos
+- fire history
 
-原CSVの全情報を失わないよう、主要項目は型付きカラムへ正規化し、未移行列も `raw_payload` として保持可能とする。
+旧台帳由来の未確定項目を推測で正規化しない。
+原値をEvidenceとして保持する。
 
-### 29.3 帳票
+---
 
-現行ブックで生成している以下をDB集計から再生成可能とする。
+## 12. Inspection
 
-- 病院別搬送件数・内訳
-- 特定病院への日別/月別搬送件数
-- 傷病程度内訳
-- 地域別搬送件数
-- 隊員月別出場回数
-- 個人年度出場回数
-- 総出場累計
-- 外部提出用集計表
+管理:
 
-帳票シートを正本とせず、DBを正本として任意時点でExcel/PDF等を再生成できることを原則とする。
+- inspection case
+- date
+- type
+- inspector
+- findings
+- one finding per record
+- correction status
+- due date
+- completion
+- photos
+- documents
+- past unresolved findings
+- follow-up
 
-## 30. 救急Local AI判定支援
+次回査察時にAIは過去指摘、未処理、届出状況、台帳差分を要約できる。
 
-救急データについてもLocal AI・ルールエンジンを利用できるようにする。
+---
 
-対象候補:
+## 13. Violations and Corrective Actions
 
-- CPA候補抽出
-- アレルギー候補抽出
-- 禁忌・注意事項候補抽出
-- 傷病分類候補
-- 入力漏れ・矛盾検出
-- 搬送集計分類の確認
-- 自然文による症例検索・統計抽出
+査察指摘と正式違反確定を分離する。
 
-CPA判定は傷病名のみへ依存せず、救急蘇生コード、心肺蘇生等の処置情報、傷病者状態、診断・傷病名等の複数根拠を評価する。
+AIは以下の候補を提示できる。
 
-AIが生成したCPA・アレルギー・禁忌等は、正式データへ無条件に上書きせず、`emergency_clinical_flags` に以下を保存する。
-
-- flag_type
-- value
-- derivation_method（explicit/rule/ai/manual）
+- possible issue
+- applicable Rule
 - evidence
-- confidence
-- review_status
-- confirmed_by / confirmed_at
+- missing information
+- recommended confirmation step
 
-明示された構造化コードや職員確認済み情報を最優先し、AI推測と区別する。
+正式違反、命令、処分等はHuman Gateと正式手続を必須とする。
 
-## 31. 救急データの権限・個人情報
+改善指導、回答、期限、確認、完了Evidenceを追跡する。
 
-救急データは対象物台帳等とは異なる権限境界を設定可能とする。
+---
 
-- 閲覧権限
-- CSV取込権限
-- 個人情報閲覧権限
-- 集計のみ閲覧権限
-- 帳票出力権限
-- AI症例検索権限
+## 14. Submission and Application
 
-AI検索・集計でも、利用者の権限を超えた個人情報を返さない。監査ログには検索・出力・取込等の重要操作を残す。
+submission typeはMaster化し、後から追加可能。
 
-## 32. 救急モジュール開発トラック
+少なくとも:
 
-Phase 1の共通基盤を共用し、その後は予防系モジュールと並行して救急トラックを実装可能とする。
+- 消防用設備等点検結果報告
+- 防火管理者選任/解任
+- 消防計画
+- 火災予防条例関係
+- 消防法令適合通知関係
+- 使用開始
+- 消防用設備関係
+- 訓練関係
+- その他届出/申請/通知
 
-- E1: CSV取込・正規化DB・現行帳票回帰テスト
-- E2: Web集計・検索・Excel/PDF出力
-- E3: 救急報告チェック・入力矛盾検出
-- E4: Local AIによる症例分類、CPA・アレルギー・禁忌候補
-- E5: 自然文集計・統計・学習改善
+Submission typeごとに設定可能:
 
+- required fields
+- extract fields
+- attachments
+- workflow
+- target DB fields
+- update permission
+- Human Gate
+- Rule link
+- official template
 
-## 31. 拡張・取込フレームワーク
+正式届出番号は既存採番System等の正本から受領する。
+AIOSが推測で正式番号を生成しない。
 
-後からExcel、CSV、PDF、Word、画像、音声等を読み込ませ、既存システムとの差分を解析できる。AIはデータ反映候補、DB項目候補、画面候補、API候補、権限候補、ルール候補を生成できるが、本番へ直接変更しない。解析→差分→候補→Sandbox→自動テスト→Human Gate→Deploymentの順を必須とする。
+submission_idは内部不変IDとする。
 
-## 32. Human Change Request
+受付確定後、対象物台帳等への反映を別転記せず同一DB transactionで接続する。
 
-職員は自然文で追加機能を要求できる。例として「対象物詳細画面右上へ未提出件数を追加し、押したら受付へ遷移」等をChange Requestとして保存する。対象Module/画面/DB/API/権限/監査への影響、リスク、受入条件、Sandbox結果を保持し、人間の承認後のみ本番反映可能とする。
+---
 
-## 33. 正式様式原本優先
+## 15. Submission Requirement Tracking
 
-正式様式が登録されている場合はそのPDF/Excel/Word原本を使用し、AIが独自の正式帳票へ置換しない。原本SHA-256、Version、施行/失効日、発行元、入力欄Mapping、印刷設定、改変方針を保持する。旧Versionを過去案件再現用に保存する。
+対象物ごとに:
 
-## 34. 契約管理
+- requirement candidate
+- submission status
+- last submitted
+- next due
+- review state
+- missing candidate
+- source Rule
+- evidence
 
-契約案件、相手方、見積、契約書、仕様書、決裁、履行、検査、完了、請求、変更契約を一元管理する。OCR、転記、金額計算、文書差分、不足書類検出、類似案件検索は支援対象とする。契約相手、正式金額、契約条件、正式文書、契約締結はHuman Gateを必須とする。正式様式が存在する場合は登録済み様式へ差し込む。
+を管理できる。
 
-## 35. Module Registry / Feature Flag / Rollback
+未提出違反をAIが独断確定しない。
 
-各業務機能はModuleとして登録しVersion/Manifestを持つ。新機能はFeature Flagで有効化・停止できる。DeploymentにはChange Request、release version、previous version、migration version、Feature Flag、テストEvidenceを記録し、問題時はRollback履歴を残して前Versionへ戻せる構造とする。
+---
 
-# v1.5 追補: Phase 2 防火対象物台帳
+## 16. Hazardous Materials
 
-## Phase 2実装方針
+危険物関連を独立Moduleとして追加可能とする。
 
-防火対象物台帳はブラウザから検索、詳細閲覧、新規登録、編集、廃止、復元できること。
-名称、所在地、旧内部キー、整理番号で検索し、状態フィルタ、ページング、並び替えに対応する。
+対象:
 
-同一対象物を複数職員が編集した場合はrecord versionによる楽観ロックを用い、古い画面からの上書きを拒否する。競合時はサーバー最新データを返し、画面上で差分確認と再読込を可能とする。
+- facility/installation registry
+- permission/notification records
+- quantity/capacity
+- category
+- inspection
+- change
+- deadline
+- document
+- legal evidence
+- violation/correction
+- history
 
-## 旧査察台帳の正規化
+法令判断はRule Engineを使用する。
 
-旧574列を巨大な固定テーブルとして再現しない。Phase 0で意味が確認できた項目から正規化する。
-Phase 2では次を正規化対象とする。
+---
 
-- 対象物基本情報
-- 令別表区分・区分詳細
-- 建物構造・階数・面積
-- 用途地域・令8条区画
-- 代表者情報
-- 階別床面積
-- 階別用途
-- 階別収容人員
-- 階別従業員
-- 無窓等判定
-- 防炎関係の階別情報
+## 17. Legal and Rule Engine
 
-旧1～7階の固定列は `facility_floors` の行形式へ変換し、将来の階数増加にDB改修を必要としない構造とする。
+LLMによる自由推論を正式判定Engineにしない。
 
-Phase 0で意味未確定の41列は推測で新DBへ割り当てず、旧原本行JSONを保持し、対象物画面から閲覧専用で確認できること。
+正式判定はVersion管理されたRule Engineを用いる。
 
-## Phase 2実装確認値
+Rule:
 
-開発環境で実ファイルを使用した検証結果:
+- domain
+- conditions
+- outcomes
+- effective dates
+- status
+- citations
+- source version
+- Human approval
 
-- 防火対象物: 611件
-- 正規化詳細: 611件
-- 正規化代表者: 611件
-- 正規化階別データ: 1,434行
-- 旧原本行: 611件
-- 再取込時の二重登録: なし
+AIはRule Candidate、影響候補、説明を作成できる。
 
-救急モジュール回帰:
+### 17.1 National law
 
-- 事案: 2,958件
-- 傷病者: 2,950件
-- 出動隊員: 8,981件
-- 隊員コード未確定: 66件保持
+e-Gov等公式一次Sourceを優先。
 
-## Phase 2画面からの次モジュール接続
+保存:
 
-対象物詳細から、今後以下へ接続する。
+- law ID
+- title
+- number
+- promulgation/effective dates
+- full text
+- structured provisions
+- source URL
+- acquired_at
+- SHA-256
+- version
+- previous version difference
 
-- 査察
-- 届出受付
-- 消防用設備
+### 17.2 Local regulations
 
-未完成機能は有効化せず、Feature Flagおよび開発Stageに従って段階的に開放する。
+本部Profileごとに公式Source adapterを登録する。
 
-
-# v1.6 追補: Phase 3 査察・届出受付
-
-## Phase 3正式範囲
-- 対象物に査察履歴と指摘事項を紐付ける。
-- 指摘事項は1件1レコードで是正状態・完了日を管理する。
-- 届出種別はマスタ管理し、新種別を追加可能とする。
-- 届出受付時、正式届出番号は既存採番システムを正本とし、本システムでは数字のみ保持する。
-- 原本PDF/画像等をdocument_idで届出へ紐付け、SHA-256を保持する。
-- 消防用設備等点検結果報告、防火管理者選任・解任関係、消防計画は対象物ダッシュボードへ表示する。
-- 新しい正式受付データと旧査察台帳由来データを区別する。
-- 旧台帳に文字情報があるだけの場合、原本未確認の正式提出として断定しない。
-- Excelシリアル/和暦等を決定的に解析できる場合のみ日付へ正規化し、原文も保持する。
-- 設備の存在を点検結果報告の提出証拠として扱わない。
-- 複数職員の更新競合はrecord_versionで検出し、後勝ち上書きを禁止する。
-
-## Phase 3開発環境確認
-- pytest 30/30 PASS
-- frontend JavaScript syntax PASS
-- 実旧査察台帳611件で再取込冪等性PASS
-- 実LAN PostgreSQL/TLS/2端末E2Eは未実施Host Gateとして継続する。
-
-
-## 37. Phase 4 文書解析受付
-
-受付原本は変更せず保存し、直接文字抽出可能な形式は直接抽出を優先する。画像または文字抽出不能PDFのみOCR経路を使用する。Phase 4対応経路はPDF、JPG/JPEG、PNG、WebP、TIFF、DOCX、XLSX/XLSM、TXT/CSV/TSVとし、HEICはデコーダ導入後に有効化する。
-
-文書解析は、抽出方式、分類根拠、Confidence、抽出項目、対象物候補、台帳差分候補をEvidenceとして保存する。ファイル名は書類種別判定の正本にせず、文書内容を使用する。
-
-受付確定はHuman Review後のみ可能とする。台帳との差分は自動反映せず、職員が項目単位で明示承認した変更だけを反映する。対象物が提案生成後に更新された場合は楽観ロックにより反映を拒否する。
-
-Phase 4では届出の法令上の必要性・未提出違反・消防用設備要否を確定しない。これらはPhase 5のVersion管理された法令ルールエンジンで判断支援する。
-
-## 38. Phase 4 解析安全制約
-
-- 同期解析ファイル上限: 100MB
-- OCR上限: 20ページ
-- 抽出テキスト上限: 250,000文字
-- 管理ストレージ外パスは解析拒否
-- 原本ファイルを解析処理で上書きしない
-- OCR/分類/抽出結果と正式データを分離する
-- 決定論的抽出で足りる処理にLLMを必須としない
-- Local LLM fallbackを使用する場合も根拠・モデルVersion・Confidenceを保存する
-
-
-# v1.7 追補: Phase 4 文書取込・解析
-
-- PDF/画像/DOCX/XLSX/XLSM/TXT/CSV/TSVの原本を登録し、内容をローカル解析できる。
-- PDFは埋込文字を優先し、文字情報が不足する場合のみOCRを使用する。
-- 書類分類・対象物候補・項目抽出・台帳差分は候補として保存し、自動で正式データへ反映しない。
-- 対象物と書類種別の人間レビュー後にのみ受付確定できる。
-- 台帳差分は項目単位の明示承認を必要とし、レビュー時点から対象物Versionが変化していた場合は409で停止する。
-- 原本は変更禁止、SHA-256保持、派生解析結果と分離する。
-- 受付番号は既存採番システムを正本とし数字のみ保存する。
-- 初期の分類・項目抽出は決定的ルールを基準とし、Local AI追加時も根拠・Confidence・Model Versionを保存する。
-- AI/解析停止時も手動受付は利用可能とする。
-
-## 36. 法令・例規ソース管理と消防本部別法令プロファイル
-
-本システムは、全国共通法令と指定消防本部固有の条例・規則・規程・訓令・告示等を分離して管理する。
-
-### 36.1 全国共通法令
-
-全国法令の一次取得元は、原則としてe-Gov法令検索の正式な法令APIを使用する。
-取得対象は少なくとも以下を含む。
-
-- 法律
-- 政令
-- 省令
-- 規則その他e-Gov法令APIで取得可能な法令
-- 消防法
-- 消防法施行令
-- 消防法施行規則
-- その他、消防業務の判定に必要な関連法令
-
-法令本文は要約だけでなく、取得可能な全文・構造情報・法令ID・法令番号・公布日・施行日・改正履歴・取得時刻・取得元URL・ハッシュを保存する。
-
-### 36.2 消防本部別法令プロファイル
-
-利用者は「適用消防本部」を指定できる。
-
-消防本部ごとに `legal_profile` を作成し、当該消防本部またはその設置主体・構成自治体等が公式公開する例規の全文を保存する。
-
-対象は固定リストにせず、指定した公式例規ソースに収録される以下を原則すべて保存可能とする。
+対象:
 
 - 条例
 - 規則
@@ -590,172 +692,1439 @@ Phase 4では届出の法令上の必要性・未提出違反・消防用設備�
 - 訓令
 - 告示
 - 要綱
-- 公布・改正文
-- 様式
 - 別表
-- 別記
-- 添付PDF/画像
-- その他、公式例規集または公式公布情報で公開される文書
+- 様式
+- PDF/画像
+- 公布情報
 
-「消防関係らしいものだけ」をAIが勝手に間引かない。
-全件保存した上で、消防業務への関連度・適用Moduleを別メタデータとして付与する。
+「消防関係らしい文書だけ」をAIが勝手に削除しない。
 
-### 36.3 法令・条例の全文保存
+### 17.3 Amendment impact
 
-各法令・例規は以下を保存する。
+変更時に候補提示:
 
-- jurisdiction_id
-- legal_profile_id
-- source_id
-- source_document_id / 外部ID
-- 文書種別
-- 正式名称
-- 文書番号
-- 制定/公布日
-- 施行日
-- 失効日
-- 内容現在日
-- 原文全文
-- 構造化本文
-- 原本ファイル
-- 原本URL
-- 取得日時
-- SHA-256
-- Version
-- 前Versionとの差分
-- 取得方式
-- 解析状態
+- changed provision
+- old/new diff
+- impacted Rule
+- impacted submission
+- impacted equipment requirement
+- impacted template
+- impacted facility
+- recalculation candidate
 
-旧Versionを上書き削除しない。
-過去案件は案件日付時点で有効だった法令・条例Versionを再現できること。
+正式Rule変更はHuman Gate。
 
-## 37. 法令・例規自動更新
+### 17.4 Signed Offline Update Bundle
 
-### 37.1 全国法令
+閉域環境では署名済みBundleを利用できる。
 
-e-Gov法令APIを定期確認し、新規制定・改正・廃止・施行日変更等を検知する。
+Bundle:
 
-変更検知時は次を自動実行する。
+- official original
+- metadata
+- source URL
+- source hash
+- version
+- diff
+- manifest
+- bundle hash
+- signature
+- signing key identifier
 
-1. 新Version全文取得
-2. 原本保存
-3. SHA-256計算
-4. 旧Versionとの差分生成
-5. 影響するRule候補検索
-6. AIによるRule変更案・影響範囲案の生成
-7. Human Review待ちへ登録
-8. 承認後に新Rule Versionを有効化
+検証失敗時はImport禁止。
 
-法令本文の取得・保存は自動化できるが、AIが法令改正を解釈して正式Ruleを無確認で変更することは禁止する。
+未知鍵、失効鍵、不正署名、hash mismatch、path traversal、unsafe archive、許可外origin等を取込前に拒否する。
 
-### 37.2 地方例規
+---
 
-地方公共団体・消防組合等には統一APIが存在することを前提としない。
+## 18. Equipment Requirement and Installed Equipment
 
-消防本部プロファイルごとに `source adapter` を登録できる。
+法令上必要な設備と、実際に設置されている設備記録を分離する。
 
-対応方式例:
+Rule Engineからrequired equipment候補を生成する。
 
-- 公式例規集HTML
-- 例規集検索システム
-- 公布情報HTML
-- 公式PDF
-- RSS/Atom
-- JSON/XML API
-- 手動登録
-- 管理されたブラウザ取得
+FacilityEquipment等の設置情報にはverification stateを持つ。
 
-例規集の更新が遅れる場合に備え、可能な場合は次を併用する。
+AI/旧台帳/図面抽出だけでverified installedとしない。
 
-- 現行例規集
-- 新規公布・改正文
-- 告示/公告ページ
+比較結果例:
 
-変更検知時には原文を自動保存し、旧Versionとの差分を作成する。
+- verified installed
+- missing candidate
+- unverified evidence only
+- manual review required
 
-### 37.3 監視頻度
+根拠Rule/Provisionへ遡れること。
 
-ソースごとに監視頻度を設定可能とする。
+---
+
+## 19. Drawing AI
+
+図面入力:
+
+- PDF
+- image
+
+候補抽出:
+
+- floor
+- room
+- use
+- wall/region
+- area
+- opening
+- stair
+- exit
+- fire compartment
+- equipment symbols
+- equipment locations
+- building facts
+
+Human Annotationを正解データ層として持つ。
+
+Human editing:
+
+- polygon vertex drag
+- add/remove vertex
+- add/remove room
+- arbitrary zone
+- label/use correction
+- floor
+- snapping
+- Undo/Redo
+- unsaved-change protection
+- reviewed Reference revision Draft
+
+Metric area:
+
+- pixel area
+- two-point scale calibration
+- meters_per_pixel
+- automatic m2 recalculation
+- server authoritative calculation
+- floor summaries
+- overlap warnings
+- known floor-area comparison
+
+Reviewed Referenceは直接上書きしない。
+修正時は新Revision Draftを作る。
+
+### 19.1 Drawing QA
+
+確認前に表示:
+
+- region count
+- floor totals
+- target floor-area comparison
+- overlaps
+- uncalibrated pages
+- missing label/use
+- open-plan approximation
+- Reference reviewability
+
+### 19.2 Benchmark
+
+Human ReferenceとAI Hypothesisをsource SHAでbindする。
+
+評価:
+
+- geometry Precision/Recall/F1
+- IoU
+- element type
+- symbol accuracy
+- equipment candidate
+- fact candidate
+- pixel area accuracy
+- calibrated m2 accuracy
+
+HumanがBaselineをaccept/rejectする。
+良いscoreでも自動acceptしない。
+
+---
+
+## 20. Occupancy Classification and Drawing Consultation
+
+図面、対象物情報、Human answers、正式Ruleから令別表等の分類候補を生成する。
+
+分類確定はHuman Gate。
+
+分類確定後、必要設備、追加設備、配置候補を評価する。
+
+設備が図面へ記載されていない場合でも、確認済み用途/規模/Ruleに基づき必要設備と配置候補を提示可能とする。
+
+回答Package:
+
+- classification
+- input snapshot
+- required equipment
+- existing equipment
+- actions
+- placement
+- unresolved questions
+- legal citations
+- source hashes
+- coverage
+- Human review state
+
+AIが法令適合を無根拠に保証しない。
+
+---
+
+## 21. Emergency Module
+
+VBA/Excelを正本とせずDBを正本とする。
+
+Data:
+
+- cases
+- patients
+- crew
+- treatments
+- transport
+- hospital
+- severity
+- classifications
+- reviewed clinical flags
+- report snapshots
+- import batches
+- source hashes
+- correction history
+
+既存Excel/CSVの全情報を失わず移行し、未正規化項目はraw evidenceとして保持可能。
+
+### 21.1 Clinical candidates
+
+候補:
+
+- CPA
+- allergy
+- contraindication/caution
+- disease/state classification
+- input inconsistency
+- missing fields
+
+CPAは傷病名だけで判定しない。
+
+Evidence候補:
+
+- explicit CPA code
+- resuscitation code
+- CPR/chest compression treatment
+- patient state
+- diagnosis/injury
+
+CPRだけを正式CPAへ自動確定しない。
+
+clinical candidate:
+
+- flag_type
+- value
+- derivation_method
+- evidence
+- confidence
+- source version
+- review status
+- reviewer
+
+Human-reviewed flagとsource fieldを分離する。
+
+### 21.2 Emergency reporting
+
+集計:
+
+- hospital
+- day/month
+- severity
+- region
+- crew activity
+- yearly individual activity
+- incident count
+- patient count
+- disease/state
+- external report
+
+incidentとpatientを混同しない。
+
+正式救急報告、事後検証、救命処置録等は登録済み正式様式へ出力可能とする。
+
+### 21.3 Privacy
+
+権限例:
+
+- case read
+- patient read
+- sensitive personal read
+- import
+- aggregate only
+- report export
+- AI search
+
+Aggregate権限だけで個別診断等を漏らさない。
+
+---
+
+## 22. Incident and Dispatch
+
+救急、火災、救助、警戒、風水害、その他業務を共通Incident/Dispatch概念へ接続する。
+
+管理:
+
+- incident
+- source case
+- dispatch
+- station/unit
+- crew
+- vehicle
+- timestamps
+- activity
+- document
+- report
+- allowance candidate
+- review/approval
+- statistics
+
+既存の救急Caseや火災調査Caseの事実を複製せず参照する。
+
+同一事案を複数帳票へ再入力しない。
+
+---
+
+## 23. Fleet and Vehicle
+
+Vehicle masterを共通化する。
+
+管理:
+
+- registry
+- assignment
+- trip
+- mileage
+- dispatch link
+- driver
+- fuel purchase
+- fuel issue
+- fuel inventory
+- inspection
+- service
+- repair
+- fault
+- resolution
+- cost
+- next inspection
+- vehicle inspection/registration due date
+- history
+
+燃料購入費と払出評価を混同しない。
+
+重要な修繕/故障resolution等はHuman approvalを設定可能とする。
+
+---
+
+## 24. Operational Assets and Inventory
+
+建物の消防用設備台帳と、業務用資機材在庫を混同しない。
+
+対象:
+
+- durable asset
+- consumable
+- drug/medical stock
+- equipment
+- PPE
+- test instruments
+- other operational item
+
+管理:
+
+- asset definition
+- lot/batch
+- location
+- quantity
+- receive
+- issue
+- transfer
+- loan
+- return
+- inspection
+- repair
+- renewal
+- disposal
+- pressure test
+- calibration
+- use expiry
+- lot expiry
+- service due
+- reorder threshold
+- reorder candidate
+- immutable movement history
+
+同じ薬剤/消耗品Masterを有効期限ごとに複製せず、MasterとLotを分離する。
+
+Stockを負数にしない。
+ReturnがLoan残量を超えない。
+Transferで総量を増減させない。
+
+期限切れ在庫を通常Issueしない。
+廃棄/write-offはHuman actionと理由を必要とする。
+
+---
+
+## 25. Workforce and Duty Management
+
+Employee/Organizationを再利用する。
+
+管理:
+
+- roster
+- team
+- duty type
+- station placement
+- support placement
+- minimum staffing
+- qualification requirement
+- available emergency crew
+- annual leave
+- special leave
+- attendance
+- check-in/out
+- overtime
+- compensatory time/day
+- work result
+- leave balance
+- shortage warning
+- statistics
+
+最低人員や資格要件は本部設定されたRuleとして管理し、AIが勝手に制度を作らない。
+
+24時間勤務等の勤務時間計算は本部のHuman-approved勤務Ruleで算定し、単純に滞在時間を勤務時間としない。
+
+同一職員の重複配置を防止する。
+
+---
+
+## 26. Contract and Procurement
+
+既存ContractCase/Counterparty/Documentを共通利用する。
+
+管理:
+
+- vendor
+- quote
+- contract
+- specification
+- decision documents
+- term
+- amount
+- fiscal year
+- renewal
+- commitment
+- inspection
+- delivery
+- invoice
+- payment link
+- contract change
+- deadline
+- documents
+
+AI支援:
+
+- OCR
+- transcription
+- amount calculation
+- document diff
+- missing document candidate
+- similar case search
+- Draft
+
+正式相手方、金額、契約条件、締結はHuman Gate。
+
+---
+
+## 27. Budget and Finance
+
+財務Moduleを正式Moduleとする。
+
+管理:
+
+- fiscal year
+- account hierarchy
+- initial budget
+- amendment
+- transfer
+- commitment
+- execution
+- payment
+- reversal
+- balance
+- budget request
+- next-year estimate
+- contract link
+- procurement link
+- aggregate
+
+### 27.1 Account hierarchy
+
+「款・項・目・節・細節」等を固定DB columnで決め打ちしない。
+
+可変階層Account Masterとし、各本部が表示名と階層を設定できる。
 
 例:
-- e-Gov: 日次
-- 公布情報: 日次
-- 例規集: 日次または週次
-- 更新頻度が低いソース: 週次
 
-HTTP ETag/Last-Modified、Index Hash、Document Hash等を利用し、不要な再取込を避ける。
+- 款
+- 項
+- 目
+- 事業
+- 節
+- 細節
+- 細々節
 
-## 38. 閉域・完全オフライン環境の法令更新
+Codeはstringで保持し先頭0を失わない。
 
-インターネットに接続できない環境では外部サイトの直接自動取得はできないため、更新経路を二方式用意する。
+### 27.2 Financial Human Gate
 
-### Online Collector方式
+正式な予算変更、流用、支出、Payment等はHuman Review/Approvalを必須にできる。
 
-インターネット接続可能な更新Collectorが公式ソースを監視する。
+Approved ledgerを破壊的上書きしない。
+取消はreversal/compensating entryを使用する。
 
-```text
-公式法令/例規
-↓
-Update Collector
-↓
-署名付きUpdate Bundle
-↓
-承認された搬入経路
-↓
-庁内Local AI
-↓
-検証
-↓
-法令DBへVersion追加
-```
+Double paymentやoverspendを防止する。
 
-Update Bundleには少なくとも以下を含む。
+AIが価格や正式残額を捏造しない。
 
-- 取得原本
-- メタデータ
-- Source URL
-- Source Hash
-- Version
-- 差分
-- Manifest
-- Bundle Hash/署名
+---
 
-### Update Folder方式
+## 28. Council, Assembly and Inquiry Support
 
-管理者が承認済みUpdate Bundleを指定更新フォルダへ配置すると、Local AIが自動検証・取込候補生成を行う。
+管理:
 
-署名/ハッシュ検証失敗時は取込禁止とする。
+- past question
+- answer
+- year/session
+- subject
+- draft
+- evidence
+- numeric source
+- related module record
+- document
+- similar question search
+- Human review
 
-## 39. 消防本部切替と適用範囲
+AIは回答Draftを生成できるが、根拠のない固有名詞、数値、制度、答弁を正式回答へ混入させない。
 
-1つのシステムに複数の消防本部プロファイルを登録可能とする。
+数値ClaimはEvidenceの値、Query条件、取得日、単位へ追跡可能とする。
 
-判定時には必ず次を固定する。
+Sourceがstale/削除/無権限の場合、review/approveを拒否できる。
 
-- 適用消防本部
-- 適用自治体/組合
-- 判定日
-- 全国法令Version
-- 地方条例等Version
-- Rule Version
+Approved answerはrevisionで更新し、直接書換えない。
 
-別消防本部の条例を誤って適用しない。
+---
 
-将来のマルチテナント構成では消防本部プロファイルをtenantへ厳格に紐付ける。
+## 29. Fire Investigation
 
-## 40. 改正影響分析
+fire_case_idで一元管理。
 
-法令・条例の変更を検出した場合、AIは以下を候補提示できる。
+Data:
 
-- 変更条文
-- 旧/新差分
-- 影響する既存Rule
-- 影響する届出種別
-- 影響する消防用設備判定
-- 影響する正式様式
-- 影響する対象物候補
-- 再判定が必要な対象物候補
+- case
+- facility
+- people
+- photos
+- video
+- audio
+- drawing
+- note
+- interview
+- evidence
+- statement
+- timeline
+- cause candidate
+- official cause
+- report
+- template output
 
-AIの分析結果は正式判定ではない。
-正式Rule変更はHuman Gate必須とする。
+AIは原因を独断確定しない。
+
+候補として:
+
+- confirmed facts
+- hypotheses
+- supporting evidence
+- contradicting evidence
+- missing information
+- next investigation candidates
+
+を整理する。
+
+Official causeは独立Human Gate。
+
+---
+
+## 30. Fire Photo Intelligence
+
+Original photoは変更禁止。
+
+派生情報:
+
+- EXIF
+- captured time
+- perceptual hash
+- duplicate candidate
+- quality
+- category
+- tag
+- description draft
+- search text
+- plan/drawing location link
+
+Human-reviewed evidenceとAI candidateを分離する。
+
+---
+
+## 31. Voice, Statement and Evidence Comparison
+
+Original audio
+→ transcript
+→ speaker/time
+→ uncertainty
+→ AI organization
+→ Human correction
+→ reviewed statement
+
+を分離する。
+
+「たぶん」「頃」「と思う」等の不確実表現をAIが消さない。
+
+原音声timestampへ戻れる。
+
+複数供述、写真、Timeline等の矛盾候補をEvidence Comparisonとして生成できる。
+
+Evidence Comparisonは reviewed statement、confirmed timeline、official causeを直接変更しない。
+
+---
+
+## 32. Fire Report Drafting
+
+案件Evidenceから以下のDraftを作成できる。
+
+- summary
+- building description
+- discovery
+- notification
+- initial response
+- evacuation
+- burn damage
+- statements
+- timeline
+- cause discussion
+
+各文章は根拠Evidenceへ遡れる。
+
+Official reportはHuman Review/Approval後に登録済み正式様式へ出力する。
+
+---
+
+## 33. Official Form Platform
+
+正式様式が存在する場合は原本を優先する。
+
+対応:
+
+- PDF AcroForm等
+- XLSX
+- DOCX
+- その他安全にfill可能な登録様式
+
+Template:
+
+- template_id
+- module
+- version
+- effective date
+- expiry
+- issuer
+- original SHA-256
+- field mapping
+- print settings
+- change policy
+
+AIが勝手に正式様式を再デザインしない。
+
+出力にはsource snapshot、template version、output hash、generated_at、review stateを保持する。
+
+---
+
+## 34. Cross-module Statistics, Annual Reports and Surveys
+
+元Module DBを正本にして再入力しない。
+
+対象:
+
+- emergency
+- fire
+- rescue
+- dispatch
+- inspections
+- submissions
+- equipment
+- personnel
+- workforce
+- fleet
+- assets
+- contracts
+- budget
+- other configured modules
+
+出力:
+
+- monthly
+- yearly
+- prior-year comparison
+- survey
+- CSV
+- Excel
+- PDF/original template
+
+Metricごとに:
+
+- definition
+- unit
+- denominator
+- date basis
+- excluded unknowns
+- source module
+- source query/version
+- drilldown
+
+を保持する。
+
+Missing prior-year valueを0と同一視しない。
+
+---
+
+## 35. Unified Search
+
+Permission-aware searchを全Moduleに適用する。
+
+検索対象例:
+
+- facility
+- inspection
+- submission
+- violation
+- equipment
+- document
+- legal
+- drawing
+- emergency
+- incident
+- fleet
+- fire investigation
+- reviewed statements
+- assets
+- workforce
+- contracts
+- finance
+- inquiries
+
+救急個人情報等は個人閲覧権限を持たないSearchから除外する。
+
+Search結果にはsource ID、module、必要Permission、navigation、provenanceを持つ。
+
+Semantic/vector retrievalは追加可能だが、品質Benchmark前に精度を誇張しない。
+
+---
+
+## 36. Dashboard and Personal Work Queue
+
+Login後、利用者のRoleと担当に応じて「今日やること」を表示する。
+
+候補:
+
+- unprocessed
+- Human Review waiting
+- submissions due
+- inspection due
+- corrective action due
+- asset expiry
+- calibration
+- pressure test
+- vehicle inspection
+- repair
+- contract expiry
+- budget action
+- roster shortage
+- leave approval
+- inquiry draft
+- report due
+
+Cardは元Recordへのpointerを持つ。
+Dashboardが正式データを複製しない。
+
+権限のないModuleの件数や内容を表示しない。
+
+---
+
+## 37. Learning Platform
+
+職員の修正をLearning DBへ保存できる。
+
+対象:
+
+- OCR correction
+- document classification correction
+- facility link correction
+- place/proper noun dictionary
+- photo classification
+- STT correction
+- phrase/draft correction
+- operational review pattern
+
+本番Modelをその場で自己改変しない。
+
+Lifecycle:
+
+Champion
+→ collect corrections
+→ Candidate
+→ fixed evaluation set
+→ benchmark
+→ comparison
+→ Human approval
+→ Champion promotion
+
+性能悪化時はRollback可能。
+
+Training data、evaluation set、model version、metrics、approvalを追跡する。
+
+---
+
+## 38. Autonomous Task and Self-extension Platform
+
+Phase 12の「AI自律タスク」を以下として正式化する。
+
+AIはHumanから与えられたGoalに対し:
+
+Goal
+→ Plan
+→ Execute bounded tools
+→ Verify
+→ Fix
+→ Evidence
+→ Write-back candidate
+
+の流れで作業できる。
+
+対象:
+
+- research
+- aggregate
+- reconciliation
+- report draft
+- document preparation
+- data quality checks
+- change request implementation candidate
+
+Human Gate必須領域:
+
+- contract conclusion
+- formal expenditure
+- official external statement
+- permission change
+- security setting
+- legal Rule
+- official violation
+- official cause
+- official personnel decision
+- audit alteration
+- evidence alteration
+- unrestricted confidential access
+
+System改修自律化はChange Request/Sandbox/Test/Approval/Deploymentの枠内だけで行う。
+
+---
+
+## 39. AI Decision Levels
+
+Level 0:
+deterministic/OCR/search/duplicate etc.
+
+Level 1:
+classification/tag/link candidate.
+Low confidence時はHuman確認へ。
+
+Level 2:
+DB change candidate、missing submission等。
+Human approval必須。
+
+Level 3:
+legal equipment requirement、important violation、official cause、financial/personnel official decisions等。
+AIは補助のみ。
+
+ModuleごとにLevelを追加設定可能。
+
+---
+
+## 40. AI Failure Mode
+
+AIが停止しても以下を継続する。
+
+- login
+- CRUD
+- facility
+- inspection
+- submission intake
+- documents
+- normal search
+- emergency record
+- dispatch
+- workforce basic operations
+- fleet
+- assets
+- contracts/finance basic records
+- official template fill where AI不要
+
+AI availabilityを業務DB availabilityの前提にしない。
+
+---
+
+## 41. Import Framework
+
+Excel、CSV、PDF、Word、画像、音声等からModule取込候補を作成可能。
+
+共通原則:
+
+- explicit schema/version
+- dry-run
+- validation
+- source SHA
+- provenance
+- Human confirm
+- atomic apply
+- idempotency
+- rollback on invalid batch
+- formula injection neutralization in spreadsheet export
+- unknown code is not guessed
+- stale target version rejection
+
+既存の正式Recordを再Importで無言上書きしない。
+
+---
+
+## 42. Backup and Restore
+
+本部単位でBackup/Restoreする。
+
+本番では本部ごとの自動定期Backupを構成可能とする。
+自動Backupは、当該本部に登録されたWriter/TimerとApplication Runtimeを保守排他の下で停止または排他し、DB dumpとDocument Storageを同じBackup単位として取得する。
+通常Runtime transactionは共有Maintenance Lockを取得し、Backup/Restore/Migration等の明示Maintenanceは排他Lockを取得する。
+保守中の通常HTTP要求は再試行可能な503等でFail Closedし、秘密情報を含まない案内とRetry-Afterを返せる。
+自動Backup処理は成功/失敗/SIGTERM時に、開始前にactiveだった当該本部Serviceだけを復元する。
+別本部Serviceを停止・起動してはならない。
+Backup Timerは自動削除や自動Restoreを行わない。
+Hard power loss等、Process外の障害については復旧Runbookと監視で扱う。
+
+Backup manifest:
+
+- department UUID
+- release
+- migration
+- DB hash/dump evidence
+- original/storage evidence
+- stopped-writer acknowledgement where required
+- created_at
+- tool version
+
+Restore前に:
+
+- destination department identity
+- source manifest
+- dump identity
+- Storage marker
+- release compatibility
+- archive safety
+
+を検証する。
+
+別本部Backupを誤Restoreしない。
+
+DatabaseとStorageは完全な単一transactionではないため、停止、事前Backup、staging、失敗時の一組復元手順を定義する。
+
+本番Recoveryは定期的にRestore Testする。
+
+---
+
+## 43. Security
+
+最低限:
+
+- TLS/HTTPS for production network where applicable
+- secure session cookies
+- CSRF/origin policy where required
+- password hashing
+- privilege separation
+- application DB role
+- migration/restore role separation
+- no runtime superuser
+- no client DB credentials
+- server-managed storage
+- path traversal rejection
+- archive link/special file rejection
+- safe redirect/origin validation
+- secret outside Git
+- no production data in Git
+- no raw credentials in process arguments where avoidable
+- audit
+- least privilege
+
+実データ、個人情報、原本、DB dump、秘密鍵、Password、API keyをGitへCommitしない。
+
+---
+
+## 44. External Integration and Network Policy
+
+外部接続が必要な機能は本部Deployment PolicyでON/OFFできる。
+
+例:
+
+- e-Gov
+- official local regulation source
+- optional external AI
+- SMTP
+- approved file exchange
+- LGWAN adapter
+
+外部へ送信するData categoryを明示し、無制限送信しない。
+
+完全オフラインで外部機能が無くてもCore業務は動作する。
+
+---
+
+## 45. User Experience
+
+1つのWeb Applicationとして見せる。
+
+共通:
+
+- one login
+- header
+- navigation
+- search
+- dashboard
+- Human Review queue
+- user/role state
+- notices
+- consistent error/409 handling
+
+「Moduleが増えるたび別アプリへ飛ぶ」構造を避ける。
+
+内部実装用語やRule IDを一般画面へ過剰表示しない。
+人間が理解できる業務名、根拠、状態、次に必要な操作を優先する。
+
+---
+
+## 46. Module Configuration per Department
+
+本部別に以下を設定可能とする。
+
+- enabled modules
+- legal profile
+- local regulations/internal rules
+- official forms
+- approval flow
+- permissions
+- organization
+- duty rules
+- minimum staffing
+- qualifications
+- allowance rules
+- budget account hierarchy
+- submission types
+- deadlines
+- equipment mappings
+- UI labels
+- AI adapters
+- update mode
+- backup policy
+
+ただしSecurity Core、tenant binding、Audit等の基盤をFeature Flagで無効化してはならない。
+
+---
+
+## 47. Formal Evidence Model
+
+重要なAI/Human処理では次のレイヤーを区別する。
+
+1. Source Evidence
+2. Parsed/Derived Evidence
+3. AI/Rule Candidate
+4. Human Reviewed
+5. Official/Verified
+
+CandidateからOfficialへ直接飛ばさない。
+
+可能な限り:
+
+- source document ID
+- source hash
+- record version
+- model
+- model version
+- rule version
+- confidence
+- generated_at
+- reviewed_by
+- reviewed_at
+- approved_by
+- approved_at
+
+を保存する。
+
+---
+
+## 48. Testing
+
+各Moduleの最低試験:
+
+- CRUD
+- RBAC
+- tenant boundary
+- optimistic concurrency
+- audit
+- Human Gate
+- candidate/official separation
+- import
+- export
+- search
+- integration
+- invalid data
+- source version
+- stale evidence
+- rollback where applicable
+
+PostgreSQL固有:
+
+- migrations from empty DB
+- re-run/idempotency where defined
+- constraints
+- locking/concurrency
+- roles
+- tenant identity
+
+Browser:
+
+- main workflows
+- permission visibility
+- Human review
+- form behavior
+- stale conflict
+
+---
+
+## 49. AI Benchmark and Acceptance
+
+AI機能は実Referenceで測定する。
+
+対象例:
+
+Drawing:
+- geometry
+- IoU
+- symbols
+- equipment
+- facts
+- area
+
+Audio:
+- CER
+- speaker error
+- uncertainty detection
+
+Evidence comparison:
+- Precision
+- Recall
+- F1
+- false positives
+
+実データBaselineの前にProduction Qualityを主張しない。
+
+Acceptance ThresholdはBaseline後にHumanが決定する。
+
+---
+
+## 50. Data Migration
+
+既存台帳・Excelから移行する。
+
+原則:
+
+- mapping
+- normalize known fields
+- preserve unknown raw values
+- immutable new IDs
+- legacy IDs retained
+- deduplication
+- missing detection
+- idempotent re-import
+- migration evidence
+
+未確認列の意味をAIが推測で正式Mappingしない。
+
+---
+
+## 51. Operational Hosting
+
+役場等の既存Serverを利用できない場合でも、専用親PC/Server機を本部内に設置して運用可能とする。
+
+同一Network外の拠点利用は、承認されたVPN、閉域、LGWAN等のNetwork Architectureに従う。
+
+Browser端末にDBを置かない。
+
+Production Deploymentは本部ごとに:
+
+- OS service account
+- DB roles
+- environment
+- service
+- reverse proxy
+- TLS
+- storage
+- backup
+- health check
+
+を生成/設定できる。
+
+---
+
+## 52. Release Artifacts
+
+完成時には少なくとも以下をRepositoryまたはRelease成果物として用意する。
+
+- completed source code
+- migration set
+- release version
+- deploy configuration
+- sample environment
+- initial tenant setup
+- initial admin setup
+- SYSTEM_ARCHITECTURE
+- INSTALLATION
+- SERVER_SETUP
+- UPDATE_GUIDE
+- BACKUP_RESTORE
+- ADMIN_MANUAL
+- USER_MANUAL
+- PERMISSIONS
+- DATABASE
+- MIGRATIONS
+- SECURITY
+- TEST_REPORT
+- AI_BENCHMARK_REPORT
+- KNOWN_LIMITATIONS
+- RELEASE_NOTES
+- RELEASE_READINESS
+- FINAL_COMPLETION_REPORT
+
+可能なら初期導入一式をRelease Artifactとしてまとめる。
+
+---
+
+## 53. Definition of Done
+
+Phase番号の完了をSystem完成としない。
+
+System完成条件:
+
+- External Gate以外の重大Missingなし
+- 重大Partialなし
+- Duplicate/Conflict/Orphaned解消
+- 1つの認証
+- 1つの権限基盤
+- 1つの監査基盤
+- 1つのNavigation
+- Module間ID連携
+- Empty PostgreSQLから全Migration成功
+- Existing DB upgrade success
+- Integration Tests PASS
+- Full E2E PASS
+- CI Green
+- Backup/Restore procedure and evidence
+- Installation procedure
+- Update/Rollback procedure
+- User/Admin manuals
+- Release package
+- Known limitations明示
+
+External Gateは完成報告で別枠表示する。
+
+例:
+
+- Human legal Rule acceptance
+- actual production host
+- real LAN/TLS/two-client test
+- real drawing/audio benchmark
+- official original forms not supplied
+- organization-specific legal/financial/personnel approvals
+
+External Gateを内部実装Missingの言い訳として使用しない。
+
+---
+
+## 54. Required Cross-module E2E
+
+最低限:
+
+1. Facility
+→ Drawing
+→ Human Annotation
+→ Occupancy classification
+→ Required equipment
+→ Human Review
+→ Equipment registry
+
+2. Document
+→ Intake analysis
+→ Human classification
+→ Submission
+→ Facility update
+→ Search
+
+3. Incident
+→ Dispatch
+→ Crew
+→ Vehicle
+→ Activity
+→ Allowance
+→ Statistics
+
+4. Emergency
+→ Patient
+→ Treatment
+→ Transport
+→ Clinical candidate
+→ Human Review
+→ Monthly report
+
+5. Fire Investigation
+→ Photo/Audio
+→ Transcript/Statement
+→ Evidence
+→ Cause candidate
+→ Human Gate
+→ Report Template
+
+6. Workforce
+→ Roster
+→ Dispatch
+→ Work result
+→ Overtime/allowance integration
+
+7. Fleet
+→ Dispatch
+→ Mileage
+→ Fuel
+→ Log
+
+8. Contract
+→ Commitment
+→ Budget
+→ Payment
+→ Balance
+
+9. Asset
+→ Receive
+→ Location
+→ Loan/Issue
+→ Return/Transfer
+→ Inspection/Expiry
+→ History
+
+10. Inquiry
+→ Evidence
+→ Numeric source
+→ Draft
+→ Human Review
+→ Official output
+
+---
+
+## 55. Development Governance
+
+GitHub mainを唯一の実装正本とする。
+
+基盤実装の依存順序は原則として、
+tenant identity/境界
+→ common data
+→ employee/organization/history
+→ authentication
+→ authorization
+→ audit
+→ business modules
+とする。
+既存mainがこの順序を満たしている場合は再実装しない。
+
+開発開始時:
+
+- latest main
+- AGENTS.md
+- PROJECT_STATE.md
+- migrations
+- models
+- schemas
+- routers
+- frontend
+- tests
+- permissions
+- audit
+- open PR
+- merged PR
+- CI
+
+を確認する。
+
+既にmainにある機能を再実装しない。
+
+小さなbounded PRを利用できるが、PR完了をSystem開発終了条件にしない。
+
+Migrationはappend-only。
+過去Migrationを安易に書換えない。
+
+並行Workはmainを定期refreshし、番号・API・Model競合を避ける。
+
+---
+
+## 56. Priority Rule
+
+仕様が矛盾した場合の優先順位:
+
+1. 本Master Specification v2.0
+2. 明示的に承認されたArchitecture Decision / TENANT_OPERATIONS
+3. Current Security and Human Gate contracts
+4. Module-specific current specifications
+5. PROJECT_STATE and completion ledgers
+6. Historical Phase documents
+
+古い文書に「利用者が本部を切替」「PostgreSQLは候補」「共有フォルダへPCが直接アクセス」等が残っていても、本v2.0を優先する。
+
+---
+
+## 57. Completion Principle
+
+AIOSの完成とは、AIが何でも自動確定することではない。
+
+AIが:
+
+- 転記
+- 検索
+- 照合
+- 集計
+- 不足検出
+- 候補生成
+- 説明
+- 下書き
+- Risk提示
+- Evidence整理
+
+を担い、人間が正式判断へ集中できる状態を目標とする。
+
+使いやすさをSafetyと同時に要件とし、Human Gateの存在を理由に不必要な二重入力、確認画面、複雑操作を増やさない。
 
