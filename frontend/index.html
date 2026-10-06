@@ -1743,7 +1743,7 @@ function drawingBaselineRunHtml(run){
   if(!run&&!runs.length)return '';
   const selected=run||runs[0];
   const a=selected.result_payload?.aggregate||{};
-  const g=a.geometry_detection||{},facts=a.fact_candidates||{};
+  const g=a.geometry_detection||{},facts=a.fact_candidates||{},areaMetric=a.area_accuracy?.metric||{};
   const statusLabel=selected.review_status==='reviewed'
     ?(selected.human_decision==='accepted_baseline'?'Human採用済み':'Human却下済み')
     :'Human Review待ち';
@@ -1763,6 +1763,9 @@ function drawingBaselineRunHtml(run){
     '<div class="muted">Geometry F1: '+esc(g.f1??'N/A')+
       ' / mean IoU: '+esc(g.mean_iou??'N/A')+
       ' / Fact F1: '+esc(facts.f1??'N/A')+'</div>'+
+    '<div class="muted">面積 MAE㎡: '+esc(areaMetric.mean_absolute_error??'N/A')+
+      ' / 平均相対誤差: '+esc(areaMetric.mean_relative_error===null||areaMetric.mean_relative_error===undefined?'N/A':(Number(areaMetric.mean_relative_error)*100).toFixed(1)+'%')+
+      ' / 10%以内率: '+esc(areaMetric.within_10_percent_rate===null||areaMetric.within_10_percent_rate===undefined?'N/A':(Number(areaMetric.within_10_percent_rate)*100).toFixed(1)+'%')+'</div>'+
     (selected.review_notes?'<div class="muted">Reviewメモ: '+esc(selected.review_notes)+'</div>':'')+
     history+reviewButtons+'</div>';
 }

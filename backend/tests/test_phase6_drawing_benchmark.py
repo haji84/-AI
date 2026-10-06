@@ -420,3 +420,158 @@ def test_phase6_drawing_benchmark_cli_uses_shared_core():
     assert mod.score_drawing is core.score_drawing
     assert mod._aggregate is not core.aggregate_drawings
     assert mod._aggregate([], 0.5) == core.aggregate_drawings([], 0.5)
+
+
+
+def test_phase6_drawing_benchmark_scores_pixel_and_metric_area_accuracy():
+    mod = _mod()
+    reference = {
+        "page_dimensions": {
+            "1": {
+                "width": 1000,
+                "height": 800,
+                "calibration": {
+                    "method": "two_point",
+                    "point_a": [0, 0],
+                    "point_b": [100, 0],
+                    "reference_length_m": 2.0,
+                    "pixel_distance": 100.0,
+                    "meters_per_pixel": 0.02,
+                },
+            }
+        },
+        "elements": [
+            {
+                "client_ref": "ref-room",
+                "page_no": 1,
+                "element_type": "room",
+                "geometry": {
+                    "points": [[0,0],[100,0],[100,50],[0,50]]
+                },
+            }
+        ],
+        "equipment_candidates": [],
+        "fact_candidates": [],
+    }
+    hypothesis = {
+        "elements": [
+            {
+                "client_ref": "hyp-room",
+                "page_no": 1,
+                "element_type": "room",
+                "geometry": {
+                    "points": [[0,0],[90,0],[90,50],[0,50]]
+                },
+            }
+        ],
+        "equipment_candidates": [],
+        "fact_candidates": [],
+    }
+
+    result = mod.score_drawing(reference, hypothesis, 0.5)
+    area = result["area_accuracy"]
+    px = area["pixel"]
+    metric = area["metric"]
+
+    assert px["applicable"] is True
+    assert px["reference_scored"] == 1
+    assert px["mean_absolute_error"] == 500.0
+    assert round(px["mean_relative_error"], 6) == 0.1
+    assert px["within_5_percent_count"] == 0
+    assert px["within_10_percent_count"] == 1
+    assert px["within_10_percent_rate"] == 1.0
+
+    assert metric["applicable"] is True
+    assert metric["reference_scored"] == 1
+    assert round(metric["mean_absolute_error"], 6) == 0.2
+    assert round(metric["mean_relative_error"], 6) == 0.1
+    assert metric["within_10_percent_rate"] == 1.0
+
+    sample = area["metric_samples"][0]
+    assert round(sample["reference_area"], 6) == 2.0
+    assert round(sample["hypothesis_area"], 6) == 1.8
+    assert round(sample["absolute_error"], 6) == 0.2
+
+
+def test_phase6_drawing_benchmark_metric_area_is_na_without_scale():
+    mod = _mod()
+    reference = {
+        "elements": [
+            {
+                "page_no": 1,
+                "element_type": "room",
+                "geometry": {"x": 0, "y": 0, "width": 100, "height": 50},
+            }
+        ]
+    }
+    hypothesis = {
+        "elements": [
+            {
+                "page_no": 1,
+                "element_type": "room",
+                "geometry": {"x": 0, "y": 0, "width": 100, "height": 50},
+            }
+        ]
+    }
+
+    result = mod.score_drawing(reference, hypothesis, 0.5)
+    assert result["area_accuracy"]["pixel"]["applicable"] is True
+    assert result["area_accuracy"]["pixel"]["mean_relative_error"] == 0.0
+    assert result["area_accuracy"]["metric"]["applicable"] is False
+    assert result["area_accuracy"]["metric"]["mean_absolute_error"] is None
+
+
+def test_phase6_drawing_benchmark_aggregate_area_metrics_are_micro_averaged():
+    mod = _mod()
+    drawings = []
+    for ref_width, hyp_width in [(100, 90), (100, 100)]:
+        reference = {
+            "page_dimensions": {
+                "1": {
+                    "calibration": {"meters_per_pixel": 0.02}
+                }
+            },
+            "elements": [
+                {
+                    "page_no": 1,
+                    "element_type": "room",
+                    "geometry": {
+                        "x": 0,
+                        "y": 0,
+                        "width": ref_width,
+                        "height": 50,
+                    },
+                }
+            ],
+        }
+        hypothesis = {
+            "elements": [
+                {
+                    "page_no": 1,
+                    "element_type": "room",
+                    "geometry": {
+                        "x": 0,
+                        "y": 0,
+                        "width": hyp_width,
+                        "height": 50,
+                    },
+                }
+            ],
+        }
+        drawings.append(
+            {
+                "metrics": mod.score_drawing(
+                    reference,
+                    hypothesis,
+                    0.5,
+                )
+            }
+        )
+
+    aggregate = mod._aggregate(drawings, 0.5)
+    metric = aggregate["area_accuracy"]["metric"]
+    assert metric["reference_scored"] == 2
+    assert round(metric["mean_absolute_error"], 6) == 0.1
+    assert round(metric["mean_relative_error"], 6) == 0.05
+    assert metric["within_5_percent_count"] == 1
+    assert metric["within_10_percent_count"] == 2

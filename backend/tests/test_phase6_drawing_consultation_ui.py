@@ -181,3 +181,21 @@ def test_phase6_workspace_supports_baseline_history_and_human_review():
     ]
     missing = [x for x in required_fragments if x not in html]
     assert not missing, f"Baseline Human Review UI wiring missing: {missing}"
+
+
+
+def test_phase6_baseline_ui_shows_area_accuracy():
+    html = (
+        Path(__file__).resolve().parents[2]
+        / "frontend"
+        / "index.html"
+    ).read_text(encoding="utf-8")
+
+    required_fragments = [
+        "area_accuracy?.metric",
+        "面積 MAE㎡",
+        "平均相対誤差",
+        "10%以内率",
+    ]
+    missing = [x for x in required_fragments if x not in html]
+    assert not missing, f"Baseline area accuracy UI missing: {missing}"
