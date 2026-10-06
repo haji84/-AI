@@ -11,6 +11,7 @@ from ..audit import write_audit
 from ..authz import require_permission
 from ..db import get_db
 from ..drawing_annotation_geometry import apply_geometry_metrics
+from ..drawing_annotation_qa import build_annotation_qa
 from ..drawing_benchmark_export import build_drawing_reference
 from ..models import (
     Document,
@@ -22,6 +23,7 @@ from ..models import (
     User,
 )
 from ..schemas import (
+    DrawingAnnotationQaOut,
     DrawingAnnotationReferenceImport,
     DrawingAnnotationReview,
     DrawingAnnotationRevisionCreate,
@@ -141,6 +143,27 @@ def list_annotations(
         .order_by(DrawingAnnotationSet.created_at.desc())
     ).all()
     return [_annotation_out(x) for x in rows]
+
+
+@router.get(
+    "/drawing-annotations/{annotation_id}/qa",
+    response_model=DrawingAnnotationQaOut,
+)
+def get_annotation_qa(
+    annotation_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("drawing.read")),
+):
+    row = db.get(DrawingAnnotationSet, annotation_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="drawing annotation set not found")
+    return DrawingAnnotationQaOut(
+        **build_annotation_qa(
+            status=row.status,
+            payload=row.payload or {},
+            page_dimensions=row.page_dimensions or {},
+        )
+    )
 
 
 @router.post(
@@ -665,6 +688,19 @@ def review_annotation(
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc))
         _validate_reference_payload(normalized_payload)
+        qa = build_annotation_qa(
+            status=current.status,
+            payload=normalized_payload,
+            page_dimensions=page_dimensions,
+        )
+        if not qa["reference_reviewable"]:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "message": "Human Annotation QA blockers must be resolved before review",
+                    "blockers": qa["blockers"],
+                },
+            )
     else:
         normalized_payload = current.payload or {}
         page_dimensions = current.page_dimensions or {}
