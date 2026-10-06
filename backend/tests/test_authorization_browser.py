@@ -63,4 +63,6 @@ with Session(engine) as db:
             artifact=Path(os.environ.get('FIRE_AI_BROWSER_ARTIFACTS',str(tmp_path/'artifacts')));artifact.mkdir(parents=True,exist_ok=True);page.screenshot(path=str(artifact/'human-role-management.png'),full_page=True)
             assert not errors,errors
             reader.close();browser.close()
-    finally:server.terminate();server.wait(timeout=15);logs.close()
+    finally:
+        server.terminate();server.wait(timeout=15);logs.close()
+        if sys.exc_info()[0]:print((tmp_path/'server.log').read_text())

@@ -42,3 +42,5 @@ RED evidence: API4失敗4PGskip（現在/未来self assignment、revoked request
 修正後の関連統合51成功35PGskip43.73秒、全体406成功46skip188warnings160.54秒。その後の権限再取得UI回帰3成功0.29秒（再取得1件もRED→GREEN）。Migration parser45files、JSsyntax/compile/diffcheck成功。CI/merge待ち。
 
 Publication refresh: 開PR55 financeがMigration046を使用しているため、未mergeの本Sliceを047へ移動。mainの既存Migrationは変更せず、044/046はRunBの正本merge後に照合する。
+
+CI actual Chromiumで初期bootstrap後のcontext500を確認。tenant_identityがmetadataへ登録されないまま開発SQLite create_allを終えたことをfull ASGI appとfresh bootstrapで再現（1 failed7.42秒）。bootstrapへtenant metadata登録を追加し、productionでは引き続きMigration/本部UUID照合を使用する。Browser失敗時にsynthetic server logも出力する。
