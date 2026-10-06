@@ -283,6 +283,25 @@ def polygons_have_interior_overlap(
 
 
 
+def canonical_region_area_target(raw) -> dict | None:
+    if raw in (None, {}):
+        return None
+    if not isinstance(raw, dict):
+        raise ValueError("element.area_target must be an object")
+
+    target_area_m2 = float(raw.get("target_area_m2") or 0)
+    if target_area_m2 <= 0:
+        raise ValueError("element.area_target.target_area_m2 must be > 0")
+
+    return {
+        "target_area_m2": round(target_area_m2, 6),
+        "source": raw.get("source"),
+        "label": raw.get("label"),
+        "note": raw.get("note"),
+        "comparison_basis": "region_polygon",
+    }
+
+
 def canonical_area_targets(area_targets) -> list[dict]:
     if area_targets in (None, []):
         return []
@@ -560,6 +579,15 @@ def apply_geometry_metrics(payload: dict, page_dimensions: dict) -> tuple[dict, 
     for element in elements:
         if not isinstance(element, dict):
             continue
+
+        area_target = canonical_region_area_target(
+            element.get("area_target")
+        )
+        if area_target is None:
+            element.pop("area_target", None)
+        else:
+            element["area_target"] = area_target
+
         points = geometry_points(element.get("geometry") or {})
         if len(points) < 3:
             element.pop("derived_geometry", None)
@@ -582,7 +610,7 @@ def apply_geometry_metrics(payload: dict, page_dimensions: dict) -> tuple[dict, 
             if meters_per_pixel is not None
             else None
         )
-        element["derived_geometry"] = {
+        derived = {
             "area_px2": round(area_px2, 6),
             "perimeter_px": round(perimeter_px, 6),
             "area_m2": round(area_m2, 6) if area_m2 is not None else None,
@@ -599,6 +627,30 @@ def apply_geometry_metrics(payload: dict, page_dimensions: dict) -> tuple[dict, 
             "meters_per_pixel": meters_per_pixel,
             "calculation": "polygon_shoelace_v1",
         }
+        if area_target is not None:
+            target_value = float(area_target["target_area_m2"])
+            if area_m2 is None:
+                comparison = {
+                    **area_target,
+                    "status": "uncalibrated",
+                    "measured_area_m2": None,
+                    "difference_m2": None,
+                    "difference_pct": None,
+                }
+            else:
+                difference = float(area_m2) - target_value
+                comparison = {
+                    **area_target,
+                    "status": "comparable",
+                    "measured_area_m2": round(float(area_m2), 6),
+                    "difference_m2": round(difference, 6),
+                    "difference_pct": round(
+                        difference / target_value * 100.0,
+                        6,
+                    ),
+                }
+            derived["area_target_comparison"] = comparison
+        element["derived_geometry"] = derived
 
     result["area_targets"] = canonical_area_targets(
         result.get("area_targets")
