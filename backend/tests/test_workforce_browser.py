@@ -83,7 +83,10 @@ with TestClient(app) as client:
             changed=page.request.patch(base+'/workforce/shift-types/'+ids['shift'],data={'expected_version':ids['shift_version'],'name':'Synthetic changed configuration'});assert changed.status==200,changed.text()
             page.locator('#workforceWarnings').click();page.locator('#workforceWarningDate').fill('2026-10-10');page.locator('#workforceWarningLoad').click();expect(page.locator('#workforceContent')).to_contain_text('判定不可')
             assert page.request.post(base+'/auth/logout').status==200
-            page.locator('#workforceAttendance').click();expect(page.locator('#workforceModal')).to_have_count(0)
+            # A warnings response may itself observe logout and correctly remove
+            # the navigation before another click. Exercise the same read action
+            # without requiring a control that should already be gone.
+            page.evaluate('workforceAction(workforceAttendance)');expect(page.locator('#workforceModal')).to_have_count(0)
             assert page.evaluate('workforceState.employees.length+workforceState.permissions.length')==0
             assert not errors,errors
             browser.close()
