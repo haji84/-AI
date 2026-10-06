@@ -382,6 +382,8 @@ def build_geometry_summary(elements: list[dict], area_targets: list[dict] | None
                 "calibrated_region_count": 0,
                 "calibrated_room_count": 0,
                 "uncalibrated_room_count": 0,
+                "calibrated_zone_count": 0,
+                "uncalibrated_zone_count": 0,
                 "uncalibrated_region_count": 0,
                 "metric_area_complete": True,
             },
@@ -399,6 +401,8 @@ def build_geometry_summary(elements: list[dict], area_targets: list[dict] | None
             row["metric_area_complete"] = False
             if region["element_type"] == "room":
                 row["uncalibrated_room_count"] += 1
+            else:
+                row["uncalibrated_zone_count"] += 1
         else:
             row["calibrated_region_count"] += 1
             row["area_m2_total"] += region["area_m2"]
@@ -406,6 +410,7 @@ def build_geometry_summary(elements: list[dict], area_targets: list[dict] | None
                 row["calibrated_room_count"] += 1
                 row["room_area_m2_total"] += region["area_m2"]
             else:
+                row["calibrated_zone_count"] += 1
                 row["zone_area_m2_total"] += region["area_m2"]
 
     for row in floors.values():
@@ -424,7 +429,8 @@ def build_geometry_summary(elements: list[dict], area_targets: list[dict] | None
         )
         row["zone_area_m2_total"] = (
             round(row["zone_area_m2_total"], 6)
-            if row["zone_count"] > 0 and row["zone_count"] <= row["calibrated_region_count"]
+            if row["zone_count"] > 0
+            and row["uncalibrated_zone_count"] == 0
             else None
         )
         if row["region_count"] == 0:
