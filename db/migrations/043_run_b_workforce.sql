@@ -88,6 +88,8 @@ CREATE TABLE IF NOT EXISTS workforce_leave_entries (
     kind VARCHAR(20) NOT NULL CHECK (kind IN ('grant','use','adjustment_add','adjustment_subtract','expire')),
     quantity_minutes BIGINT NOT NULL CHECK (quantity_minutes > 0),
     effective_on DATE NOT NULL,
+    leave_start_at TIMESTAMPTZ,
+    leave_end_at TIMESTAMPTZ,
     expires_on DATE,
     private_reason TEXT,
     status VARCHAR(20) NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','reviewed','approved','cancelled')),
@@ -99,7 +101,9 @@ CREATE TABLE IF NOT EXISTS workforce_leave_entries (
     version BIGINT NOT NULL DEFAULT 1,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    CHECK (expires_on IS NULL OR expires_on >= effective_on)
+    CHECK (expires_on IS NULL OR expires_on >= effective_on),
+    CHECK ((kind = 'use' AND leave_start_at IS NOT NULL AND leave_end_at IS NOT NULL AND leave_end_at > leave_start_at)
+        OR (kind <> 'use' AND leave_start_at IS NULL AND leave_end_at IS NULL))
 );
 CREATE INDEX IF NOT EXISTS workforce_leave_employee_date ON workforce_leave_entries(employee_id,effective_on);
 
