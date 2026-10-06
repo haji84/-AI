@@ -19,3 +19,5 @@ Deferred Minor: a queued financeAction after modal deletion may reject on its mi
 Review rulings: PostgreSQL/concurrency and Chromium require exact-head CI before merge; production contention/host acceptance remains an External Gate; unrelated canonical modules remain subject to the completion matrix, not this bounded finance review. No production load or real-original acceptance is claimed.
 
 Final local full suite after the one repair pass:519passed60skipped256warnings234.04s. Node syntax and git diff checks passed. Exact-head PostgreSQL/Chromium CI and subsequent main CI are still required.
+
+Initial financial PR59 headb9bbdbbe/CI37512355890 exposed a separate workforce view race: attendance loaded, then the initial roster response overwrote its Human controls. Backend sources were unchanged. Actual-JS reproduction failed before repair; added view generations to all workforce screens, rejecting superseded responses before rendering. Combined workforce/finance actual-JS suite17passed2.17s; syntax/diff checks passed. PostgreSQL/Chromium rerun on the new exact head remains mandatory. No wait-only test workaround and no weakening of Human controls.
