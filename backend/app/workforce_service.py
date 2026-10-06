@@ -298,12 +298,13 @@ def time_action(db,user,key,expected,action,note):
         if time_balance(db,row.employee_id,row.occurred_on)<row.minutes:raise HTTPException(409,'compensatory balance would become negative')
     return transition(db,user,row,expected,action,note)
 
-def approved_leave_on(db,employee_id,on_date):
+def approved_leave_overlaps(db,employee_id,start,end):
     return bool(db.scalar(select(WorkforceLeaveEntry.leave_entry_id).where(
         WorkforceLeaveEntry.employee_id==employee_id,
         WorkforceLeaveEntry.status=='approved',
         WorkforceLeaveEntry.kind=='use',
-        WorkforceLeaveEntry.effective_on==on_date,
+        WorkforceLeaveEntry.leave_start_at<end,
+        WorkforceLeaveEntry.leave_end_at>start,
     ).limit(1)))
 
 def valid_qualification(db,employee_id,code,on_date):
@@ -334,7 +335,7 @@ def staffing_warnings(db,on_date,organization_id=None):
         eligible=[]
         for roster in rosters:
             employee=db.get(Employee,roster.employee_id)
-            if not employee or not employee.active or approved_leave_on(db,roster.employee_id,on_date):continue
+            if not employee or not employee.active or approved_leave_overlaps(db,roster.employee_id,roster.starts_at,roster.ends_at):continue
             if rule.qualification_code and not valid_qualification(db,roster.employee_id,rule.qualification_code,on_date):continue
             eligible.append(roster)
         out.append({
@@ -357,7 +358,7 @@ def available_crew(db,on_date,organization_id=None,shift_type_id=None):
     if shift_type_id:stmt=stmt.where(WorkforceRosterEntry.shift_type_id==shift_type_id)
     out=[]
     for roster,employee in db.execute(stmt).all():
-        if approved_leave_on(db,employee.employee_id,on_date):continue
+        if approved_leave_overlaps(db,employee.employee_id,roster.starts_at,roster.ends_at):continue
         quals=db.scalars(select(WorkforceEmployeeQualification).where(
             WorkforceEmployeeQualification.employee_id==employee.employee_id,
             WorkforceEmployeeQualification.active.is_(True),
