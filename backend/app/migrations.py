@@ -78,24 +78,36 @@ def split_sql(sql: str) -> list[str]:
 def apply_migrations(database_url: str, migrations_dir: Path) -> list[str]:
     if not database_url.startswith("postgresql"):
         raise ValueError("production migrations require PostgreSQL")
-    engine = create_engine(database_url, pool_pre_ping=True, future=True)
     files = sorted(migrations_dir.glob("*.sql"))
     if not files:
         raise ValueError("no migration files found")
-    with engine.begin() as conn:
-        conn.exec_driver_sql(
-            "CREATE TABLE IF NOT EXISTS schema_migrations (version text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())"
-        )
+    engine = create_engine(database_url, pool_pre_ping=True, future=True)
     applied: list[str] = []
-    for path in files:
-        version = path.name
-        with engine.begin() as conn:
-            done = conn.execute(text("SELECT 1 FROM schema_migrations WHERE version=:v"), {"v": version}).first()
-            if done:
-                continue
-            for statement in split_sql(path.read_text(encoding="utf-8")):
-                conn.exec_driver_sql(statement)
-            conn.execute(text("INSERT INTO schema_migrations(version) VALUES (:v)"), {"v": version})
-        applied.append(version)
-    engine.dispose()
+    try:
+        with engine.connect() as conn:
+            acquired = conn.execute(text("SELECT pg_try_advisory_lock(hashtext('fire-ai-schema-migration'))")).scalar_one()
+            conn.commit()
+            if not acquired:
+                raise ValueError("another migration is running in this database")
+            try:
+                with conn.begin():
+                    conn.exec_driver_sql(
+                        "CREATE TABLE IF NOT EXISTS schema_migrations (version text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())"
+                    )
+                for path in files:
+                    version = path.name
+                    with conn.begin():
+                        done = conn.execute(text("SELECT 1 FROM schema_migrations WHERE version=:v"), {"v": version}).first()
+                        if done:
+                            continue
+                        for statement in split_sql(path.read_text(encoding="utf-8")):
+                            conn.exec_driver_sql(statement)
+                        conn.execute(text("INSERT INTO schema_migrations(version) VALUES (:v)"), {"v": version})
+                    applied.append(version)
+            finally:
+                conn.rollback()
+                conn.execute(text("SELECT pg_advisory_unlock(hashtext('fire-ai-schema-migration'))"))
+                conn.commit()
+    finally:
+        engine.dispose()
     return applied

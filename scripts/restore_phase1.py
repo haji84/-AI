@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import argparse
+from contextlib import nullcontext
+from app.department_maintenance import exclusive_maintenance
 import hashlib
 import json
 import os
@@ -116,61 +118,63 @@ def main() -> None:
         if target_db.is_relative_to(target_storage):
             raise SystemExit("target database must be outside replaced storage")
 
-    # Validate and stage every byte before touching the target DB or storage.
-    # Extraction never uses a neighbor named 'storage'.
-    target_storage.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix=".fire-ai-restore-", dir=target_storage.parent) as staging_dir:
-        staged = Path(staging_dir) / "storage"
-        staged.mkdir()
-        with tarfile.open(folder / manifest["storage_file"], "r:gz") as tf:
-            members = tf.getmembers()
-            for member in members:
-                rel = Path(member.name)
-                if rel.is_absolute() or ".." in rel.parts or not rel.parts or rel.parts[0] != "storage":
-                    raise SystemExit("unsafe storage archive path")
-                if not (member.isdir() or member.isfile()):
-                    raise SystemExit("storage archive links and special files are not allowed")
-            for member in members:
-                dest = staged.joinpath(*Path(member.name).parts[1:])
-                if member.isdir():
-                    dest.mkdir(parents=True, exist_ok=True)
-                else:
-                    dest.parent.mkdir(parents=True, exist_ok=True)
-                    with tf.extractfile(member) as source, dest.open("wb") as output:
-                        shutil.copyfileobj(source, output)
-        if bound:
+    maintenance = exclusive_maintenance(args.target_database_url, tenant_id) if is_postgres else nullcontext()
+    with maintenance:
+        # Validate and stage every byte before touching the target DB or storage.
+        # Extraction never uses a neighbor named 'storage'.
+        target_storage.parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix=".fire-ai-restore-", dir=target_storage.parent) as staging_dir:
+            staged = Path(staging_dir) / "storage"
+            staged.mkdir()
+            with tarfile.open(folder / manifest["storage_file"], "r:gz") as tf:
+                members = tf.getmembers()
+                for member in members:
+                    rel = Path(member.name)
+                    if rel.is_absolute() or ".." in rel.parts or not rel.parts or rel.parts[0] != "storage":
+                        raise SystemExit("unsafe storage archive path")
+                    if not (member.isdir() or member.isfile()):
+                        raise SystemExit("storage archive links and special files are not allowed")
+                for member in members:
+                    dest = staged.joinpath(*Path(member.name).parts[1:])
+                    if member.isdir():
+                        dest.mkdir(parents=True, exist_ok=True)
+                    else:
+                        dest.parent.mkdir(parents=True, exist_ok=True)
+                        with tf.extractfile(member) as source, dest.open("wb") as output:
+                            shutil.copyfileobj(source, output)
+            if bound:
+                try:
+                    verify_restore_department(manifest, db_file, staged, args.target_database_url, target_storage, tenant_id)
+                except TenantBoundaryError as exc:
+                    raise SystemExit(str(exc)) from None
+            # A root-run restore must remain readable by the dedicated service account.
+            # Never trust archived UIDs; retain the already validated target owner's identity.
+            if bound and hasattr(os, 'chown'):
+                owner = target_storage.stat()
+                for path in [staged, *staged.rglob('*')]:
+                    os.chown(path, owner.st_uid, owner.st_gid)
+                    path.chmod(0o700 if path.is_dir() else 0o600)
+            if is_postgres:
+                pg_args, env = postgres_args(args.target_database_url)
+                cmd = ["pg_restore", "--exit-on-error", "--single-transaction", "--clean", "--if-exists", "--no-owner", *pg_args, str(db_file)]
+                subprocess.run(cmd, env=env, check=True)
+            else:
+                restore_sqlite(db_file, args.target_database_url)
+            # Keep old files until the staged directory can replace them.
+            previous = Path(staging_dir) / "previous"
+            if target_storage.exists():
+                target_storage.rename(previous)
             try:
-                verify_restore_department(manifest, db_file, staged, args.target_database_url, target_storage, tenant_id)
-            except TenantBoundaryError as exc:
-                raise SystemExit(str(exc)) from None
-        # A root-run restore must remain readable by the dedicated service account.
-        # Never trust archived UIDs; retain the already validated target owner's identity.
-        if bound and hasattr(os, 'chown'):
-            owner = target_storage.stat()
-            for path in [staged, *staged.rglob('*')]:
-                os.chown(path, owner.st_uid, owner.st_gid)
-                path.chmod(0o700 if path.is_dir() else 0o600)
-        if is_postgres:
-            pg_args, env = postgres_args(args.target_database_url)
-            cmd = ["pg_restore", "--exit-on-error", "--single-transaction", "--clean", "--if-exists", "--no-owner", *pg_args, str(db_file)]
-            subprocess.run(cmd, env=env, check=True)
-        else:
-            restore_sqlite(db_file, args.target_database_url)
-        # Keep old files until the staged directory can replace them.
-        previous = Path(staging_dir) / "previous"
-        if target_storage.exists():
-            target_storage.rename(previous)
-        try:
-            staged.rename(target_storage)
-        except OSError:
-            if previous.exists():
-                previous.rename(target_storage)
-            raise
-    if bound:
-        record_admin_audit(args.target_database_url, tenant_id, 'tenant.restore.completed',
-                           {'release_id': manifest['release_id'], 'database_sha256': manifest['database_sha256'],
-                            'storage_sha256': manifest['storage_sha256'], 'backup_created_at': manifest.get('created_at')})
-    print(json.dumps({"restored": True, "database_kind": manifest["database_kind"]}, ensure_ascii=False))
+                staged.rename(target_storage)
+            except OSError:
+                if previous.exists():
+                    previous.rename(target_storage)
+                raise
+        if bound:
+            record_admin_audit(args.target_database_url, tenant_id, 'tenant.restore.completed',
+                               {'release_id': manifest['release_id'], 'database_sha256': manifest['database_sha256'],
+                                'storage_sha256': manifest['storage_sha256'], 'backup_created_at': manifest.get('created_at')})
+        print(json.dumps({"restored": True, "database_kind": manifest["database_kind"]}, ensure_ascii=False))
 
 
 if __name__ == "__main__":

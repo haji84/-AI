@@ -10,6 +10,8 @@ import sqlite3
 import subprocess
 import tarfile
 from datetime import datetime, timezone
+from contextlib import nullcontext
+from app.department_maintenance import exclusive_maintenance
 from pathlib import Path
 
 from sqlalchemy.engine import make_url
@@ -63,51 +65,55 @@ def main() -> None:
     if destination == storage_root or destination.is_relative_to(storage_root):
         raise SystemExit("backup destination must be outside originals")
 
-    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    folder = args.destination.resolve() / f"fire-ai-backup-{stamp}"
-    folder.mkdir(parents=True, exist_ok=False, mode=0o700)
+    maintenance = exclusive_maintenance(args.database_url, tenant_id) if args.database_url.startswith('postgresql') else nullcontext()
+    with maintenance:
+        if tenant_id:
+            migrations = binding(args.database_url, args.storage_root, tenant_id)
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        folder = args.destination.resolve() / f"fire-ai-backup-{stamp}"
+        folder.mkdir(parents=True, exist_ok=False, mode=0o700)
 
-    if tenant_id:
-        record_admin_audit(args.database_url, tenant_id, 'tenant.backup.started',
-                           {'release_id': args.release_id, 'backup': folder.name, 'writers_stopped': True})
-    if args.database_url.startswith("postgresql"):
-        dump = folder / "database.dump"
-        pg_args, env = postgres_args(args.database_url)
-        cmd = ["pg_dump", "--format=custom", "--no-owner", "--file", str(dump), *pg_args]
-        subprocess.run(cmd, env=env, check=True)
-        db_kind = "postgresql"
-    elif args.database_url.startswith("sqlite"):
-        dump = folder / "database.sqlite3"
-        backup_sqlite(args.database_url, dump)
-        db_kind = "sqlite-test-only"
-    else:
-        raise SystemExit("unsupported database URL")
+        if tenant_id:
+            record_admin_audit(args.database_url, tenant_id, 'tenant.backup.started',
+                               {'release_id': args.release_id, 'backup': folder.name, 'writers_stopped': True})
+        if args.database_url.startswith("postgresql"):
+            dump = folder / "database.dump"
+            pg_args, env = postgres_args(args.database_url)
+            cmd = ["pg_dump", "--format=custom", "--no-owner", "--file", str(dump), *pg_args]
+            subprocess.run(cmd, env=env, check=True)
+            db_kind = "postgresql"
+        elif args.database_url.startswith("sqlite"):
+            dump = folder / "database.sqlite3"
+            backup_sqlite(args.database_url, dump)
+            db_kind = "sqlite-test-only"
+        else:
+            raise SystemExit("unsupported database URL")
 
-    storage_archive = folder / "storage.tar.gz"
-    storage_root = args.storage_root.resolve()
-    with tarfile.open(storage_archive, "w:gz") as tf:
-        if storage_root.exists():
-            tf.add(storage_root, arcname="storage", recursive=True)
+        storage_archive = folder / "storage.tar.gz"
+        storage_root = args.storage_root.resolve()
+        with tarfile.open(storage_archive, "w:gz") as tf:
+            if storage_root.exists():
+                tf.add(storage_root, arcname="storage", recursive=True)
 
-    if tenant_id:
-        try:
-            if dump_identity(dump, db_kind) != tenant_id:
-                raise TenantBoundaryError("Dump belongs to another department")
-        except TenantBoundaryError as exc:
-            raise SystemExit(str(exc)) from None
-    manifest = {
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "database_kind": db_kind,
-        "database_file": dump.name,
-        "database_sha256": sha256(dump),
-        "storage_file": storage_archive.name,
-        "storage_sha256": sha256(storage_archive),
-    }
-    if tenant_id:
-        manifest.update(tenant_id=tenant_id, release_id=args.release_id,
-                        consistency="writers-stopped", migrations=migrations, format_version=2)
-    (folder / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(json.dumps({"backup": str(folder), "database_kind": db_kind}, ensure_ascii=False))
+        if tenant_id:
+            try:
+                if dump_identity(dump, db_kind) != tenant_id:
+                    raise TenantBoundaryError("Dump belongs to another department")
+            except TenantBoundaryError as exc:
+                raise SystemExit(str(exc)) from None
+        manifest = {
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "database_kind": db_kind,
+            "database_file": dump.name,
+            "database_sha256": sha256(dump),
+            "storage_file": storage_archive.name,
+            "storage_sha256": sha256(storage_archive),
+        }
+        if tenant_id:
+            manifest.update(tenant_id=tenant_id, release_id=args.release_id,
+                            consistency="writers-stopped", migrations=migrations, format_version=2)
+        (folder / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+        print(json.dumps({"backup": str(folder), "database_kind": db_kind}, ensure_ascii=False))
 
 
 if __name__ == "__main__":

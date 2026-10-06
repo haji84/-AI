@@ -94,6 +94,30 @@ server {{
     return 301 https://{host}$request_uri;
 }}
 '''
+    backup_service = f"""[Unit]
+Description=Fire AI paired backup for department {slug}
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory={code}
+EnvironmentFile=/etc/fire-ai/backup-{slug}.env
+ExecStart={instance}/venv/bin/python {code}/scripts/scheduled_department_backup.py --slug {slug} --release-id {release_id}
+UMask=0077
+TimeoutStartSec=infinity
+"""
+    backup_timer = f"""[Unit]
+Description=Daily Fire AI paired backup for department {slug}
+
+[Timer]
+OnCalendar=*-*-* 03:00:00 Asia/Tokyo
+Persistent=true
+Unit=fire-ai-{slug}-backup.service
+
+[Install]
+WantedBy=timers.target
+"""
     layout = f'''# Generated server assets for {slug}
 
 Department UUID: `{tenant_id}`. Release: `{release_id}`.
@@ -109,14 +133,16 @@ Review DNS `{host}`, TLS certificate, port `{port}`, capacity and PostgreSQL acc
 3. Build dedicated venv from common release backend. Load migration env, run `scripts/migrate_database.py`, then `scripts/initialize_tenant.py --name '<department name>'`.
 4. Apply `01-grants-{slug}.sql` as owner. Load runtime env and bootstrap the human administrator interactively. Install service/nginx and approved TLS certificate.
 5. Verify matching DB/root UUID, another department DB CONNECT denial, identity mutation/audit alteration denial, other OS account storage/backup denial, health, RBAC, Human Gate and two-PC conflict.
-6. For backup STOP this service AND all CLI/sync writers, load `backup-{slug}.env`, run `scripts/backup_phase1.py --destination {backup} --release-id {release_id} --confirm-writers-stopped`.
+6. Install the generated department backup service/timer only after registering every writer in `FIRE_AI_BACKUP_WRITER_UNITS` (JSON list of own `fire-ai-{slug}-*.service`/`.timer` units). The root orchestrator stops timers/writers/app, runs the bound backup under PostgreSQL maintenance exclusion, then restores previous activity. It never deletes backups. Verify free space and test failure alerts. For manual backup STOP this service AND all CLI/sync writers, load `backup-{slug}.env`, run `scripts/backup_phase1.py --destination {backup} --release-id {release_id} --confirm-writers-stopped`.
 7. For recovery STOP all writers, retain current DB+storage backup, load migration env and run `scripts/restore_phase1.py <backup-folder> --target-database-env FIRE_AI_DATABASE_URL --target-storage-root {storage} --confirm-restore --confirm-writers-stopped --expected-release-id {release_id}`.
 8. Reapply `01-grants-{slug}.sql` as target owner; restored table/schema ACLs must fit target roles. Validate restored code release against manifest, migration list, counts, original hashes, audit and login before restart. DB and filesystem are not one transaction; failure keeps service stopped.
 9. Update one department at a time: clone rehearsal, stopped-writer backup, migration as owner, reapply grants, build its new venv, switch its service WorkingDirectory/release, acceptance, restart. Never switch all services by replacing shared code.
 10. Same-department relocation preserves UUID and paired DB/storage. New department generates new UUID and separate resources. Never overwrite another department identity.
 '''
     return {slug + '.env': runtime, 'migration-' + slug + '.env': migration,
-            'backup-' + slug + '.env': runtime + 'FIRE_AI_BACKUP_DESTINATION=' + backup + '\n',
+            'backup-' + slug + '.env': runtime + 'FIRE_AI_BACKUP_DESTINATION=' + backup + '\nFIRE_AI_BACKUP_WRITER_UNITS=\'[]\'\n',
+            'fire-ai-' + slug + '-backup.service': backup_service,
+            'fire-ai-' + slug + '-backup.timer': backup_timer,
             '00-create-' + slug + '.sql': cluster, '01-grants-' + slug + '.sql': grants,
             'fire-ai-' + slug + '.service': service, 'nginx-' + slug + '.conf': nginx,
             'README.md': layout}

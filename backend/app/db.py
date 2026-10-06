@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine,event
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 from .settings import settings
@@ -17,6 +17,13 @@ class BoundSession(Session):
             from .tenant import validate_runtime_binding
             validate_runtime_binding(kwargs.get("bind", engine), settings)
         super().__init__(*args, **kwargs)
+
+@event.listens_for(BoundSession,'after_begin')
+def runtime_maintenance_guard(session,transaction,connection):
+    if settings.tenant_id is not None and connection.dialect.name=='postgresql':
+        from .department_maintenance import acquire_runtime_lock
+        acquire_runtime_lock(connection,settings.tenant_id)
+
 
 SessionLocal = sessionmaker(class_=BoundSession, bind=engine, expire_on_commit=False, autoflush=False, future=True)
 

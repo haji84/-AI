@@ -4,11 +4,11 @@
 
 ## 完成タスクの現在地（2026-10-06再監査）
 
-main fb2c9900（PR44）を正本として確認。小さなPRの完了はシステム完成を意味しない。
+main c4e692ed（PR46）を正本として確認。小さなPRの完了はシステム完成を意味しない。
 - PR41/43: 共通コード＋本部別DB/実行環境/原本/backupを固定。UUID照合、専用構成生成、PostgreSQL移行/復元/役割境界をCI検証済み。
 - PR44: 組織・職員・人事履歴・有効日権限・Humanアカウント管理・パスワード履歴/変更・セッション失効・監査閲覧。PR CI302成功、実ブラウザ1成功。main CI37476512786 SUCCESS。
-- RunB PR40/42の救急・事案/出動・車両を維持。残り業務モジュールはRunBの連続実装対象。
-- 署名付き閉域法令更新はMissingを実装中（未merge）。本番trustの選定、法令正式承認、実図面Human正解/実モデル評価、実LAN受入はExternal Gate。
+- RunB PR40/42/46の救急・事案/出動・車両・業務資産/在庫/貸出/保守を維持。main CI37482634204 SUCCESS。残り業務モジュールはRunBの連続実装対象。
+- PR45の署名付き閉域法令更新は実装・merge・main CI37480963172 SUCCESS済み（正式判定はHuman Gate）。自動backup・保守排他を実装中。本番trustの選定、法令正式承認、実図面Human正解/実モデル評価、実LAN受入はExternal Gate。
 - 独立したMissing/Partial（自動backup、残る共通/図面/学習機能、全マニュアルとrelease一式）を継続し、完成成果物と未完Gateの照合で判定する。
 
 実コードとの照合とEvidence: docs/COMPLETION_AUDIT.md / docs/completion/RUN_A_STATUS.md / RUN_B_STATUS.md。
