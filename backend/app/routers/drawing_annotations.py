@@ -10,6 +10,10 @@ from ..audit import write_audit
 from ..authz import require_permission
 from ..db import get_db
 from ..drawing_annotation_geometry import apply_geometry_metrics
+from ..drawing_annotation_preflight import (
+    build_annotation_review_preflight,
+    mark_reference_elements_reviewed,
+)
 from ..drawing_benchmark_export import build_drawing_reference
 from ..models import (
     Document,
@@ -23,6 +27,7 @@ from ..models import (
 from ..schemas import (
     DrawingAnnotationReferenceImport,
     DrawingAnnotationReview,
+    DrawingAnnotationReviewPreflightOut,
     DrawingAnnotationSeedCreate,
     DrawingAnnotationSetCreate,
     DrawingAnnotationSetOut,
@@ -550,6 +555,36 @@ def update_annotation(
     return _annotation_out(row)
 
 
+
+
+@router.get(
+    "/drawing-annotations/{annotation_id}/review-preflight",
+    response_model=DrawingAnnotationReviewPreflightOut,
+)
+def annotation_review_preflight(
+    annotation_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("drawing.read")),
+):
+    current = db.get(DrawingAnnotationSet, annotation_id)
+    if not current:
+        raise HTTPException(
+            status_code=404,
+            detail="drawing annotation set not found",
+        )
+    try:
+        normalized_payload, _ = apply_geometry_metrics(
+            current.payload or {},
+            current.page_dimensions or {},
+        )
+        preflight = build_annotation_review_preflight(
+            normalized_payload
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    return DrawingAnnotationReviewPreflightOut(**preflight)
+
+
 @router.post("/drawing-annotations/{annotation_id}/review", response_model=DrawingAnnotationSetOut)
 def review_annotation(
     annotation_id: str,
@@ -562,15 +597,66 @@ def review_annotation(
         raise HTTPException(status_code=404, detail="drawing annotation set not found")
     if current.status != "draft":
         raise HTTPException(status_code=409, detail="only draft annotations can be reviewed")
+    reviewed_at = datetime.now(timezone.utc)
     if payload.status == "reviewed":
         try:
             normalized_payload, page_dimensions = apply_geometry_metrics(
                 current.payload or {},
                 current.page_dimensions or {},
             )
+            _validate_reference_payload(normalized_payload)
+            preflight = build_annotation_review_preflight(
+                normalized_payload
+            )
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc))
-        _validate_reference_payload(normalized_payload)
+
+        if preflight["blockers"]:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "message": (
+                        "drawing annotation has review blockers"
+                    ),
+                    "preflight": preflight,
+                },
+            )
+
+        acknowledged = {
+            str(x)
+            for x in payload.acknowledged_warning_codes
+            if str(x)
+        }
+        missing_ack = [
+            code
+            for code in preflight["warning_codes"]
+            if code not in acknowledged
+        ]
+        if missing_ack:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "message": (
+                        "drawing annotation review warnings "
+                        "require Human acknowledgement"
+                    ),
+                    "missing_acknowledgements": missing_ack,
+                    "preflight": preflight,
+                },
+            )
+
+        normalized_payload = mark_reference_elements_reviewed(
+            normalized_payload,
+            reviewed_at=reviewed_at.isoformat(),
+        )
+        normalized_payload["human_review_meta"] = {
+            "reviewed_at": reviewed_at.isoformat(),
+            "review_notes": payload.review_notes,
+            "acknowledged_warning_codes": sorted(acknowledged),
+            "preflight_format": preflight["preflight_format"],
+            "warning_count": preflight["warning_count"],
+            "info_count": preflight["info_count"],
+        }
     else:
         normalized_payload = current.payload or {}
         page_dimensions = current.page_dimensions or {}
@@ -588,8 +674,8 @@ def review_annotation(
             page_dimensions=page_dimensions,
             version=payload.expected_version + 1,
             reviewed_by=user.user_id,
-            reviewed_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc),
+            reviewed_at=reviewed_at,
+            updated_at=reviewed_at,
         )
     )
     if result.rowcount != 1:
