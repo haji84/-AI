@@ -1,5 +1,5 @@
 """Explicit Human administration; no AI-authored changes are finalized here."""
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import Literal
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Response
@@ -8,11 +8,12 @@ from sqlalchemy import select, update, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from ..db import get_db
-from ..authz import require_permission, permission_codes, current_user
+from ..authz import require_permission, permission_codes, current_user, authenticated_user
 from ..models import Employee, User, UserRole, Role, UserSession, AuditLog, now_utc
 from ..personnel import OrganizationUnit, EmployeeAssignment, AssignmentRole, PasswordHistory, effective_role_ids, employee_available
 from ..security import hash_password, verify_password
 from ..settings import settings
+from ..password_policy import initial_password_dates,password_expired,next_password_expiry,utc,password_metadata
 from ..tenant import TenantIdentity
 from ..personnel import business_date, account_change_lock
 from ..audit import write_audit
@@ -96,8 +97,11 @@ def commit(db):
 
 def administration_lock(db, actor=None, permission=None):
     account_change_lock(db)
-    if actor is not None and permission not in permission_codes(db, actor.user_id):
-        raise HTTPException(403, 'administration permission no longer effective')
+    if actor is not None:
+        fresh=db.get(User,actor.user_id,populate_existing=True)
+        if not fresh or not fresh.active or not employee_available(db,fresh):raise HTTPException(403,'Human account no longer active')
+        current_user(fresh)
+        if permission not in permission_codes(db,actor.user_id):raise HTTPException(403,'administration permission no longer effective')
 
 
 def retain_administrator(db):
@@ -253,13 +257,13 @@ def create_account(payload: AccountCreate,actor=Depends(require_permission('acco
     administration_lock(db,actor,'account.manage')
     employee=get(db,Employee,payload.employee_id)
     if not employee.active:raise HTTPException(409,'employee inactive')
-    row=User(employee_id=employee.employee_id,username=payload.username,password_hash=hash_password(payload.password))
+    row=User(employee_id=employee.employee_id,username=payload.username,password_hash=hash_password(payload.password),**initial_password_dates())
     db.add(row)
     try:db.flush()
     except IntegrityError:db.rollback();raise HTTPException(409,'account already exists') from None
     db.add(PasswordHistory(user_id=row.user_id,password_hash=row.password_hash))
     write_audit(db,user_id=actor.user_id,action='account.create',entity_type='user',entity_id=row.user_id,
-        after={'username':row.username,'employee_id':row.employee_id,'reason':payload.reason})
+        after={'username':row.username,'employee_id':row.employee_id,'reason':payload.reason,**password_metadata(row)})
     commit(db);return {'user_id':row.user_id,'username':row.username,'employee_id':row.employee_id,'active':row.active,'version':row.version}
 
 
@@ -296,6 +300,9 @@ class PasswordReset(HumanChange):
 def public_account(db, row):
     return {'user_id':row.user_id,'employee_id':row.employee_id,'username':row.username,
             'active':row.active,'version':row.version,
+            'password_changed_at':utc(row.password_changed_at).isoformat(),
+            'password_expires_at':utc(row.password_expires_at).isoformat() if row.password_expires_at else None,
+            'password_change_required':password_expired(row.password_expires_at),
             'permanent_role_ids':list(db.scalars(select(UserRole.role_id).where(UserRole.user_id==row.user_id))),
             'effective_role_ids':sorted(effective_role_ids(db,row.user_id))}
 
@@ -336,7 +343,7 @@ def replace_password(db,row,new_password,expected_version):
         raise HTTPException(422,'password reuse is forbidden')
     old_hash=row.password_hash;new_hash=hash_password(new_password)
     changed=db.execute(update(User).where(User.user_id==row.user_id,User.version==expected_version)
-        .values(password_hash=new_hash,version=expected_version+1,updated_at=now_utc())).rowcount
+        .values(password_hash=new_hash,version=expected_version+1,updated_at=now_utc(),**initial_password_dates())).rowcount
     if changed!=1:raise HTTPException(409,'account version conflict')
     if not db.scalar(select(PasswordHistory.history_id).where(PasswordHistory.user_id==row.user_id,PasswordHistory.password_hash==old_hash).limit(1)):
         db.add(PasswordHistory(user_id=row.user_id,password_hash=old_hash))
@@ -345,12 +352,12 @@ def replace_password(db,row,new_password,expected_version):
 
 
 @router.post('/password')
-def change_password(payload: PasswordChange,response: Response,actor=Depends(current_user),db: Session=Depends(get_db)):
+def change_password(payload: PasswordChange,response: Response,actor=Depends(authenticated_user),db: Session=Depends(get_db)):
     administration_lock(db);row=get(db,User,actor.user_id)
     if not row.active or not employee_available(db,row) or not verify_password(row.password_hash,payload.current_password):raise HTTPException(401,'current password invalid')
     replace_password(db,row,payload.new_password,row.version)
     write_audit(db,user_id=row.user_id,action='auth.password.change',entity_type='user',entity_id=row.user_id,
-        after={'sessions_revoked':True})
+        after={'sessions_revoked':True,**password_metadata(row)})
     commit(db);response.delete_cookie(settings.cookie_name,path='/');return {'ok':True,'login_required':True}
 
 
@@ -359,7 +366,7 @@ def reset_password(user_id: UUID,payload: PasswordReset,actor=Depends(require_pe
     administration_lock(db,actor,'account.manage');row=get(db,User,user_id)
     replace_password(db,row,payload.new_password,payload.expected_version)
     write_audit(db,user_id=actor.user_id,action='auth.password.reset',entity_type='user',entity_id=row.user_id,
-        after={'sessions_revoked':True,'reason':payload.reason})
+        after={'sessions_revoked':True,'reason':payload.reason,**password_metadata(row)})
     commit(db);return {'user_id':row.user_id,'version':row.version,'sessions_revoked':True}
 
 
@@ -400,4 +407,35 @@ def context(actor=Depends(current_user),db: Session=Depends(get_db)):
     identity=db.get(TenantIdentity,1)
     return {'department':identity.name if identity else '開発環境',
             'department_id':identity.tenant_id if identity else None,'username':actor.username,
-            'business_date':business_date(),'permissions':sorted(permission_codes(db,actor.user_id))}
+            'business_date':business_date(),'password_max_age_days':settings.password_max_age_days,'permissions':sorted(permission_codes(db,actor.user_id))}
+
+
+class PasswordExpiry(HumanChange):
+    expected_version: int = Field(ge=1)
+    mode: Literal['policy','explicit','clear']
+    expires_at: datetime | None = None
+    reason: str = Field(min_length=1,max_length=1000)
+
+    @model_validator(mode='after')
+    def selected_date(self):
+        if self.mode=='explicit':
+            if self.expires_at is None or self.expires_at.tzinfo is None:
+                raise ValueError('explicit expiry requires an ISO8601 time zone')
+        elif self.expires_at is not None:raise ValueError('expiry date is only valid in explicit mode')
+        return self
+
+
+@router.post('/accounts/{user_id}/password-expiry')
+def set_password_expiry(user_id: UUID,payload: PasswordExpiry,actor=Depends(require_permission('account.manage')),db: Session=Depends(get_db)):
+    administration_lock(db,actor,'account.manage');row=get(db,User,user_id);before=public_account(db,row)
+    if payload.mode=='policy':
+        if settings.password_max_age_days is None:raise HTTPException(422,'department password-age policy is not configured')
+        expiry=next_password_expiry(row.password_changed_at,settings.password_max_age_days)
+    else:expiry=utc(payload.expires_at) if payload.expires_at else None
+    changed=db.execute(update(User).where(User.user_id==str(user_id),User.version==payload.expected_version)
+        .values(password_expires_at=expiry,version=payload.expected_version+1,updated_at=now_utc())).rowcount
+    if changed!=1:raise HTTPException(409,'account version conflict')
+    db.refresh(row);revoke_sessions(db,row.user_id)
+    write_audit(db,user_id=actor.user_id,action='account.password.expiry',entity_type='user',entity_id=row.user_id,
+        before=before,after={**public_account(db,row),'mode':payload.mode,'policy_max_age_days':settings.password_max_age_days if payload.mode=='policy' else None,'reason':payload.reason,'sessions_revoked':True})
+    commit(db);return public_account(db,row)

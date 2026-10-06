@@ -52,6 +52,8 @@ class User(Base):
     employee_id: Mapped[str | None] = mapped_column(ForeignKey("employees.employee_id"), unique=True)
     username: Mapped[str] = mapped_column(String(100), unique=True, nullable=False, index=True)
     password_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    password_changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=now_utc)
+    password_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     version: Mapped[int] = mapped_column(BigInteger, nullable=False, default=1)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
