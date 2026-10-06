@@ -44,7 +44,8 @@ const financeEventLabels={delivery:'納品・引渡',inspection:'検査・検収
 const financeCan=code=>financeState.permissions.includes(code);
 const financeJSON=(method,data)=>({method,headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
 async function initFinance(){const p=await financeAPI('/auth/permissions');if(financeState.permissions.some(code=>!p.permissions.includes(code))||(!p.permissions.includes('finance.read')&&!p.permissions.includes('contract.read')))clearFinance();financeState.permissions=p.permissions;$('financeBtn').classList.toggle('hidden',!financeCan('finance.read')&&!financeCan('contract.read'))}
-function financeSessionPreflight(target){
+function financeSessionPreflight(target,eventType){
+ if(eventType==='change'&&typeof target.onchange!=='function')return ()=>{};
  if(target.id!=='financeBtn'&&!target.closest?.('#financeModal'))return ()=>{};
  if(financePendingAction)return ()=>{};
  const operation={controls:new Map(),generation:financeState.generation};financePendingAction=operation;financeLockNewControls();

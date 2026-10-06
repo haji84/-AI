@@ -74,7 +74,7 @@
     if(target.tagName==='A'&&!privatePath(target.href))return;
     event.preventDefault();event.stopImmediatePropagation();
     const ticket=generation;
-    const releasePreflight=window.financeSessionPreflight?.(target)??(()=>{});
+    const releasePreflight=window.financeSessionPreflight?.(target,event.type)??(()=>{});
     try{
       await observe(ticket);
       if(ticket!==generation||target.isConnected===false)return;
