@@ -88,3 +88,18 @@ def test_reusing_rejected_session_cannot_bypass_maintenance(monkeypatch):
         with pytest.raises((MaintenanceUnavailable,PendingRollbackError)):db.execute(text('SELECT 1'))
     finally:
         db.close();engine.dispose()
+
+
+def test_maintenance_http_returns_retry_without_database_details():
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from app.main import app as production_app
+    from app.department_maintenance import MaintenanceUnavailable
+    test_app=FastAPI()
+    test_app.add_exception_handler(MaintenanceUnavailable,production_app.exception_handlers[MaintenanceUnavailable])
+    @test_app.get('/synthetic-maintenance')
+    def endpoint():raise MaintenanceUnavailable('secret database connection details')
+    response=TestClient(test_app).get('/synthetic-maintenance')
+    assert response.status_code==503
+    assert response.headers['Retry-After']=='30'
+    assert 'secret' not in response.text
