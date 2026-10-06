@@ -262,12 +262,47 @@ def import_reference_annotation(
                 }
             }
 
+    area_targets = reference.get("area_targets")
+    if not isinstance(area_targets, list):
+        area_targets = []
+    if not area_targets:
+        observations = reference.get("source_observations")
+        floor_area_m2 = (
+            observations.get("floor_area_m2")
+            if isinstance(observations, dict)
+            else None
+        )
+        if isinstance(floor_area_m2, dict):
+            derived_targets = []
+            for key, value in floor_area_m2.items():
+                text = str(key).strip()
+                digits = "".join(ch for ch in text if ch.isdigit() or ch == "-")
+                if not digits:
+                    continue
+                try:
+                    floor_number = int(digits)
+                    target_area = float(value)
+                except (TypeError, ValueError):
+                    continue
+                if target_area <= 0:
+                    continue
+                derived_targets.append(
+                    {
+                        "floor_number": floor_number,
+                        "target_area_m2": target_area,
+                        "label": text,
+                        "source": "reference.source_observations.floor_area_m2",
+                    }
+                )
+            area_targets = derived_targets
+
     body = {
         "elements": reference.get("elements") or [],
         "equipment_candidates":
             reference.get("equipment_candidates") or [],
         "fact_candidates":
             reference.get("fact_candidates") or [],
+        "area_targets": area_targets,
         "reference_import": {
             "reference_format": reference_format,
             "reference_status":
@@ -333,6 +368,9 @@ def import_reference_annotation(
             ),
             "fact_candidate_count": len(
                 body.get("fact_candidates") or []
+            ),
+            "area_target_count": len(
+                body.get("area_targets") or []
             ),
             "imported_as_status": "draft",
         },
