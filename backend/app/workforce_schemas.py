@@ -92,6 +92,7 @@ class LeaveCreate(Strict):
             for value in (self.leave_start_at,self.leave_end_at):
                 if value.tzinfo is None or value.utcoffset() is None:raise ValueError('leave timestamps require timezone')
             if self.leave_end_at<=self.leave_start_at:raise ValueError('leave_end_at must follow leave_start_at')
+            if self.leave_start_at.date()!=self.effective_on:raise ValueError('effective_on must match leave_start_at date')
         elif self.leave_start_at or self.leave_end_at:
             raise ValueError('leave period is allowed only for leave use')
         return self
