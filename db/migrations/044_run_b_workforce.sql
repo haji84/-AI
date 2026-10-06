@@ -181,5 +181,5 @@ INSERT INTO permissions(code,description) VALUES
 ON CONFLICT (code) DO NOTHING;
 INSERT INTO role_permissions(role_id,permission_id)
 SELECT r.role_id,p.permission_id FROM roles r CROSS JOIN permissions p
-WHERE r.code='system_admin' AND p.code LIKE 'workforce.%'
+WHERE r.code='system_admin' AND POSITION('workforce.' IN p.code)=1
 ON CONFLICT DO NOTHING;
