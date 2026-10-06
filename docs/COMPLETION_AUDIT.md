@@ -27,7 +27,7 @@ External Gateは承認済み実環境・Humanによる正式判定・提供さ�
 | 実日本語音声/証拠比較精度 | External Gate | audio/evidence benchmark API/CLI | 提供原音声/正解・Human有用性判断 |
 | 横断検索 | Partial | routers/search.py、unified_search.py | 意味検索品質・本番負荷・権限受入 |
 | 救急取込・正規化 | Completed（取込範囲） | importers/emergency.py、models Emergency*、Migration 002 | Web提供は別項目 |
-| 救急Web集計・帳票・チェック・候補レビュー | Missing | 救急router未登録。臨床flagテーブルは存在 | 権限分離API/UI、集計/出力、チェック、Human候補確認 |
+| 救急Web集計・帳票・チェック・候補レビュー | Partial（今回の集計Slice後） | emergency_reports core/router/UI、新規8テスト。臨床flagテーブルあり | 名称マスタ・隊員/時系列/正式帳票、Web取込、チェック、Human候補確認 |
 | 契約管理 | Partial | routers/contracts.py、Contract* | 一覧UI・書類/見積/履行/検査/請求/変更契約の全フロー |
 | Module/Feature Flag/Change Request | Partial | routers/extensions.py、Module* | Sandbox実行・Deployment実反映/rollback証拠 |
 | 学習・Champion/Candidate昇格・rollback | Missing | 正式仕様17・Phase11。専用実装を確認できず | 修正記録、固定評価、比較、明示承認、rollback |
@@ -63,3 +63,16 @@ backend/tests/test_restore_safety.py を修正前のmainコードで実行: 7 fa
 - target storage配下のSQLite DBを消して成功報告していた。
 
 修正後: 7 passed。元mainの復元を本番へ使用する前にこの修正が必要。
+
+## 後続Slice: 救急Web集計
+
+事案/救護者を分離した病院・程度・地域集計、Excel/CSV、専用権限、集計監査を追加。
+`docs/emergency/WEB_REPORTS.md` に操作/集計定義/制約を記録。個票/候補の正式確定は行わない。
+
+## 次の重大設計判断
+
+tenant分離は現行コードに存在しない。
+`docs/architecture/TENANT_ISOLATION_DECISION.md` で本部別DB方式と共有DB/RLS方式を比較。
+推奨は共通コード + 本部別DB/サービス/原本/backup。複数拠点は本部内で同じDBを共有。
+この判断は本部追加方式、migration、backup単位、運用コストを固定するため確認対象。
+実装済みと報告しない。

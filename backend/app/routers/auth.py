@@ -7,7 +7,7 @@ from ..models import User, UserSession
 from ..schemas import LoginRequest, UserOut
 from ..security import verify_password, new_session_token, session_expiry, token_digest
 from ..settings import settings
-from ..authz import current_user
+from ..authz import current_user, permission_codes
 from ..audit import write_audit
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -40,3 +40,8 @@ def logout(response: Response, user: User = Depends(current_user), db: Session =
 @router.get("/me", response_model=UserOut)
 def me(user: User = Depends(current_user)):
     return UserOut(user_id=user.user_id, username=user.username)
+
+
+@router.get("/permissions")
+def permissions(user: User = Depends(current_user), db: Session = Depends(get_db)):
+    return {"permissions": sorted(permission_codes(db, user.user_id))}

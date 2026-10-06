@@ -29,6 +29,7 @@ PERMISSIONS: dict[str, str] = {
     "intake.apply": "受付文書から対象物変更反映",
     "emergency.import": "救急データ取込",
     "emergency.report.read": "救急集計参照",
+    "emergency.report.export": "救急集計出力",
     "emergency.case.read": "救急事案個票参照",
     "emergency.patient.read": "救急傷病者個票参照",
     "emergency.crew.read": "救急出動隊員個票参照",
@@ -87,14 +88,14 @@ ROLE_POLICY: dict[str, dict] = {
         "name": "救急集計担当",
         "system_role": True,
         "permissions": {
-            "system.health.read", "emergency.import", "emergency.report.read",
+            "system.health.read", "emergency.import", "emergency.report.read", "emergency.report.export",
         },
     },
     "emergency_detail_viewer": {
         "name": "救急個票閲覧",
         "system_role": True,
         "permissions": {
-            "system.health.read", "emergency.report.read", "emergency.case.read",
+            "system.health.read", "emergency.report.read", "emergency.report.export", "emergency.case.read",
             "emergency.patient.read", "emergency.crew.read",
         },
     },
