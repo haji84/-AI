@@ -238,3 +238,44 @@ Unsaved-change protection:
 - browser/tab close uses `beforeunload` while unsaved edits exist
 
 The Undo/Redo stack is a UI editing aid only. The backend remains authoritative after save and recomputes derived Geometry/area evidence from the submitted Annotation.
+
+
+## Reviewed Annotation revision workflow
+
+A reviewed Human Annotation remains immutable evidence.
+
+When a reviewed Annotation needs correction:
+
+1. choose `修正版Draftを作る`
+2. optionally record a revision note
+3. the backend creates a new Draft Annotation
+4. Geometry, calibration, area targets, equipment/fact candidates, and derived evidence are copied
+5. the backend recalculates Geometry-derived evidence
+6. the new Draft can use the ordinary editing tools:
+   - vertex drag
+   - vertex add/remove
+   - room/zone add/remove
+   - calibration
+   - area target correction
+   - snapping
+   - Undo/Redo
+7. the old reviewed Annotation remains unchanged and exportable as its original Human Reference evidence
+8. the revision requires a new explicit Human review before it becomes benchmark truth
+
+Revision provenance is stored in `payload.revision_history[]`:
+
+- source Annotation ID
+- source Annotation version
+- source reviewed timestamp
+- revision note
+- revision creation timestamp
+
+Rules:
+
+- only a `reviewed` Annotation can create a revision Draft
+- optimistic version matching is required
+- a Draft cannot recursively create another revision Draft
+- the copied revision always starts at `status=draft`
+- prior review state is never inherited
+- creating/editing a revision never mutates the source Annotation
+- after the revision is reviewed, both old and new References remain immutable evidence; Baseline readiness selects the latest reviewed Reference and reports multiple reviewed References as a warning
