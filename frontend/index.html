@@ -1380,24 +1380,81 @@ function drawingPolygonsOverlapInterior(left,right){
   return drawingPointInPolygonStrict(lc,right)||drawingPointInPolygonStrict(rc,left);
 }
 function drawingLocalGeometrySummary(){
-  const elements=state.drawingAnnotation?.payload?.elements||[];
+  const ann=state.drawingAnnotation;
+  const elements=ann?.payload?.elements||[];
   const regions=elements.map((e,index)=>({e,index,pts:drawingGeometryPoints(e.geometry||{}),m:drawingLocalMetrics(e)}))
     .filter(x=>['room','zone'].includes(x.e.element_type)&&x.pts.length>=3&&x.m);
   const floors={};
   regions.forEach(x=>{
     const floor=x.e.floor_number===null||x.e.floor_number===undefined?'unassigned':String(x.e.floor_number);
-    const row=floors[floor]||(floors[floor]={floor_number:x.e.floor_number??null,region_count:0,room_count:0,zone_count:0,area_px2_total:0,area_m2_total:0,calibrated_region_count:0,uncalibrated_region_count:0,metric_area_complete:true});
-    row.region_count++;row[x.e.element_type==='room'?'room_count':'zone_count']++;row.area_px2_total+=Number(x.m.area_px2||0);
-    if(x.m.area_m2===null||x.m.area_m2===undefined){row.uncalibrated_region_count++;row.metric_area_complete=false}else{row.calibrated_region_count++;row.area_m2_total+=Number(x.m.area_m2)}
+    const row=floors[floor]||(floors[floor]={floor_number:x.e.floor_number??null,region_count:0,room_count:0,zone_count:0,area_px2_total:0,area_m2_total:0,room_area_px2_total:0,room_area_m2_total:0,zone_area_px2_total:0,zone_area_m2_total:0,calibrated_region_count:0,uncalibrated_region_count:0,calibrated_room_count:0,uncalibrated_room_count:0,calibrated_zone_count:0,uncalibrated_zone_count:0,metric_area_complete:true});
+    row.region_count++;
+    row.area_px2_total+=Number(x.m.area_px2||0);
+    if(x.e.element_type==='room'){
+      row.room_count++;row.room_area_px2_total+=Number(x.m.area_px2||0);
+    }else{
+      row.zone_count++;row.zone_area_px2_total+=Number(x.m.area_px2||0);
+    }
+    if(x.m.area_m2===null||x.m.area_m2===undefined){
+      row.uncalibrated_region_count++;row.metric_area_complete=false;
+      if(x.e.element_type==='room')row.uncalibrated_room_count++;else row.uncalibrated_zone_count++;
+    }else{
+      row.calibrated_region_count++;row.area_m2_total+=Number(x.m.area_m2);
+      if(x.e.element_type==='room'){row.calibrated_room_count++;row.room_area_m2_total+=Number(x.m.area_m2)}
+      else{row.calibrated_zone_count++;row.zone_area_m2_total+=Number(x.m.area_m2)}
+    }
   });
-  Object.values(floors).forEach(row=>{row.area_px2_total=Math.round(row.area_px2_total*1e6)/1e6;row.area_m2_total=row.calibrated_region_count?Math.round(row.area_m2_total*1e6)/1e6:null});
+  Object.values(floors).forEach(row=>{
+    row.area_px2_total=Math.round(row.area_px2_total*1e6)/1e6;
+    row.room_area_px2_total=Math.round(row.room_area_px2_total*1e6)/1e6;
+    row.zone_area_px2_total=Math.round(row.zone_area_px2_total*1e6)/1e6;
+    row.area_m2_total=row.calibrated_region_count?Math.round(row.area_m2_total*1e6)/1e6:null;
+    row.room_area_m2_total=row.calibrated_room_count?Math.round(row.room_area_m2_total*1e6)/1e6:null;
+    row.zone_area_m2_total=row.zone_count&&row.uncalibrated_zone_count===0?Math.round(row.zone_area_m2_total*1e6)/1e6:null;
+  });
   const warnings=[];
   regions.forEach((a,i)=>regions.slice(i+1).forEach(b=>{
     if(Number(a.e.page_no||1)!==Number(b.e.page_no||1))return;
     if(a.e.floor_number!==null&&a.e.floor_number!==undefined&&b.e.floor_number!==null&&b.e.floor_number!==undefined&&Number(a.e.floor_number)!==Number(b.e.floor_number))return;
     if(drawingPolygonsOverlapInterior(a.pts,b.pts))warnings.push({page_no:Number(a.e.page_no||1),floor_number:a.e.floor_number===b.e.floor_number?a.e.floor_number:null,left_ref:a.e.client_ref,left_label:a.e.label,right_ref:b.e.client_ref,right_label:b.e.label,warning:'interior_overlap'});
   }));
-  return {summary_version:'drawing-geometry-summary-v1',region_count:regions.length,floor_summaries:Object.values(floors).sort((a,b)=>(a.floor_number??9999)-(b.floor_number??9999)),overlap_warning_count:warnings.length,overlap_warnings:warnings,note:'区画合計はAnnotation区画の単純合計。法定床面積そのものではありません。'};
+  const targets=Array.isArray(ann?.payload?.area_targets)?ann.payload.area_targets.map(x=>({...x,floor_number:Number(x.floor_number),target_area_m2:Number(x.target_area_m2),comparison_basis:'rooms_only'})).filter(x=>Number.isInteger(x.floor_number)&&Number.isFinite(x.target_area_m2)&&x.target_area_m2>0).sort((a,b)=>a.floor_number-b.floor_number):[];
+  const comparisons=targets.map(t=>{
+    const floor=floors[String(t.floor_number)];
+    if(!floor)return {...t,status:'missing_floor_annotation',measured_room_area_m2:null,difference_m2:null,difference_pct:null};
+    const complete=floor.room_count>0&&floor.uncalibrated_room_count===0&&floor.room_area_m2_total!==null;
+    if(!complete)return {...t,status:'room_area_uncalibrated',measured_room_area_m2:floor.room_area_m2_total,difference_m2:null,difference_pct:null};
+    const measured=Number(floor.room_area_m2_total),diff=measured-t.target_area_m2;
+    return {...t,status:'comparable',measured_room_area_m2:measured,difference_m2:Math.round(diff*1e6)/1e6,difference_pct:Math.round(diff/t.target_area_m2*100*1e6)/1e6};
+  });
+  return {summary_version:'drawing-geometry-summary-v1',region_count:regions.length,floor_summaries:Object.values(floors).sort((a,b)=>(a.floor_number??9999)-(b.floor_number??9999)),overlap_warning_count:warnings.length,overlap_warnings:warnings,area_targets:targets,area_target_comparisons:comparisons,note:'区画合計はAnnotation区画の単純合計。既知面積比較はroom合計のみを使用し、法定床面積そのものではありません。'};
+}
+function setDrawingFloorAreaTarget(){
+  const ann=state.drawingAnnotation;if(!ann||ann.status!=='draft')return;
+  const selected=ann.payload?.elements?.[state.drawingEditElementIndex];
+  const floorDefault=selected?.floor_number??$('humanRoomFloor')?.value??1;
+  const floorRaw=prompt('既知面積を登録する階を入力してください',String(floorDefault));
+  if(floorRaw===null)return;
+  const floor=Number(floorRaw);if(!Number.isInteger(floor)){alert('階は整数で入力してください。');return}
+  const current=(ann.payload?.area_targets||[]).find(x=>Number(x.floor_number)===floor);
+  const areaRaw=prompt(floor+'階の既知面積(㎡)を入力してください',current?.target_area_m2??'');
+  if(areaRaw===null)return;
+  const area=Number(areaRaw);if(!Number.isFinite(area)||area<=0){alert('0より大きい面積(㎡)を入力してください。');return}
+  ann.payload=ann.payload||{};ann.payload.area_targets=Array.isArray(ann.payload.area_targets)?ann.payload.area_targets:[];
+  const next={floor_number:floor,target_area_m2:area,label:floor+'階',source:'human_ui',comparison_basis:'rooms_only'};
+  const idx=ann.payload.area_targets.findIndex(x=>Number(x.floor_number)===floor);
+  if(idx>=0)ann.payload.area_targets[idx]=next;else ann.payload.area_targets.push(next);
+  recalcDrawingLocalMetrics();renderDrawingWorkspace();
+}
+function clearDrawingFloorAreaTarget(){
+  const ann=state.drawingAnnotation;if(!ann||ann.status!=='draft')return;
+  const selected=ann.payload?.elements?.[state.drawingEditElementIndex];
+  const floorDefault=selected?.floor_number??$('humanRoomFloor')?.value??1;
+  const floorRaw=prompt('既知面積を解除する階を入力してください',String(floorDefault));
+  if(floorRaw===null)return;
+  const floor=Number(floorRaw);if(!Number.isInteger(floor))return;
+  ann.payload.area_targets=(ann.payload.area_targets||[]).filter(x=>Number(x.floor_number)!==floor);
+  recalcDrawingLocalMetrics();renderDrawingWorkspace();
 }
 function recalcDrawingLocalMetrics(){
   const ann=state.drawingAnnotation;if(!ann?.payload?.elements)return;
@@ -1406,13 +1463,22 @@ function recalcDrawingLocalMetrics(){
 }
 function drawingGeometrySummaryHtml(summary){
   if(!summary)return '<div class="muted">階別面積サマリーなし</div>';
+  const comparisonsByFloor={};(summary.area_target_comparisons||[]).forEach(x=>{comparisonsByFloor[String(x.floor_number)]=x});
   const floors=(summary.floor_summaries||[]).map(x=>{
     const name=x.floor_number===null||x.floor_number===undefined?'階未設定':String(x.floor_number)+'階';
     const metric=x.area_m2_total!==null&&x.area_m2_total!==undefined?(Number(x.area_m2_total).toFixed(2)+'㎡'+(x.metric_area_complete?'':'（一部）')):(Number(x.area_px2_total||0).toFixed(0)+'px²');
-    return '<div class="history"><b>'+esc(name)+'</b> <span class="pill">'+esc(x.region_count)+'区画</span><div class="drawingMetric">区画面積合計 '+esc(metric)+'</div><div class="muted">部屋 '+esc(x.room_count)+' / 任意区画 '+esc(x.zone_count)+' / 縮尺未設定 '+esc(x.uncalibrated_region_count)+'</div></div>';
+    const roomMetric=x.room_area_m2_total!==null&&x.room_area_m2_total!==undefined?Number(x.room_area_m2_total).toFixed(2)+'㎡':Number(x.room_area_px2_total||0).toFixed(0)+'px²';
+    const comp=comparisonsByFloor[String(x.floor_number)];
+    let compareHtml='';
+    if(comp){
+      if(comp.status==='comparable')compareHtml='<div class="drawingMetric">既知 '+Number(comp.target_area_m2).toFixed(2)+'㎡ / 部屋合計 '+Number(comp.measured_room_area_m2).toFixed(2)+'㎡ / 差 '+(Number(comp.difference_m2)>=0?'+':'')+Number(comp.difference_m2).toFixed(2)+'㎡ ('+(Number(comp.difference_pct)>=0?'+':'')+Number(comp.difference_pct).toFixed(1)+'%)</div>';
+      else compareHtml='<div class="muted">既知 '+Number(comp.target_area_m2).toFixed(2)+'㎡ / 比較待ち（縮尺または部屋区画が未完）</div>';
+    }
+    return '<div class="history"><b>'+esc(name)+'</b> <span class="pill">'+esc(x.region_count)+'区画</span><div class="drawingMetric">全区画合計 '+esc(metric)+'</div><div class="drawingMetric">部屋合計 '+esc(roomMetric)+'</div>'+compareHtml+'<div class="muted">部屋 '+esc(x.room_count)+' / 任意区画 '+esc(x.zone_count)+' / 縮尺未設定 '+esc(x.uncalibrated_region_count)+'</div></div>';
   }).join('');
+  const missingTargets=(summary.area_target_comparisons||[]).filter(x=>x.status==='missing_floor_annotation').map(x=>'<li>'+esc(x.floor_number)+'階：既知 '+Number(x.target_area_m2).toFixed(2)+'㎡、区画未作成</li>').join('');
   const warnings=(summary.overlap_warnings||[]).map(x=>'<li>'+esc(x.left_label||x.left_ref||'区画A')+' × '+esc(x.right_label||x.right_ref||'区画B')+'（頁 '+esc(x.page_no)+'）</li>').join('');
-  return '<div class="card" style="margin-top:8px"><div class="row"><b class="grow">階別 区画面積サマリー</b><span class="pill '+(summary.overlap_warning_count?'':'active')+'">重なり警告 '+esc(summary.overlap_warning_count||0)+'</span></div>'+floors+(warnings?'<div class="notice"><b>重なりの可能性</b><ul>'+warnings+'</ul><div class="muted">辺を共有するだけの隣接区画は警告しません。内部が重なる区画は二重計上の可能性があるためHuman確認してください。</div></div>':'')+'<div class="muted">区画面積合計はAnnotation区画の単純合計で、法令上の床面積確定値ではありません。</div></div>';
+  return '<div class="card" style="margin-top:8px"><div class="row"><b class="grow">階別 区画面積サマリー</b><span class="pill '+(summary.overlap_warning_count?'':'active')+'">重なり警告 '+esc(summary.overlap_warning_count||0)+'</span></div>'+floors+(missingTargets?'<div class="notice"><b>既知面積ターゲット</b><ul>'+missingTargets+'</ul></div>':'')+(warnings?'<div class="notice"><b>重なりの可能性</b><ul>'+warnings+'</ul><div class="muted">辺を共有するだけの隣接区画は警告しません。内部が重なる区画は二重計上の可能性があるためHuman確認してください。</div></div>':'')+'<div class="muted">既知面積との比較はroom区画合計のみ。法令上の床面積確定値ではありません。</div></div>';
 }
 function drawingPointerPosition(ev,svg){
   const rect=svg.getBoundingClientRect(),dim=drawingWorkspaceDimensions();
@@ -1890,7 +1956,7 @@ function renderDrawingWorkspace(){
       '<input id="drawingReferenceImportFile" class="hidden" type="file" accept=".json,application/json" onchange="importDrawingReferenceDraftFile(event)"><div class="row">'+annSelect+'<button class="btn" onclick="chooseDrawingReferenceDraft()">別Reference Draftを読み込む</button></div>'+
       (ann.status==='draft'?'<div class="grid3" style="margin-top:8px"><div class="field"><label>追加種別</label><select id="humanElementType" onchange="state.drawingNewElementType=this.value"><option value="room">部屋</option><option value="zone">任意区画</option></select></div><div class="field"><label>区画名</label><input id="humanRoomLabel" placeholder="例：主寝室 / 防火区画A"></div><div class="field"><label>用途コード</label><input id="humanRoomUse" placeholder="例：bedroom"></div></div><div class="field" style="margin-top:8px"><label>階</label><input id="humanRoomFloor" type="number" value="1"></div>'+
       (isVisual?'<div class="row" style="margin-top:8px"><button class="btn primary" onclick="startDrawingRoom()">区画追加</button><button class="btn" onclick="undoDrawingPoint()">1点戻す</button><button class="btn" onclick="finishDrawingRoom()">追加確定</button><button class="btn" onclick="cancelDrawingRoom()">描画取消</button></div><div class="muted">区画追加：原図の角を順にクリック→追加確定。既存区画は選択すると頂点をドラッグ修正できます。</div>':'')+
-      '<div class="notice" style="margin-top:8px"><div class="row"><b class="grow">面積・縮尺</b><span class="muted">'+esc(calText)+'</span></div><div class="row"><button class="btn" onclick="startDrawingCalibration()">2点で縮尺校正</button>'+(cal?'<button class="btn" onclick="clearDrawingCalibration()">縮尺解除</button>':'')+'<button class="btn" onclick="applySelectedDrawingMeta()">選択区画へ名称・用途を反映</button><button class="btn" onclick="addDrawingVertex()">頂点追加</button><button class="btn" onclick="removeDrawingVertex()">選択頂点を削除</button></div><div id="drawingSelectedMetrics" class="drawingMetric">区画を選択してください</div><div class="muted">縮尺校正：図面上の既知寸法の両端を2点クリックし、実寸(m)を入力。以後、頂点修正のたびに㎡を自動再計算します。</div></div>'+
+      '<div class="notice" style="margin-top:8px"><div class="row"><b class="grow">面積・縮尺</b><span class="muted">'+esc(calText)+'</span></div><div class="row"><button class="btn" onclick="startDrawingCalibration()">2点で縮尺校正</button>'+(cal?'<button class="btn" onclick="clearDrawingCalibration()">縮尺解除</button>':'')+'<button class="btn" onclick="applySelectedDrawingMeta()">選択区画へ名称・用途を反映</button><button class="btn" onclick="addDrawingVertex()">頂点追加</button><button class="btn" onclick="removeDrawingVertex()">選択頂点を削除</button><button class="btn" onclick="setDrawingFloorAreaTarget()">既知の階面積を登録</button><button class="btn" onclick="clearDrawingFloorAreaTarget()">既知面積を解除</button></div><div id="drawingSelectedMetrics" class="drawingMetric">区画を選択してください</div><div class="muted">縮尺校正：図面上の既知寸法の両端を2点クリックし、実寸(m)を入力。以後、頂点修正のたびに㎡を自動再計算します。</div></div>'+
       drawingGeometrySummaryHtml(ann.payload?.geometry_summary||drawingLocalGeometrySummary())+
       '<div class="drawingRoomList" style="margin-top:8px">'+roomList+'</div><div class="row" style="margin-top:8px"><button class="btn" onclick="saveDrawingAnnotation()">下書き保存</button><button class="btn primary" onclick="reviewDrawingAnnotation()">Human確認済みにする</button></div>':
       drawingGeometrySummaryHtml(ann.payload?.geometry_summary||drawingLocalGeometrySummary())+
