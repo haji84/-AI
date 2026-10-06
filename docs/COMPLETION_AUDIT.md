@@ -1,6 +1,6 @@
 # 実運用完成監査
 
-監査基準: 2026-10-06、main base `386582ceeade254aec70fd0adb633b597fda6148`。
+監査基準: 2026-10-06、main base `ecbd0a7d5e81bbf98100bee19c879df2ba892eac`。
 正本: GitHub haji84/-AI main。過去の会話・Phase番号・PROJECT_STATEだけで完成判定しない。
 
 ## 判定方法
@@ -69,9 +69,11 @@ backend/tests/test_restore_safety.py を修正前のmainコードで実行: 7 fa
 事案/救護者を分離した病院・程度・地域集計、Excel/CSV、専用権限、集計監査を追加。
 `docs/emergency/WEB_REPORTS.md` に操作/集計定義/制約を記録。個票/候補の正式確定は行わない。
 
-## 次の重大設計判断
+## 過去の設計判断（現在の未完項目ではない）
 
-tenant分離は現行コードに存在しない。
+以下は本部別分離実装前の記録。現在は利用者が共通コード＋本部別DB/実行環境/原本/backup方式を確定し、PR41/43/47で実装・CI検証済み。
+
+当時tenant分離はコードに存在しなかった。
 `docs/architecture/TENANT_ISOLATION_DECISION.md` で本部別DB方式と共有DB/RLS方式を比較。
 推奨は共通コード + 本部別DB/サービス/原本/backup。複数拠点は本部内で同じDBを共有。
 この判断は本部追加方式、migration、backup単位、運用コストを固定するため確認対象。
@@ -113,3 +115,7 @@ main ea15820e / main CI37503229005 SUCCESS。既存PR53のCI失敗を修復し�
 PR55/main0feb62e6、main CI37507500474 SUCCESSを再取得。財務048は正本化され、重複実装しない。§26/27の共通session/permission guardと共用PCの状態消去は内部Partialとして残す。13Completed/36Partial/7Missing/1External（勤務Slice反映後。main0febのみは13/35/8/1）へ再分類。勤務PR53は新mainの両業務統合・exact-headCI待ち。
 
 勤務PR53/CI37509352367とテスト競合修正PR58/CI37510513248はmerge済み。main386582ce/CI37511281181 SUCCESS。主要57章のmain分類は13Completed/36Partial/7Missing/1External。財務安全性の差分はFINANCE_SAFETY.mdの独立レビューとTDD evidenceを参照。Missing7（正式違反、危険物、議会照会、統計、dashboard、release、10E2E）は継続する。業務コードやrelease未生成をExternal Gateへ移さない。
+
+## main ecbd0a7d 再監査
+
+PR59はmerge済み、exact-head CI37513136938/main CI37513897759 SUCCESS。開PRなし（再取得済み）。正式違反・改善措置はMigration049/API/UI/証拠鎖/PG競合/browserを開発中でmain未反映。分類は13Completed/36Partial/7Missing/1Externalを維持する。財務安全性の修復だけで契約AI/STT、統一成果物、主要業務残差を完了にしない。

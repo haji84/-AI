@@ -296,3 +296,11 @@ def seed_rbac(db: Session) -> dict[str, Role]:
                 db.delete(rp)
     db.flush()
     return roles
+
+for _action in ('read','create','update','review','approve','export'):
+    PERMISSIONS[f'violation.{_action}'] = f'Violation {_action}'
+ROLE_POLICY['system_admin']['permissions'].update(code for code in PERMISSIONS if code.startswith('violation.'))
+
+_VIOLATION_SOURCE_RIGHTS={'facility.read','inspection.read','document.read','legal_rule.read','legal_source.read','search.use','system.health.read'}
+ROLE_POLICY['violation_editor']={'name':'違反・改善措置担当','system_role':True,'permissions':_VIOLATION_SOURCE_RIGHTS|{'document.create','violation.read','violation.create','violation.update','violation.export'}}
+ROLE_POLICY['violation_reviewer']={'name':'違反・改善措置Human確認者','system_role':True,'permissions':_VIOLATION_SOURCE_RIGHTS|{'violation.read','violation.review','violation.approve'}}

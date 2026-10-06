@@ -20,6 +20,7 @@ def test_department_configuration_has_separate_paths_users_db_and_lifecycle():
     assert 'REVOKE ALL ON DATABASE fi_alpha FROM PUBLIC' in first['00-create-alpha.sql']
     assert 'REVOKE INSERT, UPDATE, DELETE ON tenant_identity' in first['01-grants-alpha.sql']
     assert 'REVOKE UPDATE, DELETE ON audit_logs' in first['01-grants-alpha.sql']
+    assert 'REVOKE UPDATE, DELETE ON correction_events' in first['01-grants-alpha.sql']
     assert 'ReadWritePaths=/var/lib/fire-ai/alpha' in first['fire-ai-alpha.service']
     assert '/var/lib/fire-ai/beta' not in first['fire-ai-alpha.service']
     assert '127.0.0.1:8101' in first['nginx-alpha.conf']
@@ -79,7 +80,7 @@ def test_postgresql_dedicated_roles_deny_other_database_and_identity_mutation(tm
             assert validate_runtime_binding(app_engine, cfg)['tenant_id'] == tenant_id
             with app_engine.begin() as connection:
                 assert connection.execute(text('SELECT COUNT(*) FROM employees')).scalar_one() == 0
-            for statement in ['UPDATE tenant_identity SET name = \'changed\'', 'DELETE FROM audit_logs', "UPDATE learning_artifacts SET task='ocr'", "DELETE FROM learning_transitions", "UPDATE learning_evaluation_sets SET cases='[]'::json", "UPDATE learning_corrections SET input_text='changed'", 'TRUNCATE tenant_identity']:
+            for statement in ['UPDATE tenant_identity SET name = \'changed\'', 'DELETE FROM audit_logs', "UPDATE learning_artifacts SET task='ocr'", "DELETE FROM learning_transitions", "UPDATE learning_evaluation_sets SET cases='[]'::json", "UPDATE learning_corrections SET input_text='changed'", "UPDATE correction_events SET text='changed'", 'DELETE FROM correction_events', 'TRUNCATE tenant_identity']:
                 with pytest.raises(DBAPIError):
                     with app_engine.begin() as connection: connection.exec_driver_sql(statement)
             if slug == slugs[1]:

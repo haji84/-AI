@@ -54,6 +54,7 @@ MODULE_PERMISSIONS: dict[str, tuple[str, ...]] = {
     "fleet": ("fleet.read",),
     "operational_assets": ("asset.read",),
     "workforce": ("workforce.read",),
+    "violations": ("violation.read",),
     "inspections": ("inspection.read",),
     "submissions": ("submission.read",),
     "equipment": ("equipment.read",),
@@ -853,7 +854,14 @@ def _search_finance(db,q,limit,perms,module):
     return hits
 
 
+def _search_violations(db,q,limit):
+    from ..violation_models import ViolationCase
+    rows=db.scalars(select(ViolationCase).where(_like_condition(q,ViolationCase.possible_issue,ViolationCase.status)).order_by(ViolationCase.created_at.desc(),ViolationCase.case_id).limit(limit))
+    return [_hit(q,module='violations',source_type='violation_cases',source_id=r.case_id,title=r.possible_issue,body=r.status,required_permission='violation.read',navigation={'surface':'violations','case_id':r.case_id},evidence={'record_version':r.version,'status':r.status,'formal_confirmed':bool(r.confirmed_by)}) for r in rows]
+
+
 SEARCHERS = {
+    "violations": lambda db,q,limit,perms: _search_violations(db,q,limit),
     "budget": lambda db,q,limit,perms: _search_finance(db,q,limit,perms,"budget"),
     "procurement": lambda db,q,limit,perms: _search_finance(db,q,limit,perms,"procurement"),
     "operational_assets": lambda db,q,limit,perms: _search_assets(db,q,limit),
