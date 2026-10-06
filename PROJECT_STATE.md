@@ -1596,7 +1596,7 @@ Verified checkpoint:
 
 ## Phase 6 floor / region area summary
 
-Implemented on branch `phase6-floor-area-summary`; CI verification pending:
+Implemented and CI-verified:
 - server-authoritative `geometry_summary` rebuilt on every Annotation create / seed / update / review
 - browser live-preview summary rebuilt during vertex editing
 - per-floor summary:
@@ -1614,6 +1614,12 @@ Implemented on branch `phase6-floor-area-summary`; CI verification pending:
 - fake client-supplied summary values are overwritten by backend recalculation
 - UI shows floor totals and overlap warnings immediately
 - overlap warnings remain Human review aids rather than automatic rejection
+
+Verified checkpoint:
+- run: `37411992860` SUCCESS
+- backend pytest: 163 passed
+- migration parser smoke: PASS
+- frontend JavaScript syntax: PASS
 
 Safety:
 - annotated region total is explicitly not represented as statutory floor area
