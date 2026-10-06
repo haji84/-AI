@@ -174,3 +174,60 @@ EvaluatorはReferenceとHypothesisの両方にsource SHA-256がある場合、�
 これにより別図面のHuman ReferenceとAI結果を誤って比較しない。
 
 Human Reference側はReviewed Annotation exportまたは明示的Human acceptance済みRepository Referenceを使用する。
+
+
+## Area accuracy
+
+Human修正済み区画とAI区画は、Geometry IoUで1対1に対応付けた後に面積精度も評価する。
+
+### Pixel area
+
+有効なGeometry pairについて、polygonのshoelace面積をpx²で計算する。
+
+記録:
+- reference_scored
+- mean_absolute_error (px²)
+- mean_relative_error
+- within_5_percent_count / rate
+- within_10_percent_count / rate
+
+Pixel areaは縮尺未設定でも評価できる。
+
+### Metric area
+
+Human Referenceの該当ページに`page_dimensions[page].calibration.meters_per_pixel`がある場合のみ、同じReference座標系でReference/Hypothesis双方を㎡換算する。
+
+換算:
+`area_m2 = area_px2 * meters_per_pixel^2`
+
+記録:
+- mean_absolute_error (m²)
+- mean_relative_error
+- 5%以内率
+- 10%以内率
+
+縮尺未設定ページは㎡精度評価から除外し、metric areaはN/Aとする。
+px²から㎡を推定・捏造しない。
+
+### Matching policy
+
+Area accuracyはGeometry detectionでIoU閾値以上となり1対1matchした要素だけを対象にする。
+
+したがって:
+- 未検出区画はGeometry FNとして扱う
+- 余分なAI区画はGeometry FPとして扱う
+- Area MAEだけを見て未検出/過検出を隠さない
+
+### Aggregation
+
+複数図面では、scored pair数でmicro aggregationする。
+
+- absolute error sum / scored pair count
+- relative error sum / scored pair count
+- 5%/10%以内count / scored pair count
+
+### Acceptance Gate
+
+5%以内率・10%以内率・MAE㎡などの本番合格閾値は固定しない。
+
+最初の実図面Baseline取得後にHuman Gateで決める。
