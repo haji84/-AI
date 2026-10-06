@@ -191,6 +191,25 @@ ROLE_POLICY["system_admin"]["permissions"].update(code for code in PERMISSIONS i
 ROLE_POLICY["asset_editor"] = {"name":"資機材担当", "system_role":True, "permissions":{"search.use","system.health.read", *[f"asset.{a}" for a in ("read","create","update","import","export","borrower.read","borrower.manage")]}}
 ROLE_POLICY["asset_reviewer"] = {"name":"資機材確認者", "system_role":True, "permissions":{"search.use","system.health.read", *[f"asset.{a}" for a in ("read","review","approve")]}}
 
+for _action in ("read","create","update","review","approve","admin","import","export","aggregate"):
+    PERMISSIONS[f"workforce.{_action}"] = f"Workforce {_action}"
+ROLE_POLICY["system_admin"]["permissions"].update(code for code in PERMISSIONS if code.startswith("workforce."))
+ROLE_POLICY["workforce_editor"] = {
+    "name":"勤務管理担当", "system_role":True,
+    "permissions":{"search.use","system.health.read","document.read",
+        *[f"workforce.{a}" for a in ("read","create","update","import","export","aggregate")]}
+}
+ROLE_POLICY["workforce_reviewer"] = {
+    "name":"勤務確認者", "system_role":True,
+    "permissions":{"search.use","system.health.read",
+        *[f"workforce.{a}" for a in ("read","review","approve","aggregate")]}
+}
+ROLE_POLICY["workforce_admin"] = {
+    "name":"勤務制度管理者", "system_role":True,
+    "permissions":{"search.use","system.health.read","personnel.read","document.read",
+        *[f"workforce.{a}" for a in ("read","create","update","review","approve","admin","import","export","aggregate")]}
+}
+
 ROLE_POLICY["emergency_editor"] = {
     "name": "救急記録担当", "system_role": True,
     "permissions": {"system.health.read", "search.use", "emergency.case.read",
