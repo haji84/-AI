@@ -1546,7 +1546,7 @@ Safety:
 
 ## Phase 6 drawing area accuracy Benchmark
 
-Implemented on branch `phase6-drawing-area-benchmark`; CI verification pending:
+Implemented and CI-verified:
 - matched Human Reference / AI Geometry pairs now receive area-accuracy scoring
 - pixel-area metrics work without scale calibration
 - calibrated metric-area metrics are emitted only when Human Reference page calibration exists
@@ -1586,3 +1586,9 @@ Safety:
 - metric area is never inferred without Human calibration
 - area accuracy does not replace Geometry Precision/Recall/F1
 - production area-accuracy thresholds remain a Human Gate after the first real Baseline
+
+Verified checkpoint:
+- run: `37394061405` SUCCESS
+- backend pytest: 157 passed
+- migration parser smoke: PASS
+- frontend JavaScript syntax: PASS
