@@ -86,8 +86,94 @@ with SessionLocal() as db:
  finally:server.terminate();server.wait(timeout=10);logs.close()
 
 
+# Observers record completion without changing guard, action, or promise semantics.
+FINANCE_BROWSER_OBSERVER=r'''() => {
+ const data={timeOrigin:performance.timeOrigin,actions:[],events:[],states:[],watches:[],nextAction:0};
+ window.syntheticFinanceTrace=data;
+ const now=()=>Math.round(performance.now()*10)/10;
+ const snapshot=()=>({pending:!!financePendingAction,generation:financeState.generation,sharedGeneration:window.FireAISession.currentGeneration(),forms:document.querySelectorAll('#financeForm').length,modalHidden:document.getElementById('financeModal')?.classList.contains('hidden'),message:document.getElementById('financeMessage')?.textContent,status:document.getElementById('financePick_document_id_status')?.textContent,disabledControls:document.querySelectorAll('#financeModal button:disabled, #financeModal input:disabled, #financeModal select:disabled, #financeModal textarea:disabled').length});
+ let lastState='';
+ const observeState=()=>{const state=snapshot(),key=JSON.stringify(state);if(key!==lastState){lastState=key;data.states.push({at:now(),...state})}};
+ new MutationObserver(observeState).observe(document.body,{subtree:true,childList:true,attributes:true,attributeFilter:['disabled','class']});
+ for(const type of ['click','change','submit'])window.addEventListener(type,event=>{
+  const target=event.target?.closest?.('button, a, input, select, textarea, form');
+  if(target?.id?.startsWith('finance'))data.events.push({at:now(),type,target:target.id,disabled:!!target.disabled,trusted:event.isTrusted});
+ },true);
+ const original=window.financeAction;
+ window.financeAction=function(...args){
+  const occupied=!!financePendingAction,previousEnd=data.actions.at(-1)?.finished??-1;
+  const interaction=data.events.findLast(event=>event.type==='click'&&event.trusted&&!event.disabled&&event.at>previousEnd);
+  const started=now();
+  const entry=occupied?null:{id:++data.nextAction,started,interactionStarted:interaction?.at??started,label:args[0]?.name||data.events.at(-1)?.target||'finance',settled:false};
+  if(entry)data.actions.push(entry);
+  const result=original.apply(this,args);
+  if(entry)Promise.resolve(result).then(()=>{entry.settled=true;entry.finished=now();entry.actionMs=entry.finished-entry.started;entry.endToEndMs=entry.finished-entry.interactionStarted;observeState()},error=>{entry.settled=true;entry.finished=now();entry.actionMs=entry.finished-entry.started;entry.endToEndMs=entry.finished-entry.interactionStarted;entry.error=String(error?.message);observeState()});
+  return result;
+ };
+ const observers=new Map();
+ window.syntheticFinanceStartWatch=selector=>{
+  const token=data.watches.length,watch={after:data.nextAction,selector,violations:[]};data.watches.push(watch);
+  if(selector){
+   const record=()=>watch.violations.push({at:now(),selector});
+   if(document.querySelector(selector))record();
+   const observer=new MutationObserver(records=>{
+    if(document.querySelector(selector))record();
+    for(const mutation of records)for(const node of mutation.addedNodes??[])if(node.nodeType===1&&(node.matches?.(selector)||node.querySelector?.(selector)))record();
+   });
+   observer.observe(document.body,{childList:true,subtree:true});observers.set(token,observer);
+  }
+  return token;
+ };
+ window.syntheticFinanceFinishWatch=token=>{observers.get(token)?.disconnect();observers.delete(token);const watch=data.watches[token];return {actions:data.actions.filter(action=>action.id>watch.after),violations:watch.violations}};
+ observeState();
+}'''
+
+
+def watch_finance_action(page,absent_selector=None):
+ return page.evaluate('selector=>window.syntheticFinanceStartWatch(selector)',absent_selector)
+
+
+def await_finance_action(page,token):
+ """Wait for the real action promise, not headers, paint, or a fixed sleep."""
+ page.wait_for_function("""token=>{const trace=window.syntheticFinanceTrace,watch=trace.watches[token],actions=trace.actions.filter(action=>action.id>watch.after);return actions.length>0&&actions.every(action=>action.settled)&&financePendingAction===null}""",arg=token,timeout=30_000)
+ result=page.evaluate('token=>window.syntheticFinanceFinishWatch(token)',token)
+ assert len(result['actions'])==1,result
+ assert not result['violations'],result
+ assert 'error' not in result['actions'][0],result
+ return result['actions'][0]
+
+
+class FinanceBrowserTrace:
+ """Bounded per-case synthetic transport evidence; no headers or request bodies."""
+ def __init__(self,page,base):
+  self.page=page;self.base=base;self.started=time.monotonic()
+  self.requests=[];self.responses=[];self.failures=[];self.finished=set();self.records={};self.before=None;self.after=None
+  relevant=lambda url:any(url.startswith(base+prefix) for prefix in ['/auth/','/finance/','/documents/'])
+  def requested(request):
+   if relevant(request.url):
+    record={'id':len(self.requests),'at':time.monotonic()-self.started,'method':request.method,'path':request.url.removeprefix(base)}
+    self.records[request]=record;self.requests.append(record)
+  def responded(response):
+   if relevant(response.url):
+    self.responses.append((time.monotonic()-self.started,response))
+    if response.request in self.records:self.records[response.request].update(response_at=time.monotonic()-self.started,status=response.status)
+  def finished(request):
+   if relevant(request.url):
+    self.finished.add(request)
+    if request in self.records:self.records[request]['finished_at']=time.monotonic()-self.started
+  def failed(request):
+   if relevant(request.url):self.failures.append({'at':time.monotonic()-self.started,'path':request.url.removeprefix(base),'failure':request.failure})
+  page.on('request',requested);page.on('response',responded);page.on('requestfinished',finished);page.on('requestfailed',failed)
+  page.on('pageerror',lambda error:self.failures.append({'at':time.monotonic()-self.started,'kind':'pageerror','message':str(error)}))
+ def save(self,tmp_path,name):
+  for request,record in list(self.records.items()):
+   try:record['timing']=request.timing
+   except Exception as error:record['timing_error']=str(error)
+  save_finance_session_diagnostics(self.page,self.base,tmp_path,name,self.before,self.after,self.requests,self.responses,self.failures,self.finished,artifact_prefix='finance-case-')
+
+
 @pytest.fixture
-def finance_first_use(tmp_path):
+def finance_first_use(tmp_path,request):
  """Real editor session with no documents, accounts or contracts pre-seeded."""
  from playwright.sync_api import sync_playwright,expect
  root=Path(__file__).resolve().parents[2]
@@ -125,11 +211,20 @@ with SessionLocal() as db:
    with sync_playwright() as p:
     browser=p.chromium.launch(**({'executable_path':os.environ['FIRE_AI_BROWSER_EXECUTABLE']} if os.environ.get('FIRE_AI_BROWSER_EXECUTABLE') else {}))
     page=browser.new_page();errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
-    page.goto(base+'/ui/');page.locator('#loginUser').fill('editor');page.locator('#loginPass').fill('synthetic-ui-password');page.get_by_role('button',name='ログイン',exact=True).click()
-    expect(page.locator('#financeBtn')).to_be_visible();page.locator('#financeBtn').click();expect(page.locator('#financeContent')).to_contain_text('財務処理')
-    yield page,base,tmp_path
-    assert not errors,errors
-    browser.close()
+    trace=FinanceBrowserTrace(page,base);page.finance_test_trace=trace
+    try:
+     page.goto(base+'/ui/');page.evaluate(FINANCE_BROWSER_OBSERVER)
+     page.locator('#loginUser').fill('editor');page.locator('#loginPass').fill('synthetic-ui-password');page.get_by_role('button',name='ログイン',exact=True).click()
+     expect(page.locator('#financeBtn')).to_be_visible();token=watch_finance_action(page);page.locator('#financeBtn').click();await_finance_action(page,token);expect(page.locator('#financeContent')).to_contain_text('財務処理')
+     yield page,base,tmp_path
+     assert not errors,errors
+     rejected=page.evaluate("window.syntheticFinanceTrace.actions.filter(action=>action.error).map(action=>action.error)")
+     assert not rejected,rejected
+    finally:
+     # Yield fixtures resume during teardown even when an assertion failed.
+     # Always keep bounded evidence so the next failure has the same coverage.
+     try:trace.save(tmp_path,request.node.name)
+     finally:browser.close()
   finally:
    server.terminate();server.wait(timeout=10)
 
@@ -171,6 +266,7 @@ def test_finance_editor_uploads_first_original_and_saves_only_a_draft(finance_fi
  page.locator('#financePick_document_id_find').click()
  expect(page.locator('#financePick_document_id_page')).to_have_text('1～0件')
  expect(page.locator('#financeField_document_id')).to_have_value(doc['document_id'])
+ save_token=watch_finance_action(page)
  with page.expect_response(lambda r:r.url==base+'/finance/contracts' and r.request.method=='POST') as saved:
   page.locator('#financeSave').click()
  assert saved.value.status==201,saved.value.text()
@@ -181,12 +277,13 @@ def test_finance_editor_uploads_first_original_and_saves_only_a_draft(finance_fi
  assert page.request.get(base+'/documents/'+doc['document_id']+'/download').body()==content
  assert page.request.get(base+'/finance/journal').json()==[]
  # A POST response is not the completion of the guarded save-and-refresh action.
+ await_finance_action(page,save_token)
  expect(page.locator('#financeForm')).to_have_count(0)
- page.wait_for_function('financePendingAction===null')
+ detail_token=watch_finance_action(page)
  page.locator('[data-finance-contract="'+contract['contract_case_id']+'"]').click()
+ await_finance_action(page,detail_token)
  expect(page.locator('#financeContent h2')).to_have_text('Synthetic first-use contract / draft')
  expect(page.locator('#financeContent')).to_contain_text(doc['sha256'])
- page.wait_for_function('financePendingAction===null')
  artifact=Path(os.environ.get('FIRE_AI_BROWSER_ARTIFACTS',str(tmp_path/'artifacts')));artifact.mkdir(parents=True,exist_ok=True)
  page.screenshot(path=str(artifact/'finance-first-original-draft.png'),full_page=True)
 
@@ -296,26 +393,26 @@ def test_finance_upload_locks_navigation_and_discards_late_results_after_reset(f
  assert len(page.request.get(base+'/finance/documents').json())==1
 
 
-def save_finance_session_diagnostics(page,base,tmp_path,next_user,before,after,requests,responses,failures,finished_requests=()):
+def save_finance_session_diagnostics(page,base,tmp_path,next_user,before,after,requests,responses,failures,finished_requests=(),artifact_prefix='finance-session-change-'):
  """Synthetic failure evidence only; never record cookie/token/password headers."""
  import json
  artifact=Path(os.environ.get('FIRE_AI_BROWSER_ARTIFACTS',str(tmp_path/'artifacts')))
  artifact.mkdir(parents=True,exist_ok=True)
- prefix=artifact/('finance-session-change-'+next_user)
+ prefix=artifact/(artifact_prefix+next_user)
  evidence={'before':before,'after':after,'requests':requests,'request_failures':failures}
  output=Path(str(prefix)+'.json')
  server_log=tmp_path/'server.log'
  if server_log.exists():Path(str(prefix)+'-server.log').write_text(server_log.read_text())
  output.write_text(json.dumps(evidence,ensure_ascii=False,indent=2))
  try:
-  evidence['ui']=page.evaluate("""() => ({financeIdentity:financeState.identity,financeGeneration:financeState.generation,sharedGeneration:window.FireAISession.currentGeneration(),pending:!!financePendingAction,pendingGeneration:financePendingAction?.generation,modalCount:document.querySelectorAll('#financeModal').length,modalHidden:document.getElementById('financeModal')?.classList.contains('hidden'),selectedDocument:document.getElementById('financeField_document_id')?.value,status:document.getElementById('financePick_document_id_status')?.textContent,message:document.getElementById('financeMessage')?.textContent,uploadOutcome:window.syntheticFinanceUploadOutcome})""")
+  evidence['ui']=page.evaluate("""() => ({financeIdentity:financeState.identity,financeGeneration:financeState.generation,sharedGeneration:window.FireAISession.currentGeneration(),pending:!!financePendingAction,pendingGeneration:financePendingAction?.generation,modalCount:document.querySelectorAll('#financeModal').length,modalHidden:document.getElementById('financeModal')?.classList.contains('hidden'),selectedDocument:document.getElementById('financeField_document_id')?.value,status:document.getElementById('financePick_document_id_status')?.textContent,message:document.getElementById('financeMessage')?.textContent,uploadOutcome:window.syntheticFinanceUploadOutcome,actionTrace:window.syntheticFinanceTrace})""")
   page.screenshot(path=str(prefix)+'.png',full_page=True)
  except Exception as error:evidence['capture_error']=str(error)
  output.write_text(json.dumps(evidence,ensure_ascii=False,indent=2))
  observed=[]
  for at,response in list(responses):
   finished=response.request in finished_requests
-  record={'at':at,'path':response.url.removeprefix(base),'status':response.status,'finished':finished}
+  record={'at':at,'path':response.url.removeprefix(base),'status':response.status,'finished':finished,'timing':getattr(response.request,'timing',None)}
   if not finished:record['body_pending']=True
   elif response.url in [base+'/auth/context',base+'/auth/me']:
    try:
@@ -325,7 +422,9 @@ def save_finance_session_diagnostics(page,base,tmp_path,next_user,before,after,r
   observed.append(record)
  evidence['responses']=observed
  output.write_text(json.dumps(evidence,ensure_ascii=False,indent=2))
- print('Synthetic finance session-change diagnostics:',json.dumps(evidence,ensure_ascii=False))
+ trace=evidence.get('ui',{}).get('actionTrace') or {}
+ summary={'artifact':str(output),'requests':len(requests),'responses':len(observed),'pending_responses':sum(not row['finished'] for row in observed),'actions':[{key:action[key] for key in ['id','label','settled','actionMs','endToEndMs','error'] if key in action} for action in trace.get('actions',[])]}
+ print('Synthetic finance trace:',json.dumps(summary,ensure_ascii=False))
 
 
 @pytest.mark.parametrize('next_user',['editor','other-editor'])
@@ -334,38 +433,29 @@ def test_finance_late_upload_cannot_cross_an_authenticated_session_change(financ
  page,base,tmp_path=finance_first_use
  new_first_use_contract(page);select_synthetic_original(page)
  held=hold_upload_response(page)
- started=time.monotonic();requests=[];responses=[];failures=[];finished=set();before=None;after=None
- relevant=lambda url:url.startswith(base+'/auth/') or url==base+'/documents/upload'
- page.on('request',lambda r:requests.append({'at':time.monotonic()-started,'method':r.method,'path':r.url.removeprefix(base)}) if relevant(r.url) else None)
- page.on('response',lambda r:responses.append((time.monotonic()-started,r)) if relevant(r.url) else None)
- page.on('requestfinished',lambda r:finished.add(r) if relevant(r.url) else None)
- page.on('pageerror',lambda error:failures.append({'at':time.monotonic()-started,'kind':'pageerror','message':str(error)}))
- page.on('requestfailed',lambda r:failures.append({'at':time.monotonic()-started,'path':r.url.removeprefix(base),'failure':r.failure}) if relevant(r.url) else None)
- page.evaluate("""() => {const button=document.getElementById('financePick_document_id_upload'),run=button.onclick;window.syntheticFinanceUploadOutcome='not-started';button.onclick=function(...args){window.syntheticFinanceUploadOutcome='pending';return Promise.resolve(run.apply(this,args)).then(value=>{window.syntheticFinanceUploadOutcome='settled';return value},error=>{window.syntheticFinanceUploadOutcome={error:error.message,cancelled:!!error.cancelled};throw error})}}""")
- try:
-  page.locator('#financePick_document_id_upload').click()
-  expect(page.locator('#financeSave')).to_be_disabled()
-  wait_for_held_upload(page,held)
-  # Verify the intended cookie switch independently, without invoking the page's guard.
-  before=page.request.get(base+'/auth/context').json()
-  assert page.request.post(base+'/auth/logout').ok
-  login=page.request.post(base+'/auth/login',data={'username':next_user,'password':'synthetic-ui-password'})
-  assert login.ok
-  after=page.request.get(base+'/auth/context').json()
-  assert after['user_id']==login.json()['user_id']
-  assert before['session_id']!=after['session_id']
-  assert (before['user_id']==after['user_id'])==(next_user=='editor')
-  assert len(held)==1
-  route,response=held[0]
-  with page.expect_response(lambda r:r.url==base+'/documents/upload'):route.fulfill(response=response)
-  expect(page.locator('#financeModal')).to_have_count(0)
-  assert page.evaluate('financeState.identity') is None
-  assert page.evaluate('financeState.permissions.length')==0
-  assert page.request.get(base+'/finance/contracts').json()==[]
- except Exception:
-  save_finance_session_diagnostics(page,base,tmp_path,next_user,before,after,requests,responses,failures,finished)
-  raise
-
+ trace=page.finance_test_trace
+ token=watch_finance_action(page,'a[href^="/documents/"]')
+ page.locator('#financePick_document_id_upload').click()
+ expect(page.locator('#financeSave')).to_be_disabled()
+ wait_for_held_upload(page,held)
+ # Verify the intended cookie switch independently, without invoking the page's guard.
+ before=page.request.get(base+'/auth/context').json();trace.before=before
+ assert page.request.post(base+'/auth/logout').ok
+ login=page.request.post(base+'/auth/login',data={'username':next_user,'password':'synthetic-ui-password'})
+ assert login.ok
+ after=page.request.get(base+'/auth/context').json();trace.after=after
+ assert after['user_id']==login.json()['user_id']
+ assert before['session_id']!=after['session_id']
+ assert (before['user_id']==after['user_id'])==(next_user=='editor')
+ assert len(held)==1
+ route,response=held[0]
+ with page.expect_response(lambda r:r.url==base+'/documents/upload'):route.fulfill(response=response)
+ assert page.evaluate("document.getElementById('financeField_document_id')?.value??''")==''
+ await_finance_action(page,token)
+ expect(page.locator('#financeModal')).to_have_count(0)
+ assert page.evaluate('financeState.identity') is None
+ assert page.evaluate('financeState.permissions.length')==0
+ assert page.request.get(base+'/finance/contracts').json()==[]
 
 @pytest.mark.parametrize('missing',['document.create','document.read'])
 def test_finance_upload_control_requires_both_document_permissions(finance_first_use,missing):
@@ -497,9 +587,16 @@ def test_finance_failed_reopen_never_resurfaces_closed_draft(finance_first_use,p
   route,response=held[0];route.fulfill(response=response)
   expect(page.locator('#financeClose')).to_be_enabled()
  page.locator('#financeClose').click()
+ expect(page.locator('#financeModal')).to_be_hidden()
+ expect(page.locator('#financeForm')).to_have_count(0)
  page.route('**/finance/proposals?*',lambda route:route.fulfill(status=503,json={'detail':'Synthetic reopen unavailable'}),times=1)
+ token=watch_finance_action(page,'#financeForm')
  page.locator('#financeBtn').click()
+ expect(page.locator('#financeModal')).to_be_visible()
+ expect(page.locator('#financeForm')).to_have_count(0)
+ await_finance_action(page,token)
  expect(page.locator('#financeMessage')).to_contain_text('Synthetic reopen unavailable')
+ expect(page.locator('#financeClose')).to_be_enabled()
  expect(page.locator('#financeForm')).to_have_count(0)
  new_first_use_contract(page)
  expect(page.locator('#financeSave')).to_be_enabled()

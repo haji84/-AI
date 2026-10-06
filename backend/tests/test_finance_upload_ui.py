@@ -107,3 +107,67 @@ def test_finance_failure_diagnostics_persist_before_decoding_finished_bodies(tmp
  assert 'DO NOT RECORD' not in text
  evidence=json.loads(text)
  assert evidence['responses'][0]['authority']['session_id']=='Synthetic nonsecret session'
+
+
+def test_finance_action_observer_preserves_promise_locks_and_transient_privacy_checks(tmp_path):
+ import json
+ from test_finance_browser import FINANCE_BROWSER_OBSERVER
+ root=Path(__file__).resolve().parents[2]
+ script=r'''
+const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
+const observers=[],controls=[{disabled:false}],nodes={financeMessage:{textContent:''},financeModal:{querySelectorAll:()=>controls,classList:{contains:()=>false}},financeBtn:{disabled:false}};
+const context={console,performance,document:{body:{},querySelectorAll:()=>[],querySelector:()=>null,getElementById:id=>nodes[id]},$:id=>nodes[id],FireAISession:{currentGeneration:()=>1},addEventListener(){},MutationObserver:class {constructor(callback){this.callback=callback;observers.push(this)}observe(){}disconnect(){this.disconnected=true}}};
+context.window=context;vm.createContext(context);vm.runInContext(fs.readFileSync(process.argv[2],'utf8'),context);
+let sourcePromise,rejectAction=false;const original=context.financeAction;context.financeAction=function(...args){sourcePromise=rejectAction?Promise.reject(Error('synthetic unexpected action rejection')):original.apply(this,args);return sourcePromise};
+vm.runInContext('('+OBSERVER+')()',context);
+(async()=>{let release,ran=0;const watched=context.financeAction(()=>new Promise(resolve=>release=resolve)),operation=sourcePromise;
+assert.equal(watched,operation,'observer must preserve original promise identity');assert(controls[0].disabled,'synchronous operation lock must remain');assert.equal(context.syntheticFinanceTrace.actions[0].settled,false);
+await context.financeAction(()=>ran++);assert.equal(ran,0);assert.equal(context.syntheticFinanceTrace.actions.length,1);
+release();await operation;assert.equal(context.syntheticFinanceTrace.actions[0].settled,true);assert.equal(controls[0].disabled,false);
+rejectAction=true;const rejected=context.financeAction(()=>{});assert.equal(rejected,sourcePromise);await assert.rejects(rejected,/synthetic unexpected action rejection/);await new Promise(resolve=>setImmediate(resolve));assert.equal(context.syntheticFinanceTrace.actions.at(-1).error,'synthetic unexpected action rejection');
+const token=context.syntheticFinanceStartWatch('#financeForm');const transient={nodeType:1,matches:selector=>selector==='#financeForm',querySelector:()=>null};observers.at(-1).callback([{addedNodes:[transient]}]);
+const result=context.syntheticFinanceFinishWatch(token);assert.equal(result.violations.length,1,'even removed-before-callback private nodes must be recorded');assert(observers.at(-1).disconnected);
+console.log('observer verified');})().catch(error=>{console.error(error);process.exitCode=1});
+'''.replace('OBSERVER',json.dumps(FINANCE_BROWSER_OBSERVER))
+ file=tmp_path/'observer.js';file.write_text(script)
+ result=subprocess.run(['node',str(file),str(root/'frontend/finance.js')],capture_output=True,text=True,timeout=10)
+ assert result.returncode==0,result.stderr
+ assert 'observer verified' in result.stdout
+
+
+def test_finance_fixture_trace_captures_proposal_transport_finish_and_native_timing(tmp_path,monkeypatch):
+ import json
+ from test_finance_browser import FinanceBrowserTrace
+ monkeypatch.setenv('FIRE_AI_BROWSER_ARTIFACTS',str(tmp_path/'artifacts'))
+ (tmp_path/'server.log').write_text('Synthetic server trace')
+ class Page:
+  def __init__(self):self.handlers={}
+  def on(self,name,handler):self.handlers[name]=handler
+  def evaluate(self,_):return {'pending':True,'actionTrace':{'actions':[{'id':1,'settled':False}]}}
+  def screenshot(self,**_):pass
+ class Request:
+  url='http://synthetic.local/finance/proposals?limit=100'
+  method='GET'
+  timing={'startTime':1000,'requestStart':0,'responseStart':5010,'responseEnd':5012}
+ class Response:
+  url=Request.url
+  status=503
+  def __init__(self,request):self.request=request
+ page=Page();trace=FinanceBrowserTrace(page,'http://synthetic.local');request=Request();response=Response(request)
+ page.handlers['request'](request);page.handlers['response'](response);page.handlers['requestfinished'](request)
+ trace.save(tmp_path,'Synthetic_case')
+ evidence=json.loads((tmp_path/'artifacts/finance-case-Synthetic_case.json').read_text())
+ record=evidence['requests'][0]
+ assert record['path']=='/finance/proposals?limit=100' and record['status']==503
+ assert record['at']<=record['response_at']<=record['finished_at']
+ assert record['timing']['responseEnd']==5012
+ assert evidence['ui']['actionTrace']['actions'][0]['settled'] is False
+
+
+def test_finance_action_settlement_rejects_observed_unexpected_errors():
+ from test_finance_browser import await_finance_action
+ class Page:
+  def wait_for_function(self,*args,**kwargs):pass
+  def evaluate(self,*args):return {'actions':[{'id':1,'settled':True,'error':'Synthetic unexpected rejection'}],'violations':[]}
+ with pytest.raises(AssertionError,match='Synthetic unexpected rejection'):
+  await_finance_action(Page(),0)
