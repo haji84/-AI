@@ -85,6 +85,8 @@ class WorkforceLeaveEntry(Versioned,Base):
     kind:Mapped[str]=mapped_column(String(20),nullable=False)
     quantity_minutes:Mapped[int]=mapped_column(BigInteger,nullable=False)
     effective_on:Mapped[date]=mapped_column(Date,nullable=False,index=True)
+    leave_start_at:Mapped[datetime|None]=mapped_column(DateTime(timezone=True))
+    leave_end_at:Mapped[datetime|None]=mapped_column(DateTime(timezone=True))
     expires_on:Mapped[date|None]=mapped_column(Date)
     private_reason:Mapped[str|None]=mapped_column(Text)
     status:Mapped[str]=mapped_column(String(20),nullable=False,default='draft')
@@ -93,7 +95,7 @@ class WorkforceLeaveEntry(Versioned,Base):
     reviewed_at:Mapped[datetime|None]=mapped_column(DateTime(timezone=True))
     approved_by:Mapped[str|None]=mapped_column(ForeignKey('app_users.user_id'))
     approved_at:Mapped[datetime|None]=mapped_column(DateTime(timezone=True))
-    __table_args__=(CheckConstraint("leave_type IN ('annual','special','compensatory')",name='ck_workforce_leave_type'),CheckConstraint("kind IN ('grant','use','adjustment_add','adjustment_subtract','expire')",name='ck_workforce_leave_kind'),CheckConstraint('quantity_minutes > 0',name='ck_workforce_leave_quantity'),CheckConstraint('expires_on IS NULL OR expires_on >= effective_on',name='ck_workforce_leave_expiry'),CheckConstraint("status IN ('draft','reviewed','approved','cancelled')",name='ck_workforce_leave_status'))
+    __table_args__=(CheckConstraint("leave_type IN ('annual','special','compensatory')",name='ck_workforce_leave_type'),CheckConstraint("kind IN ('grant','use','adjustment_add','adjustment_subtract','expire')",name='ck_workforce_leave_kind'),CheckConstraint('quantity_minutes > 0',name='ck_workforce_leave_quantity'),CheckConstraint('expires_on IS NULL OR expires_on >= effective_on',name='ck_workforce_leave_expiry'),CheckConstraint("(kind = 'use' AND leave_start_at IS NOT NULL AND leave_end_at IS NOT NULL AND leave_end_at > leave_start_at) OR (kind <> 'use' AND leave_start_at IS NULL AND leave_end_at IS NULL)",name='ck_workforce_leave_period'),CheckConstraint("status IN ('draft','reviewed','approved','cancelled')",name='ck_workforce_leave_status'))
 
 class WorkforceAttendance(Versioned,Base):
     __tablename__='workforce_attendance'
