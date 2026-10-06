@@ -34,6 +34,7 @@ from ..models import (
     Submission,
     SubmissionType,
     User,
+    Employee,
 )
 from ..schemas import UnifiedSearchHitOut, UnifiedSearchResponse
 from ..unified_search import SEARCH_VERSION, lexical_score, make_snippet, query_sha256, query_terms
@@ -43,6 +44,8 @@ router = APIRouter(prefix="/search", tags=["search"])
 from ..assets_models import OperationalAsset, AssetLot
 from ..operations_models import Incident, Vehicle
 from ..operations_service import incident_dict
+from ..personnel import OrganizationUnit
+from ..workforce_models import WorkforceRosterEntry, WorkforceShiftType
 
 MODULE_PERMISSIONS: dict[str, tuple[str, ...]] = {
     "facilities": ("facility.read",),
@@ -50,6 +53,7 @@ MODULE_PERMISSIONS: dict[str, tuple[str, ...]] = {
     "operations": ("incident.read",),
     "fleet": ("fleet.read",),
     "operational_assets": ("asset.read",),
+    "workforce": ("workforce.read",),
     "inspections": ("inspection.read",),
     "submissions": ("submission.read",),
     "equipment": ("equipment.read",),
@@ -807,8 +811,57 @@ def _search_assets(db,q,limit):
     return hits
 
 
+def _search_workforce(db: Session, q: str, limit: int) -> list[UnifiedSearchHitOut]:
+    rows = db.execute(
+        select(WorkforceRosterEntry, Employee, OrganizationUnit, WorkforceShiftType)
+        .join(Employee, Employee.employee_id == WorkforceRosterEntry.employee_id)
+        .join(OrganizationUnit, OrganizationUnit.organization_id == WorkforceRosterEntry.organization_id)
+        .join(WorkforceShiftType, WorkforceShiftType.shift_type_id == WorkforceRosterEntry.shift_type_id)
+        .where(
+            _like_condition(
+                q,
+                Employee.display_name,
+                Employee.employee_code,
+                OrganizationUnit.name,
+                OrganizationUnit.code,
+                WorkforceShiftType.name,
+                WorkforceShiftType.code,
+                WorkforceRosterEntry.note,
+                WorkforceRosterEntry.status,
+            )
+        )
+        .order_by(WorkforceRosterEntry.work_date.desc())
+        .limit(limit)
+    ).all()
+    return [
+        _hit(
+            q,
+            module="workforce",
+            source_type="workforce_roster",
+            source_id=roster.roster_entry_id,
+            title=f"{employee.display_name} ・ {organization.name} ・ {shift.name}",
+            body=" / ".join(
+                x for x in [
+                    employee.employee_code,
+                    roster.work_date.isoformat(),
+                    roster.status,
+                    "応援配置" if roster.support_placement else "通常配置",
+                    roster.note,
+                ] if x
+            ),
+            parent_id=employee.employee_id,
+            occurred_at=roster.work_date,
+            required_permission="workforce.read",
+            navigation={"surface":"workforce","roster_entry_id":roster.roster_entry_id,"employee_id":employee.employee_id},
+            evidence={"record_version":roster.version,"status":roster.status,"assignment_id":roster.assignment_id,"assignment_version":roster.assignment_version},
+        )
+        for roster,employee,organization,shift in rows
+    ]
+
+
 SEARCHERS = {
     "operational_assets": lambda db,q,limit,perms: _search_assets(db,q,limit),
+    "workforce": lambda db,q,limit,perms: _search_workforce(db,q,limit),
     "operations": _search_operations,
     "fleet": lambda db,q,limit,perms: _search_fleet(db,q,limit),
     "emergency": lambda db, q, limit, perms: _search_emergency(db, q, limit),
