@@ -1228,7 +1228,7 @@ function drawingRestoreSnapshot(snapshot){
   ann.page_dimensions=drawingDeepClone(snapshot.page_dimensions||{});
   state.drawingEditElementIndex=null;state.drawingSelectedVertexIndex=null;state.drawingDragVertexIndex=null;state.drawingDragPointerId=null;state.drawingDragHistoryPushed=false;
   state.drawingDrawActive=false;state.drawingDrawPoints=[];state.drawingCalibrationMode=false;state.drawingCalibrationPoints=[];state.drawingSnapTarget=null;
-  recalcDrawingLocalMetrics();renderDrawingWorkspace();
+  recalcDrawingLocalMetrics();
 }
 function drawingUndo(){
   if(!state.drawingUndoStack.length||state.drawingAnnotation?.status!=='draft')return;
@@ -1237,6 +1237,7 @@ function drawingUndo(){
   if(current)state.drawingRedoStack.push({...current,key:drawingSnapshotKey(current)});
   drawingRestoreSnapshot(previous);
   drawingRefreshDirty();
+  renderDrawingWorkspace();
 }
 function drawingRedo(){
   if(!state.drawingRedoStack.length||state.drawingAnnotation?.status!=='draft')return;
@@ -1245,6 +1246,7 @@ function drawingRedo(){
   if(current)state.drawingUndoStack.push({...current,key:drawingSnapshotKey(current)});
   drawingRestoreSnapshot(next);
   drawingRefreshDirty();
+  renderDrawingWorkspace();
 }
 function drawingRefreshDirty(){
   const current=drawingCurrentEditSnapshot();
