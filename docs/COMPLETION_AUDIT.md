@@ -33,10 +33,10 @@ External Gateは承認済み実環境・Humanによる正式判定・提供さ�
 | 学習・Champion/Candidate昇格・rollback | Missing | 正式仕様17・Phase11。専用実装を確認できず | 修正記録、固定評価、比較、明示承認、rollback |
 | tenant分離 | Partial | 承認済み本部別DB方式。tenant_identity、storage marker、起動/HTTP/Session照合、2本部認証拒否テスト | 本部別資格情報/OS ACL実証、backup manifest境界、復元演習 |
 | 職員とアカウント分離 | Completed（データモデル） | EmployeeとUser.employee_id | 管理操作は別項目 |
-| 組織マスタ・人事履歴・異動追随 | Missing | Employee.organization_unit/titleは文字列のみ | 組織/所属履歴、正式権限との接続、管理UI |
+| 組織マスタ・人事履歴・異動追随 | Completed（基盤・PR44） | OrganizationUnit/EmployeeAssignment、Migration041、有効日権限、管理ブラウザCI | 実辞令/所属・LAN受入は別Gate |
 | 認証・RBAC | Partial | routers/auth.py、authz.py、security.py、rbac_seed.py | 管理UI、パスワード期限/履歴/変更、失効管理、現所属との接続 |
-| 監査ログ | Partial | audit.py、AuditLog | 管理閲覧API/UI、DB権限による改変防止実証 |
-| migration | Partial | migrations.py、001-037、CIはparser smoke | PostgreSQL全実行、再実行、schema照合、移行整合性/排他 |
+| 監査ログ | Completed（基盤） | audit.py、AuditLog、管理閲覧API/UI、PostgreSQLの更新/削除拒否CI | 実サーバーOS/運用受入は別Gate |
+| migration | Completed（001-041・基盤） | PostgreSQL全実行/再実行/制約/排他CI、schema照合 | 本番clone移行・実機受入は別Gate |
 | backup/restore | Partial | scripts/backup_phase1.py、restore_phase1.py | 復元安全不具合修正、自動backup、停止整合性・PG復元試験 |
 | 本番LAN・TLS・複数PC競合 | External Gate | deploy/nginx、systemd、LAN_DEPLOYMENT.md | 承認サーバー/名前/証明書/経路と実機検証 |
 | 完成成果物・release一式 | Missing | READMEとPhase手順あり | 全マニュアル、構成/DB/権限/制約/検証/完成判定を束ねる |
@@ -87,3 +87,7 @@ tenant分離は現行コードに存在しない。
 ## Run A 職員管理Slice（未merge）
 
 main89e87e17 / PR42を照合し、RunB機能を維持。組織・主所属/兼務・異動履歴・有効日権限・アカウント管理・パスワード履歴/変更・監査閲覧を実装中。専用9件、統合291件成功、5skip。PostgreSQL・画面操作・PR CI確認前のためCompletedとはしない。仕様のパスワード期限、実LAN受入、最終成果物は引き続きPartial/External Gateとして残す。詳細はcompletion/PERSONNEL_ADMINISTRATION.md。
+
+## 署名付き法令更新Slice（main未反映）
+
+main fb2c9900 / PR44の実装・CIを再監査。署名付き閉域更新Missingに対し、両collector/importerの外部trust・全原本hash・取得origin・XML事前検証・古いbundle拒否・候補限定・更新folder処理を追加中。25 focused tests成功。正式Ruleは作成しない。PR CI/merge後にmain実装として再分類する。詳細completion/SIGNED_LEGAL_UPDATES.md。

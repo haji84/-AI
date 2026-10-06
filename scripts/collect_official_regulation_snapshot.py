@@ -3,6 +3,8 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import sys
+import os
 import mimetypes
 import re
 import urllib.parse
@@ -11,6 +13,9 @@ from collections import deque
 from datetime import datetime, timezone
 from html.parser import HTMLParser
 from pathlib import Path
+
+sys.path.insert(0,str(Path(__file__).resolve().parent))
+from official_download import open_official
 
 
 class LinkParser(HTMLParser):
@@ -52,7 +57,7 @@ def extension_for(url: str, content_type: str | None) -> str:
     return ".bin"
 
 
-def fetch(url: str, timeout: int = 45) -> tuple[bytes, str | None]:
+def fetch(url: str, timeout: int = 45) -> tuple[bytes, str | None, str]:
     req = urllib.request.Request(
         url,
         headers={
@@ -60,8 +65,8 @@ def fetch(url: str, timeout: int = 45) -> tuple[bytes, str | None]:
             "Accept": "*/*",
         },
     )
-    with urllib.request.urlopen(req, timeout=timeout) as response:
-        return response.read(), response.headers.get("Content-Type")
+    with open_official(req, timeout=timeout) as response:
+        return response.read(), response.headers.get("Content-Type"), response.geturl()
 
 
 def collect(
@@ -73,10 +78,12 @@ def collect(
     output_dir: Path,
     max_pages: int = 3000,
     max_depth: int = 4,
+    signing_key_file: Path | None = None,
 ) -> dict:
     include = re.compile(include_regex)
     crawl = re.compile(crawl_regex)
     output_dir.mkdir(parents=True, exist_ok=True)
+    if signing_key_file and (output_dir / "manifest.json").exists():raise ValueError("signed output directory must be new")
     files_dir = output_dir / "files"
     files_dir.mkdir(parents=True, exist_ok=True)
 
@@ -99,7 +106,9 @@ def collect(
         seen.add(url)
 
         try:
-            body, content_type = fetch(url)
+            fetched=fetch(url)
+            body,content_type=fetched[:2]
+            effective_url=fetched[2] if len(fetched)>2 else url
         except Exception as exc:
             failures.append({"url": url, "error": type(exc).__name__})
             continue
@@ -115,6 +124,7 @@ def collect(
             captured.append(
                 {
                     "url": url,
+                    "effective_url": effective_url,
                     "sha256": digest,
                     "size_bytes": len(body),
                     "content_type": content_type,
@@ -144,6 +154,7 @@ def collect(
     manifest = {
         "bundle_format": "fire-ai-local-regulation-snapshot-v1",
         "authority": "official-domain-restricted",
+        "retrieval_policy": "https-exact-host-redirect-checked-v1",
         "index_url": index_url,
         "allowed_host": allowed_host,
         "include_regex": include_regex,
@@ -161,6 +172,9 @@ def collect(
         json.dumps(manifest, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
+    if signing_key_file:
+        from app.legal_update_bundle import sign_manifest
+        sign_manifest(output_dir / 'manifest.json',signing_key_file)
     return manifest
 
 
@@ -173,6 +187,7 @@ def main() -> None:
     p.add_argument("--output-dir", required=True)
     p.add_argument("--max-pages", type=int, default=3000)
     p.add_argument("--max-depth", type=int, default=4)
+    p.add_argument('--signing-key-file',default=os.environ.get('FIRE_AI_COLLECTOR_SIGNING_KEY_FILE'))
     args = p.parse_args()
 
     result = collect(
@@ -183,6 +198,7 @@ def main() -> None:
         output_dir=Path(args.output_dir),
         max_pages=max(1, args.max_pages),
         max_depth=max(0, args.max_depth),
+        signing_key_file=Path(args.signing_key_file) if args.signing_key_file else None,
     )
     print(json.dumps({
         "captured_count": result["captured_count"],
