@@ -1870,3 +1870,13 @@ See docs/completion/RUN_B_STATUS.md and INTEGRATION_HANDOFF.md for internal back
 正式構成と本部追加・移行・更新・復元契約: `docs/architecture/TENANT_OPERATIONS.md`。
 本部識別子の境界実装と残GateのEvidence: `docs/completion/RUN_A_STATUS.md`。
 全体の完成判定は実コード・CI・運用Evidenceと照合し、旧Phase記述だけで判断しない。
+
+## Completion Run B — operations/fleet review candidate
+
+Task2 local implementation15da8c2 adds shared incident/dispatch links and vehicle registry/use/fuel/service/fault workflows with Human allowance/service approval, preview-confirm CSV/XLSX and shared-shell search/UI. Migration040 follows canonical Run A tenant-identity039;31 focused and242 full tests passed. Independent review/CI/refreshed-main/merge pending; no whole-system, tenant or real-browser/PostgreSQL acceptance claim. Exact status remains docs/completion/RUN_B_STATUS.md and INTEGRATION_HANDOFF.md.
+
+Task2 fixround1: permission-filtered mutation responses, complete mixed-source export columns, and separate fuel purchase expense/issue valuation implemented;31 focused and242 full tests passed. Scoped independent re-review is pending.
+
+Task2 latest-main adaptation consumes Run A PR41/main8323930e without tenant redesign. Canonical startup/Host/storage/DB session guards and CI PostgreSQL service are retained;040 replaces only Run B provisional039. Two-DB/source and optional PostgreSQL-lock integration evidence is recorded in task-2-report.md; refreshed-base CI/independent review/merge and actual browser/production acceptance remain pending.
+
+Task2 adaptation validation:52 focused passed/2 local PostgreSQL skips;263 full passed/2 skips;40 migration files parsed and001–038 unchanged; JS/compile/diff checks passed. The optional actual PostgreSQL source-lock test awaits inherited CI service execution.

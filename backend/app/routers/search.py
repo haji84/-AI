@@ -40,9 +40,14 @@ from ..unified_search import SEARCH_VERSION, lexical_score, make_snippet, query_
 
 router = APIRouter(prefix="/search", tags=["search"])
 
+from ..operations_models import Incident, Vehicle
+from ..operations_service import incident_dict
+
 MODULE_PERMISSIONS: dict[str, tuple[str, ...]] = {
     "facilities": ("facility.read",),
     "emergency": ("emergency.case.read",),
+    "operations": ("incident.read",),
+    "fleet": ("fleet.read",),
     "inspections": ("inspection.read",),
     "submissions": ("submission.read",),
     "equipment": ("equipment.read",),
@@ -770,7 +775,29 @@ def _search_emergency(db, q, limit):
         evidence={"record_version": r.version}) for r in rows]
 
 
+def _search_operations(db, q, limit, perms):
+    hits=[]
+    for row in db.scalars(select(Incident).order_by(Incident.updated_at.desc())):
+        data=incident_dict(db,row,perms)
+        source=data.get('source',{})
+        title=row.title
+        body=" / ".join(str(x) for x in [row.kind,row.address,row.number,row.notes,source.get('address'),source.get('number')] if x)
+        if lexical_score(q,title=title,body=body)<=0:continue
+        evidence={'record_version':row.version}
+        if source:evidence['linked_source_id']=source['source_id']
+        hits.append(_hit(q,module='operations',source_type='incident',source_id=row.incident_id,title=title,body=body,required_permission='incident.read',navigation={'surface':'operations','incident_id':row.incident_id},evidence=evidence))
+        if len(hits)>=limit:break
+    return hits
+
+
+def _search_fleet(db,q,limit):
+    rows=db.scalars(select(Vehicle).where(_like_condition(q,Vehicle.code,Vehicle.name,Vehicle.registration,Vehicle.notes)).order_by(Vehicle.updated_at.desc()).limit(limit))
+    return [_hit(q,module='fleet',source_type='vehicle',source_id=r.vehicle_id,title=f'{r.code} / {r.name}',body=' / '.join(x for x in [r.registration,r.notes] if x),required_permission='fleet.read',navigation={'surface':'operations','vehicle_id':r.vehicle_id},evidence={'record_version':r.version}) for r in rows]
+
+
 SEARCHERS = {
+    "operations": _search_operations,
+    "fleet": lambda db,q,limit,perms: _search_fleet(db,q,limit),
     "emergency": lambda db, q, limit, perms: _search_emergency(db, q, limit),
     "facilities": lambda db, q, limit, perms: _search_facilities(db, q, limit),
     "inspections": lambda db, q, limit, perms: _search_inspections(db, q, limit),

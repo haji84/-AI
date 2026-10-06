@@ -3,6 +3,8 @@ from sqlalchemy.orm import Session
 from .models import ModuleDefinition, FeatureFlag
 
 MODULES = {
+    "operations": {"name": "事案・出動", "version": "1.0.0"},
+    "fleet": {"name": "車両運用", "version": "1.0.0"},
     "prevention": {"name": "予防業務", "version": "1.0.0"},
     "emergency_reporting": {"name": "救急報告・集計", "version": "1.1.0"},
     "fire_investigation": {"name": "火災調査", "version": "0.1.0"},
@@ -23,6 +25,9 @@ def seed_modules(db: Session) -> dict[str, ModuleDefinition]:
         if code == "emergency_reporting":
             row.version = cfg["version"]
             row.manifest = {**(row.manifest or {}), "operational_api": "/emergency", "surface": "/ui/", "aggregate_api": "/emergency/reports/summary"}
+        if code in {"operations", "fleet"}:
+            row.version = cfg["version"]
+            row.manifest = {**(row.manifest or {}), "operational_api": "/operations", "surface": "/ui/"}
         out[code] = row
         key = f"module.{code}.enabled"
         flag = db.scalar(select(FeatureFlag).where(FeatureFlag.key == key))

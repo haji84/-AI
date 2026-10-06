@@ -1,0 +1,11 @@
+# Task 8 — Document intake and original-template output adapters
+
+Binding RUN_B_CONTRACT/AGENTS/original request. Reuse existing Document, document_intake, intake router and official_form_renderer; never redesign these or invent official layouts. Inspect exact existing semantics first and implement only missing functions.
+
+PDF/Word/Excel/CSV/image/text/audio input; classification/submission/facility/submitter/date/content/attachments/field/destination candidates based on document content, not filename. Content/provenance/sourceDocument SHA/model/version/confidence/generated/review metadata immutable; all proposed writes candidate and explicit authorized Human apply. Local audio adapter can be configured and tested against protocol; no actual model accuracy claim without originals. No content => unclassified explicit, no fabricated facts. Attachments preserve original and derived separation.
+
+Provide source-permission checks and target-module permission checks through compatible adapters for landed modules. Proposal snapshots expected target version, Human reviewed state, source SHA checks, atomic apply/audit; repeated apply idempotent; stale/unauthorized targets rejected. No arbitrary table or Python execution from model data.
+
+Original templates registered as common FormTemplate+Document; DB snapshot values fill only original PDF AcroForm/XLSX/DOCX supported renderer. Template module/version/effective date/status/fill_only/hash/path validation. Generated outputs common Document with output hash/renderer/sourceSnapshot/template ID and review status; no official claim solely due successful render. PDF nonfillable original unsupported explicitly, do not redesign layout. Adapt module report sources by explicit typed registry, not arbitrary introspection. Same-shell PC intake upload/content/source/candidate/review/apply/output/template selection UI, no new app.
+
+TDD parsers actual synthetic inputs, misleading filenames, unsupported/missing values, source permissions, target cross-module gates, candidate separation/source-stale/version/atomic/idempotent apply, original unchanged/correct fill/reproducible output/escape paths/formula injection, audit/shared UI/integration. Full tests/parser/JS. No real files/new paid deps/no subagents. Report task-8-report.md.
