@@ -18,6 +18,7 @@ from ..authz import require_permission
 from ..db import get_db
 from ..drawing_benchmark_export import build_drawing_hypothesis
 from ..drawing_baseline_readiness import drawing_baseline_readiness
+from ..drawing_baseline_runner import run_drawing_baseline
 from ..settings import settings
 from ..models import (
     Document,
@@ -40,6 +41,8 @@ from ..schemas import (
     DrawingAnalysisReview,
     DrawingBenchmarkHypothesisOut,
     DrawingBaselineReadinessOut,
+    DrawingBaselineRunCreate,
+    DrawingBaselineRunOut,
     DrawingElementCreate,
     DrawingElementOut,
     DrawingEquipmentCandidateCreate,
@@ -654,6 +657,80 @@ def get_drawing_page_preview(
 
 
 
+
+
+
+
+@router.post(
+    "/drawing-analyses/{analysis_id}/baseline-run",
+    response_model=DrawingBaselineRunOut,
+    status_code=201,
+)
+def run_drawing_analysis_baseline(
+    analysis_id: str,
+    payload: DrawingBaselineRunCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("drawing.analyze")),
+):
+    analysis = db.get(DrawingAnalysis, analysis_id)
+    if not analysis:
+        raise HTTPException(
+            status_code=404,
+            detail="drawing analysis not found",
+        )
+    if analysis.version != payload.expected_analysis_version:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": "drawing analysis was updated",
+                "current_version": analysis.version,
+            },
+        )
+
+    try:
+        row, created = run_drawing_baseline(
+            db,
+            analysis=analysis,
+            iou_threshold=payload.iou_threshold,
+            dataset_label=payload.dataset_label,
+            created_by=user.user_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        )
+
+    if created:
+        write_audit(
+            db,
+            user_id=user.user_id,
+            action="drawing_benchmark.baseline_run",
+            entity_type="drawing_benchmark_run",
+            entity_id=row.drawing_benchmark_run_id,
+            after={
+                "drawing_analysis_id": analysis_id,
+                "analysis_version": analysis.version,
+                "result_sha256": row.result_sha256,
+                "manifest_sha256": row.manifest_sha256,
+                "dataset_label": row.dataset_label,
+                "iou_threshold": payload.iou_threshold,
+            },
+        )
+        db.commit()
+
+    return DrawingBaselineRunOut(
+        created=created,
+        drawing_benchmark_run_id=row.drawing_benchmark_run_id,
+        dataset_label=row.dataset_label,
+        result_sha256=row.result_sha256,
+        manifest_sha256=row.manifest_sha256,
+        review_status=row.review_status,
+        human_decision=row.human_decision,
+        version=row.version,
+        result_payload=row.result_payload or {},
+        created_at=row.created_at.isoformat(),
+    )
 
 
 @router.get(
