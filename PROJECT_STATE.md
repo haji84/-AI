@@ -1507,3 +1507,32 @@ Safety:
 - in-app execution does not auto-accept a Baseline
 - source drawing mismatch remains a hard error
 - old Benchmark Runs remain immutable evidence when Annotation/AI results change
+
+
+## Phase 6 Drawing Baseline Human Review UI
+
+Implemented on branch `phase6-baseline-review-ui`; CI verification pending:
+- drawing workspace reloads recent drawing Benchmark Runs
+- only in-app Runs for the current DrawingAnalysis are shown
+- Run history remains visible after reopening the workspace
+- current Run shows:
+  - Geometry F1
+  - mean IoU
+  - Fact F1
+  - review status / Human decision
+  - optional review note
+- pending Baseline Runs expose explicit Human actions:
+  - accepted_baseline
+  - rejected_baseline
+- Human decision uses the existing optimistic-concurrency Benchmark Review API
+- Human review note is collected at decision time
+- reviewed Runs no longer show review buttons
+- accepted Baseline is visually distinguished from pending/rejected Runs
+- selecting an older Run never changes current DrawingAnalysis/Annotation evidence
+- Baseline execution and Baseline acceptance remain separate actions
+
+Safety:
+- no Baseline is auto-accepted after a good F1/IoU score
+- Human can explicitly reject a technically passing Baseline
+- Run history remains immutable evidence while current Annotation/AI results evolve
+- optimistic version checks prevent stale review writes
