@@ -1,6 +1,6 @@
 """Workforce rules, roster, leave and attendance services. AI is never required."""
 import csv
-from datetime import date,datetime,timedelta,timezone
+from datetime import date,datetime,time,timedelta,timezone
 from hashlib import sha256
 from io import BytesIO,StringIO
 from zoneinfo import ZoneInfo,ZoneInfoNotFoundError
@@ -26,7 +26,7 @@ SCHEMA_VERSION='workforce-v1'
 DEFAULT_TIMEZONE='Asia/Tokyo'
 
 def scalar(value):
-    if isinstance(value,(date,datetime)):return value.isoformat()
+    if isinstance(value,(date,datetime,time)):return value.isoformat()
     return value
 
 def row_dict(row):
