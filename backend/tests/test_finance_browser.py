@@ -180,6 +180,13 @@ def test_finance_editor_uploads_first_original_and_saves_only_a_draft(finance_fi
  assert detail['documents'][0]['document_id']==doc['document_id']
  assert page.request.get(base+'/documents/'+doc['document_id']+'/download').body()==content
  assert page.request.get(base+'/finance/journal').json()==[]
+ # A POST response is not the completion of the guarded save-and-refresh action.
+ expect(page.locator('#financeForm')).to_have_count(0)
+ page.wait_for_function('financePendingAction===null')
+ page.locator('[data-finance-contract="'+contract['contract_case_id']+'"]').click()
+ expect(page.locator('#financeContent h2')).to_have_text('Synthetic first-use contract / draft')
+ expect(page.locator('#financeContent')).to_contain_text(doc['sha256'])
+ page.wait_for_function('financePendingAction===null')
  artifact=Path(os.environ.get('FIRE_AI_BROWSER_ARTIFACTS',str(tmp_path/'artifacts')));artifact.mkdir(parents=True,exist_ok=True)
  page.screenshot(path=str(artifact/'finance-first-original-draft.png'),full_page=True)
 
@@ -289,25 +296,75 @@ def test_finance_upload_locks_navigation_and_discards_late_results_after_reset(f
  assert len(page.request.get(base+'/finance/documents').json())==1
 
 
+def save_finance_session_diagnostics(page,base,tmp_path,next_user,before,after,requests,responses,failures,finished_requests=()):
+ """Synthetic failure evidence only; never record cookie/token/password headers."""
+ import json
+ artifact=Path(os.environ.get('FIRE_AI_BROWSER_ARTIFACTS',str(tmp_path/'artifacts')))
+ artifact.mkdir(parents=True,exist_ok=True)
+ prefix=artifact/('finance-session-change-'+next_user)
+ evidence={'before':before,'after':after,'requests':requests,'request_failures':failures}
+ output=Path(str(prefix)+'.json')
+ server_log=tmp_path/'server.log'
+ if server_log.exists():Path(str(prefix)+'-server.log').write_text(server_log.read_text())
+ output.write_text(json.dumps(evidence,ensure_ascii=False,indent=2))
+ try:
+  evidence['ui']=page.evaluate("""() => ({financeIdentity:financeState.identity,financeGeneration:financeState.generation,sharedGeneration:window.FireAISession.currentGeneration(),pending:!!financePendingAction,pendingGeneration:financePendingAction?.generation,modalCount:document.querySelectorAll('#financeModal').length,modalHidden:document.getElementById('financeModal')?.classList.contains('hidden'),selectedDocument:document.getElementById('financeField_document_id')?.value,status:document.getElementById('financePick_document_id_status')?.textContent,message:document.getElementById('financeMessage')?.textContent,uploadOutcome:window.syntheticFinanceUploadOutcome})""")
+  page.screenshot(path=str(prefix)+'.png',full_page=True)
+ except Exception as error:evidence['capture_error']=str(error)
+ output.write_text(json.dumps(evidence,ensure_ascii=False,indent=2))
+ observed=[]
+ for at,response in list(responses):
+  finished=response.request in finished_requests
+  record={'at':at,'path':response.url.removeprefix(base),'status':response.status,'finished':finished}
+  if not finished:record['body_pending']=True
+  elif response.url in [base+'/auth/context',base+'/auth/me']:
+   try:
+    data=response.json()
+    record['authority']={key:data[key] for key in ['user_id','session_id','tenant_id','permissions','username'] if key in data}
+   except Exception as error:record['body_error']=str(error)
+  observed.append(record)
+ evidence['responses']=observed
+ output.write_text(json.dumps(evidence,ensure_ascii=False,indent=2))
+ print('Synthetic finance session-change diagnostics:',json.dumps(evidence,ensure_ascii=False))
+
+
 @pytest.mark.parametrize('next_user',['editor','other-editor'])
 def test_finance_late_upload_cannot_cross_an_authenticated_session_change(finance_first_use,next_user):
  from playwright.sync_api import expect
- page,base,_=finance_first_use
+ page,base,tmp_path=finance_first_use
  new_first_use_contract(page);select_synthetic_original(page)
  held=hold_upload_response(page)
- page.locator('#financePick_document_id_upload').click()
- expect(page.locator('#financeSave')).to_be_disabled()
- wait_for_held_upload(page,held)
- # A second tab can replace the shared HttpOnly session cookie without replacing this DOM.
- assert page.request.post(base+'/auth/logout').ok
- assert page.request.post(base+'/auth/login',data={'username':next_user,'password':'synthetic-ui-password'}).ok
- assert len(held)==1
- route,response=held[0]
- with page.expect_response(lambda r:r.url==base+'/documents/upload'):route.fulfill(response=response)
- expect(page.locator('#financeModal')).to_have_count(0)
- assert page.evaluate('financeState.identity') is None
- assert page.evaluate('financeState.permissions.length')==0
- assert page.request.get(base+'/finance/contracts').json()==[]
+ started=time.monotonic();requests=[];responses=[];failures=[];finished=set();before=None;after=None
+ relevant=lambda url:url.startswith(base+'/auth/') or url==base+'/documents/upload'
+ page.on('request',lambda r:requests.append({'at':time.monotonic()-started,'method':r.method,'path':r.url.removeprefix(base)}) if relevant(r.url) else None)
+ page.on('response',lambda r:responses.append((time.monotonic()-started,r)) if relevant(r.url) else None)
+ page.on('requestfinished',lambda r:finished.add(r) if relevant(r.url) else None)
+ page.on('pageerror',lambda error:failures.append({'at':time.monotonic()-started,'kind':'pageerror','message':str(error)}))
+ page.on('requestfailed',lambda r:failures.append({'at':time.monotonic()-started,'path':r.url.removeprefix(base),'failure':r.failure}) if relevant(r.url) else None)
+ page.evaluate("""() => {const button=document.getElementById('financePick_document_id_upload'),run=button.onclick;window.syntheticFinanceUploadOutcome='not-started';button.onclick=function(...args){window.syntheticFinanceUploadOutcome='pending';return Promise.resolve(run.apply(this,args)).then(value=>{window.syntheticFinanceUploadOutcome='settled';return value},error=>{window.syntheticFinanceUploadOutcome={error:error.message,cancelled:!!error.cancelled};throw error})}}""")
+ try:
+  page.locator('#financePick_document_id_upload').click()
+  expect(page.locator('#financeSave')).to_be_disabled()
+  wait_for_held_upload(page,held)
+  # Verify the intended cookie switch independently, without invoking the page's guard.
+  before=page.request.get(base+'/auth/context').json()
+  assert page.request.post(base+'/auth/logout').ok
+  login=page.request.post(base+'/auth/login',data={'username':next_user,'password':'synthetic-ui-password'})
+  assert login.ok
+  after=page.request.get(base+'/auth/context').json()
+  assert after['user_id']==login.json()['user_id']
+  assert before['session_id']!=after['session_id']
+  assert (before['user_id']==after['user_id'])==(next_user=='editor')
+  assert len(held)==1
+  route,response=held[0]
+  with page.expect_response(lambda r:r.url==base+'/documents/upload'):route.fulfill(response=response)
+  expect(page.locator('#financeModal')).to_have_count(0)
+  assert page.evaluate('financeState.identity') is None
+  assert page.evaluate('financeState.permissions.length')==0
+  assert page.request.get(base+'/finance/contracts').json()==[]
+ except Exception:
+  save_finance_session_diagnostics(page,base,tmp_path,next_user,before,after,requests,responses,failures,finished)
+  raise
 
 
 @pytest.mark.parametrize('missing',['document.create','document.read'])

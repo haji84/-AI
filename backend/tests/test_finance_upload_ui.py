@@ -29,7 +29,7 @@ vm.runInContext("financeState.permissions=['document.create','document.read']",c
 import pytest
 
 
-@pytest.mark.parametrize('case',['permissions','success','pending','retry','cancel','new-form','back','close','session','preflight-session','preflight-navigation','late-error','two-pickers','permission-revoked','navigation','nav-background','postflight-retry','failed-menu','failed-menu-pending','failed-back','failed-back-pending','same-user-read-loss','close-reopen','clear-session','session-expired','failed-reopen','failed-reopen-pending','postflight-identity-retry','guarded-upload-result','proof-download-denied','proof-download-session','control-ownership','shared-preflight','shared-preflight-session','shared-upload-session','shared-upload-rights','shared-body-session','shared-postflight-outage','shared-canonical-postflight'])
+@pytest.mark.parametrize('case',['permissions','success','pending','retry','cancel','new-form','back','close','session','preflight-session','preflight-navigation','late-error','two-pickers','permission-revoked','navigation','nav-background','postflight-retry','failed-menu','failed-menu-pending','failed-back','failed-back-pending','same-user-read-loss','close-reopen','clear-session','session-expired','failed-reopen','failed-reopen-pending','postflight-identity-retry','guarded-upload-result','proof-download-denied','proof-download-session','control-ownership','shared-preflight','shared-preflight-session','shared-upload-session','shared-upload-other-user','shared-upload-rights','shared-body-session','shared-postflight-outage','shared-canonical-postflight'])
 def test_finance_upload_async_form_behavior(case):
  root=Path(__file__).resolve().parents[2]
  result=subprocess.run(['node',str(Path(__file__).with_name('finance_upload_dom.js')),str(root/'frontend/finance.js'),case],capture_output=True,text=True)
@@ -57,3 +57,53 @@ context.api=async(path,opt)=>{if(path==='/documents/upload'){posted=true;return 
 let refused=false;try{await vm.runInContext("financeAPI('/documents/upload',{method:'POST'},ack)",context)}catch(e){refused=e.cancelled}
 if(!refused||accepted!==1||node('financeContent').innerHTML||vm.runInContext('financeState.identity',context))throw Error('upload acknowledgment bypassed canonical identity cleanup');
 ''')
+
+
+def test_finance_failure_diagnostics_never_wait_for_an_unfinished_body(tmp_path,monkeypatch):
+ import json
+ from test_finance_browser import save_finance_session_diagnostics
+ monkeypatch.setenv('FIRE_AI_BROWSER_ARTIFACTS',str(tmp_path/'artifacts'))
+ (tmp_path/'server.log').write_text('Synthetic server request log')
+ class PendingResponse:
+  url='http://synthetic.local/auth/context'
+  status=200
+  request=object()
+  reads=0
+  def json(self):
+   self.reads+=1
+   raise RuntimeError('Synthetic body is still pending')
+ class Page:
+  def evaluate(self,_):return {'pending':True,'modalCount':1}
+  def screenshot(self,**_):pass
+ response=PendingResponse()
+ save_finance_session_diagnostics(Page(),'http://synthetic.local',tmp_path,'other-editor',None,None,[],[(0,response)],[])
+ evidence=json.loads((tmp_path/'artifacts/finance-session-change-other-editor.json').read_text())
+ assert response.reads==0
+ assert evidence['responses'][0]['body_pending'] is True
+ assert evidence['ui']['pending'] is True
+ assert (tmp_path/'artifacts/finance-session-change-other-editor-server.log').read_text()=='Synthetic server request log'
+
+
+def test_finance_failure_diagnostics_persist_before_decoding_finished_bodies(tmp_path,monkeypatch):
+ import json
+ from test_finance_browser import save_finance_session_diagnostics
+ artifact=tmp_path/'artifacts'
+ monkeypatch.setenv('FIRE_AI_BROWSER_ARTIFACTS',str(artifact))
+ (tmp_path/'server.log').write_text('Synthetic server request log')
+ class FinishedResponse:
+  url='http://synthetic.local/auth/context'
+  status=200
+  request=object()
+  def json(self):
+   assert (artifact/'finance-session-change-other-editor.json').exists()
+   assert (artifact/'finance-session-change-other-editor-server.log').exists()
+   return {'user_id':'Synthetic user','session_id':'Synthetic nonsecret session','password':'DO NOT RECORD'}
+ class Page:
+  def evaluate(self,_):return {'pending':True}
+  def screenshot(self,**_):pass
+ response=FinishedResponse()
+ save_finance_session_diagnostics(Page(),'http://synthetic.local',tmp_path,'other-editor',None,None,[],[(0,response)],[],{response.request})
+ text=(artifact/'finance-session-change-other-editor.json').read_text()
+ assert 'DO NOT RECORD' not in text
+ evidence=json.loads(text)
+ assert evidence['responses'][0]['authority']['session_id']=='Synthetic nonsecret session'

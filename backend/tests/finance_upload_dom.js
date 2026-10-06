@@ -159,7 +159,7 @@ function installShared(){
  }else if(mode==='control-ownership'){
   await form();get('financeField_amount').disabled=true;choose();pending=deferred();const run=control('upload').onclick();assert(get('financeField_title').disabled);assert(get('financeBack').disabled);await flush();let navigation=0;await ctx.financeAction(async()=>navigation++);assert.equal(navigation,0);pending.resolve(result);await run;assert(get('financeField_amount').disabled);assert.equal(get('financeField_title').disabled,false);assert(control('upload').disabled);assert(control('prev').disabled);assert(control('next').disabled);
   const gate=deferred();const render=ctx.financeAction(async()=>{await form();await gate.promise});await flush();choose();assert(control('upload').disabled,'file change must not unlock a control owned by an action');gate.resolve();await render;assert.equal(control('upload').disabled,false);
- }else if(['shared-preflight','shared-preflight-session','shared-upload-session','shared-upload-rights','shared-body-session','shared-postflight-outage','shared-canonical-postflight'].includes(mode)){
+ }else if(['shared-preflight','shared-preflight-session','shared-upload-session','shared-upload-other-user','shared-upload-rights','shared-body-session','shared-postflight-outage','shared-canonical-postflight'].includes(mode)){
   await form();choose();const button=control('upload');const handlers=installShared();await ctx.window.FireAISession.check();
   if(mode==='shared-canonical-postflight'){
    postflightMeFailure=true;await button.onclick();assert.equal(uploads.length,1);assert.equal(get('financeField_document_id').value,'');assert.equal(control('proof').innerHTML,'');assert(control('status').textContent.includes('原本は登録済み'));assert(button.disabled);await button.onclick();assert.equal(uploads.length,1);
@@ -172,7 +172,7 @@ function installShared(){
   }else{
    if(mode==='shared-body-session')delayUploadBody=true;else pending=deferred();
    const run=button.onclick();await flush();assert.equal(uploads.length,1);assert.equal(get('financeField_document_id').value,'');
-   if(mode==='shared-upload-rights')selectedPermissions=['finance.read'];else if(mode==='shared-postflight-outage')contextFailure=true;else sharedSession='session-b';
+   if(mode==='shared-upload-other-user'){userID='other-editor';sharedSession='session-b'}else if(mode==='shared-upload-rights')selectedPermissions=['finance.read'];else if(mode==='shared-postflight-outage')contextFailure=true;else sharedSession='session-b';
    if(mode==='shared-body-session')releaseUploadBody();else pending.resolve(result);await run;
    assert.equal(get('financeModal'),null);assert.equal(get('financeField_document_id'),null);assert.equal(vm.runInContext('financeState.identity',ctx),null);await button.onclick();assert.equal(uploads.length,1,'detached old handler must not repeat an accepted upload');
   }
