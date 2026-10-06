@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>救急集計 | 消防業務 Local AI</title>
+<style>
+:root{font-family:system-ui,sans-serif;color:#17202a;background:#f4f6f8}body{margin:0}header{display:flex;gap:18px;align-items:center;background:white;padding:18px;border-bottom:1px solid #ddd}main{max-width:1100px;margin:24px auto;padding:0 20px}.card{background:white;border:1px solid #d9dee5;border-radius:12px;padding:20px;margin-bottom:16px}.controls{display:flex;gap:12px;flex-wrap:wrap;align-items:end}label{display:grid;gap:6px}input,select,button,a.button{font:inherit;padding:9px 12px;border:1px solid #bcc6d1;border-radius:7px;background:white}button{cursor:pointer}button:disabled{opacity:.45;cursor:default}a{color:#183b5b}.totals{display:flex;gap:24px;flex-wrap:wrap}.totals strong{display:block;font-size:2rem}.muted{color:#65717d}.error{color:#922}table{border-collapse:collapse;width:100%}th,td{text-align:left;padding:12px;border-bottom:1px solid #ddd}th{background:#fafbfc}.scroll{overflow:auto}.hidden{display:none}#message{white-space:pre-wrap}@media print{header,.controls,.actions,#message{display:none}body{background:white}main{margin:0;padding:0}.card{break-inside:avoid;border:0;padding:8px}h1{font-size:20px}th,td{padding:6px}}
+</style>
+</head>
+<body>
+<header><strong>消防業務 Local AI</strong><a href="/ui/">業務画面へ戻る</a></header>
+<main>
+<h1>救急集計</h1>
+<p class="muted">事案件数と救護者人数を分けて集計します。個票の氏名・診断文は表示しません。</p>
+<div class="card controls">
+<label>開始日<input id="start" type="date"></label>
+<label>終了日<input id="end" type="date"></label>
+<label>内訳<select id="group"><option value="hospital">搬送先コード別</option><option value="severity">傷病程度コード別</option><option value="region">地区コード別</option></select></label>
+<button id="run" disabled>集計する</button>
+</div>
+<p id="message" role="status" aria-live="polite">権限を確認しています。</p>
+<section id="results" class="hidden">
+<div class="card"><h2 id="period"></h2><div id="totals" class="totals"></div><p id="excluded" class="muted"></p></div>
+<div class="card"><div class="actions"><button id="xlsx" disabled>Excel出力</button> <button id="csv" disabled>CSV出力</button> <button id="print">印刷・PDF保存</button></div><h2 id="groupTitle"></h2><div class="scroll"><table><thead><tr><th>コード</th><th>救護者人数</th><th>区分内事案件数</th><th>全救護者に対する割合</th></tr></thead><tbody id="rows"></tbody></table></div></div>
+<div class="card"><h2>集計の読み方</h2><p>コードの名称や搬送完了は推測しません。搬送先入力人数は、搬送先コードが空欄でない救護者の人数です。</p><p>複数区分に同じ事案が含まれる場合、内訳の事案件数を合計しても全事案件数とは一致しません。期間指定時は覚知日不明の事案を除外し、除外件数を表示します。</p><p>地区別は救護者のいない事案も含みます。病院・傷病程度別は救護者が登録された事案の内訳です。</p></div>
+</section>
+</main>
+<script>
+const el=id=>document.getElementById(id);
+let permissions=new Set(), lastParams=null, busy=false;
+const labels={hospital:'搬送先コード別',severity:'傷病程度コード別',region:'地区コード別'};
+function setMessage(message,error=false){el('message').textContent=message;el('message').className=error?'error':''}
+async function request(url){const r=await fetch(url,{cache:'no-store'});if(r.status===401)throw new Error('ログインが必要です。業務画面へ戻ってログインしてください。');if(r.status===403)throw new Error('この操作の権限がありません。管理者へ確認してください。');if(!r.ok){let body;try{body=await r.json()}catch{}throw new Error(typeof body?.detail==='string'?body.detail:'入力内容または接続を確認してください。')}return r}
+function query(){const p=new URLSearchParams({group_by:el('group').value});if(el('start').value)p.set('start_date',el('start').value);if(el('end').value)p.set('end_date',el('end').value);return p}
+function clearResult(){lastParams=null;el('results').classList.add('hidden');el('xlsx').disabled=el('csv').disabled=true}
+async function run(){if(busy)return;busy=true;el('run').disabled=true;clearResult();setMessage('集計中です。');const params=query();try{const data=await (await request('/emergency/reports/summary?'+params)).json();lastParams=params.toString();el('period').textContent=(data.period.start_date||'指定なし')+' ～ '+(data.period.end_date||'指定なし');el('totals').replaceChildren();for(const [key,label] of [['cases','事案件数'],['patients','救護者人数'],['patients_with_hospital','搬送先コード入力人数']]){const box=document.createElement('div'), n=document.createElement('strong');n.textContent=data.totals[key].toLocaleString();box.append(label,n);el('totals').append(box)}el('excluded').textContent='覚知日不明により除外された事案：'+data.undated_cases_excluded+'件';el('groupTitle').textContent=labels[data.group_by];el('rows').replaceChildren();for(const row of data.groups){const tr=document.createElement('tr');for(const value of [row.code??'未入力',row.patients,row.cases,(row.patient_share*100).toFixed(2)+'%']){const td=document.createElement('td');td.textContent=value;tr.append(td)}el('rows').append(tr)}el('results').classList.remove('hidden');el('xlsx').disabled=el('csv').disabled=!permissions.has('emergency.report.export');setMessage(data.groups.length?'集計しました。割合表示は小数第2位で丸めています。':'指定期間の救護者データはありません。')}catch(e){setMessage(e.message,true)}finally{busy=false;el('run').disabled=!permissions.has('emergency.report.read')}}
+async function download(format){if(!lastParams)return;const params=new URLSearchParams(lastParams);params.set('format',format);try{const response=await request('/emergency/reports/export?'+params);const blob=await response.blob();const url=URL.createObjectURL(blob), link=document.createElement('a');link.href=url;link.download='emergency-summary.'+format;document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000)}catch(e){setMessage(e.message,true)}}
+el('run').onclick=run;el('xlsx').onclick=()=>download('xlsx');el('csv').onclick=()=>download('csv');el('print').onclick=()=>window.print();for(const id of ['start','end','group'])el(id).onchange=()=>{clearResult();setMessage('条件を変更しました。集計するボタンを押してください。')};
+(async()=>{try{const data=await (await request('/auth/permissions')).json();permissions=new Set(data.permissions);if(!permissions.has('emergency.report.read'))throw new Error('救急集計の閲覧権限がありません。管理者へ確認してください。');el('run').disabled=false;setMessage('日付と内訳を指定してください。日付が空欄の場合は全期間です。')}catch(e){setMessage(e.message,true)}})();
+</script>
+</body>
+</html>

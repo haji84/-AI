@@ -1837,3 +1837,21 @@ Current bounded slice: restore safety.
 
 System completion, tenant isolation, production migrations, real AI baselines and LAN readiness are NOT declared complete.
 Next independent work remains tenant/common administration, PostgreSQL verification and missing emergency Web workflows.
+
+## Continuous completion: emergency Web aggregate reports
+
+- browser-only reporting surface at `/ui/emergency.html`
+- dedicated emergency.report.read / emergency.report.export gates
+- hospital/severity/region code aggregates; incidents and patients counted separately
+- period bounds inclusive, unknown call dates explicitly excluded/countable when bounded
+- region aggregates retain incidents with no patients
+- no patient diagnosis, raw payload or individual IDs in aggregate outputs
+- Excel/CSV share report core; spreadsheet formulas disabled for source codes
+- browser print/PDF path, explicit definitions and snapshot export conditions
+- aggregate read/export audit; no-store responses
+- new authenticated permission-code endpoint for the reporting UI
+- 8 new behavioral tests cover permission, counts, dates, privacy, formula injection and audit
+- no migration required; existing deployments must re-run RBAC seed to install the new export permission
+
+Remaining emergency work: names/master mapping, per-crew and official time-series reports, Web import, validation checks and Human clinical-candidate review.
+This is not a production-completion or emergency-module-completion claim.
