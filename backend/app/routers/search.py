@@ -58,6 +58,8 @@ MODULE_PERMISSIONS: dict[str, tuple[str, ...]] = {
     "legal": ("legal_source.read", "legal_rule.read"),
     "documents": ("document.read",),
     "contracts": ("contract.read",),
+    "procurement": ("finance.read",),
+    "budget": ("finance.read",),
     "templates": ("template.read",),
     "extensions": ("extension.read",),
 }
@@ -807,7 +809,29 @@ def _search_assets(db,q,limit):
     return hits
 
 
+def _search_finance(db,q,limit,perms,module):
+    from ..finance_models import BudgetAccount, FinanceProposal, FinanceCandidate, ProcurementEvent
+    hits=[]
+    models=[BudgetAccount,FinanceProposal,FinanceCandidate] if module=='budget' else [FinanceCandidate]+([ProcurementEvent] if 'contract.read' in perms else [])
+    for model in models:
+        if model is BudgetAccount:
+            stmt=select(model).where(_like_condition(q,model.code,model.name))
+        elif model is FinanceProposal:
+            stmt=select(model).where(_like_condition(q,model.reason,model.kind))
+        elif model is ProcurementEvent:stmt=select(model).where(_like_condition(q,model.description,model.kind))
+        else:stmt=select(model).where(_like_condition(q,model.title,model.kind))
+        for row in db.scalars(stmt.order_by(model.created_at.desc()).limit(limit-len(hits))):
+            pk=list(model.__table__.primary_key.columns)[0].name;key=getattr(row,pk)
+            title=row.name if model is BudgetAccount else row.title if model is FinanceCandidate else row.description if model is ProcurementEvent else row.kind+' / '+str(row.amount)
+            body=row.code if model is BudgetAccount else (row.reason or '') if model is FinanceProposal else row.description if model is ProcurementEvent else row.title
+            hits.append(_hit(q,module=module,source_type=model.__tablename__,source_id=key,title=title,body=body,required_permission='finance.read',navigation={'surface':'finance','dataset':'accounts' if model is BudgetAccount else 'candidates' if model is FinanceCandidate else 'procurement-events' if model is ProcurementEvent else 'proposals','record_id':key},evidence={'record_version':row.version}))
+        if len(hits)>=limit:break
+    return hits
+
+
 SEARCHERS = {
+    "budget": lambda db,q,limit,perms: _search_finance(db,q,limit,perms,"budget"),
+    "procurement": lambda db,q,limit,perms: _search_finance(db,q,limit,perms,"procurement"),
     "operational_assets": lambda db,q,limit,perms: _search_assets(db,q,limit),
     "operations": _search_operations,
     "fleet": lambda db,q,limit,perms: _search_fleet(db,q,limit),
