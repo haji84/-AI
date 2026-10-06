@@ -504,3 +504,142 @@ def test_phase6_floor_area_targets_reject_duplicate_floor_and_bad_area():
         assert False, "expected ValueError"
     except ValueError as exc:
         assert "target_area_m2 must be > 0" in str(exc)
+
+
+
+def test_phase6_region_area_target_comparison_uses_calibrated_geometry():
+    mod = _mod()
+    payload = {
+        "elements": [
+            {
+                "client_ref": "room-target",
+                "page_no": 1,
+                "element_type": "room",
+                "area_target": {
+                    "target_area_m2": 2.2,
+                    "source": "printed_room_label",
+                },
+                "geometry": {
+                    "points": [[0, 0], [100, 0], [100, 50], [0, 50]]
+                },
+            }
+        ]
+    }
+    dims = {
+        "1": {
+            "width": 200,
+            "height": 100,
+            "calibration": {
+                "method": "two_point",
+                "point_a": [0, 0],
+                "point_b": [100, 0],
+                "reference_length_m": 2.0,
+            },
+        }
+    }
+
+    result, _ = mod.apply_geometry_metrics(payload, dims)
+    element = result["elements"][0]
+    comparison = element["derived_geometry"]["area_target_comparison"]
+
+    assert element["area_target"]["target_area_m2"] == 2.2
+    assert element["area_target"]["comparison_basis"] == "region_polygon"
+    assert comparison["status"] == "comparable"
+    assert comparison["measured_area_m2"] == 2.0
+    assert comparison["difference_m2"] == -0.2
+    assert round(comparison["difference_pct"], 6) == round(-0.2 / 2.2 * 100, 6)
+
+
+def test_phase6_region_area_target_waits_for_scale_calibration():
+    mod = _mod()
+    payload = {
+        "elements": [
+            {
+                "client_ref": "room-target",
+                "page_no": 1,
+                "element_type": "room",
+                "area_target": {"target_area_m2": 10.34},
+                "geometry": {
+                    "points": [[0, 0], [100, 0], [100, 50], [0, 50]]
+                },
+            }
+        ]
+    }
+
+    result, _ = mod.apply_geometry_metrics(
+        payload,
+        {"1": {"width": 200, "height": 100}},
+    )
+    comparison = result["elements"][0]["derived_geometry"]["area_target_comparison"]
+
+    assert comparison["status"] == "uncalibrated"
+    assert comparison["target_area_m2"] == 10.34
+    assert comparison["measured_area_m2"] is None
+    assert comparison["difference_m2"] is None
+    assert comparison["difference_pct"] is None
+
+
+def test_phase6_region_area_target_rejects_non_positive_values():
+    mod = _mod()
+    payload = {
+        "elements": [
+            {
+                "client_ref": "bad-target",
+                "page_no": 1,
+                "element_type": "room",
+                "area_target": {"target_area_m2": 0},
+                "geometry": {
+                    "points": [[0, 0], [10, 0], [10, 10], [0, 10]]
+                },
+            }
+        ]
+    }
+
+    try:
+        mod.apply_geometry_metrics(payload, {})
+        assert False, "expected ValueError"
+    except ValueError as exc:
+        assert "area_target.target_area_m2 must be > 0" in str(exc)
+
+
+def test_phase6_region_area_target_overwrites_fake_client_comparison():
+    mod = _mod()
+    payload = {
+        "elements": [
+            {
+                "client_ref": "room-target",
+                "page_no": 1,
+                "element_type": "room",
+                "area_target": {"target_area_m2": 2.0},
+                "geometry": {
+                    "points": [[0, 0], [100, 0], [100, 50], [0, 50]]
+                },
+                "derived_geometry": {
+                    "area_m2": 999999,
+                    "area_target_comparison": {
+                        "status": "comparable",
+                        "difference_m2": 999999,
+                    },
+                },
+            }
+        ]
+    }
+    dims = {
+        "1": {
+            "width": 200,
+            "height": 100,
+            "calibration": {
+                "method": "two_point",
+                "point_a": [0, 0],
+                "point_b": [100, 0],
+                "reference_length_m": 2.0,
+            },
+        }
+    }
+
+    result, _ = mod.apply_geometry_metrics(payload, dims)
+    comparison = result["elements"][0]["derived_geometry"]["area_target_comparison"]
+
+    assert comparison["measured_area_m2"] == 2.0
+    assert comparison["difference_m2"] == 0.0
+    assert comparison["difference_pct"] == 0.0
