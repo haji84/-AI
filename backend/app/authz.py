@@ -8,7 +8,7 @@ from .settings import settings
 from .personnel import employee_available, effective_role_ids
 from datetime import datetime, timezone
 
-def current_user(request: Request, db: Session = Depends(get_db)) -> User:
+def authenticated_user(request: Request, db: Session = Depends(get_db)) -> User:
     raw = request.cookies.get(settings.cookie_name)
     if not raw:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="not authenticated")
@@ -27,6 +27,12 @@ def current_user(request: Request, db: Session = Depends(get_db)) -> User:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="user disabled")
     session.last_seen_at = now
     db.commit()
+    return user
+
+def current_user(user: User = Depends(authenticated_user)) -> User:
+    from .password_policy import password_expired
+    if password_expired(user.password_expires_at):
+        raise HTTPException(403,detail={'code':'password_expired','message':'パスワードの有効期限が切れています。更新してください。','renewal_url':'/ui/password.html'},headers={'X-FireAI-Password-Renewal':'required'})
     return user
 
 def permission_codes(db: Session, user_id: str) -> set[str]:

@@ -1,6 +1,6 @@
 # 実運用完成監査
 
-監査基準: 2026-10-06、main `62e4d864955072ab4e06e8b1190f284610c7a840`。
+監査基準: 2026-10-06、main `fbc7227f18507bfa472f53e0e847c7d4fe5bef02`。
 正本: GitHub haji84/-AI main。過去の会話・Phase番号・PROJECT_STATEだけで完成判定しない。
 
 ## 判定方法
@@ -8,7 +8,7 @@
 Completedは下記に限定した実装要素の完了であり、システム全体の完成を意味しない。
 Partialはコードがあるが仕様・実運用証拠が不足。Missingは対応コードを確認できない。
 External Gateは承認済み実環境・Humanによる正式判定・提供されていない評価原本などが必要な項目。
-直近確認: PR51の全57章matrix、PR50/48仕様更新とPR47/46/45 merged。main project-checks run37489597790 SUCCESS（62e4d864）。開PRは次Slice/merge前に再取得する。
+直近確認: PR52学習merge、PR51の全57章matrix、PR50/48仕様更新とPR47/46/45 merged。main project-checks run37490791793 SUCCESS（fbc7227f）。開PRは次Slice/merge前に再取得する。
 
 ## Completed / Partial / Missing / External Gate
 
@@ -30,13 +30,13 @@ External Gateは承認済み実環境・Humanによる正式判定・提供さ�
 | 救急Web集計・帳票・チェック・候補レビュー | Partial（今回の集計Slice後） | emergency_reports core/router/UI、新規8テスト。臨床flagテーブルあり | 名称マスタ・隊員/時系列/正式帳票、Web取込、チェック、Human候補確認 |
 | 契約管理 | Partial | routers/contracts.py、Contract* | 一覧UI・書類/見積/履行/検査/請求/変更契約の全フロー |
 | Module/Feature Flag/Change Request | Partial | routers/extensions.py、Module* | Sandbox実行・Deployment実反映/rollback証拠 |
-| 学習・Champion/Candidate昇格・rollback | Partial（Task6レビュー/CI前） | 正式v2.0 §37。修正/固定原本/比較/辞書Candidate/明示Human昇格/rollbackを実装中 | Task6レビュー・PG/browser CI・merge、実モデル/実データ品質は別Gate |
+| 学習・Champion/Candidate昇格・rollback | Partial（PR52基盤完了） | 正式v2.0 §37。修正/固定原本/比較/辞書Candidate/明示Human昇格/rollbackをPG/browser CI確認 | worker/model adapter接続は内部残差、実モデル/実データ品質は別Gate |
 | tenant分離 | Completed（コード基盤・PR41/43） | 承認済み本部別DB方式、UUID照合、生成専用roles/paths、PG別DB接続・更新拒否、backup/restore境界CI | 実OS ACL・実機復元・LAN受入はExternal Gate |
 | 職員とアカウント分離 | Completed（データモデル） | EmployeeとUser.employee_id | 管理操作は別項目 |
 | 組織マスタ・人事履歴・異動追随 | Completed（基盤・PR44） | OrganizationUnit/EmployeeAssignment、Migration041、有効日権限、管理ブラウザCI | 実辞令/所属・LAN受入は別Gate |
-| 認証・RBAC | Partial（v2.0再監査） | PR44有効日所属/管理UI/password履歴/変更/reset/login排他/session失効/最後の管理者保護 | 新正式v2.0 §6 password expiryをTask7で実装。実運用権限受入はExternal Gate |
+| 認証・RBAC | Partial（v2.0再監査） | PR44有効日所属/管理UI/password履歴/変更/reset/login排他/session失効/最後の管理者保護 | 新正式v2.0 §6 password expiryをTask7で実装中（review/CI/merge前）。実運用権限受入はExternal Gate |
 | 監査ログ | Completed（基盤） | audit.py、AuditLog、管理閲覧API/UI、PostgreSQLの更新/削除拒否CI | 実サーバーOS/運用受入は別Gate |
-| migration | Completed（001-042・基盤） | PostgreSQL全実行/再実行/制約/排他CI、schema照合 | 本番clone移行・実機受入は別Gate |
+| migration | Completed（001-043・基盤） | PostgreSQL全実行/再実行/制約/排他CI、schema照合 | 本番clone移行・実機受入は別Gate |
 | backup/restore | Completed（コード基盤・PR43/47） | UUID/hash/release/所有者/PG復元、本部timer停止/復帰、SIGTERM、保守排他・拒否再利用防止。PR47 PG367/browser2成功、main Green | 実systemd/監視/実機復元受入はExternal Gate |
 | 本番LAN・TLS・複数PC競合 | External Gate | deploy/nginx、systemd、LAN_DEPLOYMENT.md | 承認サーバー/名前/証明書/経路と実機検証 |
 | 完成成果物・release一式 | Missing | READMEとPhase手順あり | 全マニュアル、構成/DB/権限/制約/検証/完成判定を束ねる |

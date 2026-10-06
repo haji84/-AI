@@ -1,12 +1,13 @@
 from pathlib import Path
 from uuid import UUID
-from pydantic import field_validator, model_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="FIRE_AI_", env_file=".env", extra="ignore")
     database_url: str = "sqlite+pysqlite:///./fire_ai_dev.db"
     session_hours: int = 12
+    password_max_age_days: int | None = Field(default=None, ge=1, le=3650)
     cookie_secure: bool = False
     cookie_name: str = "fire_ai_session"
     app_name: str = "消防業務 Local AI"

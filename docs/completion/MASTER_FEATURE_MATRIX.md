@@ -1,8 +1,8 @@
 # Fire AIOS Master Feature Matrix
 
-Audit date: 2026-10-07
+Audit date: 2026-10-06
 Canonical specification: docs/SPECIFICATION.md v2.0
-Audited main: 6bcf537936915d3c891e9176b71a38f4886197e1
+Audited main: fbc7227f18507bfa472f53e0e847c7d4fe5bef02
 
 This matrix compares all 57 Master Specification chapters against the actual repository: models, migrations, routers, services, frontend surfaces, tests, deployment files and current CI evidence.
 
@@ -17,8 +17,8 @@ Status meanings:
 
 | Status | Count |
 |---|---:|
-| Completed | 14 |
-| Partial | 32 |
+| Completed | 13 |
+| Partial | 33 |
 | Missing | 10 |
 | External Gate | 1 |
 | Total | 57 |
@@ -33,7 +33,7 @@ Status meanings:
 | 4 | Update, Release and Rollback | Partial | Module registry, Feature Flag/Change Request foundation, signed legal Update Bundle | full application Release updater, staged rollout and rollback across all deployment profiles |
 | 5 | Common Data Principles | Completed | UUID records, optimistic versions, audit, logical lifecycle patterns across core models | module-specific exceptions must continue to follow these rules |
 | 6 | Employee, Organization and Account | Partial | PR44, Migration041, personnel.py, routers/administration.py, admin UI/tests | Document-driven personnel transfer/import flow; remaining account lifecycle polish |
-| 7 | Authorization | Completed | authz.py, rbac_seed.py, backend permission dependencies, effective-dated personnel roles | production role/organization acceptance external |
+| 7 | Authorization | Partial | authz.py, RBAC, backend permission dependencies, effective-dated appointment roles | audited custom permission/Role Rule management and explicit temporary/acting grant administration remain internally missing; production role acceptance is external |
 | 8 | Audit | Partial | audit.py, AuditLog, administration audit APIs/UI, broad write auditing | complete paging/filter/admin operations and production DB immutability evidence |
 | 9 | Document Platform | Completed | Document model, managed storage, SHA-256, source/original separation, document router | continue module adapters without duplicating originals |
 | 10 | Document Intake and OCR | Partial | document_intake.py, intake router/UI, PDF/image/DOCX/XLSX/text paths | HEIC path, multi-image document assembly, correction/quality pipeline and all target-module adapters |
@@ -63,7 +63,7 @@ Status meanings:
 | 34 | Cross-module Statistics, Annual Reports and Surveys | Missing | emergency-specific reports exist only | unified statistics service across all modules, prior-year comparison, snapshot lineage, official surveys |
 | 35 | Unified Search | Partial | permission-aware routers/search.py, facilities/fire/legal/docs/contracts/operations/assets integration | add all remaining modules, filters/pagination quality and production performance evidence |
 | 36 | Dashboard and Personal Work Queue | Missing | facility dashboard exists, no system-wide personal work queue | permission-aware today/unprocessed/review/deadline/task aggregation across modules |
-| 37 | Learning Platform | Missing | no Learning Dataset/Champion/Candidate registry implementation | correction capture, dataset versioning, fixed evaluation, promotion/rollback lifecycle |
+| 37 | Learning Platform | Partial | PR52: eight correction targets, frozen Human references, server comparison, immutable dictionary Candidate, Human Champion promotion/current-tip rollback, PostgreSQL and Chromium CI | model/worker adapters and actual-model integration are internal; real quality acceptance is external |
 | 38 | Autonomous Task and Self-extension Platform | Partial | ChangeRequest/extensibility models and review concepts | bounded task runner, sandbox execution, test/evidence orchestration, approved deployment/rollback loop |
 | 39 | AI Decision Levels | Partial | Human Gate patterns exist across legal/drawing/fire/emergency | central machine-readable level/policy enforcement and coverage audit across all modules |
 | 40 | AI Failure Mode | Completed | core CRUD/API modules do not require LLM availability; deterministic/manual paths exist | ensure all new modules preserve this contract |
@@ -132,3 +132,5 @@ Development must continue from this matrix rather than Phase numbering.
 A single PR or module completion is not a stopping condition.
 After every merged slice, refresh main and update only the affected matrix rows.
 The stopping condition is the Master Specification v2.0 Definition of Done, with External Gates reported separately.
+
+Audit correction after code inspection: chapter7 was previously marked Completed too broadly. Existing appointment/permanent role selection does not provide Human-managed custom permissions/Role Rules and dedicated temporary/acting grant administration. These are internal Partial work, not an External Gate.

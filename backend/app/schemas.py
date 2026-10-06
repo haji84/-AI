@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Literal
 from pydantic import BaseModel, Field
 
@@ -8,6 +9,8 @@ class LoginRequest(BaseModel):
 class UserOut(BaseModel):
     user_id: str
     username: str
+    password_change_required: bool = False
+    password_expires_at: datetime | None = None
 
 class FacilityFloorInput(BaseModel):
     floor_number: int = Field(ge=-20, le=200)
