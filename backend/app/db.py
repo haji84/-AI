@@ -1,5 +1,5 @@
 from sqlalchemy import create_engine
-from sqlalchemy.orm import DeclarativeBase, sessionmaker
+from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 from .settings import settings
 
@@ -11,7 +11,14 @@ engine_kwargs = {"pool_pre_ping": True, "future": True, "connect_args": connect_
 if settings.database_url == "sqlite+pysqlite:///:memory:":
     engine_kwargs["poolclass"] = StaticPool
 engine = create_engine(settings.database_url, **engine_kwargs)
-SessionLocal = sessionmaker(bind=engine, expire_on_commit=False, autoflush=False, future=True)
+class BoundSession(Session):
+    def __init__(self, *args, **kwargs):
+        if settings.tenant_id is not None or settings.production_mode:
+            from .tenant import validate_binding
+            validate_binding(kwargs.get("bind", engine), settings)
+        super().__init__(*args, **kwargs)
+
+SessionLocal = sessionmaker(class_=BoundSession, bind=engine, expire_on_commit=False, autoflush=False, future=True)
 
 def get_db():
     db = SessionLocal()

@@ -31,7 +31,7 @@ External Gateは承認済み実環境・Humanによる正式判定・提供さ�
 | 契約管理 | Partial | routers/contracts.py、Contract* | 一覧UI・書類/見積/履行/検査/請求/変更契約の全フロー |
 | Module/Feature Flag/Change Request | Partial | routers/extensions.py、Module* | Sandbox実行・Deployment実反映/rollback証拠 |
 | 学習・Champion/Candidate昇格・rollback | Missing | 正式仕様17・Phase11。専用実装を確認できず | 修正記録、固定評価、比較、明示承認、rollback |
-| tenant分離 | Missing | 全テーブルにtenant境界なし。app.dbは単一SessionLocal | 本部別DB/資格情報/原本/監査/backupの厳格分離を実装・検証 |
+| tenant分離 | Partial | 承認済み本部別DB方式。tenant_identity、storage marker、起動/HTTP/Session照合、2本部認証拒否テスト | 本部別資格情報/OS ACL実証、backup manifest境界、復元演習 |
 | 職員とアカウント分離 | Completed（データモデル） | EmployeeとUser.employee_id | 管理操作は別項目 |
 | 組織マスタ・人事履歴・異動追随 | Missing | Employee.organization_unit/titleは文字列のみ | 組織/所属履歴、正式権限との接続、管理UI |
 | 認証・RBAC | Partial | routers/auth.py、authz.py、security.py、rbac_seed.py | 管理UI、パスワード期限/履歴/変更、失効管理、現所属との接続 |
@@ -76,3 +76,10 @@ tenant分離は現行コードに存在しない。
 推奨は共通コード + 本部別DB/サービス/原本/backup。複数拠点は本部内で同じDBを共有。
 この判断は本部追加方式、migration、backup単位、運用コストを固定するため確認対象。
 実装済みと報告しない。
+
+## 2026-10-06 Run A 再監査差分
+
+基準main: 240703a9（PR40を含む）。開PRなし、main CI37448233992 SUCCESS。migration038までを照合済み。
+本部分離の設計判断は利用者承認済み。署所ごとのDB分割は行わない。
+最新共通基盤Evidenceは `completion/RUN_A_STATUS.md`、未完業務モジュールの担当・Evidenceは `completion/RUN_B_STATUS.md`。
+分類は上表の範囲を維持し、本Sliceのtenant境界実装だけでtenant全体や本番導入をCompletedにしない。

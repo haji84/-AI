@@ -1,3 +1,6 @@
+from pathlib import Path
+from uuid import UUID
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
@@ -8,5 +11,30 @@ class Settings(BaseSettings):
     cookie_name: str = "fire_ai_session"
     app_name: str = "消防業務 Local AI"
     storage_root: str = "./runtime/storage"
+    production_mode: bool = False
+    tenant_id: str | None = None
+    trusted_hosts: list[str] = []
+
+    @field_validator('tenant_id')
+    @classmethod
+    def canonical_id(cls, value):
+        return str(UUID(value)) if value is not None else None
+
+    @field_validator('trusted_hosts')
+    @classmethod
+    def exact_hosts(cls, values):
+        for value in values:
+            if not value or any(char in value for char in '*/@?#\\ ') or ':' in value:
+                raise ValueError('Use exact DNS names or IPv4 addresses without ports')
+        return [value.lower() for value in values]
+
+    @model_validator(mode='after')
+    def production_boundary(self):
+        if self.tenant_id and not self.trusted_hosts:
+            raise ValueError('Department binding requires exact trusted hosts')
+        if self.production_mode:
+            if not self.tenant_id or not self.cookie_secure or not self.database_url.startswith('postgresql') or not Path(self.storage_root).is_absolute():
+                raise ValueError('Production requires department UUID, PostgreSQL, Secure cookies and absolute storage root')
+        return self
 
 settings = Settings()
