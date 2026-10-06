@@ -7337,3 +7337,137 @@ def test_phase6_import_reference_draft_rejects_source_sha_mismatch_and_bad_coord
     )
     assert bad_space.status_code == 422
     assert "coordinate_space" in str(bad_space.json())
+
+
+def test_phase6_drawing_baseline_readiness_progression():
+    login()
+    facility=client.post("/facilities",json={"name":"Baseline Readiness対象"}).json()
+    bid=facility["building_id"]
+    upload=client.post(
+        "/documents/upload",
+        files={"file":("readiness.png",b"readiness-source","image/png")},
+        data={"document_type":"drawing","building_id":bid},
+    ).json()
+
+    analysis=client.post(f"/facilities/{bid}/drawing-analyses",json={
+        "document_id":upload["document_id"],
+        "analysis_method":"ai",
+        "model_version":"local-vision-readiness-v1",
+    })
+    assert analysis.status_code==201
+    aid=analysis.json()["drawing_analysis_id"]
+
+    before=client.get(f"/drawing-analyses/{aid}/baseline-readiness")
+    assert before.status_code==200
+    body=before.json()
+    assert body["geometry_baseline_ready"] is False
+    assert body["area_measurement_ready"] is False
+    codes={x["code"] for x in body["blockers"]}
+    assert "human_reference_missing" in codes
+    assert "ai_hypothesis_not_ready" in codes
+
+    manifest=client.post(f"/drawing-analyses/{aid}/manifest",json={
+        "expected_version":1,
+        "model_version":"local-vision-readiness-v1",
+        "page_count":1,
+        "elements":[{
+            "client_ref":"ai-room-1",
+            "page_no":1,
+            "element_type":"room",
+            "label":"AI Room",
+            "floor_number":1,
+            "geometry":{"x":0,"y":0,"width":100,"height":50},
+            "extracted_data":{"use_name":"room"},
+            "confidence":0.8,
+        }],
+        "equipment_candidates":[],
+        "fact_candidates":[],
+    })
+    assert manifest.status_code==200
+
+    ann=client.post(f"/drawing-analyses/{aid}/annotations",json={
+        "coordinate_space":"pixel",
+        "page_dimensions":{"1":{"width":1000,"height":800}},
+        "source_method":"manual",
+        "payload":{
+            "elements":[{
+                "client_ref":"human-room-1",
+                "page_no":1,
+                "element_type":"room",
+                "label":"Human Room",
+                "floor_number":1,
+                "geometry":{"points":[[0,0],[100,0],[100,50],[0,50]]},
+                "extracted_data":{"use_name":"room"},
+            }],
+            "equipment_candidates":[],
+            "fact_candidates":[],
+        },
+    })
+    assert ann.status_code==201
+    ann_id=ann.json()["drawing_annotation_set_id"]
+    reviewed=client.post(f"/drawing-annotations/{ann_id}/review",json={
+        "expected_version":1,
+        "status":"reviewed",
+    })
+    assert reviewed.status_code==200
+
+    geometry_ready=client.get(f"/drawing-analyses/{aid}/baseline-readiness")
+    assert geometry_ready.status_code==200
+    body=geometry_ready.json()
+    assert body["geometry_baseline_ready"] is True
+    assert body["area_measurement_ready"] is False
+    assert body["human_reference"]["ready"] is True
+    assert body["human_reference"]["element_count"]==1
+    assert body["ai_hypothesis"]["ready"] is True
+    assert body["ai_hypothesis"]["source_match"] is True
+    assert body["area_measurement"]["uncalibrated_pages"]==[1]
+    assert any(x["code"]=="metric_area_uncalibrated" for x in body["warnings"])
+
+    calibrated=client.post(f"/drawing-analyses/{aid}/annotations",json={
+        "coordinate_space":"pixel",
+        "page_dimensions":{
+            "1":{
+                "width":1000,
+                "height":800,
+                "calibration":{
+                    "method":"two_point",
+                    "point_a":[0,0],
+                    "point_b":[100,0],
+                    "reference_length_m":2.0,
+                }
+            }
+        },
+        "source_method":"manual",
+        "payload":{
+            "elements":[{
+                "client_ref":"human-room-calibrated",
+                "page_no":1,
+                "element_type":"room",
+                "label":"Calibrated Room",
+                "floor_number":1,
+                "geometry":{"points":[[0,0],[100,0],[100,50],[0,50]]},
+                "extracted_data":{"use_name":"room"},
+            }],
+            "equipment_candidates":[],
+            "fact_candidates":[],
+        },
+    })
+    assert calibrated.status_code==201
+    calibrated_id=calibrated.json()["drawing_annotation_set_id"]
+    assert client.post(
+        f"/drawing-annotations/{calibrated_id}/review",
+        json={"expected_version":1,"status":"reviewed"},
+    ).status_code==200
+
+    final=client.get(f"/drawing-analyses/{aid}/baseline-readiness")
+    assert final.status_code==200
+    body=final.json()
+    assert body["geometry_baseline_ready"] is True
+    assert body["area_measurement_ready"] is True
+    assert body["area_measurement"]["used_pages"]==[1]
+    assert body["area_measurement"]["calibrated_pages"]==[1]
+    assert body["area_measurement"]["uncalibrated_pages"]==[]
+    assert body["human_reference"]["reviewed_annotation_count"]==2
+    assert any(x["code"]=="multiple_reviewed_references" for x in body["warnings"])
+    assert body["human_reference"]["endpoint"].endswith("/benchmark-reference")
+    assert body["ai_hypothesis"]["endpoint"].endswith("/benchmark-hypothesis")
