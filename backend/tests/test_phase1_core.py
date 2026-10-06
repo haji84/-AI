@@ -7807,3 +7807,164 @@ def test_phase6_import_reference_derives_floor_area_targets_from_source_observat
     comparisons = body["payload"]["geometry_summary"]["area_target_comparisons"]
     assert len(comparisons) == 2
     assert {x["status"] for x in comparisons} == {"missing_floor_annotation"}
+
+
+
+def test_phase6_reviewed_annotation_can_create_independent_revision_draft():
+    from app.models import DrawingAnnotationSet
+
+    login()
+    facility = client.post(
+        "/facilities",
+        json={"name":"Annotation Revision対象"},
+    ).json()
+    bid = facility["building_id"]
+    upload = client.post(
+        "/documents/upload",
+        files={"file":("revision-plan.png",b"revision-plan","image/png")},
+        data={"document_type":"drawing","building_id":bid},
+    ).json()
+    aid = client.post(
+        f"/facilities/{bid}/drawing-analyses",
+        json={
+            "document_id":upload["document_id"],
+            "analysis_method":"manual",
+        },
+    ).json()["drawing_analysis_id"]
+
+    original = client.post(
+        f"/drawing-analyses/{aid}/annotations",
+        json={
+            "coordinate_space":"pixel",
+            "page_dimensions":{
+                "1":{
+                    "width":200,
+                    "height":100,
+                    "calibration":{
+                        "method":"two_point",
+                        "point_a":[0,0],
+                        "point_b":[100,0],
+                        "reference_length_m":2.0,
+                    },
+                }
+            },
+            "payload":{
+                "elements":[{
+                    "client_ref":"room-original",
+                    "page_no":1,
+                    "floor_number":1,
+                    "element_type":"room",
+                    "label":"Room A",
+                    "geometry":{
+                        "points":[[0,0],[100,0],[100,50],[0,50]]
+                    },
+                    "extracted_data":{"use_name":"room_a"},
+                }],
+                "equipment_candidates":[],
+                "fact_candidates":[],
+            },
+            "source_method":"manual",
+        },
+    )
+    assert original.status_code == 201
+    original_body = original.json()
+    original_id = original_body["drawing_annotation_set_id"]
+    assert original_body["payload"]["elements"][0]["derived_geometry"]["area_m2"] == 2.0
+
+    reviewed = client.post(
+        f"/drawing-annotations/{original_id}/review",
+        json={"expected_version":1,"status":"reviewed"},
+    )
+    assert reviewed.status_code == 200
+    assert reviewed.json()["status"] == "reviewed"
+    assert reviewed.json()["version"] == 2
+
+    stale = client.post(
+        f"/drawing-annotations/{original_id}/revise",
+        json={"expected_version":1,"note":"stale"},
+    )
+    assert stale.status_code == 409
+
+    revision = client.post(
+        f"/drawing-annotations/{original_id}/revise",
+        json={
+            "expected_version":2,
+            "note":"後から区画境界を修正",
+        },
+    )
+    assert revision.status_code == 201
+    revision_body = revision.json()
+    revision_id = revision_body["drawing_annotation_set_id"]
+    assert revision_id != original_id
+    assert revision_body["status"] == "draft"
+    assert revision_body["version"] == 1
+    assert revision_body["source_method"] == "manual"
+    assert revision_body["payload"]["elements"][0]["derived_geometry"]["area_m2"] == 2.0
+
+    history = revision_body["payload"]["revision_history"]
+    assert len(history) == 1
+    assert history[0]["source_annotation_id"] == original_id
+    assert history[0]["source_annotation_version"] == 2
+    assert history[0]["note"] == "後から区画境界を修正"
+
+    cannot_revise_draft = client.post(
+        f"/drawing-annotations/{revision_id}/revise",
+        json={"expected_version":1,"note":"invalid"},
+    )
+    assert cannot_revise_draft.status_code == 409
+
+    payload = revision_body["payload"]
+    payload["elements"][0]["geometry"] = {
+        "points":[[0,0],[150,0],[150,50],[0,50]]
+    }
+    edited = client.put(
+        f"/drawing-annotations/{revision_id}",
+        json={
+            "expected_version":1,
+            "coordinate_space":"pixel",
+            "page_dimensions":revision_body["page_dimensions"],
+            "payload":payload,
+        },
+    )
+    assert edited.status_code == 200
+    assert edited.json()["payload"]["elements"][0]["derived_geometry"]["area_m2"] == 3.0
+
+    with SessionLocal() as db:
+        old_row = db.get(DrawingAnnotationSet, original_id)
+        new_row = db.get(DrawingAnnotationSet, revision_id)
+        assert old_row.status == "reviewed"
+        assert old_row.version == 2
+        assert old_row.payload["elements"][0]["derived_geometry"]["area_m2"] == 2.0
+        assert new_row.status == "draft"
+        assert new_row.version == 2
+        assert new_row.payload["elements"][0]["derived_geometry"]["area_m2"] == 3.0
+
+    old_reference = client.get(
+        f"/drawing-annotations/{original_id}/benchmark-reference"
+    )
+    assert old_reference.status_code == 200
+    assert old_reference.json()["elements"][0]["derived_geometry"]["area_m2"] == 2.0
+
+    new_review = client.post(
+        f"/drawing-annotations/{revision_id}/review",
+        json={"expected_version":2,"status":"reviewed"},
+    )
+    assert new_review.status_code == 200
+    assert new_review.json()["version"] == 3
+
+    new_reference = client.get(
+        f"/drawing-annotations/{revision_id}/benchmark-reference"
+    )
+    assert new_reference.status_code == 200
+    assert new_reference.json()["elements"][0]["derived_geometry"]["area_m2"] == 3.0
+
+    listed = client.get(
+        f"/drawing-analyses/{aid}/annotations"
+    )
+    assert listed.status_code == 200
+    reviewed_ids = {
+        x["drawing_annotation_set_id"]
+        for x in listed.json()
+        if x["status"] == "reviewed"
+    }
+    assert {original_id, revision_id}.issubset(reviewed_ids)
