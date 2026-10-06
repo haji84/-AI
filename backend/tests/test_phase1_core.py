@@ -7807,3 +7807,176 @@ def test_phase6_import_reference_derives_floor_area_targets_from_source_observat
     comparisons = body["payload"]["geometry_summary"]["area_target_comparisons"]
     assert len(comparisons) == 2
     assert {x["status"] for x in comparisons} == {"missing_floor_annotation"}
+
+
+
+def test_phase6_annotation_review_preflight_requires_human_warning_acknowledgement():
+    login()
+    facility = client.post(
+        "/facilities",
+        json={"name":"Annotation Preflight対象"},
+    ).json()
+    bid = facility["building_id"]
+    upload = client.post(
+        "/documents/upload",
+        files={"file":("preflight-plan.png",b"preflight-plan","image/png")},
+        data={"document_type":"drawing","building_id":bid},
+    ).json()
+    aid = client.post(
+        f"/facilities/{bid}/drawing-analyses",
+        json={
+            "document_id":upload["document_id"],
+            "analysis_method":"manual",
+        },
+    ).json()["drawing_analysis_id"]
+
+    annotation = client.post(
+        f"/drawing-analyses/{aid}/annotations",
+        json={
+            "coordinate_space":"pixel",
+            "page_dimensions":{
+                "1":{"width":100,"height":100}
+            },
+            "source_method":"manual",
+            "payload":{
+                "elements":[{
+                    "client_ref":"room-open",
+                    "page_no":1,
+                    "floor_number":1,
+                    "element_type":"room",
+                    "label":"LDK",
+                    "geometry":{
+                        "points":[
+                            [0,0],[100,0],[100,50],[0,50]
+                        ]
+                    },
+                    "extracted_data":{"use_name":"living_dining_kitchen"},
+                    "reference_meta":{
+                        "geometry_quality":"open_plan_approx",
+                        "human_review_status":"pending"
+                    }
+                }],
+                "equipment_candidates":[],
+                "fact_candidates":[],
+                "area_targets":[{
+                    "floor_number":1,
+                    "target_area_m2":20.0,
+                    "label":"1F",
+                    "source":"Human supplied",
+                }]
+            },
+        },
+    )
+    assert annotation.status_code == 201
+    ann = annotation.json()
+    ann_id = ann["drawing_annotation_set_id"]
+
+    preflight = client.get(
+        f"/drawing-annotations/{ann_id}/review-preflight"
+    )
+    assert preflight.status_code == 200
+    pf = preflight.json()
+    assert pf["ready_for_review"] is True
+    assert pf["acknowledgement_required"] is True
+    assert "approximate_geometry:room-open" in pf["warning_codes"]
+    assert "area_target_uncalibrated:1" in pf["warning_codes"]
+
+    blocked = client.post(
+        f"/drawing-annotations/{ann_id}/review",
+        json={
+            "expected_version":ann["version"],
+            "status":"reviewed",
+            "acknowledged_warning_codes":[],
+        },
+    )
+    assert blocked.status_code == 409
+    detail = blocked.json()["detail"]
+    assert "missing_acknowledgements" in detail
+    assert set(detail["missing_acknowledgements"]) == set(
+        pf["warning_codes"]
+    )
+
+    reviewed = client.post(
+        f"/drawing-annotations/{ann_id}/review",
+        json={
+            "expected_version":ann["version"],
+            "status":"reviewed",
+            "acknowledged_warning_codes":pf["warning_codes"],
+            "review_notes":"Open-plan boundary and uncalibrated area checked by Human.",
+        },
+    )
+    assert reviewed.status_code == 200
+    body = reviewed.json()
+    assert body["status"] == "reviewed"
+    assert body["payload"]["elements"][0]["reference_meta"]["human_review_status"] == "reviewed"
+    meta = body["payload"]["human_review_meta"]
+    assert set(meta["acknowledged_warning_codes"]) == set(
+        pf["warning_codes"]
+    )
+    assert meta["review_notes"].startswith("Open-plan boundary")
+
+
+def test_phase6_annotation_review_preflight_blocks_invalid_human_reference():
+    login()
+    facility = client.post(
+        "/facilities",
+        json={"name":"Annotation Preflight blocker対象"},
+    ).json()
+    bid = facility["building_id"]
+    upload = client.post(
+        "/documents/upload",
+        files={"file":("preflight-bad.png",b"preflight-bad","image/png")},
+        data={"document_type":"drawing","building_id":bid},
+    ).json()
+    aid = client.post(
+        f"/facilities/{bid}/drawing-analyses",
+        json={
+            "document_id":upload["document_id"],
+            "analysis_method":"manual",
+        },
+    ).json()["drawing_analysis_id"]
+
+    annotation = client.post(
+        f"/drawing-analyses/{aid}/annotations",
+        json={
+            "coordinate_space":"pixel",
+            "page_dimensions":{"1":{"width":100,"height":100}},
+            "source_method":"manual",
+            "payload":{
+                "elements":[{
+                    "client_ref":"zone-no-floor",
+                    "page_no":1,
+                    "element_type":"zone",
+                    "label":"任意区画",
+                    "geometry":{
+                        "points":[[0,0],[10,0],[10,10],[0,10]]
+                    },
+                    "extracted_data":{"use_name":"service_zone"},
+                }],
+                "equipment_candidates":[],
+                "fact_candidates":[],
+            },
+        },
+    )
+    assert annotation.status_code == 201
+    ann = annotation.json()
+    ann_id = ann["drawing_annotation_set_id"]
+
+    preflight = client.get(
+        f"/drawing-annotations/{ann_id}/review-preflight"
+    )
+    assert preflight.status_code == 200
+    pf = preflight.json()
+    assert pf["ready_for_review"] is True
+    assert "floor_unassigned:zone-no-floor" in pf["warning_codes"]
+
+    reviewed = client.post(
+        f"/drawing-annotations/{ann_id}/review",
+        json={
+            "expected_version":ann["version"],
+            "status":"reviewed",
+            "acknowledged_warning_codes":pf["warning_codes"],
+            "review_notes":"Floor intentionally unassigned for this arbitrary zone.",
+        },
+    )
+    assert reviewed.status_code == 200
