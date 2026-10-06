@@ -212,7 +212,7 @@ table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid #e4e8ec;
 
 <script>
 const $=id=>document.getElementById(id);
-const state={offset:0,limit:50,total:0,selected:null,detail:null,mode:null,draft:null,drawings:[],drawingAnalysisId:null,drawingDetail:null,drawingWorkspace:null,drawingDoc:null,drawingPreviewInfo:null,drawingPageNo:1,drawingAnnotations:[],drawingAnnotation:null,drawingConsultations:[],drawingConsultation:null,drawingResponse:null,drawingBaselineReadiness:null,drawingBaselineRun:null,drawingBaselineRuns:[],drawingPageWidth:0,drawingPageHeight:0,drawingDrawPoints:[],drawingDrawActive:false,drawingEditElementIndex:null,drawingSelectedVertexIndex:null,drawingDragVertexIndex:null,drawingDragPointerId:null,drawingCalibrationMode:false,drawingCalibrationPoints:[],drawingNewElementType:'room',drawingSnapEnabled:true,drawingSnapTarget:null};
+const state={offset:0,limit:50,total:0,selected:null,detail:null,mode:null,draft:null,drawings:[],drawingAnalysisId:null,drawingDetail:null,drawingWorkspace:null,drawingDoc:null,drawingPreviewInfo:null,drawingPageNo:1,drawingAnnotations:[],drawingAnnotation:null,drawingPreflight:null,drawingConsultations:[],drawingConsultation:null,drawingResponse:null,drawingBaselineReadiness:null,drawingBaselineRun:null,drawingBaselineRuns:[],drawingPageWidth:0,drawingPageHeight:0,drawingDrawPoints:[],drawingDrawActive:false,drawingEditElementIndex:null,drawingSelectedVertexIndex:null,drawingDragVertexIndex:null,drawingDragPointerId:null,drawingCalibrationMode:false,drawingCalibrationPoints:[],drawingNewElementType:'room',drawingSnapEnabled:true,drawingSnapTarget:null};
 const legalReviewState={offset:0,limit:50,total:0};
 const fireState={caseId:null,detail:null,mediaType:null};
 const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
@@ -1205,7 +1205,7 @@ function drawingAnswerLabel(k){
 }
 function closeDrawingWorkspace(){
   $('drawingWorkspaceModal').classList.add('hidden');
-  state.drawingWorkspace=null;state.drawingDoc=null;state.drawingPreviewInfo=null;state.drawingPageNo=1;state.drawingAnnotations=[];state.drawingAnnotation=null;
+  state.drawingWorkspace=null;state.drawingDoc=null;state.drawingPreviewInfo=null;state.drawingPageNo=1;state.drawingAnnotations=[];state.drawingAnnotation=null;state.drawingPreflight=null;
   state.drawingConsultations=[];state.drawingConsultation=null;state.drawingResponse=null;state.drawingBaselineReadiness=null;state.drawingBaselineRun=null;state.drawingBaselineRuns=[];
   state.drawingDrawPoints=[];state.drawingDrawActive=false;state.drawingEditElementIndex=null;state.drawingSelectedVertexIndex=null;state.drawingDragVertexIndex=null;state.drawingDragPointerId=null;state.drawingCalibrationMode=false;state.drawingCalibrationPoints=[];state.drawingNewElementType='room';state.drawingSnapEnabled=true;state.drawingSnapTarget=null;state.drawingPageWidth=0;state.drawingPageHeight=0;
 }
@@ -1458,6 +1458,7 @@ function clearDrawingFloorAreaTarget(){
 }
 function recalcDrawingLocalMetrics(){
   const ann=state.drawingAnnotation;if(!ann?.payload?.elements)return;
+  state.drawingPreflight=null;
   ann.payload.elements.forEach(x=>{const m=drawingLocalMetrics(x);if(m)x.derived_geometry={...m,calculation:'polygon_shoelace_v1'}});
   ann.payload.geometry_summary=drawingLocalGeometrySummary();
 }
@@ -1763,12 +1764,72 @@ async function saveDrawingAnnotation(showMessage=true){
     return row;
   }catch(e){alert('Human Annotationを保存できません: '+e.message);throw e}
 }
+function drawingAnnotationPreflightHtml(pf){
+  if(!pf)return '';
+  const blockers=(pf.blockers||[]).map(x=>'<li>'+esc(x.message||x.code)+'</li>').join('');
+  const warnings=(pf.warnings||[]).map(x=>'<li>'+esc(x.message||x.code)+'</li>').join('');
+  const infos=(pf.infos||[]).map(x=>'<li>'+esc(x.message||x.code)+'</li>').join('');
+  return '<div class="card" style="margin-top:8px"><div class="row"><b class="grow">Human Review前チェック</b><span class="pill '+(pf.ready_for_review?'active':'')+'">'+(pf.ready_for_review?'Blockerなし':'修正必須')+'</span></div>'+
+    (blockers?'<div class="notice"><b>修正必須</b><ul>'+blockers+'</ul></div>':'')+
+    (warnings?'<div class="notice"><b>Human確認が必要</b><ul>'+warnings+'</ul><div class="muted">内容を確認して問題なければ、確認した警告として承認できます。</div></div>':'')+
+    (infos?'<details><summary>参考情報</summary><ul>'+infos+'</ul></details>':'')+
+    '<div class="muted">Blocker '+esc(pf.blocker_count||0)+' / Warning '+esc(pf.warning_count||0)+' / Info '+esc(pf.info_count||0)+'</div></div>';
+}
+async function loadDrawingAnnotationPreflight(showAlert=false){
+  const ann=state.drawingAnnotation;if(!ann)return null;
+  try{
+    const pf=await api('/drawing-annotations/'+ann.drawing_annotation_set_id+'/review-preflight');
+    state.drawingPreflight=pf;
+    renderDrawingWorkspace();
+    if(showAlert){
+      const msg=pf.ready_for_review
+        ?('Review可能です。Human確認が必要な警告 '+(pf.warning_count||0)+'件。')
+        :('修正必須項目が '+(pf.blocker_count||0)+'件あります。');
+      alert(msg);
+    }
+    return pf;
+  }catch(e){
+    alert('Review前チェックを実行できません: '+e.message);
+    return null;
+  }
+}
 async function reviewDrawingAnnotation(){
   try{
     const ann=await saveDrawingAnnotation(false);if(!ann)return;
-    await api('/drawing-annotations/'+ann.drawing_annotation_set_id+'/review',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:ann.version,status:'reviewed'})});
+    const pf=await api('/drawing-annotations/'+ann.drawing_annotation_set_id+'/review-preflight');
+    state.drawingPreflight=pf;
+    renderDrawingWorkspace();
+    if(!pf.ready_for_review){
+      alert('修正必須項目があります。Human Review前チェックを確認してください。');
+      return;
+    }
+    const warnings=pf.warnings||[];
+    let reviewNotes=null;
+    if(warnings.length){
+      const summary=warnings.map((x,i)=>(i+1)+'. '+(x.message||x.code)).join('\n');
+      if(!confirm('以下の警告をHuman確認した上で承認しますか？\n\n'+summary))return;
+      reviewNotes=(prompt('確認メモを入力してください（任意）','警告内容をHuman確認済み')||'').trim()||null;
+    }
+    await api('/drawing-annotations/'+ann.drawing_annotation_set_id+'/review',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        expected_version:ann.version,
+        status:'reviewed',
+        acknowledged_warning_codes:pf.warning_codes||[],
+        review_notes:reviewNotes
+      })
+    });
+    state.drawingPreflight=null;
     await refreshDrawingWorkspace();
-  }catch(e){if(!e?.message?.includes('Annotationを保存'))alert('Human Annotationを確認済みにできません: '+e.message)}
+  }catch(e){
+    const detail=e?.body?.detail;
+    if(detail?.preflight){
+      state.drawingPreflight=detail.preflight;
+      renderDrawingWorkspace();
+    }
+    if(!e?.message?.includes('Annotationを保存'))alert('Human Annotationを確認済みにできません: '+e.message);
+  }
 }
 function drawingAnswerInput(key,snapshot={},editable=true){
   const v=snapshot[key];
@@ -2015,7 +2076,8 @@ function renderDrawingWorkspace(){
       (isVisual?'<div class="row" style="margin-top:8px"><button class="btn primary" onclick="startDrawingRoom()">区画追加</button><button class="btn" onclick="undoDrawingPoint()">1点戻す</button><button class="btn" onclick="finishDrawingRoom()">追加確定</button><button class="btn" onclick="cancelDrawingRoom()">描画取消</button></div><div class="muted">区画追加：原図の角を順にクリック→追加確定。既存区画は選択すると頂点をドラッグ修正できます。</div>':'')+
       '<div class="notice" style="margin-top:8px"><div class="row"><b class="grow">面積・縮尺</b><span class="muted">'+esc(calText)+'</span></div><div class="row"><button class="btn" onclick="startDrawingCalibration()">2点で縮尺校正</button>'+(cal?'<button class="btn" onclick="clearDrawingCalibration()">縮尺解除</button>':'')+'<button class="btn" onclick="applySelectedDrawingMeta()">選択区画へ名称・用途を反映</button><button class="btn" onclick="addDrawingVertex()">頂点追加</button><button class="btn" onclick="removeDrawingVertex()">選択頂点を削除</button><button class="btn" onclick="toggleDrawingSnap()">境界スナップ：'+(state.drawingSnapEnabled?'ON':'OFF')+'</button><button class="btn" onclick="setDrawingFloorAreaTarget()">既知の階面積を登録</button><button class="btn" onclick="clearDrawingFloorAreaTarget()">既知面積を解除</button></div><div id="drawingSelectedMetrics" class="drawingMetric">区画を選択してください</div><div class="muted">縮尺校正：図面上の既知寸法の両端を2点クリックし、実寸(m)を入力。以後、頂点修正のたびに㎡を自動再計算します。境界スナップON時は、頂点ドラッグ/区画追加点が表示上10px以内の他区画の頂点・辺へ吸着します。</div></div>'+
       drawingGeometrySummaryHtml(ann.payload?.geometry_summary||drawingLocalGeometrySummary())+
-      '<div class="drawingRoomList" style="margin-top:8px">'+roomList+'</div><div class="row" style="margin-top:8px"><button class="btn" onclick="saveDrawingAnnotation()">下書き保存</button><button class="btn primary" onclick="reviewDrawingAnnotation()">Human確認済みにする</button></div>':
+      drawingAnnotationPreflightHtml(state.drawingPreflight)+
+      '<div class="drawingRoomList" style="margin-top:8px">'+roomList+'</div><div class="row" style="margin-top:8px"><button class="btn" onclick="saveDrawingAnnotation()">下書き保存</button><button class="btn" onclick="loadDrawingAnnotationPreflight(true)">Review前チェック</button><button class="btn primary" onclick="reviewDrawingAnnotation()">Human確認済みにする</button></div>':
       drawingGeometrySummaryHtml(ann.payload?.geometry_summary||drawingLocalGeometrySummary())+
       '<div class="drawingRoomList" style="margin-top:8px">'+roomList+'</div><div class="notice">確認済みAnnotationはBenchmark Referenceと相談入力に使用できます。面積は保存時にサーバー側で再計算済みです。</div>')+
       '</div>';
