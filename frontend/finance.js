@@ -24,7 +24,7 @@ async function financeCheckIdentity(ticket,identity){
   if(ticket!==financeState.generation)throw Object.assign(new Error('session state changed'),{cancelled:true});
   if(current.user_id!==identity){clearFinance();throw Object.assign(new Error('session identity changed'),{cancelled:true});}
 }
-async function financeAPI(url,opt={}){
+async function financeAPI(url,opt={},accepted=null){
   const ticket=financeState.generation;
   try{
     const identity=await api('/auth/me');
@@ -32,6 +32,8 @@ async function financeAPI(url,opt={}){
     if(financeState.identity&&identity.user_id!==financeState.identity){clearFinance();throw Object.assign(new Error('session identity changed'),{cancelled:true});}
     financeState.identity=identity.user_id;
     const result=await api(url,opt);
+    // Acknowledge success without exposing response data before the canonical postflight guard.
+    if(accepted)accepted();
     await financeCheckIdentity(ticket,identity.user_id);
     if(ticket!==financeState.generation)throw Object.assign(new Error('late finance response discarded'),{cancelled:true});
     return result;
@@ -63,7 +65,7 @@ const financeButtonRequirements={financeEvents:['finance.read','contract.read'],
 function financeButton(id,label,perm){return (!perm||financeCan(perm))&&(financeButtonRequirements[id]??[]).every(financeCan)?`<button type="button" class="btn" id="${id}">${esc(label)}</button>`:''}
 async function financeAll(path){let rows=[],offset=0;while(true){const p=await financeAPI(path+(path.includes('?')?'&':'?')+new URLSearchParams({limit:'200',offset:String(offset)}));rows.push(...p);if(p.length<200)break;offset+=200}return rows}
 async function openFinance(){return financeAction(async()=>{
- await initFinance();if(!$('financeModal')){const wrap=document.createElement('div');wrap.id='financeModal';wrap.className='modalWrap';wrap.style.zIndex='74';wrap.onclick=financeDocumentClick;wrap.innerHTML='<div class="modal" style="width:min(1240px,98vw)"><div class="modalHead"><b>契約・調達・予算</b><span class="grow"></span><button type="button" class="btn" id="financeClose">閉じる</button></div><div class="modalBody"><div id="financeMessage" class="dangerText" role="alert"></div><div id="financeNav" class="toolbar"></div><div id="financeContent"></div></div></div>';document.body.append(wrap);$('financeClose').onclick=()=>wrap.classList.add('hidden')}
+ await initFinance();if(!$('financeModal')){const wrap=document.createElement('div');wrap.id='financeModal';wrap.className='modalWrap';wrap.style.zIndex='74';wrap.onclick=financeDocumentClick;wrap.innerHTML='<div class="modal" style="width:min(1240px,98vw)"><div class="modalHead"><b>契約・調達・予算</b><span class="grow"></span><button type="button" class="btn" id="financeClose">閉じる</button></div><div class="modalBody"><div id="financeMessage" class="dangerText" role="alert"></div><div id="financeNav" class="toolbar"></div><div id="financeContent"></div></div></div>';document.body.append(wrap);$('financeClose').onclick=()=>{financeState.generation++;$('financeContent').innerHTML='';wrap.classList.add('hidden')}}
  $('financeModal').classList.remove('hidden');$('financeNav').innerHTML=[['financeYears','年度・財務設定','finance.read'],['financeAccounts','予算科目','finance.read'],['financeContracts','契約台帳','contract.read'],['financeParties','契約先','contract.read'],['financeProposals','財務処理・承認','finance.read'],['financeCandidates','見積・要求','finance.read'],['financeEvents','納品・検収・請求','contract.read'],['financeAmendments','契約変更','finance.read'],['financeSummary','執行集計','finance.read'],['financeAlerts','期限・未処理','finance.read'],['financeExchange','CSV・Excel','finance.read']].map(([id,label,perm])=>financeButton(id,label,perm)).join('');
  for(const [id,fn] of Object.entries({financeYears,financeAccounts,financeContracts,financeParties,financeProposals,financeCandidates,financeEvents,financeAmendments,financeSummary,financeAlerts,financeExchange}))financeBind(id,fn);
  await (financeCan('finance.read')?financeProposals:financeContracts)();
@@ -71,18 +73,49 @@ async function openFinance(){return financeAction(async()=>{
 function financeTable(headers,rows){return `<table><thead><tr>${headers.map(h=>`<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map(v=>`<td>${v}</td>`).join('')}</tr>`).join('')}</tbody></table>`}
 function financeForm(title,fields,values,save,back,explanation=''){
  $('financeContent').innerHTML=`<h2>${esc(title)}</h2>${explanation}<form id="financeForm"><div class="formGrid">${fields.map(f=>{const [key,label,type='text',options=[],required=false]=f;const value=values[key]??'';return `<label>${esc(label)}${type==='select'?`<select id="financeField_${key}" name="${key}" ${required?'required':''}>${options.map(([id,name])=>`<option value="${esc(id)}" ${String(value)===String(id)?'selected':''}>${esc(name)}</option>`).join('')}</select>`:type==='textarea'?`<textarea id="financeField_${key}" name="${key}" ${required?'required':''}>${esc(value)}</textarea>`:`<input id="financeField_${key}" name="${key}" type="${type==='money'?'text':type}" ${type==='money'?'inputmode="decimal"':''} value="${esc(value)}" ${required?'required':''}>`}</label>`}).join('')}</div><p class="notice">金額は正確な十進数で入力してください。保存は草案です。正式反映には根拠確認とHuman承認が必要です。</p><div class="toolbar"><button class="btn primary" id="financeSave">保存</button><button type="button" class="btn" id="financeBack">戻る</button></div></form>`;
- $('financeForm').onsubmit=e=>{e.preventDefault();financeAction(async()=>{const data={};for(const [key,,type] of fields){const value=$('financeField_'+key).value;if(value!=='')data[key]=type==='number'?parseInt(value,10):value}await save(data)})};financeBind('financeBack',back);
+ const form=$('financeForm');form.financeUploads=0;form.onsubmit=e=>{e.preventDefault();if(form.financeUploads||form!==$('financeForm'))return;financeAction(async()=>{const data={};for(const [key,,type] of fields){const value=$('financeField_'+key).value;if(value!=='')data[key]=type==='number'?parseInt(value,10):value}await save(data)})};financeBind('financeBack',back);
 }
 async function financePicker(key,path,label,selected=null){
  const select=$('financeField_'+key);if(!select)return;
- $('financePick_'+key+'_panel')?.remove();const panel=document.createElement('div');panel.id='financePick_'+key+'_panel';panel.className='toolbar';panel.innerHTML=`<label>${esc(label)}検索<input id="financePick_${key}_q"></label><button type="button" class="btn" id="financePick_${key}_find">検索</button><button type="button" class="btn" id="financePick_${key}_prev">前の候補</button><button type="button" class="btn" id="financePick_${key}_next">次の候補</button><span id="financePick_${key}_page"></span>`;select.closest('label').append(panel);
- let offset=0,q='',generation=0;
+ const isDocument=path==='/finance/documents',canUpload=isDocument&&financeCan('document.create')&&financeCan('document.read');
+ const prefix='financePick_'+key,form=$('financeForm'),ticket=financeState.generation;
+ $('financePick_'+key+'_panel')?.remove();const panel=document.createElement('div');panel.id=prefix+'_panel';panel.className='toolbar';panel.innerHTML=`<label>${esc(label)}検索<input id="${prefix}_q"></label><button type="button" class="btn" id="${prefix}_find">検索</button><button type="button" class="btn" id="${prefix}_prev">前の候補</button><button type="button" class="btn" id="${prefix}_next">次の候補</button><span id="${prefix}_page"></span>${isDocument?`<span id="${prefix}_proof"></span>`:''}${canUpload?`<label>新しい根拠原本<input type="file" id="${prefix}_file"></label><button type="button" class="btn" id="${prefix}_upload" disabled>原本を登録して選択</button><span id="${prefix}_status" role="status" aria-live="polite"></span><small>共通Documentへ原本を登録します。財務へのリンクは保存時に草案として登録され、正式反映には既存のHuman確認・承認が必要です。</small>`:''}`;select.closest('label').append(panel);
+ let offset=0,q='',generation=0,uploading=false;
+ const records=new Map();
+ // Detached/replaced forms and interrupted modal/auth sessions must never consume a late result.
+ const current=()=>form===$('financeForm')&&panel.isConnected!==false&&document.contains(select)&&ticket===financeState.generation&&!$('financeModal')?.classList?.contains('hidden');
  const rowLabel=r=>r.title??r.name??r.original_filename??((financeKinds[r.kind]??financeEventLabels[r.kind]??r.kind)+' / '+r.amount+' '+r.currency+' / '+(r.reason??r.description??''));
  const identities={account_id:'account_id',parent_id:'account_id',to_account_id:'account_id',contract_case_id:'contract_case_id',counterparty_id:'counterparty_id',document_id:'document_id',before_document_id:'document_id',after_document_id:'document_id',commitment_id:'proposal_id',reverses_id:'proposal_id',invoice_id:'event_id',related_event_id:'event_id'};
  const identity=identities[key];if(!identity)throw new Error('Unsupported reference picker');const rowID=r=>{if(!r[identity])throw new Error('Reference record identity missing');return r[identity]};
- async function load(query,start){const run=++generation;const rows=await financeAPI(path+(path.includes('?')?'&':'?')+new URLSearchParams({q:query,limit:'100',offset:String(start)}));if(run!==generation||!document.contains(select))return;offset=start;q=query;const previous=select.value;select.innerHTML='<option value="">選択してください</option>'+rows.map(r=>`<option value="${esc(rowID(r))}">${esc(r.code?r.code+' / '+rowLabel(r):rowLabel(r))}${r.amount!==undefined&&r.title?' / '+esc(r.amount)+' '+esc(r.currency):''}</option>`).join('');
- if(selected&&!rows.some(r=>rowID(r)===selected.id)){select.insertAdjacentHTML('beforeend',`<option value="${esc(selected.id)}">${esc(selected.label)}</option>`)}select.value=previous||(selected?.id??'');financeControlReady($('financePick_'+key+'_prev'),offset===0);financeControlReady($('financePick_'+key+'_next'),rows.length<100);$('financePick_'+key+'_page').textContent=`${start+1}～${start+rows.length}件`;}
- financeBind('financePick_'+key+'_find',()=>load($('financePick_'+key+'_q').value,0));financeBind('financePick_'+key+'_prev',()=>load(q,Math.max(0,offset-100)));financeBind('financePick_'+key+'_next',()=>load(q,offset+100));$('financePick_'+key+'_q').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();$('financePick_'+key+'_find').click()}};await load('',0);
+ function proof(){if(!isDocument)return;const row=records.get(select.value);$(prefix+'_proof').innerHTML=row?`共通Document原本: <a target="_blank" rel="noopener noreferrer" href="/documents/${encodeURIComponent(row.document_id)}/download">${esc(row.original_filename)}</a> / SHA256 ${esc(row.sha256)} / Document ID ${esc(row.document_id)}`:''}
+ async function load(query,start){const run=++generation;const rows=await financeAPI(path+(path.includes('?')?'&':'?')+new URLSearchParams({q:query,limit:'100',offset:String(start)}));if(run!==generation||!current())return;offset=start;q=query;const previous=select.value;for(const r of rows)records.set(rowID(r),r);select.innerHTML='<option value="">選択してください</option>'+rows.map(r=>`<option value="${esc(rowID(r))}">${esc(r.code?r.code+' / '+rowLabel(r):rowLabel(r))}${r.amount!==undefined&&r.title?' / '+esc(r.amount)+' '+esc(r.currency):''}</option>`).join('');
+ if(selected&&!rows.some(r=>rowID(r)===selected.id)){select.insertAdjacentHTML('beforeend',`<option value="${esc(selected.id)}">${esc(selected.label)}</option>`)}
+ if(isDocument&&previous&&records.has(previous)&&!rows.some(r=>rowID(r)===previous)&&previous!==selected?.id){select.insertAdjacentHTML('beforeend',`<option value="${esc(previous)}">${esc(rowLabel(records.get(previous)))}</option>`)}
+ select.value=previous||(selected?.id??'');financeControlReady($(prefix+'_prev'),offset===0);financeControlReady($(prefix+'_next'),rows.length<100);$(prefix+'_page').textContent=`${start+1}～${start+rows.length}件`;proof();}
+ financeBind(prefix+'_find',()=>load($(prefix+'_q').value,0));financeBind(prefix+'_prev',()=>load(q,Math.max(0,offset-100)));financeBind(prefix+'_next',()=>load(q,offset+100));$(prefix+'_q').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();$(prefix+'_find').click()}};
+ if(isDocument)select.onchange=proof;
+ if(canUpload){
+  const file=$(prefix+'_file'),button=$(prefix+'_upload'),status=$(prefix+'_status');
+  file.onchange=()=>financeControlReady(button,uploading||!file.files?.length);
+  financeBind(prefix+'_upload',async()=>{
+   const source=file.files?.[0];if(uploading||!source||!current())return;
+   uploading=true;form.financeUploads=(form.financeUploads??0)+1;status.textContent='原本を登録しています。完了するまで保存できません。';
+   let registered=false;
+   try{
+    await initFinance();if(!current())return;
+    if(!financeCan('document.create')||!financeCan('document.read'))throw new Error('原本の登録・参照権限が必要です。');
+    // Independent finance originals use the shared store, without a facility association.
+    const body=new FormData();body.append('file',source);
+    const row=await financeAPI('/documents/upload',{method:'POST',body},()=>{registered=true;file.value=''});if(!current())return;
+    await initFinance();if(!current())return;
+    ++generation;records.set(rowID(row),row);selected={id:row.document_id,label:row.original_filename};
+    if(!Array.from(select.options).some(option=>option.value===row.document_id))select.insertAdjacentHTML('beforeend',`<option value="${esc(row.document_id)}">${esc(row.original_filename)}</option>`);
+    select.value=row.document_id;proof();file.value='';status.textContent='原本を登録して選択しました。財務へのリンクは草案を保存してください。';
+   }catch(e){if(!e.cancelled&&current())status.textContent=(registered?'原本は登録済みですが、選択の確認ができませんでした。画面を開き直して登録済み原本を検索してください。 ':'')+e.message}
+   finally{uploading=false;form.financeUploads=Math.max(0,form.financeUploads-1);if(current())financeControlReady(button,!file.files?.length)}
+  });
+ }
+ await load('',0);
 }
 async function financeYearOptions(){return [['','年度を選択'],...(await financeAPI('/finance/years')).map(y=>[y.year_id,y.fiscal_year+' / '+y.currency+' / '+y.status])]}
 function financeProof(row){if(!financeCan('document.read'))return '<p>原本参照権限が必要です。</p>';const doc=row.review_snapshot?.document;return row.document_id?`<p>根拠原本: <a target="_blank" rel="noopener noreferrer" href="/documents/${encodeURIComponent(row.document_id)}/download">${esc(doc?.filename??'登録済み原本を開く')}</a>${doc?' / SHA256 '+esc(doc.sha256):''}</p>`:'<p>根拠原本が未登録です。</p>'}
