@@ -62,7 +62,7 @@ if(node('ruleForm').elements.title.value)throw Error('private draft survives');
 
 
 def test_regained_management_authority_reloads_permission_registry(tmp_path):
-    run_js(tmp_path,r''' 
+    run_js(tmp_path,r'''
 canManage=true;await vm.runInContext('refresh()',context);
 if(!registryReads||!vm.runInContext("state.permissions.some(x=>x.code==='facility.read')",context))throw Error('new management authority has no refreshed permission registry');
 ''')

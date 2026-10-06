@@ -1,6 +1,6 @@
 # Human権限管理
 
-Task8 canonical base: main24a0ea8db84a152a5bcf56a206c5c15181b18083 / PR54。main CI37494620742 SUCCESSを再取得。開PR53 workforceは未merge・CI失敗中のため正本へ取り込まず、Migration044を予約として避け、本Sliceは046を追加する。既存001–043/045を編集しない。
+Task8 canonical base: main24a0ea8db84a152a5bcf56a206c5c15181b18083 / PR54。main CI37494620742 SUCCESSを再取得。開PR53 workforceは未merge・CI失敗中のため正本へ取り込まず、Migration044を予約として避け、本Sliceは047を追加する。既存001–043/045を編集しない。
 
 ## 利用と権限
 
@@ -18,7 +18,7 @@ Ruleは所属・役職のいずれかを必須とし、指定した条件をAND�
 
 ## 構成とMigration
 
-共通コード、本部別DB・実行環境・原本・backupを維持。046はrolesのactive/version、human_role_rules、temporary_role_grantsとFK・日付/根拠pair制約・索引を追加。User/Employee/Organization/Documentを再利用し、本部を跨ぐ参照APIは設けない。更新前に本部ごとのpaired backupと保守停止、migratorによるmigration、更新後の確認を既存本部運用手順どおり行う。復元はDB・原本を同じUUID・release manifest単位で実行する。実機をここでは操作していない。
+共通コード、本部別DB・実行環境・原本・backupを維持。047はrolesのactive/version、human_role_rules、temporary_role_grantsとFK・日付/根拠pair制約・索引を追加。User/Employee/Organization/Documentを再利用し、本部を跨ぐ参照APIは設けない。更新前に本部ごとのpaired backupと保守停止、migratorによるmigration、更新後の確認を既存本部運用手順どおり行う。復元はDB・原本を同じUUID・release manifest単位で実行する。実機をここでは操作していない。
 
 ## Evidence / 未完
 
@@ -40,3 +40,5 @@ Ruleは所属・役職のいずれかを必須とし、指定した条件をAND�
 RED evidence: API4失敗4PGskip（現在/未来self assignment、revoked request、unacknowledged sensitive resume）、実JS2失敗（draft CAS、管理権限喪失）、新規無効Role1失敗1PGskip。GREENと全体最終結果は下記追記。実RoleポリシーのHuman採用はExternal Gate、資格/担当selectorは引き続き内部Partial。
 
 修正後の関連統合51成功35PGskip43.73秒、全体406成功46skip188warnings160.54秒。その後の権限再取得UI回帰3成功0.29秒（再取得1件もRED→GREEN）。Migration parser45files、JSsyntax/compile/diffcheck成功。CI/merge待ち。
+
+Publication refresh: 開PR55 financeがMigration046を使用しているため、未mergeの本Sliceを047へ移動。mainの既存Migrationは変更せず、044/046はRunBの正本merge後に照合する。
