@@ -1581,6 +1581,8 @@ class DrawingAnnotationSetUpdate(BaseModel):
 class DrawingAnnotationReview(BaseModel):
     expected_version: int = Field(ge=1)
     status: Literal["reviewed","rejected"]
+    acknowledged_warning_codes: list[str] = Field(default_factory=list)
+    review_notes: str | None = None
 
 class DrawingAnnotationSetOut(BaseModel):
     drawing_annotation_set_id: str
@@ -1973,3 +1975,19 @@ class DrawingBaselineRunOut(BaseModel):
     version: int
     result_payload: dict
     created_at: str
+
+
+class DrawingAnnotationReviewPreflightOut(BaseModel):
+    preflight_format: str
+    ready_for_review: bool
+    acknowledgement_required: bool
+    blocker_count: int
+    warning_count: int
+    info_count: int
+    blocker_codes: list[str]
+    warning_codes: list[str]
+    blockers: list[dict]
+    warnings: list[dict]
+    infos: list[dict]
+    geometry_summary: dict
+    note: str
