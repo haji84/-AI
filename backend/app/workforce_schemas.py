@@ -19,6 +19,11 @@ class ShiftTypeCreate(Strict):
     timezone_name:str=Field(default='Asia/Tokyo',min_length=1,max_length=80)
     cross_midnight:bool=False
     payable_minutes:int=Field(gt=0,le=2880)
+    @model_validator(mode='after')
+    def explicit_midnight(self):
+        if self.end_time<=self.start_time and not self.cross_midnight:raise ValueError('cross_midnight must be explicit when end_time is not after start_time')
+        if self.end_time>self.start_time and self.cross_midnight:raise ValueError('cross_midnight is inconsistent with same-day end_time')
+        return self
 
 class ShiftTypePatch(Version):
     name:str|None=Field(None,min_length=1,max_length=200)
@@ -84,6 +89,8 @@ class AttendanceCreate(Strict):
     check_out_at:datetime|None=None
     @model_validator(mode='after')
     def period(self):
+        if self.check_in_at.tzinfo is None or self.check_in_at.utcoffset() is None:raise ValueError('check_in_at requires timezone')
+        if self.check_out_at and (self.check_out_at.tzinfo is None or self.check_out_at.utcoffset() is None):raise ValueError('check_out_at requires timezone')
         if self.check_out_at and self.check_out_at<=self.check_in_at:raise ValueError('check_out_at must follow check_in_at')
         return self
 
@@ -92,6 +99,8 @@ class AttendancePatch(Version):
     check_out_at:datetime|None=None
     @model_validator(mode='after')
     def period(self):
+        for value in (self.check_in_at,self.check_out_at):
+            if value is not None and (value.tzinfo is None or value.utcoffset() is None):raise ValueError('attendance timestamps require timezone')
         if self.check_in_at and self.check_out_at and self.check_out_at<=self.check_in_at:raise ValueError('check_out_at must follow check_in_at')
         return self
 
