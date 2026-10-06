@@ -212,7 +212,7 @@ table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid #e4e8ec;
 
 <script>
 const $=id=>document.getElementById(id);
-const state={offset:0,limit:50,total:0,selected:null,detail:null,mode:null,draft:null,drawings:[],drawingAnalysisId:null,drawingDetail:null,drawingWorkspace:null,drawingDoc:null,drawingPreviewInfo:null,drawingPageNo:1,drawingAnnotations:[],drawingAnnotation:null,drawingConsultations:[],drawingConsultation:null,drawingResponse:null,drawingBaselineReadiness:null,drawingBaselineRun:null,drawingBaselineRuns:[],drawingPageWidth:0,drawingPageHeight:0,drawingDrawPoints:[],drawingDrawActive:false,drawingEditElementIndex:null,drawingSelectedVertexIndex:null,drawingDragVertexIndex:null,drawingDragPointerId:null,drawingDragHistoryPushed:false,drawingCalibrationMode:false,drawingCalibrationPoints:[],drawingNewElementType:'room',drawingSnapEnabled:true,drawingSnapTarget:null,drawingUndoStack:[],drawingRedoStack:[],drawingDirty:false,drawingHistoryLimit:50};
+const state={offset:0,limit:50,total:0,selected:null,detail:null,mode:null,draft:null,drawings:[],drawingAnalysisId:null,drawingDetail:null,drawingWorkspace:null,drawingDoc:null,drawingPreviewInfo:null,drawingPageNo:1,drawingAnnotations:[],drawingAnnotation:null,drawingConsultations:[],drawingConsultation:null,drawingResponse:null,drawingBaselineReadiness:null,drawingBaselineRun:null,drawingBaselineRuns:[],drawingPageWidth:0,drawingPageHeight:0,drawingDrawPoints:[],drawingDrawActive:false,drawingEditElementIndex:null,drawingSelectedVertexIndex:null,drawingDragVertexIndex:null,drawingDragPointerId:null,drawingDragHistoryPushed:false,drawingCalibrationMode:false,drawingCalibrationPoints:[],drawingNewElementType:'room',drawingSnapEnabled:true,drawingSnapTarget:null,drawingUndoStack:[],drawingRedoStack:[],drawingDirty:false,drawingSavedSnapshotKey:null,drawingHistoryLimit:50};
 const legalReviewState={offset:0,limit:50,total:0};
 const fireState={caseId:null,detail:null,mediaType:null};
 const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
@@ -1236,7 +1236,7 @@ function drawingUndo(){
   const previous=state.drawingUndoStack.pop();
   if(current)state.drawingRedoStack.push({...current,key:drawingSnapshotKey(current)});
   drawingRestoreSnapshot(previous);
-  state.drawingDirty=state.drawingUndoStack.length>0;
+  drawingRefreshDirty();
 }
 function drawingRedo(){
   if(!state.drawingRedoStack.length||state.drawingAnnotation?.status!=='draft')return;
@@ -1244,10 +1244,17 @@ function drawingRedo(){
   const next=state.drawingRedoStack.pop();
   if(current)state.drawingUndoStack.push({...current,key:drawingSnapshotKey(current)});
   drawingRestoreSnapshot(next);
-  state.drawingDirty=true;
+  drawingRefreshDirty();
+}
+function drawingRefreshDirty(){
+  const current=drawingCurrentEditSnapshot();
+  state.drawingDirty=!!current&&drawingSnapshotKey(current)!==state.drawingSavedSnapshotKey;
 }
 function drawingResetHistory(){
-  state.drawingUndoStack=[];state.drawingRedoStack=[];state.drawingDirty=false;state.drawingDragHistoryPushed=false;
+  state.drawingUndoStack=[];state.drawingRedoStack=[];state.drawingDragHistoryPushed=false;
+  const current=drawingCurrentEditSnapshot();
+  state.drawingSavedSnapshotKey=drawingSnapshotKey(current);
+  state.drawingDirty=false;
 }
 function drawingConfirmDiscardChanges(message='未保存のHuman Annotation変更があります。破棄して進みますか？'){
   return !state.drawingDirty||confirm(message);
@@ -1258,8 +1265,11 @@ function closeDrawingWorkspace(){
   state.drawingWorkspace=null;state.drawingDoc=null;state.drawingPreviewInfo=null;state.drawingPageNo=1;state.drawingAnnotations=[];state.drawingAnnotation=null;
   state.drawingConsultations=[];state.drawingConsultation=null;state.drawingResponse=null;state.drawingBaselineReadiness=null;state.drawingBaselineRun=null;state.drawingBaselineRuns=[];
   state.drawingDrawPoints=[];state.drawingDrawActive=false;state.drawingEditElementIndex=null;state.drawingSelectedVertexIndex=null;state.drawingDragVertexIndex=null;state.drawingDragPointerId=null;state.drawingCalibrationMode=false;state.drawingCalibrationPoints=[];state.drawingNewElementType='room';state.drawingSnapEnabled=true;state.drawingSnapTarget=null;state.drawingPageWidth=0;state.drawingPageHeight=0;
+  drawingResetHistory();
 }
 async function openDrawingWorkspace(id){
+  const currentAnalysisId=state.drawingWorkspace?.analysis?.drawing_analysis_id;
+  if(currentAnalysisId&&currentAnalysisId!==id&&!drawingConfirmDiscardChanges('未保存のHuman Annotation変更があります。別の図面を開くと破棄されます。続けますか？'))return;
   try{
     const analysis=await api('/drawing-analyses/'+id);
     const [doc,previewInfo,annotations,consultations,baselineReadiness,benchmarkRuns]=await Promise.all([
@@ -1289,6 +1299,7 @@ async function openDrawingWorkspace(id){
       ||(annotations||[]).find(x=>x.status==='draft')
       ||(annotations||[]).find(x=>x.status==='reviewed')
       ||annotations?.[0]||null;
+    drawingResetHistory();
     state.drawingConsultations=consultations||[];
     const currentConsultId=state.drawingConsultation?.drawing_consultation_id;
     state.drawingConsultation=(consultations||[]).find(x=>x.drawing_consultation_id===currentConsultId)
@@ -1307,8 +1318,9 @@ async function refreshDrawingWorkspace(){
   if(id)await openDrawingWorkspace(id);
 }
 function selectDrawingAnnotation(id){
+  const currentId=state.drawingAnnotation?.drawing_annotation_set_id;
+  if(currentId!==id&&!drawingConfirmDiscardChanges())return renderDrawingWorkspace();
   state.drawingAnnotation=(state.drawingAnnotations||[]).find(x=>x.drawing_annotation_set_id===id)||null;
-  if(state.drawingAnnotation?.drawing_annotation_set_id!==id&&!drawingConfirmDiscardChanges())return renderDrawingWorkspace();
   drawingResetHistory();
   state.drawingDrawPoints=[];state.drawingDrawActive=false;state.drawingSnapTarget=null;state.drawingEditElementIndex=null;state.drawingSelectedVertexIndex=null;state.drawingDragVertexIndex=null;state.drawingCalibrationMode=false;state.drawingCalibrationPoints=[];renderDrawingWorkspace();
 }
@@ -1776,6 +1788,7 @@ function removeDrawingRoom(index){
 }
 async function importDrawingReferenceDraftFile(ev){
   const input=ev?.target,file=input?.files?.[0];if(!file)return;
+  if(!drawingConfirmDiscardChanges('未保存の変更があります。Reference Draftを読み込むと現在の未保存変更は破棄されます。続けますか？')){if(input)input.value='';return}
   try{
     const text=await file.text();
     const reference=JSON.parse(text);
