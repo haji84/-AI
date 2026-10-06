@@ -1626,3 +1626,38 @@ Safety:
 - m² remains unavailable for uncalibrated regions
 - overlap warning avoids silently double-counting likely overlapping regions
 - backend remains authoritative over all derived area/summary values
+
+
+## Phase 6 Human floor-area target comparison
+
+Implemented on branch `phase6-floor-area-targets`; CI verification pending:
+- optional Human floor-area targets stored in Annotation payload
+- target schema:
+  - floor_number
+  - target_area_m2
+  - label/source/note
+  - comparison_basis=rooms_only
+- only one target per floor
+- target area must be > 0
+- server validates targets and rebuilds comparison on every save/review
+- browser recalculates the same comparison live while Geometry is edited
+- comparison uses calibrated `room` area only
+- arbitrary `zone` area is excluded from known-floor-area comparison
+- comparison outputs:
+  - target area m²
+  - measured room-area m²
+  - difference m²
+  - difference %
+  - comparable / uncalibrated / missing-floor state
+- Human UI can register or clear a target for a floor
+- Human Reference Draft import derives targets automatically from `source_observations.floor_area_m2`
+- house-plan-001 therefore carries:
+  - 1F 78.66 m²
+  - 2F 33.44 m²
+  into editable Annotation as Human comparison targets
+- target comparison remains informational and is not treated as a statutory floor-area determination
+
+Safety:
+- m² difference is never emitted before room Geometry has Human scale calibration
+- arbitrary overlapping zones do not inflate the target comparison
+- backend validation remains authoritative over comparison output
