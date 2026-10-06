@@ -1,3 +1,5 @@
+from .department_maintenance import MaintenanceUnavailable
+from fastapi.responses import JSONResponse
 from fastapi import Depends, FastAPI, Response, status
 from sqlalchemy import text
 from fastapi.staticfiles import StaticFiles
@@ -21,6 +23,10 @@ async def lifespan(app):
 app = FastAPI(title=settings.app_name, version="0.12.0", lifespan=lifespan)
 app.add_middleware(TenantBoundaryMiddleware, engine=engine, config=settings)
 
+
+@app.exception_handler(MaintenanceUnavailable)
+def maintenance_response(request,exc):
+    return JSONResponse(status_code=503,content={'detail':'保守中です。後ほど再読込してください。'},headers={'Retry-After':'30'})
 
 @app.get("/health")
 def health(response: Response, db: Session = Depends(get_db)):

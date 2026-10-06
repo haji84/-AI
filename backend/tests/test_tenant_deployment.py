@@ -26,6 +26,11 @@ def test_department_configuration_has_separate_paths_users_db_and_lifecycle():
     assert '127.0.0.1:8102' in second['nginx-beta.conf']
     assert 'FIRE_AI_TENANT_ID=' in first['alpha.env']
     assert 'FIRE_AI_PRODUCTION_MODE=true' in first['alpha.env']
+    assert 'OnCalendar=*-*-* 03:00:00 Asia/Tokyo' in first['fire-ai-alpha-backup.timer']
+    assert '--slug alpha --release-id release-20261006' in first['fire-ai-alpha-backup.service']
+    assert '/etc/fire-ai/backup-alpha.env' in first['fire-ai-alpha-backup.service']
+    assert 'User=root' in first['fire-ai-alpha-backup.service']
+    assert 'FIRE_AI_BACKUP_WRITER_UNITS=' in first['backup-alpha.env']
 
 
 @pytest.mark.parametrize('field,value', [('slug','alpha; DROP DATABASE'),('slug','../beta'),

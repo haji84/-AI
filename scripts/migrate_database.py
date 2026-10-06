@@ -6,6 +6,8 @@ from pathlib import Path
 
 from app.migrations import apply_migrations
 from app.settings import settings
+from app.department_maintenance import exclusive_maintenance
+from contextlib import nullcontext
 
 
 def main() -> None:
@@ -14,7 +16,11 @@ def main() -> None:
     p.add_argument("--migrations", type=Path, default=Path(__file__).resolve().parents[1] / "db" / "migrations")
     args = p.parse_args()
     try:
-        applied = apply_migrations(args.database_url, args.migrations)
+        maintenance = exclusive_maintenance(args.database_url, settings.tenant_id, allow_uninitialized=True) if settings.tenant_id else nullcontext()
+        if settings.production_mode and not settings.tenant_id:
+            raise ValueError('production migration requires configured department UUID')
+        with maintenance:
+            applied = apply_migrations(args.database_url, args.migrations)
     except ValueError as exc:
         raise SystemExit(str(exc))
     for name in applied:

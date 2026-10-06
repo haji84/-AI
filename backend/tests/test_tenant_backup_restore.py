@@ -208,3 +208,28 @@ def test_backup_and_restore_record_admin_audit_with_provenance(tmp_path, monkeyp
     restored = json.loads(actions['tenant.restore.completed'])
     assert restored['database_sha256'] == manifest['database_sha256']
     assert restored['release_id'] == 'test-release'
+
+
+def test_backup_manifest_captures_migrations_after_exclusion(tmp_path,monkeypatch):
+    from contextlib import contextmanager
+    backup=script('backup_phase1');tenant_id=str(uuid4());storage=tmp_path/'originals';storage.mkdir()
+    cfg=Settings(_env_file=None,tenant_id=tenant_id,database_url='postgresql+psycopg://synthetic/synthetic',storage_root=str(storage),trusted_hosts=['synthetic.test'])
+    locked=False
+    @contextmanager
+    def maintenance(*args):
+        nonlocal locked
+        locked=True
+        try:yield
+        finally:locked=False
+    monkeypatch.setattr(backup,'settings',cfg)
+    monkeypatch.setattr(backup,'binding',lambda *args:['after.sql'] if locked else ['before.sql'])
+    monkeypatch.setattr(backup,'exclusive_maintenance',maintenance)
+    monkeypatch.setattr(backup,'record_admin_audit',lambda *a,**k:None)
+    monkeypatch.setattr(backup,'postgres_args',lambda *a:([],{}))
+    monkeypatch.setattr(backup,'dump_identity',lambda *a:tenant_id)
+    def dump(command,**kwargs):Path(command[command.index('--file')+1]).write_bytes(b'synthetic dump')
+    monkeypatch.setattr(backup.subprocess,'run',dump)
+    monkeypatch.setattr(sys,'argv',['backup','--destination',str(tmp_path/'backups'),'--confirm-writers-stopped','--release-id','test-release'])
+    backup.main()
+    manifest=json.loads(next((tmp_path/'backups').glob('*/manifest.json')).read_text())
+    assert manifest['migrations']==['after.sql']
