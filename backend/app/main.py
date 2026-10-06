@@ -11,7 +11,7 @@ from starlette.concurrency import run_in_threadpool
 from .db import get_db, engine
 from .tenant import TenantBoundaryMiddleware, validate_runtime_binding
 from .settings import settings
-from .routers import emergency_reports, emergency, operations, assets, workforce, administration, learning, finance, violations
+from .routers import emergency_reports, emergency, operations, assets, workforce, administration, learning, finance, inquiries, violations
 from .routers import auth, facilities, documents, extensions, templates, contracts, inspections, submissions, intake, legal_rules, legal_sources, legal_rule_drafts, legal_review_queue, equipment, equipment_regression, equipment_placement_regression, drawings, drawing_annotations, drawing_consultations, drawing_benchmarks, fire_investigations, occupancy_regression, fire_report_exports, fire_photos, audio_benchmarks, evidence_benchmarks, search as unified_search
 
 @asynccontextmanager
@@ -49,6 +49,7 @@ app.include_router(operations.router)
 app.include_router(assets.router)
 app.include_router(workforce.router)
 app.include_router(finance.router)
+app.include_router(inquiries.router)
 app.include_router(facilities.router)
 app.include_router(documents.router)
 

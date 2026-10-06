@@ -105,7 +105,15 @@ def patch_party(key:str,payload:CounterpartyPatch,db:Session=Depends(get_db),use
 def documents(q:str=Query('',max_length=300),limit:int=Query(100,ge=1,le=200),offset:int=Query(0,ge=0),db:Session=Depends(get_db),user:User=Depends(require_permission('document.read'))):
     stmt=select(Document)
     if q:stmt=stmt.where(Document.original_filename.contains(q)|Document.sha256.contains(q))
-    return [{'document_id':r.document_id,'original_filename':r.original_filename,'sha256':r.sha256} for r in db.scalars(stmt.order_by(Document.created_at.desc(),Document.document_id).offset(offset).limit(limit))]
+    from ..inquiries_service import guard_document
+    rows=[]
+    for r in db.scalars(stmt.order_by(Document.created_at.desc(),Document.document_id)):
+        try:guard_document(db,user,r)
+        except HTTPException as exc:
+            if exc.status_code==403:continue
+            raise
+        rows.append({'document_id':r.document_id,'original_filename':r.original_filename,'sha256':r.sha256})
+    return rows[offset:offset+limit]
 @router.get('/contracts')
 def contracts(q:str=Query('',max_length=300),year_id:str|None=None,limit:int=Query(100,ge=1,le=200),offset:int=Query(0,ge=0),db:Session=Depends(get_db),user:User=Depends(require_permission('contract.read'))):
     stmt=select(ContractCase).outerjoin(ContractCounterparty,ContractCounterparty.counterparty_id==ContractCase.counterparty_id)
