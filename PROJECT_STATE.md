@@ -1863,3 +1863,10 @@ Added: case/patient editing, common-employee crew assignment, treatment records,
 Migration 038 adds emergency_treatments/emergency_report_drafts and clinical-flag optimistic version.
 No candidate directly changes official patient source fields. No tenant-isolation or whole-module completion claim.
 See docs/completion/RUN_B_STATUS.md and INTEGRATION_HANDOFF.md for internal backlog, interfaces and External Gates.
+
+## 2026-10-06 Run A: 本部分離の確定
+
+共通コード・本部別DB/実行環境/原本/backup方式は利用者承認済み。
+正式構成と本部追加・移行・更新・復元契約: `docs/architecture/TENANT_OPERATIONS.md`。
+本部識別子の境界実装と残GateのEvidence: `docs/completion/RUN_A_STATUS.md`。
+全体の完成判定は実コード・CI・運用Evidenceと照合し、旧Phase記述だけで判断しない。
