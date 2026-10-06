@@ -130,10 +130,10 @@ def patch_qualification(db,user,key,payload:QualificationPatch):
     row.version+=1;row.updated_at=now_utc();db.flush();audit(db,user,'workforce.qualification.update',row,before);return row
 
 def create_staffing_rule(db,user,payload:StaffingRuleCreate):
-    active_org(db,payload.organization_id)
+    organization=active_org(db,payload.organization_id)
     shift=get_row(db,WorkforceShiftType,payload.shift_type_id)
     if not shift.active:raise HTTPException(422,'shift type inactive')
-    row=WorkforceStaffingRule(**payload.model_dump(),created_by=user.user_id)
+    row=WorkforceStaffingRule(**payload.model_dump(),shift_type_version=shift.version,organization_version=organization.version,created_by=user.user_id)
     db.add(row);db.flush();audit(db,user,'workforce.staffing_rule.create',row);return row
 
 def roster_overlap(db,employee_id,start,end,exclude_id=None):
@@ -212,6 +212,11 @@ def attendance_calculation(db,employee_id,roster_entry_id,check_in,check_out):
 
 def create_attendance(db,user,payload:AttendanceCreate):
     active_employee(db,payload.employee_id)
+    if payload.roster_entry_id:
+        roster=get_row(db,WorkforceRosterEntry,payload.roster_entry_id)
+        if roster.work_date!=payload.work_date:raise HTTPException(422,'attendance work_date must match roster work_date')
+        if db.scalar(select(WorkforceAttendance.attendance_id).where(WorkforceAttendance.roster_entry_id==payload.roster_entry_id).limit(1)):
+            raise HTTPException(409,'attendance already exists for roster entry')
     calculation=attendance_calculation(db,payload.employee_id,payload.roster_entry_id,payload.check_in_at,payload.check_out_at)
     row=WorkforceAttendance(**payload.model_dump(),worked_minutes=calculation['elapsed_minutes'],calculation=calculation,created_by=user.user_id)
     db.add(row);db.flush();audit(db,user,'workforce.attendance.create',row);return row
@@ -259,6 +264,11 @@ def transition(db,user,row,expected,action,note):
 
 def staffing_action(db,user,key,expected,action,note):
     row=get_row(db,WorkforceStaffingRule,key,True)
+    if action in ('review','approve'):
+        shift=get_row(db,WorkforceShiftType,row.shift_type_id)
+        organization=active_org(db,row.organization_id)
+        if shift.version!=row.shift_type_version or organization.version!=row.organization_version:
+            raise HTTPException(409,'staffing rule source configuration changed; recreate rule')
     return transition(db,user,row,expected,action,note)
 
 def roster_action(db,user,key,expected,action,note):
