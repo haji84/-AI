@@ -59,6 +59,8 @@ slugは運用上の名前、不変UUIDが識別子。名称やサーバーが変
 
 ## 実装と残作業
 
-本SliceはDB/原本UUID、設定検証、起動/API/Sessionの拒否、明示初期化を実装する。
-backup manifestの識別子検証、dump事前検証、専用サービスの自動構築、実PostgreSQLロール検証・復元演習は次の実装Sliceに引き継ぐ。
+DB/原本UUID、設定検証、起動/API/Sessionの拒否、明示初期化を実装した。
+backup manifest・dump内identity・原本marker・復元先UUID・releaseの事前検証と、復元先所有者の維持を実装する。
+専用service/DB role/nginx/envを生成する `scripts/generate_department_config.py` と詳細手順 `deploy/tenants/README.md` を提供する。
+CIのPostgreSQLロール/復元演習と実機ACL/LANのEvidenceは区別する。実サーバー操作は生成コマンドに含まれない。
 この文書に手順があることだけをもってそれらをCompletedにしない。

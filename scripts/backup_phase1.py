@@ -15,6 +15,8 @@ from pathlib import Path
 from sqlalchemy.engine import make_url
 
 from app.settings import settings
+from app.backup_contract import binding, dump_identity, postgres_args, record_admin_audit
+from app.tenant import TenantBoundaryError
 
 
 def sha256(path: Path) -> str:
@@ -23,23 +25,6 @@ def sha256(path: Path) -> str:
         for chunk in iter(lambda: f.read(1024 * 1024), b""):
             h.update(chunk)
     return h.hexdigest()
-
-
-def postgres_args(database_url: str) -> tuple[list[str], dict[str, str]]:
-    url = make_url(database_url)
-    args: list[str] = []
-    if url.host:
-        args += ["-h", url.host]
-    if url.port:
-        args += ["-p", str(url.port)]
-    if url.username:
-        args += ["-U", url.username]
-    if url.database:
-        args += [url.database]
-    env = os.environ.copy()
-    if url.password:
-        env["PGPASSWORD"] = url.password
-    return args, env
 
 
 def backup_sqlite(database_url: str, dest: Path) -> None:
@@ -61,12 +46,30 @@ def main() -> None:
     p.add_argument("--database-url", default=settings.database_url)
     p.add_argument("--storage-root", type=Path, default=Path(settings.storage_root))
     p.add_argument("--destination", type=Path, required=True)
+    p.add_argument("--confirm-writers-stopped", action="store_true")
+    p.add_argument("--release-id")
     args = p.parse_args()
+    tenant_id = settings.tenant_id
+    migrations = []
+    if tenant_id or settings.production_mode or args.database_url.startswith("postgresql"):
+        if not tenant_id or not args.confirm_writers_stopped or not args.release_id:
+            raise SystemExit("department backup requires configured UUID, --confirm-writers-stopped and --release-id")
+        try:
+            migrations = binding(args.database_url, args.storage_root, tenant_id)
+        except TenantBoundaryError as exc:
+            raise SystemExit(str(exc)) from None
+    storage_root = args.storage_root.resolve()
+    destination = args.destination.resolve()
+    if destination == storage_root or destination.is_relative_to(storage_root):
+        raise SystemExit("backup destination must be outside originals")
 
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     folder = args.destination.resolve() / f"fire-ai-backup-{stamp}"
-    folder.mkdir(parents=True, exist_ok=False)
+    folder.mkdir(parents=True, exist_ok=False, mode=0o700)
 
+    if tenant_id:
+        record_admin_audit(args.database_url, tenant_id, 'tenant.backup.started',
+                           {'release_id': args.release_id, 'backup': folder.name, 'writers_stopped': True})
     if args.database_url.startswith("postgresql"):
         dump = folder / "database.dump"
         pg_args, env = postgres_args(args.database_url)
@@ -86,6 +89,12 @@ def main() -> None:
         if storage_root.exists():
             tf.add(storage_root, arcname="storage", recursive=True)
 
+    if tenant_id:
+        try:
+            if dump_identity(dump, db_kind) != tenant_id:
+                raise TenantBoundaryError("Dump belongs to another department")
+        except TenantBoundaryError as exc:
+            raise SystemExit(str(exc)) from None
     manifest = {
         "created_at": datetime.now(timezone.utc).isoformat(),
         "database_kind": db_kind,
@@ -94,6 +103,9 @@ def main() -> None:
         "storage_file": storage_archive.name,
         "storage_sha256": sha256(storage_archive),
     }
+    if tenant_id:
+        manifest.update(tenant_id=tenant_id, release_id=args.release_id,
+                        consistency="writers-stopped", migrations=migrations, format_version=2)
     (folder / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps({"backup": str(folder), "database_kind": db_kind}, ensure_ascii=False))
 

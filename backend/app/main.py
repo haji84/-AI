@@ -7,14 +7,14 @@ from sqlalchemy.orm import Session
 from contextlib import asynccontextmanager
 from starlette.concurrency import run_in_threadpool
 from .db import get_db, engine
-from .tenant import TenantBoundaryMiddleware, validate_binding
+from .tenant import TenantBoundaryMiddleware, validate_runtime_binding
 from .settings import settings
 from .routers import emergency_reports, emergency
 from .routers import auth, facilities, documents, extensions, templates, contracts, inspections, submissions, intake, legal_rules, legal_sources, legal_rule_drafts, legal_review_queue, equipment, equipment_regression, equipment_placement_regression, drawings, drawing_annotations, drawing_consultations, drawing_benchmarks, fire_investigations, occupancy_regression, fire_report_exports, fire_photos, audio_benchmarks, evidence_benchmarks, search as unified_search
 
 @asynccontextmanager
 async def lifespan(app):
-    await run_in_threadpool(validate_binding, engine, settings)
+    await run_in_threadpool(validate_runtime_binding, engine, settings)
     yield
 
 

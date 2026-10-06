@@ -228,3 +228,12 @@ def test_complete_postgresql_migration_initialization(tmp_path):
         assert connection.execute(text('SELECT COUNT(*) FROM tenant_identity')).scalar_one() == 1
         assert connection.execute(text("SELECT COUNT(*) FROM audit_logs WHERE action = 'tenant.initialize'")).scalar_one() == 1
     engine.dispose()
+
+
+def test_runtime_boundary_verifies_department_before_role_checks(tmp_path):
+    from app.tenant import validate_runtime_binding, initialize_tenant, TenantBoundaryError
+    engine, cfg = database(), config(tmp_path)
+    with pytest.raises(TenantBoundaryError): validate_runtime_binding(engine, cfg)
+    initialize_tenant(engine, cfg, 'Alpha')
+    assert validate_runtime_binding(engine, cfg)['tenant_id'] == cfg.tenant_id
+    engine.dispose()
