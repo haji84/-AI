@@ -4,7 +4,7 @@
 
 ## 完成タスクの現在地（2026-10-06再監査）
 
-main 6bcf537（PR50）を正本として確認。小さなPRの完了はシステム完成を意味しない。
+main 62e4d864（PR51）を正本として確認。小さなPRの完了はシステム完成を意味しない。
 - PR41/43: 共通コード＋本部別DB/実行環境/原本/backupを固定。UUID照合、専用構成生成、PostgreSQL移行/復元/役割境界をCI検証済み。
 - PR44: 組織・職員・人事履歴・有効日権限・Humanアカウント管理・パスワード履歴/変更・セッション失効・監査閲覧。PR CI302成功、実ブラウザ1成功。main CI37476512786 SUCCESS。
 - RunB PR40/42/46の救急・事案/出動・車両・業務資産/在庫/貸出/保守を維持。main CI37482634204 SUCCESS。残り業務モジュールはRunBの連続実装対象。
@@ -1909,3 +1909,24 @@ Resolved architecture conflicts:
 Review diff: `docs/SPECIFICATION_V2_DIFF.md`.
 
 Implementation status remains tracked separately in PROJECT_STATE / completion ledgers; specification scope must not be reduced merely because a module is still Missing or Partial.
+
+
+## Master Feature Matrix canonical completion audit (2026-10-07)
+
+Master Specification v2.0 all 57 chapters have been re-audited against actual main code, migrations, routers, frontend, tests and deployment assets.
+
+Canonical matrix:
+- `docs/completion/MASTER_FEATURE_MATRIX.md`
+
+Audited base:
+- `6bcf537936915d3c891e9176b71a38f4886197e1`
+
+Primary status:
+- Completed: 14
+- Partial: 32
+- Missing: 10
+- External Gate: 1
+
+Completion work must now follow the Matrix backlog rather than historical Phase numbering.
+A PR/module completion is not a stopping condition.
+After each merged completion slice, refresh main and update the affected Matrix rows only.
