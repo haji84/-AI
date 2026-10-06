@@ -1409,7 +1409,7 @@ Safety:
 
 ## Phase 6 Drawing Baseline readiness
 
-Implemented on branch `phase6-drawing-baseline-readiness`; CI verification pending:
+Implemented and CI-verified:
 - per-DrawingAnalysis Baseline readiness evaluator
 - readiness checks:
   - source drawing Document exists
@@ -1437,6 +1437,12 @@ Implemented on branch `phase6-drawing-baseline-readiness`; CI verification pendi
   3. no scale calibration -> metric-area not ready
   4. calibrated reviewed Reference -> metric-area READY
 - drawing workspace renders a Baseline Readiness card with Geometry / area state and blockers
+
+Verified checkpoint:
+- run: `37391839458` SUCCESS
+- backend pytest: 148 passed
+- migration parser smoke: PASS
+- frontend JavaScript syntax: PASS
 
 Safety:
 - readiness never marks a Draft Annotation as Human Reference truth
