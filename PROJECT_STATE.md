@@ -1797,3 +1797,24 @@ Verified checkpoint:
 - backend pytest: 178 passed
 - migration parser smoke: PASS
 - frontend JavaScript syntax: PASS
+
+
+## Phase 6 Human Annotation QA gate
+
+Implemented in the current Phase 6 QA slice:
+- one-screen Human Annotation QA summary before Reference review
+- region/room/zone counts
+- existing floor-area target comparison surfaced as QA evidence
+- overlap blockers
+- uncalibrated-page warnings
+- missing label/use blockers
+- explicitly marked open-plan approximation warnings
+- explicit Reference-reviewable state
+- server-side recheck before a Draft can become reviewed Reference
+- live client-side QA during editing
+
+Safety:
+- QA does not auto-review a Draft
+- QA does not auto-accept a drawing Benchmark
+- geometry review can remain possible without metric calibration, while metric-area comparison stays incomplete
+- statutory floor area is not inferred by this QA layer

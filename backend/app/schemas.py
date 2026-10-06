@@ -1600,6 +1600,24 @@ class DrawingAnnotationSetOut(BaseModel):
     reviewed_at: str | None = None
 
 
+class DrawingAnnotationQaOut(BaseModel):
+    qa_format: str
+    status: str
+    counts: dict
+    floor_summaries: list = Field(default_factory=list)
+    area_target_comparisons: list = Field(default_factory=list)
+    overlap_warnings: list = Field(default_factory=list)
+    uncalibrated_pages: list[int] = Field(default_factory=list)
+    missing_label_or_usage: list[dict] = Field(default_factory=list)
+    open_plan_approximations: list[dict] = Field(default_factory=list)
+    reference_reviewable: bool
+    reviewed_reference_ready: bool
+    area_comparison_ready: bool
+    blockers: list[dict] = Field(default_factory=list)
+    warnings: list[dict] = Field(default_factory=list)
+    policy: str
+
+
 class DrawingConsultationCreate(BaseModel):
     drawing_annotation_set_id: str
     answers: dict = Field(default_factory=dict)

@@ -1548,6 +1548,51 @@ function drawingGeometrySummaryHtml(summary){
   const warnings=(summary.overlap_warnings||[]).map(x=>'<li>'+esc(x.left_label||x.left_ref||'区画A')+' × '+esc(x.right_label||x.right_ref||'区画B')+'（頁 '+esc(x.page_no)+'）</li>').join('');
   return '<div class="card" style="margin-top:8px"><div class="row"><b class="grow">階別 区画面積サマリー</b><span class="pill '+(summary.overlap_warning_count?'':'active')+'">重なり警告 '+esc(summary.overlap_warning_count||0)+'</span></div>'+floors+(missingTargets?'<div class="notice"><b>既知面積ターゲット</b><ul>'+missingTargets+'</ul></div>':'')+(warnings?'<div class="notice"><b>重なりの可能性</b><ul>'+warnings+'</ul><div class="muted">辺を共有するだけの隣接区画は警告しません。内部が重なる区画は二重計上の可能性があるためHuman確認してください。</div></div>':'')+'<div class="muted">既知面積との比較はroom区画合計のみ。法令上の床面積確定値ではありません。</div></div>';
 }
+
+function drawingAnnotationQaLocal(){
+  const ann=state.drawingAnnotation;
+  if(!ann)return null;
+  const summary=ann.payload?.geometry_summary||drawingLocalGeometrySummary()||{};
+  const elements=Array.isArray(ann.payload?.elements)?ann.payload.elements:[];
+  const regions=elements.filter(x=>x&&['room','zone'].includes(x.element_type));
+  const missing=regions.map((x,index)=>({x,index})).filter(({x})=>!String(x.label||'').trim()&&!String(x.extracted_data?.use_name||'').trim()).map(({x,index})=>({index,client_ref:x.client_ref||null,element_type:x.element_type,page_no:Number(x.page_no||1)}));
+  const openPlan=regions.map((x,index)=>({x,index})).filter(({x})=>{
+    const d=x.extracted_data||{};
+    return d.open_plan_approximation===true||String(d.approximation||'').toLowerCase()==='open_plan'||String(d.geometry_basis||'').toLowerCase()==='open_plan_approximation';
+  }).map(({x,index})=>({index,client_ref:x.client_ref||null,label:x.label||x.extracted_data?.use_name||null,page_no:Number(x.page_no||1),floor_number:x.floor_number??null}));
+  const pages=[...new Set(regions.map(x=>Number(x.page_no||1)))].sort((a,b)=>a-b);
+  const uncalibrated=pages.filter(pageNo=>!drawingMetersPerPixel(pageNo));
+  const overlaps=Array.isArray(summary.overlap_warnings)?summary.overlap_warnings:[];
+  const comparisons=Array.isArray(summary.area_target_comparisons)?summary.area_target_comparisons:[];
+  const incomplete=comparisons.filter(x=>x?.status!=='comparable');
+  const blockers=[];
+  const warnings=[];
+  if(!regions.length)blockers.push({code:'no_regions',message:'確認対象のroom/zone区画がありません。'});
+  if(missing.length)blockers.push({code:'missing_label_or_usage',message:'ラベルまたは用途が未入力の区画があります。',count:missing.length});
+  if(overlaps.length)blockers.push({code:'overlap_warning',message:'内部が重なる区画があります。二重計上の可能性を確認してください。',count:overlaps.length});
+  if(uncalibrated.length)warnings.push({code:'uncalibrated_pages',message:'実寸校正されていないページがあります。㎡比較は未完です。',pages:uncalibrated});
+  if(openPlan.length)warnings.push({code:'open_plan_approximation',message:'open-plan近似区画があります。境界を確認してください。',count:openPlan.length});
+  if(incomplete.length)warnings.push({code:'floor_area_comparison_incomplete',message:'既知床面積との比較が未完の階があります。',count:incomplete.length});
+  const referenceReviewable=blockers.length===0;
+  return {
+    counts:{region_count:regions.length,room_count:regions.filter(x=>x.element_type==='room').length,zone_count:regions.filter(x=>x.element_type==='zone').length,overlap_warning_count:overlaps.length,missing_label_or_usage_count:missing.length,open_plan_approximation_count:openPlan.length,uncalibrated_page_count:uncalibrated.length},
+    reference_reviewable:referenceReviewable,
+    reviewed_reference_ready:ann.status==='reviewed'&&referenceReviewable,
+    area_comparison_ready:ann.status==='reviewed'&&referenceReviewable&&!uncalibrated.length&&!incomplete.length,
+    blockers,warnings,uncalibrated_pages:uncalibrated,open_plan_approximations:openPlan
+  };
+}
+function drawingAnnotationQaHtml(qa){
+  if(!qa)return '';
+  const blockerHtml=(qa.blockers||[]).map(x=>'<li>'+esc(x.message)+(x.count?' ('+esc(x.count)+'件)':'')+'</li>').join('');
+  const warningHtml=(qa.warnings||[]).map(x=>'<li>'+esc(x.message)+(x.pages?.length?' ['+x.pages.map(p=>esc(p)+'頁').join(' / ')+']':'')+'</li>').join('');
+  return '<div class="card" style="margin-top:8px"><div class="row"><b class="grow">実図面 QA</b><span class="pill '+(qa.reference_reviewable?'active':'')+'">'+(qa.reference_reviewable?'Reference確認可能':'修正必要')+'</span></div>'+
+    '<div class="row"><span class="pill">区画 '+esc(qa.counts.region_count)+'</span><span class="pill">部屋 '+esc(qa.counts.room_count)+'</span><span class="pill">任意区画 '+esc(qa.counts.zone_count)+'</span><span class="pill">重なり '+esc(qa.counts.overlap_warning_count)+'</span><span class="pill">未校正頁 '+esc(qa.counts.uncalibrated_page_count)+'</span></div>'+
+    (blockerHtml?'<div class="conflict"><b>確認前に修正</b><ul>'+blockerHtml+'</ul></div>':'<div class="notice">Reference化を妨げるQA blockerはありません。</div>')+
+    (warningHtml?'<div class="notice"><b>確認ポイント</b><ul>'+warningHtml+'</ul></div>':'')+
+    '<div class="muted">QAはHuman確認支援です。自動でReference承認やBenchmark採用はしません。</div></div>';
+}
+
 function drawingPointerPosition(ev,svg){
   const rect=svg.getBoundingClientRect(),dim=drawingWorkspaceDimensions();
   return [
@@ -1862,6 +1907,12 @@ async function saveDrawingAnnotation(showMessage=true){
 }
 async function reviewDrawingAnnotation(){
   try{
+    const qa=drawingAnnotationQaLocal();
+    if(qa&&!qa.reference_reviewable){
+      alert('Human確認前に実図面QAの修正必要項目を解消してください。');
+      renderDrawingWorkspace();
+      return;
+    }
     const ann=await saveDrawingAnnotation(false);if(!ann)return;
     await api('/drawing-annotations/'+ann.drawing_annotation_set_id+'/review',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:ann.version,status:'reviewed'})});
     await refreshDrawingWorkspace();
@@ -2108,15 +2159,16 @@ function renderDrawingWorkspace(){
     const revisionInfo=revisionHistory.length?'<div class="muted" style="margin-top:6px">Revision '+esc(revisionHistory.length)+' / 元Annotation '+esc(revisionHistory[revisionHistory.length-1]?.source_annotation_id||'－')+'</div>':'';
     const cal=pageMeta.calibration;
     const calText=cal?.meters_per_pixel?'縮尺校正済み：1px = '+Number(cal.meters_per_pixel).toFixed(6)+'m':'縮尺未設定：面積はpx²表示';
+    const qaHtml=drawingAnnotationQaHtml(drawingAnnotationQaLocal());
     const historyControls=ann.status==='draft'?'<div class="row" style="margin-top:8px"><button class="btn" onclick="drawingUndo()" '+(state.drawingUndoStack.length?'':'disabled')+'>元に戻す</button><button class="btn" onclick="drawingRedo()" '+(state.drawingRedoStack.length?'':'disabled')+'>やり直す</button><span class="pill '+(state.drawingDirty?'':'active')+'">'+(state.drawingDirty?'未保存':'保存済み')+'</span><span class="muted">Ctrl/⌘+Z / Shift+Ctrl/⌘+Z</span></div>':'';
     annHtml='<div class="card"><div class="row"><div class="sectionTitle grow">Human Annotation</div><span class="pill '+(ann.status==='reviewed'?'active':'')+'">'+esc(drawingWorkspaceStatusLabel(ann.status))+'</span></div>'+historyControls+
       '<input id="drawingReferenceImportFile" class="hidden" type="file" accept=".json,application/json" onchange="importDrawingReferenceDraftFile(event)"><div class="row">'+annSelect+'<button class="btn" onclick="chooseDrawingReferenceDraft()">別Reference Draftを読み込む</button></div>'+revisionInfo+
       (ann.status==='draft'?'<div class="grid3" style="margin-top:8px"><div class="field"><label>追加種別</label><select id="humanElementType" onchange="state.drawingNewElementType=this.value"><option value="room">部屋</option><option value="zone">任意区画</option></select></div><div class="field"><label>区画名</label><input id="humanRoomLabel" placeholder="例：主寝室 / 防火区画A"></div><div class="field"><label>用途コード</label><input id="humanRoomUse" placeholder="例：bedroom"></div></div><div class="field" style="margin-top:8px"><label>階</label><input id="humanRoomFloor" type="number" value="1"></div>'+
       (isVisual?'<div class="row" style="margin-top:8px"><button class="btn primary" onclick="startDrawingRoom()">区画追加</button><button class="btn" onclick="undoDrawingPoint()">1点戻す</button><button class="btn" onclick="finishDrawingRoom()">追加確定</button><button class="btn" onclick="cancelDrawingRoom()">描画取消</button></div><div class="muted">区画追加：原図の角を順にクリック→追加確定。既存区画は選択すると頂点をドラッグ修正できます。</div>':'')+
       '<div class="notice" style="margin-top:8px"><div class="row"><b class="grow">面積・縮尺</b><span class="muted">'+esc(calText)+'</span></div><div class="row"><button class="btn" onclick="startDrawingCalibration()">2点で縮尺校正</button>'+(cal?'<button class="btn" onclick="clearDrawingCalibration()">縮尺解除</button>':'')+'<button class="btn" onclick="applySelectedDrawingMeta()">選択区画へ名称・用途を反映</button><button class="btn" onclick="addDrawingVertex()">頂点追加</button><button class="btn" onclick="removeDrawingVertex()">選択頂点を削除</button><button class="btn" onclick="toggleDrawingSnap()">境界スナップ：'+(state.drawingSnapEnabled?'ON':'OFF')+'</button><button class="btn" onclick="setDrawingFloorAreaTarget()">既知の階面積を登録</button><button class="btn" onclick="clearDrawingFloorAreaTarget()">既知面積を解除</button></div><div id="drawingSelectedMetrics" class="drawingMetric">区画を選択してください</div><div class="muted">縮尺校正：図面上の既知寸法の両端を2点クリックし、実寸(m)を入力。以後、頂点修正のたびに㎡を自動再計算します。境界スナップON時は、頂点ドラッグ/区画追加点が表示上10px以内の他区画の頂点・辺へ吸着します。</div></div>'+
-      drawingGeometrySummaryHtml(ann.payload?.geometry_summary||drawingLocalGeometrySummary())+
+      qaHtml+drawingGeometrySummaryHtml(ann.payload?.geometry_summary||drawingLocalGeometrySummary())+
       '<div class="drawingRoomList" style="margin-top:8px">'+roomList+'</div><div class="row" style="margin-top:8px"><button class="btn" onclick="saveDrawingAnnotation()">下書き保存</button><button class="btn primary" onclick="reviewDrawingAnnotation()">Human確認済みにする</button></div>':
-      drawingGeometrySummaryHtml(ann.payload?.geometry_summary||drawingLocalGeometrySummary())+
+      qaHtml+drawingGeometrySummaryHtml(ann.payload?.geometry_summary||drawingLocalGeometrySummary())+
       '<div class="drawingRoomList" style="margin-top:8px">'+roomList+'</div><div class="notice">確認済みAnnotationはBenchmark Referenceと相談入力に使用できます。面積は保存時にサーバー側で再計算済みです。</div><div class="row" style="margin-top:8px"><button class="btn primary" onclick="reviseDrawingAnnotation()">修正版Draftを作る</button></div>')+
       '</div>';
   }
