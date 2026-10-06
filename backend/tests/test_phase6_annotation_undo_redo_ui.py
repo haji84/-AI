@@ -87,10 +87,8 @@ def test_phase6_annotation_vertex_drag_creates_one_history_checkpoint_per_gestur
         "if(!state.drawingDragHistoryPushed){drawingPushHistory('頂点移動');"
         "state.drawingDragHistoryPushed=true}"
     ) in html
-    assert (
-        "state.drawingDragVertexIndex=null;state.drawingDragPointerId=null;"
-        "state.drawingDragHistoryPushed=false;"
-    ) in html
+    assert "state.drawingDragVertexIndex=null;state.drawingDragPointerId=null;state.drawingSnapTarget=null" in html
+    assert "state.drawingDragHistoryPushed=false;" in html
 
 
 def test_phase6_annotation_switch_checks_unsaved_state_before_replacing_selection():
