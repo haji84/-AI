@@ -1592,3 +1592,37 @@ Verified checkpoint:
 - backend pytest: 157 passed
 - migration parser smoke: PASS
 - frontend JavaScript syntax: PASS
+
+
+## Phase 6 floor / region area summary
+
+Implemented and CI-verified:
+- server-authoritative `geometry_summary` rebuilt on every Annotation create / seed / update / review
+- browser live-preview summary rebuilt during vertex editing
+- per-floor summary:
+  - region count
+  - room count
+  - arbitrary-zone count
+  - annotated area px² total
+  - calibrated annotated area m² total
+  - calibrated / uncalibrated region counts
+  - metric-area completeness
+- interior-overlap warning detection
+- adjacent regions sharing only a boundary are not warned
+- different pages are never cross-compared
+- explicitly different floors on the same page are not treated as overlapping
+- fake client-supplied summary values are overwritten by backend recalculation
+- UI shows floor totals and overlap warnings immediately
+- overlap warnings remain Human review aids rather than automatic rejection
+
+Verified checkpoint:
+- run: `37411992860` SUCCESS
+- backend pytest: 163 passed
+- migration parser smoke: PASS
+- frontend JavaScript syntax: PASS
+
+Safety:
+- annotated region total is explicitly not represented as statutory floor area
+- m² remains unavailable for uncalibrated regions
+- overlap warning avoids silently double-counting likely overlapping regions
+- backend remains authoritative over all derived area/summary values

@@ -1341,9 +1341,78 @@ function drawingMetricLabel(element){
   if(m.area_m2!==null&&m.area_m2!==undefined)return Number(m.area_m2).toFixed(2)+'㎡';
   return Number(m.area_px2||0).toFixed(0)+'px²（縮尺未設定）';
 }
+function drawingPointOnSegment(point,a,b,eps=1e-9){
+  const [px,py]=point,[ax,ay]=a,[bx,by]=b;
+  const cross=(px-ax)*(by-ay)-(py-ay)*(bx-ax);
+  if(Math.abs(cross)>eps)return false;
+  return px>=Math.min(ax,bx)-eps&&px<=Math.max(ax,bx)+eps&&py>=Math.min(ay,by)-eps&&py<=Math.max(ay,by)+eps;
+}
+function drawingPointInPolygonStrict(point,poly){
+  if(!Array.isArray(poly)||poly.length<3)return false;
+  for(let i=0;i<poly.length;i++)if(drawingPointOnSegment(point,poly[i],poly[(i+1)%poly.length]))return false;
+  const [px,py]=point;let inside=false,j=poly.length-1;
+  for(let i=0;i<poly.length;i++){
+    const [xi,yi]=poly[i],[xj,yj]=poly[j];
+    if((yi>py)!==(yj>py)){
+      const xCross=(xj-xi)*(py-yi)/(yj-yi)+xi;
+      if(px<xCross)inside=!inside;
+    }
+    j=i;
+  }
+  return inside;
+}
+function drawingOrientation(a,b,c){return (b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0])}
+function drawingProperSegmentIntersection(a1,a2,b1,b2,eps=1e-9){
+  const o1=drawingOrientation(a1,a2,b1),o2=drawingOrientation(a1,a2,b2),o3=drawingOrientation(b1,b2,a1),o4=drawingOrientation(b1,b2,a2);
+  if([o1,o2,o3,o4].some(x=>Math.abs(x)<=eps))return false;
+  return (o1>0)!==(o2>0)&&(o3>0)!==(o4>0);
+}
+function drawingPolygonsOverlapInterior(left,right){
+  if(left.length<3||right.length<3)return false;
+  const lxs=left.map(p=>p[0]),lys=left.map(p=>p[1]),rxs=right.map(p=>p[0]),rys=right.map(p=>p[1]);
+  const lb=[Math.min(...lxs),Math.min(...lys),Math.max(...lxs),Math.max(...lys)];
+  const rb=[Math.min(...rxs),Math.min(...rys),Math.max(...rxs),Math.max(...rys)];
+  if(lb[2]<=rb[0]||rb[2]<=lb[0]||lb[3]<=rb[1]||rb[3]<=lb[1])return false;
+  for(let i=0;i<left.length;i++)for(let j=0;j<right.length;j++)if(drawingProperSegmentIntersection(left[i],left[(i+1)%left.length],right[j],right[(j+1)%right.length]))return true;
+  if(left.some(p=>drawingPointInPolygonStrict(p,right))||right.some(p=>drawingPointInPolygonStrict(p,left)))return true;
+  const lc=[left.reduce((s,p)=>s+p[0],0)/left.length,left.reduce((s,p)=>s+p[1],0)/left.length];
+  const rc=[right.reduce((s,p)=>s+p[0],0)/right.length,right.reduce((s,p)=>s+p[1],0)/right.length];
+  return drawingPointInPolygonStrict(lc,right)||drawingPointInPolygonStrict(rc,left);
+}
+function drawingLocalGeometrySummary(){
+  const elements=state.drawingAnnotation?.payload?.elements||[];
+  const regions=elements.map((e,index)=>({e,index,pts:drawingGeometryPoints(e.geometry||{}),m:drawingLocalMetrics(e)}))
+    .filter(x=>['room','zone'].includes(x.e.element_type)&&x.pts.length>=3&&x.m);
+  const floors={};
+  regions.forEach(x=>{
+    const floor=x.e.floor_number===null||x.e.floor_number===undefined?'unassigned':String(x.e.floor_number);
+    const row=floors[floor]||(floors[floor]={floor_number:x.e.floor_number??null,region_count:0,room_count:0,zone_count:0,area_px2_total:0,area_m2_total:0,calibrated_region_count:0,uncalibrated_region_count:0,metric_area_complete:true});
+    row.region_count++;row[x.e.element_type==='room'?'room_count':'zone_count']++;row.area_px2_total+=Number(x.m.area_px2||0);
+    if(x.m.area_m2===null||x.m.area_m2===undefined){row.uncalibrated_region_count++;row.metric_area_complete=false}else{row.calibrated_region_count++;row.area_m2_total+=Number(x.m.area_m2)}
+  });
+  Object.values(floors).forEach(row=>{row.area_px2_total=Math.round(row.area_px2_total*1e6)/1e6;row.area_m2_total=row.calibrated_region_count?Math.round(row.area_m2_total*1e6)/1e6:null});
+  const warnings=[];
+  regions.forEach((a,i)=>regions.slice(i+1).forEach(b=>{
+    if(Number(a.e.page_no||1)!==Number(b.e.page_no||1))return;
+    if(a.e.floor_number!==null&&a.e.floor_number!==undefined&&b.e.floor_number!==null&&b.e.floor_number!==undefined&&Number(a.e.floor_number)!==Number(b.e.floor_number))return;
+    if(drawingPolygonsOverlapInterior(a.pts,b.pts))warnings.push({page_no:Number(a.e.page_no||1),floor_number:a.e.floor_number===b.e.floor_number?a.e.floor_number:null,left_ref:a.e.client_ref,left_label:a.e.label,right_ref:b.e.client_ref,right_label:b.e.label,warning:'interior_overlap'});
+  }));
+  return {summary_version:'drawing-geometry-summary-v1',region_count:regions.length,floor_summaries:Object.values(floors).sort((a,b)=>(a.floor_number??9999)-(b.floor_number??9999)),overlap_warning_count:warnings.length,overlap_warnings:warnings,note:'区画合計はAnnotation区画の単純合計。法定床面積そのものではありません。'};
+}
 function recalcDrawingLocalMetrics(){
   const ann=state.drawingAnnotation;if(!ann?.payload?.elements)return;
   ann.payload.elements.forEach(x=>{const m=drawingLocalMetrics(x);if(m)x.derived_geometry={...m,calculation:'polygon_shoelace_v1'}});
+  ann.payload.geometry_summary=drawingLocalGeometrySummary();
+}
+function drawingGeometrySummaryHtml(summary){
+  if(!summary)return '<div class="muted">階別面積サマリーなし</div>';
+  const floors=(summary.floor_summaries||[]).map(x=>{
+    const name=x.floor_number===null||x.floor_number===undefined?'階未設定':String(x.floor_number)+'階';
+    const metric=x.area_m2_total!==null&&x.area_m2_total!==undefined?(Number(x.area_m2_total).toFixed(2)+'㎡'+(x.metric_area_complete?'':'（一部）')):(Number(x.area_px2_total||0).toFixed(0)+'px²');
+    return '<div class="history"><b>'+esc(name)+'</b> <span class="pill">'+esc(x.region_count)+'区画</span><div class="drawingMetric">区画面積合計 '+esc(metric)+'</div><div class="muted">部屋 '+esc(x.room_count)+' / 任意区画 '+esc(x.zone_count)+' / 縮尺未設定 '+esc(x.uncalibrated_region_count)+'</div></div>';
+  }).join('');
+  const warnings=(summary.overlap_warnings||[]).map(x=>'<li>'+esc(x.left_label||x.left_ref||'区画A')+' × '+esc(x.right_label||x.right_ref||'区画B')+'（頁 '+esc(x.page_no)+'）</li>').join('');
+  return '<div class="card" style="margin-top:8px"><div class="row"><b class="grow">階別 区画面積サマリー</b><span class="pill '+(summary.overlap_warning_count?'':'active')+'">重なり警告 '+esc(summary.overlap_warning_count||0)+'</span></div>'+floors+(warnings?'<div class="notice"><b>重なりの可能性</b><ul>'+warnings+'</ul><div class="muted">辺を共有するだけの隣接区画は警告しません。内部が重なる区画は二重計上の可能性があるためHuman確認してください。</div></div>':'')+'<div class="muted">区画面積合計はAnnotation区画の単純合計で、法令上の床面積確定値ではありません。</div></div>';
 }
 function drawingPointerPosition(ev,svg){
   const rect=svg.getBoundingClientRect(),dim=drawingWorkspaceDimensions();
@@ -1822,7 +1891,9 @@ function renderDrawingWorkspace(){
       (ann.status==='draft'?'<div class="grid3" style="margin-top:8px"><div class="field"><label>追加種別</label><select id="humanElementType" onchange="state.drawingNewElementType=this.value"><option value="room">部屋</option><option value="zone">任意区画</option></select></div><div class="field"><label>区画名</label><input id="humanRoomLabel" placeholder="例：主寝室 / 防火区画A"></div><div class="field"><label>用途コード</label><input id="humanRoomUse" placeholder="例：bedroom"></div></div><div class="field" style="margin-top:8px"><label>階</label><input id="humanRoomFloor" type="number" value="1"></div>'+
       (isVisual?'<div class="row" style="margin-top:8px"><button class="btn primary" onclick="startDrawingRoom()">区画追加</button><button class="btn" onclick="undoDrawingPoint()">1点戻す</button><button class="btn" onclick="finishDrawingRoom()">追加確定</button><button class="btn" onclick="cancelDrawingRoom()">描画取消</button></div><div class="muted">区画追加：原図の角を順にクリック→追加確定。既存区画は選択すると頂点をドラッグ修正できます。</div>':'')+
       '<div class="notice" style="margin-top:8px"><div class="row"><b class="grow">面積・縮尺</b><span class="muted">'+esc(calText)+'</span></div><div class="row"><button class="btn" onclick="startDrawingCalibration()">2点で縮尺校正</button>'+(cal?'<button class="btn" onclick="clearDrawingCalibration()">縮尺解除</button>':'')+'<button class="btn" onclick="applySelectedDrawingMeta()">選択区画へ名称・用途を反映</button><button class="btn" onclick="addDrawingVertex()">頂点追加</button><button class="btn" onclick="removeDrawingVertex()">選択頂点を削除</button></div><div id="drawingSelectedMetrics" class="drawingMetric">区画を選択してください</div><div class="muted">縮尺校正：図面上の既知寸法の両端を2点クリックし、実寸(m)を入力。以後、頂点修正のたびに㎡を自動再計算します。</div></div>'+
+      drawingGeometrySummaryHtml(ann.payload?.geometry_summary||drawingLocalGeometrySummary())+
       '<div class="drawingRoomList" style="margin-top:8px">'+roomList+'</div><div class="row" style="margin-top:8px"><button class="btn" onclick="saveDrawingAnnotation()">下書き保存</button><button class="btn primary" onclick="reviewDrawingAnnotation()">Human確認済みにする</button></div>':
+      drawingGeometrySummaryHtml(ann.payload?.geometry_summary||drawingLocalGeometrySummary())+
       '<div class="drawingRoomList" style="margin-top:8px">'+roomList+'</div><div class="notice">確認済みAnnotationはBenchmark Referenceと相談入力に使用できます。面積は保存時にサーバー側で再計算済みです。</div>')+
       '</div>';
   }
