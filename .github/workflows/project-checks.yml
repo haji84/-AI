@@ -76,7 +76,7 @@ jobs:
           python -m pip install -e 'backend[test]' 'playwright>=1.55,<2'
           python -m playwright install --with-deps chromium
       - name: Human administration browser test
-        run: python -m pytest backend/tests/test_admin_browser.py backend/tests/test_assets_browser.py -q
+        run: python -m pytest backend/tests/test_admin_browser.py backend/tests/test_assets_browser.py backend/tests/test_learning_browser.py -q
       - uses: actions/upload-artifact@v4
         if: always()
         with:

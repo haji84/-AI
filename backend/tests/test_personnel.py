@@ -354,3 +354,15 @@ def test_account_manager_has_narrow_staff_picker_without_personnel_read(environm
         response=second.get('/administration/account-staff')
         assert response.status_code==200,response.text
         assert set(response.json()[0])=={'employee_id','employee_code','display_name','active'}
+
+
+def test_audit_keyset_pages_do_not_drop_older_history(environment):
+    client,engine,_,_=environment
+    with Session(engine) as db:
+        for i in range(5):db.add(AuditLog(action='synthetic.paging',entity_type='synthetic',entity_id=str(i)))
+        db.commit()
+    first=client.get('/administration/audit?limit=2&action=synthetic.paging').json()
+    second=client.get('/administration/audit',params={'limit':2,'action':'synthetic.paging','before_id':first[-1]['audit_id']}).json()
+    assert len(first)==len(second)==2
+    assert set(row['audit_id'] for row in first).isdisjoint(row['audit_id'] for row in second)
+    assert all(row['action']=='synthetic.paging' for row in first+second)

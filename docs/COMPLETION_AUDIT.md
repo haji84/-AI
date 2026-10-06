@@ -1,6 +1,6 @@
 # 実運用完成監査
 
-監査基準: 2026-10-06、main `c4e692ed8e9b04cf54ba0d978d33664f39cbdfbc`。
+監査基準: 2026-10-06、main `6bcf537936915d3c891e9176b71a38f4886197e1`。
 正本: GitHub haji84/-AI main。過去の会話・Phase番号・PROJECT_STATEだけで完成判定しない。
 
 ## 判定方法
@@ -8,7 +8,7 @@
 Completedは下記に限定した実装要素の完了であり、システム全体の完成を意味しない。
 Partialはコードがあるが仕様・実運用証拠が不足。Missingは対応コードを確認できない。
 External Gateは承認済み実環境・Humanによる正式判定・提供されていない評価原本などが必要な項目。
-直近確認: PR46/45/44/43/42 merged。main project-checks run37482634204 SUCCESS（c4e692ed）。開PRは次Slice/merge前に再取得する。
+直近確認: PR50/48仕様更新とPR47/46/45 merged。main project-checks run37487471110 SUCCESS（6bcf537）。開PRは次Slice/merge前に再取得する。
 
 ## Completed / Partial / Missing / External Gate
 
@@ -30,14 +30,14 @@ External Gateは承認済み実環境・Humanによる正式判定・提供さ�
 | 救急Web集計・帳票・チェック・候補レビュー | Partial（今回の集計Slice後） | emergency_reports core/router/UI、新規8テスト。臨床flagテーブルあり | 名称マスタ・隊員/時系列/正式帳票、Web取込、チェック、Human候補確認 |
 | 契約管理 | Partial | routers/contracts.py、Contract* | 一覧UI・書類/見積/履行/検査/請求/変更契約の全フロー |
 | Module/Feature Flag/Change Request | Partial | routers/extensions.py、Module* | Sandbox実行・Deployment実反映/rollback証拠 |
-| 学習・Champion/Candidate昇格・rollback | Missing | 正式仕様17・Phase11。専用実装を確認できず | 修正記録、固定評価、比較、明示承認、rollback |
+| 学習・Champion/Candidate昇格・rollback | Partial（Task6レビュー/CI前） | 正式v2.0 §37。修正/固定原本/比較/辞書Candidate/明示Human昇格/rollbackを実装中 | Task6レビュー・PG/browser CI・merge、実モデル/実データ品質は別Gate |
 | tenant分離 | Completed（コード基盤・PR41/43） | 承認済み本部別DB方式、UUID照合、生成専用roles/paths、PG別DB接続・更新拒否、backup/restore境界CI | 実OS ACL・実機復元・LAN受入はExternal Gate |
 | 職員とアカウント分離 | Completed（データモデル） | EmployeeとUser.employee_id | 管理操作は別項目 |
 | 組織マスタ・人事履歴・異動追随 | Completed（基盤・PR44） | OrganizationUnit/EmployeeAssignment、Migration041、有効日権限、管理ブラウザCI | 実辞令/所属・LAN受入は別Gate |
-| 認証・RBAC | Completed（基盤・PR44） | 有効日所属権限、Human管理UI、password履歴/変更/reset、login排他、session失効、最後の管理者保護 | 実運用権限承認・受入はExternal Gate。固定password有効期限は正式仕様に要求なし（運用方針を要確認） |
+| 認証・RBAC | Partial（v2.0再監査） | PR44有効日所属/管理UI/password履歴/変更/reset/login排他/session失効/最後の管理者保護 | 新正式v2.0 §6 password expiryをTask7で実装。実運用権限受入はExternal Gate |
 | 監査ログ | Completed（基盤） | audit.py、AuditLog、管理閲覧API/UI、PostgreSQLの更新/削除拒否CI | 実サーバーOS/運用受入は別Gate |
 | migration | Completed（001-042・基盤） | PostgreSQL全実行/再実行/制約/排他CI、schema照合 | 本番clone移行・実機受入は別Gate |
-| backup/restore | Partial（自動backup Slice検証中） | PR43のUUID/hash/release/所有者/PG復元CI。Task5の本部timer・停止/復帰・保守排他を追加中 | Task5統合CI/merge、実機復元受入 |
+| backup/restore | Completed（コード基盤・PR43/47） | UUID/hash/release/所有者/PG復元、本部timer停止/復帰、SIGTERM、保守排他・拒否再利用防止。PR47 PG367/browser2成功、main Green | 実systemd/監視/実機復元受入はExternal Gate |
 | 本番LAN・TLS・複数PC競合 | External Gate | deploy/nginx、systemd、LAN_DEPLOYMENT.md | 承認サーバー/名前/証明書/経路と実機検証 |
 | 完成成果物・release一式 | Missing | READMEとPhase手順あり | 全マニュアル、構成/DB/権限/制約/検証/完成判定を束ねる |
 
@@ -97,3 +97,7 @@ main fb2c9900 / PR44の実装・CIを再監査。署名付き閉域更新Missing
 PR45署名更新とPR46業務資産/在庫/貸出/保守を実コード・テスト・CIと照合。RunBの残る届出/契約/人員/予算等はRUN_B_REQUIREMENTS.mdとそのledgerで継続。学習基盤はSPEC17の専用実装を未確認でMissingのまま。図面worker・実model設定・比較出力と最終成果物はRunAで次に照合・実装する。Task5の自動backup/保守排他はレビュー修正と全体CI前なので未Completed。
 
 Ruling: パスワード固定期限を以前の監査が未実装としたが、正式SPECに固定日数/期限要件を確認できない。Human管理の変更/reset・履歴・失効を実装済みとして扱い、任意日数の強制失効は発明しない。運用ポリシーによる将来設定は本番管理者判断。監査履歴のページ送り等、実用上必要な不足は別途内部Partialとして継続する。
+
+## Master Specification v2.0 追補監査
+
+PR48/50（main6bcf537）の正式仕様を採用。旧v1の説明/Phaseは履歴であり、新要求をCompletedと推定しない。学習は§37へ対応を実装中。§6のpassword expiryは内部Missing/Task7となり、旧仕様に固定期限がなかったという以前のRulingを適用しない。既存の基盤コード・Human Gate・別本部境界は維持し、危険物/違反改善、改正影響、個人work queue、AI worker/自己拡張等の新正式要求を実コード/テストで次に照合する。既存RunB担当業務を重複実装しない。
