@@ -1667,3 +1667,28 @@ Verified checkpoint:
 - backend pytest: 168 passed
 - migration parser smoke: PASS
 - frontend JavaScript syntax: PASS
+
+
+## Phase 6 Annotation boundary snapping
+
+Implemented on branch `phase6-annotation-snapping`; CI verification pending:
+- Draft room/zone vertex editing now supports optional boundary snapping
+- snapping is enabled by default and can be toggled ON/OFF
+- display-space threshold is approximately 10px and is converted to drawing coordinates
+- snap candidates are limited to the current drawing page
+- actively edited polygon is excluded from its own snap candidates
+- snap targets:
+  - vertices of other room/zone polygons
+  - projected points on other room/zone edges
+- exact vertex targets win ties against edge targets
+- both existing-vertex drag and new-region point placement use the same snap engine
+- current snap target is rendered as a visible crosshair/label
+- snap state is transient and cleared after drag/new-region completion
+- backend remains authoritative for saved Geometry-derived area and summary values
+- frontend contract tests protect drag/new-point snap wiring and ON/OFF behavior
+
+Safety:
+- snapping is a Human editing aid only
+- no polygon is moved automatically after the Human finishes the gesture
+- no server-side Geometry is inferred from snapping state
+- disabling snapping restores exact freehand point placement
