@@ -237,7 +237,7 @@ def import_emergency_workbook(
                 "cpr_wishes_none": norm(h.get("心肺蘇生希望なし")) or None,
                 "raw_payload": _raw_by_header(row, case_headers),
             }
-            case = db.scalar(select(EmergencyCase).where(EmergencyCase.source_case_key == key))
+            case = db.scalar(select(EmergencyCase).where(EmergencyCase.source_case_key == key).with_for_update().execution_options(populate_existing=True))
             if case is None:
                 case = EmergencyCase(source_case_key=key, source_batch_id=batch.batch_id, **values)
                 db.add(case)
@@ -259,7 +259,7 @@ def import_emergency_workbook(
             case_key = _case_key(h)
             case_id = case_ids.get(case_key)
             if case_id is None:
-                existing_case = db.scalar(select(EmergencyCase).where(EmergencyCase.source_case_key == case_key))
+                existing_case = db.scalar(select(EmergencyCase).where(EmergencyCase.source_case_key == case_key).with_for_update().execution_options(populate_existing=True))
                 if existing_case:
                     case_id = existing_case.emergency_case_id
             if case_id is None:
@@ -293,7 +293,7 @@ def import_emergency_workbook(
                 select(EmergencyPatient).where(
                     EmergencyPatient.emergency_case_id == case_id,
                     EmergencyPatient.patient_number == patient_number,
-                )
+                ).with_for_update().execution_options(populate_existing=True)
             )
             if patient is None:
                 db.add(EmergencyPatient(emergency_case_id=case_id, patient_number=patient_number, source_batch_id=batch.batch_id, **values))
@@ -318,7 +318,7 @@ def import_emergency_workbook(
             case_key = _case_key(h)
             case_id = case_ids.get(case_key)
             if case_id is None:
-                existing_case = db.scalar(select(EmergencyCase).where(EmergencyCase.source_case_key == case_key))
+                existing_case = db.scalar(select(EmergencyCase).where(EmergencyCase.source_case_key == case_key).with_for_update().execution_options(populate_existing=True))
                 if existing_case:
                     case_id = existing_case.emergency_case_id
             if case_id is None:

@@ -1855,3 +1855,11 @@ Next independent work remains tenant/common administration, PostgreSQL verificat
 
 Remaining emergency work: names/master mapping, per-crew and official time-series reports, Web import, validation checks and Human clinical-candidate review.
 This is not a production-completion or emergency-module-completion claim.
+
+## Completion Run B — emergency operational slice
+
+Run B extends existing normalized emergency records and uses the main aggregate/export implementation from #39.
+Added: case/patient editing, common-employee crew assignment, treatment records, CPA/allergy candidate generation, explicit Human review with stale-evidence rejection, immutable reviewed report snapshots, input warnings, audited workbook Web import, permission-gated case search and shared-shell UI.
+Migration 038 adds emergency_treatments/emergency_report_drafts and clinical-flag optimistic version.
+No candidate directly changes official patient source fields. No tenant-isolation or whole-module completion claim.
+See docs/completion/RUN_B_STATUS.md and INTEGRATION_HANDOFF.md for internal backlog, interfaces and External Gates.
