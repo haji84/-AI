@@ -1449,3 +1449,61 @@ Safety:
 - metric area is not treated as ready without page calibration
 - source mismatch remains a hard blocker
 - readiness does not itself run or accept a Benchmark
+
+
+## Phase 6 in-app Drawing Baseline run
+
+Implemented and CI-verified:
+- drawing Benchmark scoring core extracted to `backend/app/drawing_benchmark_core.py`
+- CLI and backend API now use the same scoring implementation
+- existing CLI behavior is preserved through a thin wrapper
+- Human Reference export builder is shared between:
+  - existing `/benchmark-reference` endpoint
+  - in-app Baseline runner
+- in-app Baseline run endpoint:
+  - `POST /drawing-analyses/{analysis_id}/baseline-run`
+- Baseline run requires:
+  - matching expected DrawingAnalysis version
+  - `geometry_baseline_ready=true`
+  - Human-reviewed Reference
+  - exportable AI Hypothesis
+  - same source drawing SHA
+- run builds canonical in-app manifest evidence containing:
+  - DrawingAnalysis ID/version
+  - Annotation ID/version
+  - source Document ID/SHA
+  - model version
+  - IoU threshold
+- Reference/Hypothesis payloads receive canonical JSON SHA-256 evidence
+- Benchmark result is persisted directly to `drawing_benchmark_runs`
+- identical evidence is idempotent and reuses the existing Run instead of duplicating it
+- dataset label does not alter result evidence identity
+- newly persisted Run remains `pending`
+- Baseline acceptance still requires the existing separate Human Benchmark Review gate
+- drawing workspace:
+  - shows a `この図面でBaseline実行` button only when Geometry readiness passes
+  - shows Geometry F1 / mean IoU / Fact F1
+  - clearly labels Run as pending separate Human review
+- E2E covers:
+  - not-ready Baseline rejection
+  - DrawingAnalysis version conflict
+  - ready Baseline execution
+  - Geometry F1 = 1.0 fixture
+  - Fact F1 = 1.0 fixture
+  - canonical manifest/result SHA
+  - idempotent repeat execution
+  - one persisted Benchmark Run
+  - separate Human Baseline acceptance
+- regression test verifies CLI and API scorer parity through the shared core
+
+Verified checkpoint:
+- run: `37392710772` SUCCESS
+- backend pytest: 151 passed
+- migration parser smoke: PASS
+- frontend JavaScript syntax: PASS
+
+Safety:
+- in-app execution cannot bypass Human Reference review
+- in-app execution does not auto-accept a Baseline
+- source drawing mismatch remains a hard error
+- old Benchmark Runs remain immutable evidence when Annotation/AI results change

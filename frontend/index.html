@@ -212,7 +212,7 @@ table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid #e4e8ec;
 
 <script>
 const $=id=>document.getElementById(id);
-const state={offset:0,limit:50,total:0,selected:null,detail:null,mode:null,draft:null,drawings:[],drawingAnalysisId:null,drawingDetail:null,drawingWorkspace:null,drawingDoc:null,drawingPreviewInfo:null,drawingPageNo:1,drawingAnnotations:[],drawingAnnotation:null,drawingConsultations:[],drawingConsultation:null,drawingResponse:null,drawingBaselineReadiness:null,drawingPageWidth:0,drawingPageHeight:0,drawingDrawPoints:[],drawingDrawActive:false,drawingEditElementIndex:null,drawingSelectedVertexIndex:null,drawingDragVertexIndex:null,drawingDragPointerId:null,drawingCalibrationMode:false,drawingCalibrationPoints:[],drawingNewElementType:'room'};
+const state={offset:0,limit:50,total:0,selected:null,detail:null,mode:null,draft:null,drawings:[],drawingAnalysisId:null,drawingDetail:null,drawingWorkspace:null,drawingDoc:null,drawingPreviewInfo:null,drawingPageNo:1,drawingAnnotations:[],drawingAnnotation:null,drawingConsultations:[],drawingConsultation:null,drawingResponse:null,drawingBaselineReadiness:null,drawingBaselineRun:null,drawingPageWidth:0,drawingPageHeight:0,drawingDrawPoints:[],drawingDrawActive:false,drawingEditElementIndex:null,drawingSelectedVertexIndex:null,drawingDragVertexIndex:null,drawingDragPointerId:null,drawingCalibrationMode:false,drawingCalibrationPoints:[],drawingNewElementType:'room'};
 const legalReviewState={offset:0,limit:50,total:0};
 const fireState={caseId:null,detail:null,mediaType:null};
 const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
@@ -1206,7 +1206,7 @@ function drawingAnswerLabel(k){
 function closeDrawingWorkspace(){
   $('drawingWorkspaceModal').classList.add('hidden');
   state.drawingWorkspace=null;state.drawingDoc=null;state.drawingPreviewInfo=null;state.drawingPageNo=1;state.drawingAnnotations=[];state.drawingAnnotation=null;
-  state.drawingConsultations=[];state.drawingConsultation=null;state.drawingResponse=null;state.drawingBaselineReadiness=null;
+  state.drawingConsultations=[];state.drawingConsultation=null;state.drawingResponse=null;state.drawingBaselineReadiness=null;state.drawingBaselineRun=null;
   state.drawingDrawPoints=[];state.drawingDrawActive=false;state.drawingEditElementIndex=null;state.drawingSelectedVertexIndex=null;state.drawingDragVertexIndex=null;state.drawingDragPointerId=null;state.drawingCalibrationMode=false;state.drawingCalibrationPoints=[];state.drawingNewElementType='room';state.drawingPageWidth=0;state.drawingPageHeight=0;
 }
 async function openDrawingWorkspace(id){
@@ -1667,6 +1667,45 @@ function renderDrawingResponse(r){
     '</div>';
 }
 
+
+async function runDrawingBaselineFromWorkspace(){
+  const a=state.drawingWorkspace?.analysis;
+  const r=state.drawingBaselineReadiness;
+  if(!a||!r)return;
+  if(!r.geometry_baseline_ready){
+    alert('Geometry Baselineはまだ実行できません。Blockerを解消してください。');
+    return;
+  }
+  try{
+    const result=await api(
+      '/drawing-analyses/'+encodeURIComponent(a.drawing_analysis_id)+'/baseline-run',
+      {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+          expected_analysis_version:a.version,
+          iou_threshold:0.5
+        })
+      }
+    );
+    state.drawingBaselineRun=result;
+    renderDrawingWorkspace();
+  }catch(e){
+    alert('Baselineを実行できません: '+e.message);
+  }
+}
+function drawingBaselineRunHtml(run){
+  if(!run)return '';
+  const a=run.result_payload?.aggregate||{};
+  const g=a.geometry_detection||{},facts=a.fact_candidates||{};
+  return '<div class="notice"><b>Baseline Run</b> '+
+    '<span class="pill">'+(run.created?'新規保存':'同一Evidence再利用')+'</span>'+
+    '<div class="muted">Run ID: '+esc(run.drawing_benchmark_run_id)+'</div>'+
+    '<div class="muted">Geometry F1: '+esc(g.f1??'N/A')+
+      ' / mean IoU: '+esc(g.mean_iou??'N/A')+
+      ' / Fact F1: '+esc(facts.f1??'N/A')+'</div>'+
+    '<div class="muted">状態: '+esc(run.review_status)+'。Benchmark採用は別のHuman Review Gateです。</div></div>';
+}
 function drawingBaselineReadinessHtml(r){
   if(!r)return '';
   const geometry=r.geometry_baseline_ready;
@@ -1686,6 +1725,8 @@ function drawingBaselineReadinessHtml(r){
     (blockers?'<div class="notice"><b>Blocker</b><ul>'+blockers+'</ul></div>':'')+
     (warnings?'<div class="notice"><b>Warning</b><ul>'+warnings+'</ul></div>':'')+
     (geometry?'<div class="muted">Geometry Benchmarkは実行可能。㎡評価はページ校正が揃うとREADYになります。</div>':'')+
+    (geometry?'<button class="btn primary" style="margin-top:8px" onclick="runDrawingBaselineFromWorkspace()">この図面でBaseline実行</button>':'')+
+    drawingBaselineRunHtml(state.drawingBaselineRun)+
     '</div>';
 }
 function renderDrawingWorkspace(){

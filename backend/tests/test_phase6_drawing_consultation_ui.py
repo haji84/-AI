@@ -136,3 +136,24 @@ def test_phase6_drawing_workspace_shows_baseline_readiness():
     ]
     missing = [x for x in required_fragments if x not in html]
     assert not missing, f"Baseline readiness UI wiring missing: {missing}"
+
+
+
+def test_phase6_workspace_runs_in_app_baseline():
+    html = (
+        Path(__file__).resolve().parents[2]
+        / "frontend"
+        / "index.html"
+    ).read_text(encoding="utf-8")
+
+    required_fragments = [
+        "/baseline-run",
+        "runDrawingBaselineFromWorkspace(",
+        "drawingBaselineRunHtml(",
+        "この図面でBaseline実行",
+        "Geometry F1",
+        "mean IoU",
+        "Benchmark採用は別のHuman Review Gate",
+    ]
+    missing = [x for x in required_fragments if x not in html]
+    assert not missing, f"In-app Baseline UI wiring missing: {missing}"
