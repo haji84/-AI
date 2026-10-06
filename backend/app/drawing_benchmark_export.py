@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from .models import (
     Document,
     DrawingAnalysis,
+    DrawingAnnotationSet,
     DrawingElement,
     DrawingEquipmentCandidate,
     DrawingFactCandidate,
@@ -13,7 +14,59 @@ from .models import (
 
 
 HYPOTHESIS_FORMAT = "fire-ai-drawing-hypothesis-v1"
+REFERENCE_FORMAT = "fire-ai-drawing-human-reference-v1"
 
+
+
+def build_drawing_reference(
+    db: Session,
+    annotation: DrawingAnnotationSet,
+) -> dict:
+    if annotation.status != "reviewed":
+        raise ValueError(
+            "benchmark Reference requires a reviewed Human Annotation"
+        )
+    analysis = db.get(
+        DrawingAnalysis,
+        annotation.drawing_analysis_id,
+    )
+    if not analysis:
+        raise ValueError("drawing analysis missing")
+    document = db.get(Document, analysis.document_id)
+    if not document:
+        raise ValueError("source drawing document missing")
+
+    body = annotation.payload or {}
+    return {
+        "reference_format": REFERENCE_FORMAT,
+        "drawing_annotation_set_id":
+            annotation.drawing_annotation_set_id,
+        "drawing_analysis_id":
+            annotation.drawing_analysis_id,
+        "source": {
+            "document_id": document.document_id,
+            "filename": document.original_filename,
+            "sha256": document.sha256,
+            "mime_type": document.mime_type,
+        },
+        "coordinate_space":
+            annotation.coordinate_space,
+        "page_dimensions":
+            annotation.page_dimensions or {},
+        "elements": body.get("elements", []),
+        "equipment_candidates":
+            body.get("equipment_candidates", []),
+        "fact_candidates":
+            body.get("fact_candidates", []),
+        "human_review": {
+            "status": annotation.status,
+            "reviewed_at": (
+                annotation.reviewed_at.isoformat()
+                if annotation.reviewed_at
+                else None
+            ),
+        },
+    }
 
 def build_drawing_hypothesis(
     db: Session,
