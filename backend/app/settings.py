@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     app_name: str = "消防業務 Local AI"
     storage_root: str = "./runtime/storage"
     production_mode: bool = False
+    legal_update_trust_file: str | None = None
     tenant_id: str | None = None
     trusted_hosts: list[str] = []
 

@@ -20,6 +20,9 @@ from app.models import (
     LegalUpdateCandidate,
 )
 from app.settings import settings
+from app.legal_update_bundle import verified_import_inputs, lock_and_validate_freshness, validate_source_snapshot
+from app.audit import write_audit
+from uuid import UUID
 
 
 def sha256_bytes(data: bytes) -> str:
@@ -63,151 +66,158 @@ def main() -> None:
     p.add_argument("--manifest", required=True)
     args = p.parse_args()
 
-    archive_path = Path(args.archive).resolve()
-    manifest_path = Path(args.manifest).resolve()
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    args.source_id=str(UUID(args.source_id))
+    with verified_import_inputs(SessionLocal,args.source_id,args.manifest,settings,archive_path=args.archive) as verified:
+        archive_path = verified.root / verified.manifest["archive_file"]
+        manifest_path = verified.manifest_path
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
 
-    archive_hash = hashlib.sha256(archive_path.read_bytes()).hexdigest()
-    expected_hash = manifest.get("archive_sha256")
-    if expected_hash and expected_hash != archive_hash:
-        raise SystemExit("archive SHA-256 does not match manifest")
+        archive_hash = manifest["archive_sha256"]  # immutable staging already verified this stream
+        expected_hash = manifest.get("archive_sha256")
+        if expected_hash and expected_hash != archive_hash:
+            raise SystemExit("archive SHA-256 does not match manifest")
 
-    storage_root = Path(settings.storage_root).resolve()
-    target_root = storage_root / "legal_sources" / args.source_id
-    target_root.mkdir(parents=True, exist_ok=True)
+        storage_root = Path(settings.storage_root).resolve()
+        target_root = storage_root / "legal_sources" / args.source_id
 
-    inserted = 0
-    unchanged = 0
-    failures: list[dict] = []
+        inserted = 0
+        unchanged = 0
+        failures: list[dict] = []
 
-    with SessionLocal() as db:
-        source = db.get(LegalSource, args.source_id)
-        if not source:
-            raise SystemExit("legal source not found")
+        with SessionLocal() as db:
+            lock_and_validate_freshness(db,args.source_id,verified.provenance)
+            source = db.get(LegalSource, args.source_id)
+            if not source:
+                raise SystemExit("legal source not found")
+            validate_source_snapshot(source,verified.provenance)
+            target_root.mkdir(parents=True, exist_ok=True)
 
-        with zipfile.ZipFile(archive_path) as zf:
-            members = [name for name in zf.namelist() if name.lower().endswith(".xml") and not name.endswith("/")]
-            for member in members:
-                try:
-                    body = zf.read(member)
-                    digest = sha256_bytes(body)
-                    root = ET.fromstring(body)
-                    ext_id = stable_external_id(member)
-                    title = first_text(root, "LawTitle") or ext_id
-                    law_num = first_text(root, "LawNum")
-                    law_type = root.attrib.get("LawType") or "law"
+            with zipfile.ZipFile(archive_path) as zf:
+                members = [name for name in zf.namelist() if name.lower().endswith(".xml") and not name.endswith("/")]
+                for member in members:
+                    try:
+                        body = zf.read(member)
+                        digest = sha256_bytes(body)
+                        root = ET.fromstring(body)
+                        ext_id = stable_external_id(member)
+                        title = first_text(root, "LawTitle") or ext_id
+                        law_num = first_text(root, "LawNum")
+                        law_type = root.attrib.get("LawType") or "law"
 
-                    doc = db.scalar(
-                        select(LegalSourceDocument).where(
-                            LegalSourceDocument.legal_source_id == source.legal_source_id,
-                            LegalSourceDocument.external_id == ext_id,
+                        doc = db.scalar(
+                            select(LegalSourceDocument).where(
+                                LegalSourceDocument.legal_source_id == source.legal_source_id,
+                                LegalSourceDocument.external_id == ext_id,
+                            )
                         )
-                    )
-                    if doc is None:
-                        doc = LegalSourceDocument(
-                            legal_source_id=source.legal_source_id,
-                            external_id=ext_id,
-                            document_type=str(law_type)[:80],
-                            title=title,
-                            document_number=law_num,
-                            source_url=f"https://laws.e-gov.go.jp/law/{ext_id}",
+                        if doc is None:
+                            doc = LegalSourceDocument(
+                                legal_source_id=source.legal_source_id,
+                                external_id=ext_id,
+                                document_type=str(law_type)[:80],
+                                title=title,
+                                document_number=law_num,
+                                source_url=f"https://laws.e-gov.go.jp/law/{ext_id}",
+                            )
+                            db.add(doc)
+                            db.flush()
+                        else:
+                            doc.title = title
+                            if law_num:
+                                doc.document_number = law_num
+                            doc.updated_at = datetime.now(timezone.utc)
+
+                        exists = db.scalar(
+                            select(LegalSourceDocumentVersion).where(
+                                LegalSourceDocumentVersion.legal_source_document_id == doc.legal_source_document_id,
+                                LegalSourceDocumentVersion.sha256 == digest,
+                            )
                         )
-                        db.add(doc)
+                        if exists:
+                            unchanged += 1
+                            continue
+
+                        previous = db.scalar(
+                            select(LegalSourceDocumentVersion)
+                            .where(LegalSourceDocumentVersion.legal_source_document_id == doc.legal_source_document_id)
+                            .order_by(LegalSourceDocumentVersion.retrieved_at.desc())
+                        )
+
+                        stored = target_root / f"{digest}.xml"
+                        if not stored.exists():
+                            stored.write_bytes(body)
+                        rel = str(stored.relative_to(storage_root))
+                        raw = Document(
+                            storage_path=rel,
+                            original_filename=Path(member).name,
+                            sha256=digest,
+                            size_bytes=len(body),
+                            mime_type="application/xml",
+                            document_type="legal_source_original",
+                        )
+                        db.add(raw)
                         db.flush()
-                    else:
-                        doc.title = title
-                        if law_num:
-                            doc.document_number = law_num
-                        doc.updated_at = datetime.now(timezone.utc)
 
-                    exists = db.scalar(
-                        select(LegalSourceDocumentVersion).where(
-                            LegalSourceDocumentVersion.legal_source_document_id == doc.legal_source_document_id,
-                            LegalSourceDocumentVersion.sha256 == digest,
+                        version = LegalSourceDocumentVersion(
+                            legal_source_document_id=doc.legal_source_document_id,
+                            version_label=Path(member).stem,
+                            revision_external_id=Path(member).stem,
+                            retrieved_at=datetime.now(timezone.utc),
+                            raw_document_id=raw.document_id,
+                            normalized_text=normalized_text(root),
+                            structured_content={
+                                "root_attributes": dict(root.attrib),
+                                "archive_member": member,
+                                "provider": "e-Gov",
+                                "collector_mode": manifest.get("mode"),
+                                "collector_update_date": manifest.get("update_date"),
+                            "bundle_verification": verified.provenance,
+                            },
+                            source_url=f"https://laws.e-gov.go.jp/law/{ext_id}",
+                            sha256=digest,
+                            previous_version_id=previous.legal_source_document_version_id if previous else None,
+                            change_summary={
+                                "previous_sha256": previous.sha256 if previous else None,
+                                "current_sha256": digest,
+                            },
                         )
-                    )
-                    if exists:
-                        unchanged += 1
-                        continue
-
-                    previous = db.scalar(
-                        select(LegalSourceDocumentVersion)
-                        .where(LegalSourceDocumentVersion.legal_source_document_id == doc.legal_source_document_id)
-                        .order_by(LegalSourceDocumentVersion.retrieved_at.desc())
-                    )
-
-                    stored = target_root / f"{digest}.xml"
-                    if not stored.exists():
-                        stored.write_bytes(body)
-                    rel = str(stored.relative_to(storage_root))
-                    raw = Document(
-                        storage_path=rel,
-                        original_filename=Path(member).name,
-                        sha256=digest,
-                        size_bytes=len(body),
-                        mime_type="application/xml",
-                        document_type="legal_source_original",
-                    )
-                    db.add(raw)
-                    db.flush()
-
-                    version = LegalSourceDocumentVersion(
-                        legal_source_document_id=doc.legal_source_document_id,
-                        version_label=Path(member).stem,
-                        revision_external_id=Path(member).stem,
-                        retrieved_at=datetime.now(timezone.utc),
-                        raw_document_id=raw.document_id,
-                        normalized_text=normalized_text(root),
-                        structured_content={
-                            "root_attributes": dict(root.attrib),
-                            "archive_member": member,
-                            "provider": "e-Gov",
-                            "collector_mode": manifest.get("mode"),
-                            "collector_update_date": manifest.get("update_date"),
-                        },
-                        source_url=f"https://laws.e-gov.go.jp/law/{ext_id}",
-                        sha256=digest,
-                        previous_version_id=previous.legal_source_document_version_id if previous else None,
-                        change_summary={
-                            "previous_sha256": previous.sha256 if previous else None,
-                            "current_sha256": digest,
-                        },
-                    )
-                    db.add(version)
-                    db.flush()
-                    db.add(
-                        LegalUpdateCandidate(
-                            legal_source_document_version_id=version.legal_source_document_version_id,
-                            previous_version_id=version.previous_version_id,
-                            change_type="amended" if previous else "new",
-                            diff_payload=version.change_summary,
-                            impacted_rule_ids=[],
-                            impacted_modules=[],
-                            status="review_required",
+                        db.add(version)
+                        db.flush()
+                        db.add(
+                            LegalUpdateCandidate(
+                                legal_source_document_version_id=version.legal_source_document_version_id,
+                                previous_version_id=version.previous_version_id,
+                                change_type="amended" if previous else "new",
+                                diff_payload=version.change_summary,
+                                impacted_rule_ids=[],
+                                impacted_modules=[],
+                                status="review_required",
+                            )
                         )
-                    )
-                    inserted += 1
-                except Exception as exc:
-                    failures.append({"member": member, "error": type(exc).__name__})
+                        inserted += 1
+                    except Exception as exc:
+                        failures.append({"member": member, "error": type(exc).__name__})
 
-        source.last_checked_at = datetime.now(timezone.utc)
-        if not failures:
-            source.last_success_at = datetime.now(timezone.utc)
-        source.captured_document_count = inserted + unchanged
-        if manifest.get("mode") == "all":
-            source.coverage_status = "complete" if not failures else "partial"
-            source.last_full_sync_at = datetime.now(timezone.utc)
-        elif failures and source.coverage_status == "complete":
-            source.coverage_status = "stale"
-        db.commit()
+            source.last_checked_at = datetime.now(timezone.utc)
+            if not failures:
+                source.last_success_at = datetime.now(timezone.utc)
+            source.captured_document_count = inserted + unchanged
+            if manifest.get("mode") == "all":
+                source.coverage_status = "complete" if not failures else "partial"
+                source.last_full_sync_at = datetime.now(timezone.utc)
+            elif failures and source.coverage_status == "complete":
+                source.coverage_status = "stale"
+            write_audit(db,user_id=None,action='legal.bundle.import',entity_type='legal_source',entity_id=args.source_id,
+                        after={**verified.provenance,'inserted_versions':inserted,'unchanged_documents':unchanged,'failure_count':len(failures),'human_review_required':True})
+            db.commit()
 
-    print(json.dumps({
-        "inserted_versions": inserted,
-        "unchanged_documents": unchanged,
-        "failure_count": len(failures),
-        "collector_mode": manifest.get("mode"),
-        "failures": failures,
-    }, ensure_ascii=False))
+        print(json.dumps({
+            "inserted_versions": inserted,
+            "unchanged_documents": unchanged,
+            "failure_count": len(failures),
+            "collector_mode": manifest.get("mode"),
+            "failures": failures,
+        }, ensure_ascii=False))
 
 
 if __name__ == "__main__":
