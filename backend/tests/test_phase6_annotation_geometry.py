@@ -379,3 +379,128 @@ def test_phase6_geometry_summary_overwrites_fake_client_totals():
     assert summary["region_count"] == 1
     assert summary["overlap_warning_count"] == 0
     assert summary["floor_summaries"][0]["area_m2_total"] == 2.0
+
+
+
+def test_phase6_floor_area_target_compares_room_total_only():
+    mod = _mod()
+    payload = {
+        "area_targets": [
+            {
+                "floor_number": 1,
+                "target_area_m2": 2.0,
+                "label": "1階",
+                "source": "printed_area_table",
+            }
+        ],
+        "elements": [
+            {
+                "client_ref": "room-1",
+                "page_no": 1,
+                "floor_number": 1,
+                "element_type": "room",
+                "geometry": {
+                    "points": [[0, 0], [100, 0], [100, 50], [0, 50]]
+                },
+            },
+            {
+                "client_ref": "zone-1",
+                "page_no": 1,
+                "floor_number": 1,
+                "element_type": "zone",
+                "geometry": {
+                    "points": [[100, 0], [200, 0], [200, 50], [100, 50]]
+                },
+            },
+        ],
+    }
+    page_dimensions = {
+        "1": {
+            "width": 300,
+            "height": 100,
+            "calibration": {
+                "method": "two_point",
+                "point_a": [0, 0],
+                "point_b": [100, 0],
+                "reference_length_m": 2.0,
+            },
+        }
+    }
+
+    result, _ = mod.apply_geometry_metrics(payload, page_dimensions)
+    summary = result["geometry_summary"]
+    floor = summary["floor_summaries"][0]
+    comparison = summary["area_target_comparisons"][0]
+
+    assert floor["area_m2_total"] == 4.0
+    assert floor["room_area_m2_total"] == 2.0
+    assert floor["zone_area_m2_total"] == 2.0
+    assert comparison["comparison_basis"] == "rooms_only"
+    assert comparison["status"] == "comparable"
+    assert comparison["target_area_m2"] == 2.0
+    assert comparison["measured_room_area_m2"] == 2.0
+    assert comparison["difference_m2"] == 0.0
+    assert comparison["difference_pct"] == 0.0
+
+
+def test_phase6_floor_area_target_waits_for_room_scale_calibration():
+    mod = _mod()
+    payload = {
+        "area_targets": [
+            {
+                "floor_number": 1,
+                "target_area_m2": 20.0,
+            }
+        ],
+        "elements": [
+            {
+                "client_ref": "room-1",
+                "page_no": 1,
+                "floor_number": 1,
+                "element_type": "room",
+                "geometry": {
+                    "points": [[0, 0], [100, 0], [100, 50], [0, 50]]
+                },
+            }
+        ],
+    }
+
+    result, _ = mod.apply_geometry_metrics(
+        payload,
+        {"1": {"width": 200, "height": 100}},
+    )
+    comparison = result["geometry_summary"]["area_target_comparisons"][0]
+
+    assert comparison["status"] == "room_area_uncalibrated"
+    assert comparison["measured_room_area_m2"] is None
+    assert comparison["difference_m2"] is None
+    assert comparison["difference_pct"] is None
+
+
+def test_phase6_floor_area_targets_reject_duplicate_floor_and_bad_area():
+    mod = _mod()
+
+    duplicate = {
+        "area_targets": [
+            {"floor_number": 1, "target_area_m2": 10.0},
+            {"floor_number": 1, "target_area_m2": 11.0},
+        ],
+        "elements": [],
+    }
+    try:
+        mod.apply_geometry_metrics(duplicate, {})
+        assert False, "expected ValueError"
+    except ValueError as exc:
+        assert "duplicate area target" in str(exc)
+
+    invalid = {
+        "area_targets": [
+            {"floor_number": 1, "target_area_m2": 0},
+        ],
+        "elements": [],
+    }
+    try:
+        mod.apply_geometry_metrics(invalid, {})
+        assert False, "expected ValueError"
+    except ValueError as exc:
+        assert "target_area_m2 must be > 0" in str(exc)
