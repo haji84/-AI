@@ -1,0 +1,11 @@
+# Complete safe PostgreSQL migration statement handling
+
+Canonical main24a0ea8 / main CI37494620742 SUCCESS, AGENTS/spec/state/migrations/code/tests rechecked. PR56 Human roles is awaiting repaired bootstrap/browser CI. Open PR53 workforce and PR55 finance are unmerged; do not copy their domain implementations. Finance CI37498399874 demonstrates a shared migration failure: split_sql cuts a dollar-quoted immutable-journal trigger body at its internal semicolons, causing unterminated dollar-quoted SQL. This is an internally fixable hosting/update blocker, not External Gate.
+
+Implement lexing of PostgreSQL dollar quotes, escaped E strings and nested block comments while preserving statement text and handling ordinary quoted identifiers/strings. Reject unterminated input clearly. Read and parse the complete migration set before opening a DB connection; continue per-file atomic migrations/advisory locking/tenant maintenance exclusion and existing append-only filenames. Execute raw DDL without unintended psycopg percent placeholders; Human/AI and finance immutable-history safeguards must not be removed to bypass the failure.
+
+RED/GREEN tests: actual finance-style trigger split, named/empty dollar tags, quoted/comments/escaped strings, nested comments, identifier dollars, malformed input and no-connection preflight; actual PostgreSQL function/trigger creation, immutable journal rejection, literal LIKE percent, retry/idempotency. Local noPG remains explicit skip; CI must execute real PG16. Whole branch fresh review once; one TDD fix pass; complete suite, syntax/parser/diff, PR/exact-headCI/merge/mainGreen. Refresh main before publication and reconcile PR56 legitimately merged code rather than treating unmerged branch as source of truth.
+
+Review focus: strings/comments masquerading as terminators, tagged-body preservation, missing close delimiters, psycopg placeholders, partial schema effects, transaction/maintenance-lock ordering, existing migration execution and unrelated-module regression. User authorized continuous PR/CI/merge, no production host/real DB edits performed.
+
+Publication base refreshed to canonical b2fc2612 / PR56 after successful exact-headPG/browser CI and merge. Local HEAD tree0b7d54ae matches canonical byte-for-byte; only parser/tests/evidence are this slice.
