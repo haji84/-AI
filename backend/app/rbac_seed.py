@@ -75,6 +75,12 @@ PERMISSIONS.update({
     "emergency.report.review": "救急帳票DraftHuman確認",
 })
 
+# Additive operational permissions; reporting does not imply sensitive crew access.
+for _domain in ('incident','fleet'):
+    for _action in ('read','create','update','review','approve','admin','aggregate','export','import'):
+        PERMISSIONS[f"{_domain}.{_action}"] = f"{_domain} {_action}"
+PERMISSIONS.update({"incident.crew.read":"出動隊員参照", "incident.crew.manage":"出動隊員管理"})
+
 ROLE_POLICY: dict[str, dict] = {
     "system_admin": {
         "name": "システム管理者",
@@ -190,6 +196,16 @@ ROLE_POLICY["emergency_reviewer"] = {
         "emergency.patient.read", "emergency.crew.read", "emergency.report.read",
         "emergency.clinical.review", "emergency.report.review"},
 }
+
+for _domain in ('incident','fleet'):
+    ROLE_POLICY[f"{_domain}_editor"] = {"name":f"{_domain}業務担当", "system_role":True,
+        "permissions": {"search.use", "system.health.read", *[f"{_domain}.{a}" for a in ('read','create','update','import','export','aggregate')]}}
+    ROLE_POLICY[f"{_domain}_reviewer"] = {"name":f"{_domain}確認者", "system_role":True,
+        "permissions": {"search.use", "system.health.read", *[f"{_domain}.{a}" for a in ('read','review','approve','aggregate')]}}
+ROLE_POLICY["incident_editor"]["permissions"].update({"incident.crew.read","incident.crew.manage","fleet.read"})
+ROLE_POLICY["incident_reviewer"]["permissions"].add("incident.crew.read")
+ROLE_POLICY["operations_reporter"] = {"name":"出動車両集計担当", "system_role":True,
+    "permissions": {"system.health.read","incident.aggregate","incident.export","fleet.aggregate","fleet.export"}}
 
 SEARCH_ENABLED_ROLES = {
     "prevention_editor",
