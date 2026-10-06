@@ -2,7 +2,7 @@
 
 Audit date: 2026-10-06
 Canonical specification: docs/SPECIFICATION.md v2.0
-Audited main: fbc7227f18507bfa472f53e0e847c7d4fe5bef02
+Audited main: 24a0ea8db84a152a5bcf56a206c5c15181b18083
 
 This matrix compares all 57 Master Specification chapters against the actual repository: models, migrations, routers, services, frontend surfaces, tests, deployment files and current CI evidence.
 
