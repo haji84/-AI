@@ -52,3 +52,17 @@ def me(user: User = Depends(authenticated_user)):
 @router.get("/permissions")
 def permissions(user: User = Depends(current_user), db: Session = Depends(get_db)):
     return {"permissions": sorted(permission_codes(db, user.user_id))}
+
+
+@router.get("/context")
+def authority_context(response: Response, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Nonsecret originating-session binding for the common browser guard."""
+    revalidate_session(db, user.user_id)
+    session = db.scalar(select(UserSession).where(
+        UserSession.token_hash == db.info['authenticated_session_token_hash'],
+        UserSession.user_id == user.user_id, UserSession.revoked_at.is_(None)))
+    if not session:
+        raise HTTPException(401, 'originating session no longer valid')
+    response.headers['Cache-Control'] = 'no-store'
+    return {'user_id': user.user_id, 'session_id': session.session_id,
+            'tenant_id': settings.tenant_id, 'permissions': sorted(permission_codes(db, user.user_id))}

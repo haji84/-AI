@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="ja">
 <head><script src="/ui/auth-session.js"></script>
+<script src="/ui/shared-session.js"></script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>消防業務 Local AI</title>
@@ -218,7 +219,26 @@ const fireState={caseId:null,detail:null,mediaType:null};
 const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
 const val=v=>(v===null||v===undefined||v==='')?'－':esc(v);
 
-async function api(url,opt={}){const r=await fetch(url,opt);let body=null;try{body=await r.json()}catch{}if(!r.ok){const e=new Error(body?.detail?.message||body?.detail||`HTTP ${r.status}`);e.status=r.status;e.body=body;throw e}return body}
+const initialPrivateState=JSON.parse(JSON.stringify({state,legalReviewState,fireState}));
+const initialPrivateDOM=new Map(Array.from(document.querySelectorAll('#appView, .modalWrap')).map(node=>[node.id,node.innerHTML]));
+function clearSharedPrivateState(){
+  for(const clear of [window.clearFinance,window.clearWorkforce,window.clearViolations,window.clearInquiries,window.clearAssets,window.clearOperations,window.clearEmergency])if(typeof clear==='function')clear();
+  for(const [object,key] of [[state,'state'],[legalReviewState,'legalReviewState'],[fireState,'fireState']]){
+    for(const property of Object.keys(object))delete object[property];
+    Object.assign(object,JSON.parse(JSON.stringify(initialPrivateState[key])));
+  }
+  for(const node of document.querySelectorAll('#appView, .modalWrap')){
+    if(initialPrivateDOM.has(node.id)){node.innerHTML=initialPrivateDOM.get(node.id);node.classList.add('hidden');}
+    else node.remove();
+  }
+  document.querySelectorAll('header button, header a').forEach(node=>node.classList.add('hidden'));
+  $('loginUser').value='';$('loginPass').value='';
+  $('loginView').classList.remove('hidden');$('loginMsg').textContent='セッションまたは権限が変わりました。再ログインしてください。';
+}
+window.FireAISession.install({reset:clearSharedPrivateState});
+
+
+async function api(url,opt={}){const r=await fetch(url,opt);let body=null;try{body=await r.json()}catch(error){if(error.cancelled||error.status)throw error;}if(!r.ok){const e=new Error(body?.detail?.message||body?.detail||`HTTP ${r.status}`);e.status=r.status;e.body=body;throw e}return body}
 async function openUnifiedSearch(){
   $('unifiedSearchModal').classList.remove('hidden');
   setTimeout(()=>$('unifiedSearchQ')?.focus(),0);
@@ -2222,13 +2242,16 @@ function renderDrawingWorkspace(){
   },0);
 }
 
-document.addEventListener('keydown',ev=>{
+document.addEventListener('keydown',async ev=>{
   if($('drawingWorkspaceModal')?.classList.contains('hidden'))return;
   if(state.drawingAnnotation?.status!=='draft')return;
   const tag=(document.activeElement?.tagName||'').toLowerCase();
   if(['input','textarea','select'].includes(tag))return;
   const mod=ev.ctrlKey||ev.metaKey;
   if(!mod)return;
+  if(!['z','y'].includes(ev.key.toLowerCase()))return;
+  ev.preventDefault();
+  try{await window.FireAISession.check();}catch{return;}
   if(ev.key.toLowerCase()==='z'){
     ev.preventDefault();
     if(ev.shiftKey)drawingRedo();else drawingUndo();

@@ -4,14 +4,17 @@
 
 ## 完成タスクの現在地（2026-10-06再監査）
 
-mainecbd0a7d（PR59、勤務PR53・財務PR55・共用PC安全性統合後）を正本として確認。小さなPRの完了はシステム完成を意味しない。
+main922d292c（PR61、議会・照会統合後、main CI37523158483 SUCCESS）を正本として確認。小さなPRの完了はシステム完成を意味しない。
 - PR41/43: 共通コード＋本部別DB/実行環境/原本/backupを固定。UUID照合、専用構成生成、PostgreSQL移行/復元/役割境界をCI検証済み。
 - PR44: 組織・職員・人事履歴・有効日権限・Humanアカウント管理・パスワード履歴/変更・セッション失効・監査閲覧。PR CI302成功、実ブラウザ1成功。main CI37476512786 SUCCESS。
 - RunB PR40/42/46の救急・事案/出動・車両・業務資産/在庫/貸出/保守を維持。main CI37482634204 SUCCESS。残り業務モジュールはRunBの連続実装対象。
 - PR45の署名付き閉域法令更新は実装・merge・main CI37480963172 SUCCESS済み（正式判定はHuman Gate）。PR47の自動backup・保守排他はmerge済み（main CI37484877143 SUCCESS）。PR52学習基盤はmerge済み、PR CI390/backend＋3/browser成功、main CI37490791793 SUCCESS。本番trustの選定、法令正式承認、実図面Human正解/実モデル評価、実LAN受入はExternal Gate。
 - 独立したMissing/Partial（学習、PR54で実装・merge済みの正式v2.0 password expiry、残る共通/図面機能、全マニュアルとrelease一式）を継続し、完成成果物と未完Gateの照合で判定する。
 
-- PR59: 財務/旧契約の共通mutation guard、原本downloadのsession再照合、権限喪失時の状態消去、勤務画面の遅延応答競合を修復。PR CI37513136938/main CI37513897759 SUCCESS。違反・改善措置049は現在開発中でmain未反映。
+- PR59: 財務/旧契約の共通mutation guard、原本downloadのsession再照合、権限喪失時の状態消去、勤務画面の遅延応答競合を修復。PR CI37513136938/main CI37513897759 SUCCESS。違反・改善措置049はPR60でmain反映済み。
+
+- PR60: 原本・現行一次資料に結び付く違反候補、Human確認/正式確認、措置、改善履歴/検証/完了を統合。PR CI37519910509 backend605件/browser8件成功、main CI37520767373 SUCCESS。AI候補producer接続は内部Partial。
+- PR61: 既存議会・照会実装をmainへ統合。Migration050、根拠と正確な数値、Human確認/承認、権限内の検索・交換・原様式出力。候補採用中/画面再表示の操作競合を修復。PR CI37522253547 backend639件/browser9件成功、main CI37523158483 SUCCESS。共通の本番ローカルモデルworker/統計dashboard接続は内部Partial。
 
 実コードとの照合とEvidence: docs/COMPLETION_AUDIT.md / docs/completion/RUN_A_STATUS.md / RUN_B_STATUS.md。
 過去Phase見出しは履歴として保持し、完成判定の停止条件にはしない。
