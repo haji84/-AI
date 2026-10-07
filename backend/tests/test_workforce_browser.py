@@ -70,6 +70,20 @@ with TestClient(app) as client:
             page.on('pageerror',lambda error:errors.append(str(error)));page.on('dialog',lambda dialog:dialog.accept('Human synthetic browser rationale'))
             page.goto(base+'/ui/');page.locator('#loginUser').fill('uiworkforce');page.locator('#loginPass').fill('synthetic-ui-password');page.get_by_role('button',name='ログイン',exact=True).click()
             expect(page.locator('#workforceBtn')).to_be_visible();page.locator('#workforceBtn').click();page.locator('#workforceAttendance').click()
+            held_posts=[]
+            def hold_human_post(route):
+                held_posts.append(route)
+                # The real request remains paused while these sync assertions run.
+                # Continue it directly, preserving the browser's normal transport.
+                try:
+                    assert route.request.method=='POST'
+                    expect(page.locator('#workforceHumanStatus')).to_be_visible()
+                    expect(page.locator('#workforceHumanStatus')).to_contain_text('処理中')
+                    expect(page.locator('[data-workforce-human]')).to_have_count(2)
+                    expect(page.locator('[data-workforce-human]:enabled')).to_have_count(0)
+                finally:
+                    route.continue_()
+            page.route(base+'/workforce/attendance/'+ids['attendance']+'/review',hold_human_post,times=1)
             for table_index,(kind,key,endpoint) in enumerate([('attendance','attendance','attendance'),('time','time','time-entries')]):
                 row=page.locator('#workforceContent table').nth(table_index).locator('tbody tr').filter(has=page.get_by_role('cell',name='ZZ Synthetic target',exact=True))
                 for action,status in [('review','reviewed'),('approve','approved')]:
@@ -79,6 +93,8 @@ with TestClient(app) as client:
                     # POST headers precede session checks and the table refresh.
                     # Finish this Human transition before acting on the next row.
                     expect(row.get_by_role('cell',name=status,exact=True)).to_be_visible()
+                    expect(page.locator('#workforceHumanStatus')).to_have_text('')
+            assert len(held_posts)==1,'the real Human POST must reach the paused route'
             page.locator('#workforceLeave').click();page.locator('#workforceLeaveNew').click()
             expect(page.locator('#workforceField_employee_id option[value="'+ids['employee']+'"]')).to_have_count(1)
             page.locator('#workforceField_kind').select_option('use');page.locator('#workforceField_quantity_minutes').fill('60');page.locator('#workforceField_effective_on').fill('2026-10-16');page.locator('#workforceField_leave_start_at').fill('2026-10-16T08:00');page.locator('#workforceField_leave_end_at').fill('2026-10-16T09:00')

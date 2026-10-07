@@ -23,7 +23,7 @@ def test_attendance_and_linked_time_buttons_keep_their_own_handlers(tmp_path):
     run(tmp_path,r'''
 const attendance=new Node(),time=new Node();attendance.dataset.workforceHuman='attendance:review:A';time.dataset.workforceHuman='time:review:T';buttons=[attendance,time];
 context.attendanceRows=[{attendance_id:'A',version:1}];context.timeRows=[{time_entry_id:'T',attendance_id:'A',version:2}];
-vm.runInContext("workforceBindHuman(attendanceRows,'attendance',async()=>{});workforceBindHuman(timeRows,'time',async()=>{});",context);
+vm.runInContext("workforceState.permissions=['workforce.review'];workforceBindHuman(attendanceRows,'attendance',async()=>{});workforceBindHuman(timeRows,'time',async()=>{});",context);
 await attendance.onclick();await turn();await time.onclick();await turn();
 if(!calls.some(x=>x.path==='/workforce/attendance/A/review')||!calls.some(x=>x.path==='/workforce/time-entries/T/review'))throw Error('Human button bound to wrong record '+JSON.stringify(calls));
 ''')
