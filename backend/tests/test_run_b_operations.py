@@ -229,7 +229,7 @@ def test_frontend_real_form_values_zero_escape_and_human_paths():
     import subprocess
     root=Path(__file__).resolve().parents[2]
     script=r'''const fs=require('fs'),vm=require('vm'),assert=require('assert');
-const nodes={operationsContent:{innerHTML:''},operationsForm:{},operationsFormBack:{},operationsField_amount:{value:'0'},operationsField_note:{value:'Synthetic'},operationsMessage:{textContent:''}};
+const nodes={operationsModal:{isConnected:true,classList:{contains:()=>false}},operationsContent:{innerHTML:'',isConnected:true},operationsForm:{},operationsFormBack:{},operationsField_amount:{value:'0'},operationsField_note:{value:'Synthetic'},operationsMessage:{textContent:''}};
 const requests=[];let returned=false;
 const ctx=vm.createContext({console,Date,URLSearchParams,$:id=>nodes[id],api:async(url,options)=>{requests.push([url,JSON.parse(options.body)]);return{}},document:{},fetch:()=>{}});
 vm.runInContext(fs.readFileSync(process.argv[2],'utf8').match(/^const esc=.*$/m)[0],ctx);
