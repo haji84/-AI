@@ -70,11 +70,15 @@ with TestClient(app) as client:
             page.on('pageerror',lambda error:errors.append(str(error)));page.on('dialog',lambda dialog:dialog.accept('Human synthetic browser rationale'))
             page.goto(base+'/ui/');page.locator('#loginUser').fill('uiworkforce');page.locator('#loginPass').fill('synthetic-ui-password');page.get_by_role('button',name='ログイン',exact=True).click()
             expect(page.locator('#workforceBtn')).to_be_visible();page.locator('#workforceBtn').click();page.locator('#workforceAttendance').click()
-            for kind,key,endpoint in [('attendance','attendance','attendance'),('time','time','time-entries')]:
-                for action in ('review','approve'):
+            for table_index,(kind,key,endpoint) in enumerate([('attendance','attendance','attendance'),('time','time','time-entries')]):
+                row=page.locator('#workforceContent table').nth(table_index).locator('tbody tr').filter(has=page.get_by_role('cell',name='ZZ Synthetic target',exact=True))
+                for action,status in [('review','reviewed'),('approve','approved')]:
                     with page.expect_response(lambda r,endpoint=endpoint,key=key,action=action:r.url.endswith('/workforce/'+endpoint+'/'+ids[key]+'/'+action) and r.request.method=='POST') as saved:
                         page.locator(f'[data-workforce-human="{kind}:{action}:{ids[key]}"]').click()
                     assert saved.value.status==200,saved.value.text()
+                    # POST headers precede session checks and the table refresh.
+                    # Finish this Human transition before acting on the next row.
+                    expect(row.get_by_role('cell',name=status,exact=True)).to_be_visible()
             page.locator('#workforceLeave').click();page.locator('#workforceLeaveNew').click()
             expect(page.locator('#workforceField_employee_id option[value="'+ids['employee']+'"]')).to_have_count(1)
             page.locator('#workforceField_kind').select_option('use');page.locator('#workforceField_quantity_minutes').fill('60');page.locator('#workforceField_effective_on').fill('2026-10-16');page.locator('#workforceField_leave_start_at').fill('2026-10-16T08:00');page.locator('#workforceField_leave_end_at').fill('2026-10-16T09:00')
