@@ -2,6 +2,7 @@
 import os
 from pathlib import Path
 import socket,subprocess,sys,time,urllib.request
+from urllib.parse import parse_qs,urlsplit
 import pytest
 pytestmark=pytest.mark.skipif(os.environ.get('FIRE_AI_TEST_BROWSER')!='1',reason='actual Chromium inquiry workflow executes in dedicated CI job')
 def test_inquiry_authorized_source_unsupported_number_human_answer_and_navigation(tmp_path):
@@ -45,7 +46,16 @@ with SessionLocal() as db:
    with page.expect_response(lambda r:r.url.endswith('/inquiries/'+key) and r.request.method=='PATCH') as response:page.locator('#inquiryDraftSave').click()
    assert response.value.status==422,response.value.text();expect(page.locator('#inquiryMessage')).to_contain_text('unsupported numerical claim')
    # Return through the actual list/year surface to the unchanged draft.
-   page.locator('#inquiryList').click();page.locator('#inquiryYear').fill('2026');page.locator('#inquiryQuery').fill('Synthetic browser');page.locator('#inquiryFind').click();page.locator('[data-inquiry="'+key+'"]').click();page.locator('#inquiryAI').click();expect(page.locator('#inquiryCandidateContent')).to_contain_text('deterministic-evidence-extract');
+   page.locator('#inquiryList').click();page.locator('#inquiryYear').fill('2026');page.locator('#inquiryQuery').fill('Synthetic browser')
+   # Find first waits for shared-session authority. An old row can still be
+   # visible then, but its queued click is discarded once search locks it.
+   with page.expect_response(lambda r:r.request.method=='GET' and r.url.startswith(base+'/inquiries?') and parse_qs(urlsplit(r.url).query).get('year')==['2026'] and parse_qs(urlsplit(r.url).query).get('q')==['Synthetic browser']) as searched:
+    page.locator('#inquiryFind').click()
+   assert searched.value.status==200,searched.value.text()
+   assert any(item['inquiry_id']==key for item in searched.value.json())
+   expect(page.locator('#inquiryFind')).to_be_enabled()
+   result=page.locator('[data-inquiry="'+key+'"]');expect(result).to_be_enabled();result.click()
+   page.locator('#inquiryAI').click();expect(page.locator('#inquiryCandidateContent')).to_contain_text('deterministic-evidence-extract')
    with page.expect_response(lambda r:r.url.endswith('/inquiries/'+key+'/adopt-candidate') and r.request.method=='POST') as adopted:page.locator('#inquiryAdopt').click()
    assert adopted.value.status==200,adopted.value.text();adopted_row=adopted.value.json()
    expect(page.locator('#inquiryContent')).to_contain_text('Version '+str(adopted_row['version']));expect(page.locator('#inquiryContent')).to_contain_text(adopted_row['draft']);expect(page.locator('#inquiryEdit')).to_be_enabled()
