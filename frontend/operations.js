@@ -4,7 +4,7 @@ function clearOperations(){Object.assign(operationsState,{permissions:[],inciden
 const operationsCan=p=>operationsState.permissions.includes(p);
 const operationsJSON=(method,data)=>({method,headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
 async function operationsAction(fn){$('operationsMessage').textContent='';try{await fn()}catch(e){if(e.cancelled||!$('operationsMessage'))return;$('operationsMessage').textContent=e.status===409?'更新競合または根拠変更があります。「再読込」で最新記録を開いてください。':(Array.isArray(e.body?.detail)?e.body.detail.map(d=>d.loc.join('.')+': '+d.msg).join(' / '):String(e.message))}}
-async function initOperations(){try{const r=await api('/auth/permissions');operationsState.permissions=r.permissions;$('operationsBtn').classList.toggle('hidden',!r.permissions.some(p=>p.startsWith('incident.')||p.startsWith('fleet.')))}catch(e){if(e.cancelled)throw e;}}
+async function initOperations(isCurrent=()=>true){try{if(!isCurrent())return;const r=await api('/auth/permissions');if(!isCurrent())return;operationsState.permissions=r.permissions;$('operationsBtn').classList.toggle('hidden',!r.permissions.some(p=>p.startsWith('incident.')||p.startsWith('fleet.')))}catch(e){if(e.cancelled)throw e;}}
 function operationsButton(id,label,permission){return !permission||operationsCan(permission)?`<button class="btn" id="${id}" type="button">${esc(label)}</button>`:''}
 function operationsBind(id,fn){if($(id))$(id).onclick=()=>operationsAction(fn)}
 const operationKinds=[['fire','火災'],['rescue','救助'],['emergency_support','救急支援'],['watch','警戒'],['storm','風水害'],['other','その他']];
@@ -21,8 +21,8 @@ function operationsForm(title,fields,values,save,back){
   $('operationsContent').innerHTML=`<h2>${esc(title)}</h2><form id="operationsForm"><div class="grid2">${fields.map(f=>operationsField(f,values)).join('')}</div><div class="toolbar"><button class="btn primary" type="submit">保存</button><button class="btn" id="operationsFormBack" type="button">戻る</button></div></form>`;
   $('operationsForm').onsubmit=e=>{e.preventDefault();operationsAction(()=>save(operationsValues(fields,Boolean(values.version))))};operationsBind('operationsFormBack',back);
 }
-async function openOperations(){
-  await initOperations();
+async function openOperations(isCurrent=()=>true){
+  if(!isCurrent())return;await initOperations(isCurrent);if(!isCurrent())return;
   if(!$('operationsModal')){
     const el=document.createElement('div');el.id='operationsModal';el.className='modalWrap';el.style.zIndex='72';
     el.innerHTML='<div class="modal" style="width:min(1220px,98vw)"><div class="modalHead"><b>事案・出動 / 車両運用</b><span class="grow"></span><button class="btn" id="operationsClose">閉じる</button></div><div class="modalBody"><div id="operationsMessage" class="dangerText" role="alert"></div><div id="operationsNav" class="toolbar"></div><div id="operationsContent"></div></div></div>';
@@ -31,16 +31,17 @@ async function openOperations(){
   $('operationsModal').classList.remove('hidden');
   $('operationsNav').innerHTML=operationsButton('operationsIncidents','事案','incident.read')+operationsButton('operationsVehicles','車両','fleet.read')+operationsButton('operationsSummary','月次・年次集計',null)+operationsButton('operationsAlerts','期限・故障警告','fleet.read')+operationsButton('operationsRates','手当設定','incident.read')+operationsButton('operationsExchange','取込・出力');
   operationsBind('operationsIncidents',()=>operationsList('incidents',0,''));operationsBind('operationsVehicles',()=>operationsList('vehicles',0,''));operationsBind('operationsSummary',operationsSummary);operationsBind('operationsAlerts',operationsAlerts);operationsBind('operationsRates',operationsRates);operationsBind('operationsExchange',operationsExchange);
-  await operationsAction(()=>operationsCan('incident.read')?operationsList('incidents',0,''):operationsCan('fleet.read')?operationsList('vehicles',0,''):operationsSummary());
+  const modal=$('operationsModal'),owned=()=>isCurrent()&&$('operationsModal')===modal&&modal.isConnected&&!modal.classList.contains('hidden');
+  await operationsAction(()=>operationsCan('incident.read')?operationsList('incidents',0,'',owned):operationsCan('fleet.read')?operationsList('vehicles',0,'',owned):operationsSummary());
 }
-async function operationsList(type=operationsState.listType,offset=0,q=operationsState.q){
-  Object.assign(operationsState,{listType:type,offset,q});const domain=type==='incidents'?'incident':'fleet';
-  const rows=await api('/operations/'+type+'?'+new URLSearchParams({q,offset:String(offset),limit:'50'}));
+async function operationsList(type=operationsState.listType,offset=0,q=operationsState.q,isCurrent=()=>true){try{
+  if(!isCurrent())return;Object.assign(operationsState,{listType:type,offset,q});const domain=type==='incidents'?'incident':'fleet';
+  const rows=await api('/operations/'+type+'?'+new URLSearchParams({q,offset:String(offset),limit:'50'}));if(!isCurrent())return;
   $('operationsContent').innerHTML=`<div class="toolbar"><label>検索<input id="operationsQ" value="${esc(q)}"></label><button class="btn" id="operationsSearch">検索</button>${operationsButton('operationsNew','新規登録',domain+'.create')}</div><table><thead><tr><th>番号 / コード</th><th>名称</th><th>状態</th><th>住所 / 距離</th><th></th></tr></thead><tbody>${rows.map(r=>`<tr><td>${esc(r.number??r.source?.number??r.code??'')}</td><td>${esc(r.title??r.name)}</td><td>${esc(r.status??(r.active?'使用中':'休止'))}</td><td>${esc(r.address??r.source?.address??r.odometer??'')}</td><td><button class="btn" data-operations-open="${esc(r.incident_id??r.vehicle_id)}">開く</button></td></tr>`).join('')}</tbody></table><div class="toolbar"><button class="btn" id="operationsPrev">前へ</button><button class="btn" id="operationsNext">次へ</button></div>`;
   operationsBind('operationsSearch',()=>operationsList(type,0,$('operationsQ').value));$('operationsQ').onkeydown=e=>{if(e.key==='Enter')$('operationsSearch').click()};operationsBind('operationsNew',()=>type==='incidents'?operationsIncidentForm():operationsVehicleForm());
   document.querySelectorAll('[data-operations-open]').forEach(b=>b.onclick=()=>operationsAction(()=>type==='incidents'?operationsIncidentDetail(b.dataset.operationsOpen):operationsVehicleDetail(b.dataset.operationsOpen)));
   $('operationsPrev').disabled=offset===0;$('operationsNext').disabled=rows.length<50;operationsBind('operationsPrev',()=>operationsList(type,Math.max(0,offset-50),q));operationsBind('operationsNext',()=>operationsList(type,offset+50,q));
-}
+}catch(error){if(isCurrent())throw error;}}
 async function operationsIncidentForm(row=null){
   const linked=Boolean(row&&(row.emergency_case_id||row.fire_investigation_case_id||row.source_restricted));
   const fields=[['kind','種別','select',operationKinds],['title','事案名'],...(!linked?[['occurred_at','覚知日時','datetime-local'],['address','住所'],['number','番号']]:[]),['notes','記録','textarea']];
@@ -100,13 +101,13 @@ async function operationsRates(){
   operationsBind('operationsRateNew',()=>{const fields=[['code','単価コード'],['label','名称'],['amount','金額','number'],['basis','計算単位','select',[['per_dispatch','1出動'],['per_crew','隊員数'],['per_hour','出場から帰署の時間']]],['rounding','組織が承認した端数処理','select',[['','選択してください'],['half_up','小数2桁に四捨五入'],['half_even','小数2桁に偶数丸め'],['down','小数2桁で切捨て']]],['approval_reference','組織が承認した根拠','textarea']];operationsForm('単価草案',fields,{},async values=>{await api('/operations/allowance-rates',operationsJSON('POST',values));await operationsRates()},operationsRates)});
   document.querySelectorAll('[data-operations-rate]').forEach(b=>b.onclick=()=>operationsAction(()=>operationsHumanAction('/allowance-rates/'+b.dataset.operationsRate+'/approve',rates.find(r=>r.rate_id===b.dataset.operationsRate),operationsRates,'単価をHuman承認')));
 }
-async function operationsVehicleDetail(id){
-  const v=await api('/operations/vehicles/'+id);operationsState.vehicle=v;
-  const h=await api('/operations/vehicles/'+id+'/history');
+async function operationsVehicleDetail(id,isCurrent=()=>true){try{
+  if(!isCurrent())return;const v=await api('/operations/vehicles/'+id);if(!isCurrent())return;
+  const h=await api('/operations/vehicles/'+id+'/history');if(!isCurrent())return;operationsState.vehicle=v;
   $('operationsContent').innerHTML=`<h2>${esc(v.code)} / ${esc(v.name)}</h2><p>${v.active?'使用中':'休止'} / 距離 ${esc(v.odometer)} km / 車両割当燃料在庫 ${esc(v.fuel_stock)} L</p><p>次回車検・点検 ${esc(v.next_inspection_on??'未設定')} / 次回整備 ${esc(v.next_service_on??'未設定')} / 次回整備距離 ${esc(v.next_service_odometer??'未設定')}</p><p>${esc(v.notes)}</p><div class="toolbar">${operationsButton('operationsReload','再読込')}${operationsButton('operationsEdit','車両訂正','fleet.update')}${v.active?operationsButton('operationsTripNew','運行登録','fleet.create')+operationsButton('operationsFuelNew','燃料登録','fleet.create')+operationsButton('operationsServiceNew','点検・車検・修理・故障','fleet.create'):''}</div><h3>運行履歴</h3>${operationsHistoryTable(h.trips,['started_at','ended_at','start_odometer','end_odometer','purpose','dispatch_id','driver_employee_id'])}<h3>燃料履歴</h3>${operationsHistoryTable(h.fuel,['occurred_at','kind','liters','amount','notes'])}<h3>点検・整備履歴</h3><table><thead><tr><th>日付</th><th>種別 / 内容</th><th>費用</th><th>状態</th><th>期限候補</th><th></th></tr></thead><tbody>${h.services.map(s=>`<tr><td>${esc(s.performed_on)}</td><td>${esc(s.kind)} / ${esc(s.description)}${s.resolved_by_service_id?' / 解消済み':''}</td><td>${esc(s.cost)}</td><td>${esc(s.status)}</td><td>${esc(s.next_inspection_on??'')} / ${esc(s.next_service_on??'')} / ${esc(s.next_service_odometer??'')}</td><td>${s.status==='draft'&&operationsCan('fleet.review')?`<button class="btn" data-operations-service="${s.service_id}" data-action="review">Human確認</button>`:''}${s.status==='reviewed'&&operationsCan('fleet.approve')?`<button class="btn" data-operations-service="${s.service_id}" data-action="approve">Human承認・期限反映</button>`:''}${['draft','reviewed'].includes(s.status)&&operationsCan('fleet.admin')?`<button class="btn" data-operations-service="${s.service_id}" data-action="cancel">取消</button>`:''}</td></tr>`).join('')}</tbody></table><p class="notice">運行・燃料は追記履歴です。承認済み整備は編集できません。未承認の期限は車両へ反映されません。</p>`;
   operationsBind('operationsReload',()=>operationsVehicleDetail(id));operationsBind('operationsEdit',()=>operationsVehicleForm(v));operationsBind('operationsTripNew',()=>operationsTripForm(v));operationsBind('operationsFuelNew',()=>operationsFuelForm(v));operationsBind('operationsServiceNew',()=>operationsServiceForm(v));
   document.querySelectorAll('[data-operations-service]').forEach(b=>b.onclick=()=>operationsAction(()=>operationsHumanAction('/services/'+b.dataset.operationsService+'/'+b.dataset.action,h.services.find(s=>s.service_id===b.dataset.operationsService),()=>operationsVehicleDetail(id),b.dataset.action==='approve'?'点検・整備と期限を正式承認':'点検・整備の確認 / 取消',b.dataset.action==='approve'?{expected_vehicle_version:v.version,...(h.services.find(s=>s.service_id===b.dataset.operationsService).resolves_fault_id?{expected_fault_version:h.services.find(s=>s.service_id===h.services.find(r=>r.service_id===b.dataset.operationsService).resolves_fault_id)?.version}:{})}:{})));
-}
+}catch(error){if(isCurrent())throw error;}}
 function operationsHistoryTable(rows,keys){return `<div style="overflow:auto"><table><thead><tr>${keys.map(k=>`<th>${esc(k)}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${keys.map(k=>`<td>${esc(r[k]??'')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`}
 async function operationsTripForm(v){
   let dispatches=[];
