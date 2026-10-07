@@ -263,7 +263,9 @@ def test_finance_editor_uploads_first_original_and_saves_only_a_draft(finance_fi
  expect(page.locator('#financeField_contract_method')).to_have_value('Synthetic entered method')
  # Existing picker search keeps the uploaded original selected even off-page.
  page.locator('#financePick_document_id_q').fill('absent-search-result')
+ search_token=watch_finance_action(page)
  page.locator('#financePick_document_id_find').click()
+ await_finance_action(page,search_token)
  expect(page.locator('#financePick_document_id_page')).to_have_text('1～0件')
  expect(page.locator('#financeField_document_id')).to_have_value(doc['document_id'])
  save_token=watch_finance_action(page)
@@ -306,7 +308,7 @@ def test_finance_upload_empty_selection_and_rejected_request_can_retry(finance_f
  expect(upload).to_be_disabled()
  assert not requests
  select_synthetic_original(page)
- page.route('**/documents/upload',lambda route:route.fulfill(status=422,json={'detail':'Synthetic upload rejected'}),times=1)
+ route_once(page,'**/documents/upload',lambda route:route.fulfill(status=422,json={'detail':'Synthetic upload rejected'}))
  upload.click()
  expect(page.locator('#financePick_document_id_status')).to_contain_text('Synthetic upload rejected')
  expect(upload).to_be_enabled()
@@ -320,13 +322,28 @@ def test_finance_upload_empty_selection_and_rejected_request_can_retry(finance_f
  assert len(requests)==2
 
 
+def route_once(page,pattern,handler):
+ """Keep interception enabled: Chromium <155 can strand the next request on expiry.
+
+ See https://github.com/microsoft/playwright/issues/41802. Later matches must
+ fall through to other routes or the real server, including authority checks.
+ """
+ consumed=False
+ def dispatch(route):
+  nonlocal consumed
+  if consumed:return route.fallback()
+  consumed=True
+  return handler(route)
+ page.route(pattern,dispatch)
+
+
 def hold_upload_response(page):
  """Upload through the real API, but release its response only when the test asks."""
  held=[]
  def hold(route):
   response=route.fetch()
   held.append((route,response))
- page.route('**/documents/upload',hold,times=1)
+ route_once(page,'**/documents/upload',hold)
  return held
 
 
@@ -345,6 +362,8 @@ def test_finance_upload_pending_blocks_old_evidence_save_and_duplicate_click(fin
  old_id=previous.value.json()['document_id']
  expect(page.locator('#financeField_document_id')).to_have_value(old_id)
  select_synthetic_original(page)
+ # File change has its own authority preflight; raw click() does not auto-wait.
+ expect(page.locator('#financePick_document_id_upload')).to_be_enabled()
  held=hold_upload_response(page)
  # Both direct repeated activation and a synthetic submit must be guarded by application state.
  page.locator('#financePick_document_id_upload').evaluate('(b)=>{b.click();b.click()}')
@@ -526,7 +545,7 @@ def test_finance_failed_navigation_preserves_pending_upload_and_draft(finance_fi
  page.locator('#financePick_document_id_upload').click()
  wait_for_held_upload(page,held)
  path='**/finance/contracts?*' if leave=='back' else '**/finance/candidates?*'
- page.route(path,lambda route:route.fulfill(status=503,json={'detail':'Synthetic navigation unavailable'}),times=1)
+ route_once(page,path,lambda route:route.fulfill(status=503,json={'detail':'Synthetic navigation unavailable'}))
  control=page.locator('#financeBack' if leave=='back' else '#financeCandidates')
  expect(control).to_be_disabled()
  control.evaluate('(button)=>button.click()')
@@ -589,7 +608,7 @@ def test_finance_failed_reopen_never_resurfaces_closed_draft(finance_first_use,p
  page.locator('#financeClose').click()
  expect(page.locator('#financeModal')).to_be_hidden()
  expect(page.locator('#financeForm')).to_have_count(0)
- page.route('**/finance/proposals?*',lambda route:route.fulfill(status=503,json={'detail':'Synthetic reopen unavailable'}),times=1)
+ route_once(page,'**/finance/proposals?*',lambda route:route.fulfill(status=503,json={'detail':'Synthetic reopen unavailable'}))
  token=watch_finance_action(page,'#financeForm')
  page.locator('#financeBtn').click()
  expect(page.locator('#financeModal')).to_be_visible()
@@ -610,7 +629,7 @@ def test_finance_upload_preflight_synchronously_locks_the_whole_draft(finance_fi
  expect(page.locator('#financePick_document_id_upload')).to_be_enabled()
  context=[]
  def hold_context(route):context.append((route,route.fetch()))
- page.route('**/auth/context',hold_context,times=1)
+ route_once(page,'**/auth/context',hold_context)
  uploaded=hold_upload_response(page)
  page.locator('#financePick_document_id_upload').click()
  wait_for_held_upload(page,context)

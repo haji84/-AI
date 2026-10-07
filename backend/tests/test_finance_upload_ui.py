@@ -171,3 +171,31 @@ def test_finance_action_settlement_rejects_observed_unexpected_errors():
   def evaluate(self,*args):return {'actions':[{'id':1,'settled':True,'error':'Synthetic unexpected rejection'}],'violations':[]}
  with pytest.raises(AssertionError,match='Synthetic unexpected rejection'):
   await_finance_action(Page(),0)
+
+
+@pytest.mark.parametrize('fetch_raises',[False,True])
+def test_finance_one_shot_route_remains_registered_and_falls_back_after_hold_or_error(fetch_raises):
+ from test_finance_browser import hold_upload_response
+ class Page:
+  def route(self,pattern,handler,**options):
+   self.pattern=pattern;self.handler=handler;self.options=options
+ class Route:
+  def __init__(self):self.fetches=0;self.fallbacks=0
+  def fetch(self):
+   self.fetches+=1
+   if fetch_raises:raise RuntimeError('Synthetic fetch unavailable')
+   return 'Synthetic held response'
+  def fallback(self):self.fallbacks+=1
+ page=Page();held=hold_upload_response(page)
+ assert page.pattern=='**/documents/upload'
+ assert page.options=={},'one-shot behavior must not expire browser interception'
+ first=Route();second=Route()
+ if fetch_raises:
+  with pytest.raises(RuntimeError,match='Synthetic fetch unavailable'):page.handler(first)
+ else:
+  page.handler(first)
+  assert held==[(first,'Synthetic held response')]
+ page.handler(second)
+ assert first.fetches==1
+ assert second.fetches==0 and second.fallbacks==1
+ assert len(held)==(0 if fetch_raises else 1)
