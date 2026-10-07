@@ -48,6 +48,7 @@ from ..personnel import OrganizationUnit
 from ..workforce_models import WorkforceRosterEntry, WorkforceShiftType
 
 MODULE_PERMISSIONS: dict[str, tuple[str, ...]] = {
+    "hazardous_materials": ("hazardous.read",),
     "facilities": ("facility.read",),
     "emergency": ("emergency.case.read",),
     "operations": ("incident.read",),
@@ -78,6 +79,7 @@ def _authorized_modules(perms: set[str]) -> list[str]:
         module
         for module in DEFAULT_MODULE_ORDER
         if any(permission in perms for permission in MODULE_PERMISSIONS[module])
+        and (module != "hazardous_materials" or "facility.read" in perms)
     ]
 
 
@@ -889,7 +891,27 @@ def _search_inquiries(db,q,limit,perms):
         if len(hits)>=limit:break
     return hits
 
+def _search_hazardous(db, q, limit, perms):
+    from ..hazardous_service import list_installations
+    user = db.get(User, db.info['inquiry_search_user_id'])
+    if user is None:
+        return []
+    try:
+        rows = list_installations(db, user, q=q, limit=limit)
+    except HTTPException as error:
+        if error.status_code in (403, 503):
+            return []
+        raise
+    return [_hit(q, module='hazardous_materials', source_type='hazardous_installation',
+        source_id=row['installation_id'], title=row['name'],
+        body=' / '.join(value for value in (row['category_label'], row['location_detail'], row['status']) if value),
+        building_id=row['building_id'], required_permission='hazardous.read',
+        navigation={'surface': 'hazardous_materials', 'record_id': row['installation_id']},
+        evidence={'record_version': row['version'], 'status': row['status']}) for row in rows]
+
+
 SEARCHERS = {
+    "hazardous_materials": _search_hazardous,
     "inquiries":_search_inquiries,
     "violations": lambda db,q,limit,perms: _search_violations(db,q,limit),
     "budget": lambda db,q,limit,perms: _search_finance(db,q,limit,perms,"budget"),
@@ -991,4 +1013,3 @@ def unified_search(
             "Emergency case search uses separate case-read permission; patient text is excluded."
         ),
     )
-
