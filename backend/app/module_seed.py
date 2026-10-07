@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from .models import ModuleDefinition, FeatureFlag
 
 MODULES = {
+    "statistics": {"name":"観測統計", "version":"1.0.0"},
     "hazardous_materials": {"name":"危険物台帳", "version":"1.0.0"},
     "work_queue": {"name":"今日の作業", "version":"1.0.0"},
     "inquiries": {"name":"議会・照会", "version":"1.0.0"},
@@ -31,6 +32,9 @@ def seed_modules(db: Session) -> dict[str, ModuleDefinition]:
             db.add(row); db.flush()
         else:
             row.name = cfg["name"]
+        if code == "statistics":
+            row.version=cfg["version"]
+            row.manifest={**(row.manifest or {}),"operational_api":"/statistics","surface":"/ui/","coverage":"unknown","official_template":False}
         if code == "work_queue":
             row.version=cfg["version"]
             row.manifest={**(row.manifest or {}),"operational_api":"/work-queue","surface":"/ui/","read_only":True}
