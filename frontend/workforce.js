@@ -1,8 +1,10 @@
 // Shared PC workforce surface. Uses existing session, workforceAPI(), esc(), and modal styles.
 const workforceState={permissions:[],employees:[],organizations:[],shifts:[],date:new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Tokyo'}),identity:null,generation:0,viewGeneration:0};
+let workforcePendingHuman=null;
 function clearWorkforce(){
+  workforcePendingHuman=null;
   workforceState.generation++;workforceState.viewGeneration++;Object.assign(workforceState,{identity:null,permissions:[],employees:[],organizations:[],shifts:[]});
-  for(const id of ['workforceContent','workforceNav','workforceMessage'])if($(id))$(id).innerHTML='';
+  for(const id of ['workforceContent','workforceNav','workforceMessage','workforceHumanStatus'])if($(id))$(id).innerHTML='';
   if($('workforceModal')){$('workforceModal').innerHTML='';$('workforceModal').remove();}
   if($('workforceBtn'))$('workforceBtn').classList.add('hidden');
 }
@@ -56,7 +58,7 @@ async function openWorkforce(){
   await initWorkforce();if(workforceCan('workforce.read'))await workforceRefs();
   if(!$('workforceModal')){
     const el=document.createElement('div');el.id='workforceModal';el.className='modalWrap';el.style.zIndex='73';
-    el.innerHTML='<div class="modal" style="width:min(1240px,98vw)"><div class="modalHead"><b>勤務・人員配置</b><span class="grow"></span><button class="btn" id="workforceClose">閉じる</button></div><div class="modalBody"><div id="workforceMessage" class="dangerText" role="alert"></div><div id="workforceNav" class="toolbar"></div><div id="workforceContent"></div></div></div>';
+    el.innerHTML='<div class="modal" style="width:min(1240px,98vw)"><div class="modalHead"><b>勤務・人員配置</b><span class="grow"></span><button class="btn" id="workforceClose">閉じる</button></div><div class="modalBody"><div id="workforceMessage" class="dangerText" role="alert"></div><div id="workforceHumanStatus" role="status" aria-live="polite"></div><div id="workforceNav" class="toolbar"></div><div id="workforceContent"></div></div></div>';
     document.body.append(el);$('workforceClose').onclick=()=>{workforceState.viewGeneration++;el.classList.add('hidden')};
   }
   $('workforceModal').classList.remove('hidden');
@@ -94,13 +96,48 @@ function workforceHumanButtons(kind,row){
   if(row.status==='reviewed'&&workforceCan('workforce.approve'))return `<button class="btn primary" data-workforce-human="${kind}:approve:${workforceKey(kind,row)}">Human承認</button>`;
   return '';
 }
+function workforceHumanAllowed(button){
+  const [,action]=button.dataset.workforceHuman.split(':');
+  if(action==='approve-work-rule')return ['workforce.admin','workforce.review','workforce.approve'].every(workforceCan);
+  return action==='review'?workforceCan('workforce.review'):action==='approve'&&workforceCan('workforce.approve');
+}
+function workforceLockHumanControls(){
+  if(!workforcePendingHuman)return;
+  for(const button of document.querySelectorAll('[data-workforce-human]')){
+    if(!workforcePendingHuman.controls.has(button))workforcePendingHuman.controls.set(button,{disabled:button.disabled,view:workforceState.viewGeneration});
+    button.disabled=true;
+  }
+}
 function workforceBindHuman(rows,kind,back){
-  document.querySelectorAll(`[data-workforce-human^="${kind}:"]`).forEach(b=>b.onclick=()=>workforceAction(async()=>{
+  const generation=workforceState.generation,view=workforceState.viewGeneration;
+  const current=()=>generation===workforceState.generation&&view===workforceState.viewGeneration&&!$('workforceModal')?.classList?.contains?.('hidden');
+  document.querySelectorAll(`[data-workforce-human^="${kind}:"]`).forEach(b=>b.onclick=async()=>{
+    // A queued click may outlive its view or arrive while another kind is refreshing.
+    if(workforcePendingHuman||b.disabled||b.isConnected===false||!current()||!workforceHumanAllowed(b))return;
     const [,action,id]=b.dataset.workforceHuman.split(':');const row=rows.find(x=>workforceKey(kind,x)===id);
-    const note=prompt('Human確認・決定理由','確認済み');if(!note)return;
+    if(!row)return;
+    const note=prompt('Human確認・決定理由','確認済み');if(!note||!current()||!workforceHumanAllowed(b))return;
+    const operation={generation,view,controls:new Map()};workforcePendingHuman=operation;
+    workforceLockHumanControls();
+    if($('workforceHumanStatus'))$('workforceHumanStatus').textContent='Human確認・承認を処理中です。完了までお待ちください。';
+    if($('workforceMessage'))$('workforceMessage').textContent='';
     const base={roster:'rosters',leave:'leave',attendance:'attendance',time:'time-entries',staffing:'staffing-rules','work-rule':'shift-types'}[kind];
-    await workforceAPI('/workforce/'+base+'/'+id+'/'+action,workforceJSON('POST',{expected_version:row.version,note}));await back(workforceState.date);
-  }));
+    let accepted=false;
+    try{
+      await workforceAPI('/workforce/'+base+'/'+id+'/'+action,workforceJSON('POST',{expected_version:row.version,note}));
+      accepted=true;
+      const refresh=back(workforceState.date);operation.view=workforceState.viewGeneration;await refresh;
+    }catch(e){
+      if(!e.cancelled&&workforcePendingHuman===operation&&generation===workforceState.generation&&operation.view===workforceState.viewGeneration&&$('workforceMessage'))$('workforceMessage').textContent=accepted?'Human処理は完了しましたが、最新表示を取得できません。上のメニューから再読込してください。':e.status===409?'更新競合または根拠変更があります。最新データを再読込してください。':String(e.message);
+    }finally{
+      if(workforcePendingHuman===operation){
+        workforcePendingHuman=null;
+        for(const [button,state] of operation.controls)if(button.isConnected!==false&&generation===workforceState.generation&&state.view===workforceState.viewGeneration)button.disabled=state.disabled||!workforceHumanAllowed(button);
+        if($('workforceHumanStatus'))$('workforceHumanStatus').textContent='';
+      }
+    }
+  });
+  workforceLockHumanControls();
 }
 async function workforceRosterForm(){
   const view=++workforceState.viewGeneration;
