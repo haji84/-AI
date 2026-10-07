@@ -7,7 +7,7 @@ from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from ..audit import write_audit
-from ..authz import require_permission, require_mutation_permission
+from ..authz import require_permission, require_mutation_permission, permission_codes
 from ..db import get_db
 from ..document_intake import build_difference_candidates, classify_submission, detect_fields, extract_document, find_facility_candidates
 from ..models import Document, DocumentAnalysis, Facility, FacilityChangeProposal, Submission, SubmissionType, User
@@ -92,6 +92,9 @@ def list_analyses(
     user: User = Depends(require_permission("intake.read")),
 ):
     stmt = select(DocumentAnalysis)
+    if 'hazardous.read' not in permission_codes(db, user.user_id):
+        protected = select(Document.document_id).where(Document.document_type == 'hazardous_evidence')
+        stmt = stmt.where(DocumentAnalysis.document_id.not_in(protected))
     if status_filter:
         stmt = stmt.where(DocumentAnalysis.status == status_filter)
     rows = db.scalars(stmt.order_by(DocumentAnalysis.created_at.desc()).limit(max(1, min(limit, 200)))).all()

@@ -263,7 +263,7 @@ const assert=require('node:assert/strict'),vm=require('node:vm');
 const nodes={};const node=id=>nodes[id]??=( {value:'synthetic',textContent:'',classList:{add(){},remove(){},toggle(){}}} );
 let release,opened=0;
 const context={console,$:node,api:async()=>({permissions:[]}),initEmergency:()=>new Promise(resolve=>release=resolve),openWorkQueue:async()=>opened++};
-for(const name of ['initOperations','initAssets','initFinance','initWorkforce','initViolations','initInquiries','loadFacilities','initWorkQueue'])context[name]=async()=>{};
+for(const name of ['initOperations','initAssets','initFinance','initWorkforce','initViolations','initInquiries','initHazardous','loadFacilities','initWorkQueue'])context[name]=async()=>{};
 vm.createContext(context);
 ''' + '\n'.join(f'vm.runInContext({json.dumps(source)},context);' for source in [generation, navigate, login]) + r'''
 async function main(){
