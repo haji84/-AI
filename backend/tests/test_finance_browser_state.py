@@ -1,6 +1,7 @@
 """Execute actual finance JavaScript against focused DOM/session reproductions."""
 from pathlib import Path
 import subprocess
+import pytest
 
 
 def run(tmp_path,scenario):
@@ -112,3 +113,27 @@ await vm.runInContext('openFinance()',context);if(node('financeNav').innerHTML.i
 context.api=async(path,opt)=>path==='/auth/permissions'?{permissions:['finance.read']}:original(path,opt);
 await vm.runInContext('openFinance()',context);if(node('financeNav').innerHTML.includes('id="financeAmendments"'))throw Error('finance-only user offered contract-protected amendments');
 """)
+
+
+@pytest.mark.parametrize('phase', ['authority', 'list', 'proposal', 'balance'])
+def test_superseded_queue_navigation_never_restores_finance_content(tmp_path, phase):
+    run(tmp_path, r'''
+let owned=true,release;
+context.queueOwns=()=>owned;
+const held=PHASE;
+const original=context.api;
+context.api=async(path,opt)=>{
+ const match=held==='authority'?path==='/auth/permissions':held==='list'?path.startsWith('/finance/proposals?'):held==='proposal'?path==='/finance/proposals/one':path==='/finance/accounts/account/balance';
+ if(match)return new Promise(resolve=>release=resolve);
+ if(path==='/finance/proposals/one')return {account_id:'account'};
+ return original(path,opt);
+};
+node('financeContent').innerHTML='NEWER screen';node('financeNav').innerHTML='NEWER navigation';
+const task=vm.runInContext(held==='authority'?"openFinance(queueOwns)":held==='list'?"financeProposals('','',0,queueOwns)":"financeProposalDetail('one',queueOwns)",context);
+await turn();if(!release)throw Error('production request not held');
+owned=false;
+release(held==='authority'?{permissions:['finance.read']}:held==='list'?[]:held==='proposal'?{account_id:'account'}:{});
+await task;
+if(node('financeContent').innerHTML!=='NEWER screen'||node('financeNav').innerHTML!=='NEWER navigation')throw Error('superseded navigation rewrote newer content');
+if(held==='proposal'&&calls.some(c=>c.path.includes('/balance')))throw Error('superseded detail requested balance');
+'''.replace('PHASE', repr(phase)))

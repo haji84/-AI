@@ -4,8 +4,8 @@
 // remain authoritative for each record and every operation on it.
 const workQueueState={generation:0,navigation:0,visible:false,scope:'all',offset:0,limit:50,data:null,loading:false,error:'',opening:false};
 const workQueueRelations={created_by_me:'自分が作成',borrowed_by_me:'自分が借用',available_to_my_role:'権限に応じた業務',shared_deadline:'共通の期限'};
-const workQueueModules={operational_assets:'資機材・在庫',fleet:'車両',violations:'違反・改善措置',inquiries:'議会・照会'};
-const workQueueKinds={pressure_test:'耐圧試験',use:'使用期限',calibration:'校正',service:'点検・整備',expiry:'ロット期限',loan_return:'返却予定',inspection:'車両点検',service_mileage:'走行距離による整備',unresolved_fault:'未解消の故障',corrective_action:'改善措置',draft:'回答草案',review:'Human根拠確認',approval:'Human正式承認'};
+const workQueueModules={operational_assets:'資機材・在庫',fleet:'車両',violations:'違反・改善措置',inquiries:'議会・照会',budget:'財務・予算'};
+const workQueueKinds={pressure_test:'耐圧試験',use:'使用期限',calibration:'校正',service:'点検・整備',expiry:'ロット期限',loan_return:'返却予定',inspection:'車両点検',service_mileage:'走行距離による整備',unresolved_fault:'未解消の故障',corrective_action:'改善措置',draft:'下書き・未正式承認',review:'Human根拠確認',approval:'Human正式承認'};
 
 function hideWorkQueue(){
   workQueueState.generation++;workQueueState.navigation++;
@@ -34,6 +34,7 @@ function workQueueNavigation(item){
     case 'vehicle':return {open:owned=>openOperations(owned),detail:owned=>operationsAction(()=>operationsVehicleDetail(nav.id,owned)),modal:'operationsModal'};
     case 'violation':return {open:owned=>violationAction(async()=>{await openViolations(owned);workQueueEnsureCurrent(owned);}),detail:owned=>violationAction(async()=>{await violationDetail(nav.id,owned);workQueueEnsureCurrent(owned);}),modal:'violationModal'};
     case 'inquiry':return {open:owned=>openInquiries(owned),detail:owned=>inquiryAction(()=>inquiryDetail(nav.id,owned)),modal:'inquiryModal'};
+    case 'finance_proposal':return {open:owned=>openFinance(owned),detail:owned=>financeAction(()=>financeProposalDetail(nav.id,owned)),modal:'financeModal'};
     default:return null;
   }
 }
@@ -47,7 +48,7 @@ function renderWorkQueue(){
   const {data,scope,loading,error,opening}=workQueueState;
   panel.classList.remove('hidden');panel.setAttribute('aria-busy',String(loading||opening));
   panel.innerHTML='<div class="toolbar"><h2>今日の業務</h2><span class="grow"></span><label>表示範囲 <select id="workQueueScope"><option value="all">権限内のすべて</option><option value="related">自分が作成・借用したもの</option></select></label><button type="button" class="btn" id="workQueueRefresh">再読込</button></div>'+
-    '<p class="muted">資機材・車両の期限、改善措置、照会の確認待ちを表示します。作成者・借用者との関係を示し、元記録で詳細を確認できます。</p>'+
+    '<p class="muted">資機材・車両の期限、改善措置、照会・財務の確認待ちを表示します。作成者・借用者との関係を示し、元記録で詳細を確認できます。</p>'+
     (loading?'<p role="status">読み込み中…</p>':error?`<p class="dangerText" role="alert">業務一覧を取得できません。再読込してください。 ${esc(error)}</p>`:data?`<p>基準日 ${esc(data.as_of)} / 期限の表示範囲 ～ ${esc(data.through)} (${esc(data.business_timezone)})</p><p id="workQueueCount">${data.total}件${data.items.length?' / '+(data.offset+1)+'～'+(data.offset+data.items.length)+'件を表示':''}</p>${data.items.length?data.items.map(workQueueCard).join(''):data.total?'<p role="status">このページの業務はありません。前のページへ戻るか、再読込してください。</p>':'<p role="status">対象の業務はありません。</p>'}<div class="toolbar"><button type="button" class="btn" id="workQueuePrev"${data.offset===0||opening?' disabled':''}>前へ</button><button type="button" class="btn" id="workQueueNext"${data.offset+data.items.length>=data.total||opening?' disabled':''}>次へ</button></div>`:'')+
     (opening?'<p role="status">元記録を開いています…</p>':'');
   $('workQueueScope').value=scope;
