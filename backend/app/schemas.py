@@ -416,10 +416,10 @@ class FacilityComplianceStatusOut(BaseModel):
 
 class FacilityDashboardOut(BaseModel):
     building_id: str
-    inspections_total: int
-    open_findings: int
+    inspections_total: int | None
+    open_findings: int | None
     latest_inspection_at: str | None
-    submission_statuses: list[FacilityComplianceStatusOut]
+    submission_statuses: list[FacilityComplianceStatusOut] | None
 
 class DocumentAnalysisCreate(BaseModel):
     document_id: str
