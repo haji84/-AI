@@ -64,13 +64,13 @@ async function operationsFindSource(){
   const rows=await api((type==='emergency_case_id'?'/emergency/cases':'/fire-investigations')+'?'+new URLSearchParams({q:$('operationsSourceQuery').value,limit:'200'}));
   $('operationsSourceID').innerHTML='<option value="">未選択</option>'+rows.map(r=>`<option value="${esc(r[type])}">${esc(r.dispatch_number??r.case_number??'番号未設定')} / ${esc(r.call_date??r.title??'')} / ${esc(r.incident_address??r.location_text??'')}</option>`).join('');
 }
-async function operationsIncidentDetail(id){const current=operationsBeginView();if(!current())return;
+async function operationsIncidentDetail(id,isCurrent=()=>true){if(!isCurrent())return;const viewCurrent=operationsBeginView(),current=()=>isCurrent()&&viewCurrent();try{if(!current())return;
   const row=await api('/operations/incidents/'+id);if(!current())return;
   const dispatches=row.source_restricted?[]:await api('/operations/incidents/'+id+'/dispatches');if(!current())return;operationsState.incident=row;
   $('operationsContent').innerHTML=`<h2>${esc(row.title)}</h2><p>${esc(row.kind)} / ${esc(row.status)} / ${esc(row.source?.number??row.number??'')} / ${esc(row.source?.address??row.address??'')}</p><p>${esc(row.notes)}</p>${row.source?`<p class="notice">元事案ID ${esc(row.source.source_id)} v${row.source.version} / ${esc(row.source.occurred_at??row.source.call_date??'')} ${esc(row.source.call_time??'')}</p>`:''}${row.source_restricted?'<p class="notice">元記録の参照権限が必要です。</p>':''}<div class="toolbar">${operationsButton('operationsReload','再読込')}${row.status==='active'&&!row.source_restricted?operationsButton('operationsEdit','事案訂正','incident.update')+operationsButton('operationsDispatchNew','出動登録','incident.create')+operationsButton('operationsCancel','事案取消','incident.admin'):''}</div><h3>出動隊</h3><table><thead><tr><th>隊</th><th>出場</th><th>帰署</th><th>状態</th><th>正式手当</th><th></th></tr></thead><tbody>${dispatches.map(d=>`<tr><td>${esc(d.unit)}</td><td>${esc(d.departed_at)}</td><td>${esc(d.returned_at)}</td><td>${esc(d.status)}</td><td>${esc(d.official_amount??'')}</td><td><button class="btn" data-operations-dispatch="${esc(d.dispatch_id)}">開く</button></td></tr>`).join('')}</tbody></table>`;
   operationsBind('operationsReload',()=>operationsIncidentDetail(id));operationsBind('operationsEdit',()=>operationsIncidentForm(row));operationsBind('operationsDispatchNew',()=>operationsDispatchForm());operationsBind('operationsCancel',()=>operationsHumanAction('/incidents/'+id+'/cancel',row,()=>operationsIncidentDetail(id),'事案を取消'));
   document.querySelectorAll('[data-operations-dispatch]').forEach(b=>b.onclick=()=>operationsAction(()=>operationsDispatchDetail(b.dataset.operationsDispatch)));
-}
+}catch(error){if(current())throw error;}}
 async function operationsVehicleForm(row=null){
   const fields=[...(!row?[['code','車両コード'],['odometer','初期距離 km','number']]:[]),['name','名称'],['registration','登録番号'],...(row?[['active','運用状態','select',[['true','使用中'],['false','休止']]]]:[]),['notes','記録','textarea']];
   operationsForm(row?'車両訂正':'車両登録',fields,row??{odometer:0},async(values,isCurrent)=>{const r=await api(row?'/operations/vehicles/'+row.vehicle_id:'/operations/vehicles',operationsJSON(row?'PATCH':'POST',row?{expected_version:row.version,...values}:values));if(isCurrent())await operationsAction(()=>operationsVehicleDetail(r.vehicle_id))},()=>row?operationsVehicleDetail(row.vehicle_id):operationsList('vehicles'));
@@ -81,7 +81,7 @@ async function operationsDispatchForm(row=null){
   const fields=[['unit','出動隊'],['vehicle_id','車両','select',operationsOptions(vehicles,'vehicle_id',v=>v.code+' / '+v.name)],['departed_at','出場','datetime-local'],['arrived_at','現着','datetime-local'],['returned_at','帰署','datetime-local'],['activity','活動','textarea'],['report','報告','textarea'],...(operationsCan('document.read')?[['document_id','共通原本ID（任意）']]:[])];
   operationsForm(row?'出動訂正':'出動登録',fields,row??{},async(values,isCurrent)=>{const r=await api(row?'/operations/dispatches/'+row.dispatch_id:'/operations/incidents/'+operationsState.incident.incident_id+'/dispatches',operationsJSON(row?'PATCH':'POST',{expected_version:row?.version??operationsState.incident.version,...values}));if(isCurrent())await operationsAction(()=>operationsDispatchDetail(r.dispatch_id))},()=>row?operationsDispatchDetail(row.dispatch_id):operationsIncidentDetail(operationsState.incident.incident_id));
 }
-async function operationsDispatchDetail(id){const current=operationsBeginView();if(!current())return;
+async function operationsDispatchDetail(id,isCurrent=()=>true){if(!isCurrent())return;const viewCurrent=operationsBeginView(),current=()=>isCurrent()&&viewCurrent();try{if(!current())return;
   const d=await api('/operations/dispatches/'+id);if(!current())return;
   const crew=operationsCan('incident.crew.read')?await api('/operations/dispatches/'+id+'/crew'):[];if(!current())return;operationsState.dispatch=d;
   const editable=d.status==='draft';
@@ -89,7 +89,7 @@ async function operationsDispatchDetail(id){const current=operationsBeginView();
   operationsBind('operationsReload',()=>operationsDispatchDetail(id));operationsBind('operationsParent',()=>operationsIncidentDetail(d.incident_id));operationsBind('operationsEdit',()=>operationsDispatchForm(d));operationsBind('operationsCrewNew',()=>operationsCrewForm(d));operationsBind('operationsCalculate',()=>operationsCalculate(d));
   for(const [button,action,label] of [['operationsReview','/review','出動報告・手当候補を確認'],['operationsApprove','/approve','出動報告・手当を正式承認'],['operationsCancel','/cancel','出動を取消']])operationsBind(button,()=>operationsHumanAction('/dispatches/'+id+action,d,()=>operationsDispatchDetail(id),label));
   document.querySelectorAll('[data-operations-crew-remove]').forEach(b=>b.onclick=()=>operationsAction(()=>operationsHumanAction('/crew/'+b.dataset.operationsCrewRemove+'/remove',d,()=>operationsDispatchDetail(id),'隊員割当を解除')));
-}
+}catch(error){if(current())throw error;}}
 async function operationsCrewForm(d){
   const current=operationsBeginView();if(!current())return;
   const employees=await api('/operations/employees');if(!current())return;const fields=[['employee_id','共通職員','select',operationsOptions(employees,'employee_id',e=>(e.employee_code??'')+' / '+e.display_name)],['role','役割']];

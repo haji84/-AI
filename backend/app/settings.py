@@ -16,6 +16,17 @@ class Settings(BaseSettings):
     legal_update_trust_file: str | None = None
     tenant_id: str | None = None
     trusted_hosts: list[str] = []
+    statistics_business_timezone: str = "Asia/Tokyo"
+
+    @field_validator("statistics_business_timezone")
+    @classmethod
+    def statistics_zone(cls, value):
+        from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+        try:
+            ZoneInfo(value)
+        except (ZoneInfoNotFoundError, ValueError) as exc:
+            raise ValueError("statistics_business_timezone must name an IANA timezone") from exc
+        return value
 
     @field_validator('tenant_id')
     @classmethod
