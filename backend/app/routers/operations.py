@@ -3,13 +3,15 @@ from typing import Literal
 from fastapi import APIRouter,Depends,File,HTTPException,Query,Response,UploadFile
 from sqlalchemy import or_,select
 from sqlalchemy.orm import Session
-from ..authz import current_user,permission_codes,require_permission
+from ..authz import current_user,permission_codes,require_permission,require_mutation_permission
 from ..db import get_db
 from ..audit import write_audit
 from ..models import Employee,User,now_utc
 from ..operations_models import Incident,Vehicle,Dispatch,DispatchCrew,AllowanceRate,VehicleTrip,FuelEntry,VehicleService
 from ..operations_schemas import IncidentInput,IncidentPatch,VehicleInput,VehiclePatch,DispatchInput,DispatchPatch,CrewInput,RateInput,Calculate,TripInput,FuelInput,ServiceInput,Action,Version,ServiceApprove,ImportConfirm
 from .. import operations_service as ops
+from .. import vehicle_assignment_service as assignments
+from ..operations_schemas import VehicleAssignmentInput
 
 def no_store(response:Response):response.headers['Cache-Control']='no-store'
 router=APIRouter(prefix='/operations',tags=['operations'],dependencies=[Depends(no_store)])
@@ -63,6 +65,20 @@ def vehicles(q:str=Query('',max_length=300),limit:int=Query(50,ge=1,le=200),offs
     stmt=select(Vehicle)
     if q:stmt=stmt.where(or_(Vehicle.name.contains(q),Vehicle.code.contains(q),Vehicle.registration.contains(q)))
     return [ops.row_dict(r) for r in db.scalars(stmt.order_by(Vehicle.code).offset(offset).limit(limit))]
+
+@router.get('/fleet-organizations')
+def fleet_organizations(q:str=Query('',max_length=300),limit:int=Query(100,ge=1,le=200),offset:int=Query(0,ge=0),db:Session=Depends(get_db),user:User=Depends(require_permission('fleet.read'))):
+    return assignments.list_organizations(db,q,limit,offset)
+
+@router.get('/vehicles/{key}/assignments')
+def vehicle_assignments(key:str,limit:int=Query(50,ge=1,le=200),offset:int=Query(0,ge=0),db:Session=Depends(get_db),user:User=Depends(require_permission('fleet.read'))):
+    return assignments.history(db,key,limit,offset)
+
+@router.post('/vehicles/{key}/assignments',status_code=201)
+def change_vehicle_assignment(key:str,payload:VehicleAssignmentInput,db:Session=Depends(get_db),user:User=Depends(require_mutation_permission('fleet.update'))):
+    result=assignments.change_assignment(db,user,key,payload)
+    ops.save(db)
+    return result
 
 @router.post('/vehicles',status_code=201)
 def create_vehicle(payload:VehicleInput,db:Session=Depends(get_db),user:User=Depends(require_permission('fleet.create'))):
