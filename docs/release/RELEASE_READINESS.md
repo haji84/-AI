@@ -49,8 +49,12 @@
 
 ## 現在の実装baseと受入の区別
 
-完成状況の基準はmain `1b3bf5b7442941fb19c186095290231ab3dd2fbf`。分類はCompleted11 / Partial44 / Missing1 / External Gate1で、章16（危険物）・36（個人work list）はPartial、章34（共通統計）はMissingです。PR70の対象物dashboard権限修復とPR71の危険物台帳はmerge済みですが、これだけで全体完成とは扱いません。
+完成状況の基準はmain `9d6f86b1c21e61b1df51eef058bf01b26e5c54e9`、tree `c3d4f2afa32bdf44b82c2fe62d183e63d678f7d0`。分類はCompleted12 / Partial44 / Missing0 / External Gate1です。PR74の勤務Human操作修復、PR75の車両配属・履歴、PR76の観測統計、PR77の学習再読込修復はmerge済みです。章34はMissingからPartialへ、章23は既定の独立配属・版/監査・現在配属/履歴の完了条件を満たしてCompletedへ変わりました。Missingが0でも重大Partialや全体受入は残ります。
 
-各PR head・以前のmainのCIと、現在mainのpost-merge CI・実際の配布manifest commitを区別します。現在mainの [CI37584491507](https://github.com/haji84/-AI/actions/runs/37584491507) はbackend974件成功/67件スキップ、browser job52件成功（実Chromium43＋Node/API9）、migration parser/JavaScript成功を確認しました。初回packaging報告を変更せず、次の生成物ではそのmanifest commit/tree/hashと検証結果を別途記録します。`production_ready: false` は継続し、上の全体・本部・実機Gateを満たすまで本番受入完了としません。
+各PR head・以前のmainのCIと、現在mainのpost-merge CI・実際の配布manifest commitを区別します。PR75後のmain f53084a [CI37604792930](https://github.com/haji84/-AI/actions/runs/37604792930) はbackend1098件成功/88件スキップ、browser job64件成功（実Chromium55＋Node/API9）。PR76最終head cc743990 [CI37605645865](https://github.com/haji84/-AI/actions/runs/37605645865) はbackend1184件成功/95件スキップ、browser job71件成功（実Chromium62＋Node/API9）で、両方ともmigration parser/JavaScript成功です。PR76後main c1b491eの [CI37607563240](https://github.com/haji84/-AI/actions/runs/37607563240) も同じ1184/95・71件とparser/JavaScriptの成功を確認しました。PR77最終統合head ee757220 [CI37606910763](https://github.com/haji84/-AI/actions/runs/37606910763) はbackend1198件成功/95件スキップ、browser job71件成功（実Chromium62＋Node/API9）、parser/JavaScript成功で、現mainと同じtreeを持ちます。**実装main 9d6f86bの [post-merge CI37609190838](https://github.com/haji84/-AI/actions/runs/37609190838) もbackend1198件成功/95件スキップ、browser job71件成功（実Chromium62＋Node/API9）、parser/JavaScript成功**です。この実行証拠を、後続の文書・配布物commitで新たに実行した結果とは扱いません。
 
-利用者の初回操作は [INSTALLATIONの案内](INSTALLATION.md#first-use-common-workflows) から、今日の業務・文書受付・危険物台帳の各手順へ進めます。
+車両は実フォームから追加でき、現在配属・履歴まで確認できます。章23の配属欠落は解消し、同章のcoreはCompletedです。配属の原本Document・取込/出力・横断検索連携は共通基盤の章9/41/35で未完として追跡します。車両検証手順書の過去のPartial表記は現在ledgerが更新し、使用手順と制限は維持します。観測統計は7指標の保存・Human確認・置換と汎用CSV/XLSXを提供し、確認後も網羅性unknownを維持します。財務/過去母数/年度・前年比較/残りのsource/網羅性宣言/正式様式は未完のままです。
+
+初回packaging報告を変更せず、次の生成物ではそのmanifest commit/tree/hashと検証結果を別途記録します。`production_ready: false` は継続し、上の全体・本部・実機Gateを満たすまで本番受入完了としません。中央サーバー・dynamic worker・backup vault等の後続設計は実装やアクセス/導入権限に含めず、現行の本部別分離と復元手順を使用します。通常の状態・容量・最終成功の可視化と緊急復元権限は別途設計し、登録・鍵・privacy・policyを確認する必要があります。
+
+利用者の初回操作は [今日の業務・文書受付・危険物台帳](INSTALLATION.md#first-use-common-workflows) と [車両追加・配属・観測統計](INSTALLATION.md#first-use-vehicles-statistics) の案内から確認できます。

@@ -2,17 +2,23 @@
 
 更新日: 2026-10-07
 
-## 現在の完成状況（main `1b3bf5b7` 基準）
+## 現在の完成状況（main `9d6f86b` 基準）
 
-57章の現在地は [CURRENT_COMPLETION_LEDGER](docs/completion/CURRENT_COMPLETION_LEDGER.md) を参照。実装基準は `1b3bf5b7442941fb19c186095290231ab3dd2fbf`、tree `6f3eac85eba6187a604c19d432e0688d499adb7a`。c1b684cの全章baselineに、merge済みPR67（受付lifecycle）、PR68（個人work list）、PR69（学習login）、PR72（勤務browser test同期）、PR70（対象物dashboard権限）、PR71（危険物台帳）を反映した。**Completed 11 / Partial 44 / Missing 1 / External Gate 1**。章16・36はPartial、章34はMissing。システム全体の完成・本番受入を意味しない。
+57章の現在地は [CURRENT_COMPLETION_LEDGER](docs/completion/CURRENT_COMPLETION_LEDGER.md) を参照。実装基準は `9d6f86b1c21e61b1df51eef058bf01b26e5c54e9`、tree `c3d4f2afa32bdf44b82c2fe62d183e63d678f7d0`。既存の全章baselineとPR67–72の記録を保持し、merge済みPR74（勤務Human操作の画面更新競合）、PR75（車両配属・履歴）、PR76（観測統計）、PR77（学習再読込競合）を追加した。**Completed 12 / Partial 44 / Missing 0 / External Gate 1**。章34はMissing→Partial、章23は基準baselineの独立配属・版/監査・現在配属/履歴の完了条件を満たしてPartial→Completed。章16・25・36はPartialを維持する。Missingが0でも重大Partialは残り、システム全体の完成・本番受入を意味しない。
 
-PR70の最終head [CI37581843529](https://github.com/haji84/-AI/actions/runs/37581843529) はbackend862 passed/61 skipped、browser job51件（実Chromium42＋Node/API9）。同merge後main [CI37582780375](https://github.com/haji84/-AI/actions/runs/37582780375) もgreen。PR71最終head [CI37583265279](https://github.com/haji84/-AI/actions/runs/37583265279) はbackend974 passed/67 skipped、browser job52件（実Chromium43＋Node/API9）、migration parser/JavaScript成功。現在mainの [CI37584491507](https://github.com/haji84/-AI/actions/runs/37584491507) も成功し、backend974 passed/67 skipped、browser job52件（実Chromium43＋Node/API9）、migration parser/JavaScript成功を確認した。配布物は別途、そのmanifest commit・ハッシュ・展開後の起動を照合する。
+PR75の最終head [CI37602962182](https://github.com/haji84/-AI/actions/runs/37602962182) とmerge後main f53084aの [CI37604792930](https://github.com/haji84/-AI/actions/runs/37604792930) は、backend1098 passed/88 skipped、browser job64件（実Chromium55＋Node/API9）、migration parser/JavaScript成功。PR76最終head cc743990の [CI37605645865](https://github.com/haji84/-AI/actions/runs/37605645865) はbackend1184 passed/95 skipped、browser job71件（実Chromium62＋Node/API9）、parser/JavaScript成功。PR76後のmain c1b491eも [CI37607563240](https://github.com/haji84/-AI/actions/runs/37607563240) で同じ1184/95・71件の成功を確認した。PR77最終統合head ee757220の [CI37606910763](https://github.com/haji84/-AI/actions/runs/37606910763) はbackend1198 passed/95 skipped、browser job71件（実Chromium62＋Node/API9）、parser/JavaScript成功で、現mainと同じtreeを持つ。**実装main 9d6f86bの [post-merge CI37609190838](https://github.com/haji84/-AI/actions/runs/37609190838) もbackend1198 passed/95 skipped、browser job71件（実Chromium62＋Node/API9）、parser/JavaScript成功**。これは9d6f86bの実行証拠であり、後続の文書・配布物commitで新たに実行した結果とは扱わない。配布物は別途、そのmanifest commit/tree・ハッシュ・展開後の起動を照合する。
+
+車両は既存の「事案・車両」→「車両」→「新規登録」から追加できる。実フォームで追加した車両の配属・検索・履歴・監査・権限拒否まで検証した。章23の旧「配属未実装」は解消済み。配属の原本Document連携・取込/出力・横断検索拡張は共通基盤の章9/41/35に未完として残す。現在の章23分類は使用手順書のmerge前Partial表記より本ledgerを優先し、手順と制限は引き続き有効。[車両の使用手順](docs/completion/VEHICLE_ASSIGNMENT_VERIFICATION_20261007.md)。
+
+「観測統計」は救急・事案/出動・車両運行の7指標、明示した業務日/既定の`Asia/Tokyo`時刻帯、不変の保存値、Human確認・置換履歴、汎用CSV/XLSXを提供する。確認後も網羅性はunknownで、0件と完全性・利用不可を混同しない。財務/通貨、過去母数、年度/前年比較、残りのsource、網羅性宣言、正式原本様式は内部未完。[観測統計の使用手順](docs/completion/OBSERVED_STATISTICS_VERIFICATION_20261007.md)。PR77の学習再読込修復は9d6f86bとしてmerge済み。遅い旧応答によるHuman評価画面の上書きを防ぐ修復であり、API・権限・モデル・Human判断の意味は変えず、章37等の状態もPartialを維持する。
 
 [STATUS_CHANGELOG](docs/completion/COMPLETION_STATUS_CHANGELOG.md) に分類根拠、[COMPLETION_BASELINE_20261007](docs/completion/COMPLETION_BASELINE_20261007.md) にc1b684c全57章Evidenceを保存。旧MASTER_FEATURE_MATRIXと以下のPhase/過去集計は履歴として保持する。対象物dashboardの再現済み情報露出はPR70で修復済み。危険物のHuman証拠確認は法令適合判定ではなく、Rule評価は未実装。
 
 章46のmodule無効時の履歴閲覧・出力・参照をどう扱うかは明示方針の決定待ち。新規業務の直接APIが既存flagで一貫して止まる状態ではない。履歴参照を一律に不具合と断定せず、方針と実行制御の残差を区別する。
 
-未照合のRun A統計/Run B勤務等のcheckpointは原本を保持する。mainを正本に、既存branch/PR/実装/migrationとの衝突を確認して残要件を小さく実装できる。未照合を「復旧済み」「消失」と扱わず、恒久的な開発禁止にも扱わない。後続のローカル変更にはこの集計で実装creditを付けない。
+未照合のRun A統計/Run B勤務等のcheckpointは原本を保持する。PR76は新たな限定実装で、旧Run Aの復旧ではない。mainを正本に、既存branch/PR/実装/migrationとの衝突を確認して残要件を小さく実装できる。予約051は保持し、配属053・観測統計054は既存SQLを変更せず追加した。未照合を「復旧済み」「消失」と扱わず、恒久的な開発禁止にも扱わない。後続のローカル変更にはこの集計で実装creditを付けない。
+
+central server・dynamic worker・offline requeue・OwnerRecoveryVault等は後続の設計照合事項で、実装済み機能ではない。通常のサービス運営者向け状態/容量/最終成功情報と緊急復元は別の権限経路として整理し、登録・鍵管理・privacy・policyは未解決。本部の通常記録へのアクセスや導入の権限を与えるものではなく、現在の本部別DB/実行環境/原本分離を維持する。
 
 ## 完成タスクの現在地（2026-10-06再監査・履歴）
 
