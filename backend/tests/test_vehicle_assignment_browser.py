@@ -417,7 +417,6 @@ def test_close_intent_during_real_authority_preflight_blocks_late_detail(assignm
 def test_older_real_alerts_cannot_replace_new_assignment_draft(assignment_browser):
     from playwright.sync_api import expect
     page, _, ids, _, _, vehicle, edit, _ = assignment_browser
-    vehicle()
     held = []
 
     def hold(route):
@@ -433,6 +432,9 @@ def test_older_real_alerts_cannot_replace_new_assignment_draft(assignment_browse
         return result;
       };
     }''')
+    # openOperations binds this function by reference when vehicle() opens it.
+    # Install the observer first so the real Alerts button invokes that observer.
+    vehicle()
     path = '**/operations/alerts'
     page.route(path, hold)
     try:
