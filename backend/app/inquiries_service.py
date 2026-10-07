@@ -94,6 +94,8 @@ def save(db):
 def _document_local_permissions(db,doc):
  """Only local edges; graph closure below follows derived originals iteratively."""
  required={'document.read'}
+ # This exact upload type owns its boundary even before it is linked to a record.
+ if doc.document_type=='hazardous_evidence':required.add('hazardous.read')
  if doc.building_id:required.add('facility.read')
  prefixes={'emergency_patients':'emergency.patient.read','emergency_crews':'emergency.crew.read','emergency_':'emergency.case.read','employee_':'personnel.read','personnel_':'personnel.read','human_role_rules':'personnel.read','temporary_role_grants':'personnel.read','workforce_leave_entries':'personnel.read','workforce_':'workforce.read','finance_':'finance.read','contract_':'contract.read','fire_':'fire_investigation.read','operation_':'incident.read','asset_':'asset.read','operational_assets':'asset.read','facility_':'facility.read','legal_':'legal_source.read','drawing_':'drawing.read'}
  for table in Base.metadata.tables.values():
@@ -164,8 +166,8 @@ def permission_closure(db,nodes):
 def document_permissions(db,doc):return {'document.read',*permission_closure(db,[('document',doc.document_id)])}
 
 def guard_document(db,user,doc):
- """Narrow common hook for inquiry-created originals; unrelated originals remain canonical."""
- if doc.document_type in ('inquiry_import_original','inquiry_rendered_original'):need(db,user,*document_permissions(db,doc))
+ """Narrow common hook for protected typed originals; generic originals stay shared."""
+ if doc.document_type in ('inquiry_import_original','inquiry_rendered_original','hazardous_evidence'):need(db,user,*document_permissions(db,doc))
  return doc
 
 def document_path(doc):

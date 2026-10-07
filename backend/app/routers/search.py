@@ -631,7 +631,10 @@ def _search_legal(db: Session, q: str, limit: int, perms: set[str]) -> list[Unif
 
 
 def _search_documents(db: Session, q: str, limit: int) -> list[UnifiedSearchHitOut]:
-    rows = db.scalars(
+    from ..inquiries_service import guard_document
+    from types import SimpleNamespace
+    user=SimpleNamespace(user_id=db.info['inquiry_search_user_id'])
+    statement = (
         select(Document)
         .where(
             _like_condition(
@@ -642,12 +645,10 @@ def _search_documents(db: Session, q: str, limit: int) -> list[UnifiedSearchHitO
                 Document.sha256,
             )
         )
-        .order_by(Document.created_at.desc())
-        .limit(limit)
-    ).all()
-    from ..inquiries_service import guard_document
-    from types import SimpleNamespace
-    user=SimpleNamespace(user_id=db.info['inquiry_search_user_id'])
+    )
+    if 'hazardous.read' not in permission_codes(db, user.user_id):
+        statement = statement.where(Document.document_type.is_distinct_from('hazardous_evidence'))
+    rows = db.scalars(statement.order_by(Document.created_at.desc()).limit(limit)).all()
     allowed=[]
     for row in rows:
         try:guard_document(db,user,row)

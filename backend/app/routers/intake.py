@@ -7,7 +7,7 @@ from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from ..audit import write_audit
-from ..authz import require_permission
+from ..authz import require_permission, require_mutation_permission, permission_codes
 from ..db import get_db
 from ..document_intake import build_difference_candidates, classify_submission, detect_fields, extract_document, find_facility_candidates
 from ..models import Document, DocumentAnalysis, Facility, FacilityChangeProposal, Submission, SubmissionType, User
@@ -29,6 +29,28 @@ def _guard_inquiry_analysis(db,user,analysis):
     from ..inquiries_service import guard_document
     doc=db.get(Document,analysis.document_id)
     if doc:guard_document(db,user,doc)
+
+
+def _claim_analysis(db: Session, row: DocumentAnalysis, expected_version: int, allowed_statuses: tuple[str, ...], **values):
+    """Gate every review/receipt/proposal write on the same lifecycle row.
+
+    Every successful transition consumes a revision and locks this row until
+    commit. A racing review must finish before a stale proposal can proceed;
+    failed claims roll back the entire transaction.
+    """
+    result = db.execute(
+        update(DocumentAnalysis)
+        .where(DocumentAnalysis.document_analysis_id == row.document_analysis_id,
+               DocumentAnalysis.version == expected_version,
+               DocumentAnalysis.status.in_(allowed_statuses))
+        .values(**values)
+        .execution_options(synchronize_session=False)
+    )
+    if result.rowcount != 1:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="analysis changed or is no longer in the required review state")
+    db.refresh(row)
+
 
 def _analysis_out(row: DocumentAnalysis) -> DocumentAnalysisOut:
     return DocumentAnalysisOut(
@@ -70,6 +92,9 @@ def list_analyses(
     user: User = Depends(require_permission("intake.read")),
 ):
     stmt = select(DocumentAnalysis)
+    if 'hazardous.read' not in permission_codes(db, user.user_id):
+        protected = select(Document.document_id).where(Document.document_type == 'hazardous_evidence')
+        stmt = stmt.where(DocumentAnalysis.document_id.not_in(protected))
     if status_filter:
         stmt = stmt.where(DocumentAnalysis.status == status_filter)
     rows = db.scalars(stmt.order_by(DocumentAnalysis.created_at.desc()).limit(max(1, min(limit, 200)))).all()
@@ -87,7 +112,7 @@ def list_analyses(
 def analyze_document(
     payload: DocumentAnalysisCreate,
     db: Session = Depends(get_db),
-    user: User = Depends(require_permission("intake.analyze")),
+    user: User = Depends(require_mutation_permission("intake.analyze")),
 ):
     doc = db.get(Document, payload.document_id)
     if not doc:
@@ -141,7 +166,7 @@ def review_analysis(
     analysis_id: str,
     payload: DocumentAnalysisReview,
     db: Session = Depends(get_db),
-    user: User = Depends(require_permission("intake.review")),
+    user: User = Depends(require_mutation_permission("intake.review")),
 ):
     row = db.get(DocumentAnalysis, analysis_id)
     if not row:
@@ -155,28 +180,35 @@ def review_analysis(
         raise HTTPException(status_code=404, detail="submission type not found")
     if row.version != payload.expected_version:
         raise HTTPException(status_code=409, detail={"message": "analysis was updated by another user", "current": _analysis_out(row).model_dump(mode="json")})
+    before = {"status": row.status, "version": row.version, "selected_building_id": row.selected_building_id}
+    now = datetime.now(timezone.utc)
+    _claim_analysis(db, row, payload.expected_version, ("analyzed", "reviewed"),
+                    status="reviewed", version=payload.expected_version + 1, updated_at=now)
     diffs = build_difference_candidates(db, facility.building_id, row.detected_fields or {})
     row.selected_building_id = facility.building_id
     row.selected_submission_type_code = type_code
     row.difference_candidates = diffs
-    row.status = "reviewed"
     row.reviewed_by = user.user_id
-    row.reviewed_at = datetime.now(timezone.utc)
-    row.version += 1
-    row.updated_at = datetime.now(timezone.utc)
+    row.reviewed_at = now
+    # Preserve the old review's evidence, including an empty replacement review.
+    # Never repurpose its proposal ID for a different target or source revision.
+    obsolete = db.scalars(select(FacilityChangeProposal).where(
+        FacilityChangeProposal.document_analysis_id == row.document_analysis_id,
+        FacilityChangeProposal.status == "pending")).all()
+    for existing in obsolete:
+        previous_version = existing.version
+        existing.status = "superseded"
+        existing.version += 1
+        existing.updated_at = now
+        write_audit(db, user_id=user.user_id, action="facility_change_proposal.supersede",
+                    entity_type="facility_change_proposal", entity_id=existing.facility_change_proposal_id,
+                    before={"status": "pending", "version": previous_version, "building_id": existing.building_id, "changes": existing.changes},
+                    after={"status": "superseded", "version": existing.version, "analysis_id": row.document_analysis_id, "review_version": row.version}, ai_used=False)
     if diffs:
-        existing = db.scalar(select(FacilityChangeProposal).where(FacilityChangeProposal.document_analysis_id == row.document_analysis_id, FacilityChangeProposal.status == "pending"))
-        if existing:
-            existing.building_id = facility.building_id
-            existing.expected_facility_version = facility.version
-            existing.changes = diffs
-            existing.version += 1
-            existing.updated_at = datetime.now(timezone.utc)
-        else:
-            db.add(FacilityChangeProposal(document_analysis_id=row.document_analysis_id, building_id=facility.building_id, expected_facility_version=facility.version, changes=diffs))
+        db.add(FacilityChangeProposal(document_analysis_id=row.document_analysis_id, building_id=facility.building_id, expected_facility_version=facility.version, changes=diffs))
     db.flush()
     out = _analysis_out(row)
-    write_audit(db, user_id=user.user_id, action="document_analysis.review", entity_type="document_analysis", entity_id=row.document_analysis_id, after={"selected_building_id": facility.building_id, "selected_submission_type_code": type_code, "difference_paths": sorted(diffs)}, ai_used=False)
+    write_audit(db, user_id=user.user_id, action="document_analysis.review", entity_type="document_analysis", entity_id=row.document_analysis_id, before=before, after={"status": row.status, "version": row.version, "selected_building_id": facility.building_id, "selected_submission_type_code": type_code, "difference_paths": sorted(diffs)}, ai_used=False)
     db.commit()
     return out
 
@@ -198,7 +230,7 @@ def confirm_receipt(
     analysis_id: str,
     payload: IntakeConfirmReceipt,
     db: Session = Depends(get_db),
-    user: User = Depends(require_permission("submission.create")),
+    user: User = Depends(require_mutation_permission("submission.create")),
 ):
     analysis = db.get(DocumentAnalysis, analysis_id)
     if not analysis:
@@ -212,11 +244,16 @@ def confirm_receipt(
     if not st:
         raise HTTPException(status_code=404, detail="submission type not found")
     _validate_official_number(payload.official_number)
+    submitted_at = _date(payload.submitted_at)
+    before = {"status": analysis.status, "version": analysis.version}
+    _claim_analysis(db, analysis, payload.expected_version, ("reviewed",),
+                    status="receipt_confirmed", version=payload.expected_version + 1,
+                    updated_at=datetime.now(timezone.utc))
     submission = Submission(
         building_id=analysis.selected_building_id,
         submission_type_id=st.submission_type_id,
         official_number=payload.official_number,
-        submitted_at=_date(payload.submitted_at),
+        submitted_at=submitted_at,
         submitted_by=payload.submitted_by,
         notes=payload.notes,
         payload_data=payload.payload_data,
@@ -226,12 +263,9 @@ def confirm_receipt(
     db.flush()
     _link_documents(db, submission, [analysis.document_id], st.requires_document)
     _sync_specialized(db, submission, st.code)
-    analysis.status = "receipt_confirmed"
-    analysis.version += 1
-    analysis.updated_at = datetime.now(timezone.utc)
     db.flush()
     out = _submission_out(db, submission)
-    write_audit(db, user_id=user.user_id, action="document_analysis.confirm_receipt", entity_type="submission", entity_id=submission.submission_id, after={"analysis_id": analysis.document_analysis_id, "building_id": submission.building_id, "submission_type_code": st.code, "document_id": analysis.document_id}, ai_used=False)
+    write_audit(db, user_id=user.user_id, action="document_analysis.confirm_receipt", entity_type="submission", entity_id=submission.submission_id, before=before, after={"analysis_id": analysis.document_analysis_id, "analysis_version": analysis.version, "status": analysis.status, "building_id": submission.building_id, "submission_type_code": st.code, "document_id": analysis.document_id}, ai_used=False)
     db.commit()
     return out
 
@@ -241,13 +275,21 @@ def apply_change_proposal(
     proposal_id: str,
     payload: FacilityChangeProposalApply,
     db: Session = Depends(get_db),
-    user: User = Depends(require_permission("intake.apply")),
+    user: User = Depends(require_mutation_permission("intake.apply")),
 ):
     proposal = db.get(FacilityChangeProposal, proposal_id)
     if not proposal:
         raise HTTPException(status_code=404, detail="change proposal not found")
     analysis=db.get(DocumentAnalysis,proposal.document_analysis_id)
-    if analysis:_guard_inquiry_analysis(db,user,analysis)
+    if not analysis:
+        raise HTTPException(status_code=409, detail="proposal analysis is no longer available")
+    _guard_inquiry_analysis(db,user,analysis)
+    _claim_analysis(db, analysis, analysis.version, ("reviewed", "receipt_confirmed"),
+                    version=analysis.version + 1, updated_at=datetime.now(timezone.utc))
+    # Also reject inconsistent proposals persisted by older versions of intake.
+    if proposal.building_id != analysis.selected_building_id or proposal.changes != analysis.difference_candidates:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="proposal no longer matches the current Human review")
     if proposal.status != "pending":
         raise HTTPException(status_code=409, detail="proposal is not pending")
     if proposal.version != payload.expected_version:
@@ -265,18 +307,24 @@ def apply_change_proposal(
     before = {k: getattr(facility, k) for k in values}
     values["version"] = facility.version + 1
     values["updated_at"] = datetime.now(timezone.utc)
+    proposal_version = proposal.version
+    claimed = db.execute(update(FacilityChangeProposal).where(
+        FacilityChangeProposal.facility_change_proposal_id == proposal.facility_change_proposal_id,
+        FacilityChangeProposal.version == payload.expected_version,
+        FacilityChangeProposal.status == "pending").values(
+            status="applied", version=proposal_version + 1, reviewed_by=user.user_id,
+            reviewed_at=values["updated_at"], applied_at=values["updated_at"], updated_at=values["updated_at"])
+        .execution_options(synchronize_session=False))
+    if claimed.rowcount != 1:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="proposal update conflict")
     result = db.execute(update(Facility).where(Facility.building_id == facility.building_id, Facility.version == facility.version).values(**values))
     if result.rowcount != 1:
         db.rollback()
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="facility update conflict")
-    proposal.status = "applied"
-    proposal.reviewed_by = user.user_id
-    proposal.reviewed_at = datetime.now(timezone.utc)
-    proposal.applied_at = datetime.now(timezone.utc)
-    proposal.version += 1
-    proposal.updated_at = datetime.now(timezone.utc)
+    db.refresh(proposal)
     db.flush()
     out = _proposal_out(proposal)
-    write_audit(db, user_id=user.user_id, action="facility_change_proposal.apply", entity_type="facility", entity_id=facility.building_id, before=before, after={**{k: values[k] for k in before}, "accepted_paths": accepted, "analysis_id": proposal.document_analysis_id}, ai_used=False)
+    write_audit(db, user_id=user.user_id, action="facility_change_proposal.apply", entity_type="facility", entity_id=facility.building_id, before=before, after={**{k: values[k] for k in before}, "accepted_paths": accepted, "analysis_id": proposal.document_analysis_id, "analysis_version": analysis.version, "proposal_id": proposal.facility_change_proposal_id}, ai_used=False)
     db.commit()
     return out

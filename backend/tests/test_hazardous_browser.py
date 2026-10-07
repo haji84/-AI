@@ -216,7 +216,11 @@ with SessionLocal() as db:
             page.locator('#hazardousBtn').click()
             page.locator('#hazardousDeadlinesNav').click()
             page.locator('#hazardousDueBefore').fill('2026-10-11')
+            previous_deadline_button = page.locator('[data-hazardous-installation]').element_handle()
             page.locator('#hazardousDueSearch').click()
+            # SharedSession validates and redispatches the click asynchronously.
+            # Wait for the actual old render to be removed, even when row text is unchanged.
+            page.wait_for_function('(previous) => !previous.isConnected', arg=previous_deadline_button)
             expect(page.locator('#hazardousContent')).to_contain_text('Synthetic original permit record')
             page.locator('[data-hazardous-installation]').click()
             page.locator('#hazardousEdit').click()

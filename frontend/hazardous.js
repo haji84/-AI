@@ -12,11 +12,14 @@ const hazardousPath = id => '/hazardous/installations/' + encodeURIComponent(id)
 const hazardousTicket = () => ({generation:hazardousState.generation, view:hazardousState.viewGeneration});
 const hazardousOwns = ticket => ticket.generation === hazardousState.generation && ticket.view === hazardousState.viewGeneration;
 function hazardousAssert(ticket) { if (!hazardousOwns(ticket)) throw hazardousCancelled(); }
-function hazardousBegin() {
+function hazardousBegin(retry=null) {
   hazardousState.viewGeneration++;
   if ($('hazardousMessage')) $('hazardousMessage').textContent = '';
-  const ticket = hazardousTicket();
-  if ($('hazardousModal')) hazardousShell(ticket);
+  const ticket = {...hazardousTicket(),retry};
+  if ($('hazardousModal')) {
+    hazardousShell(ticket);
+    $('hazardousContent').innerHTML='<p id="hazardousLoading" role="status" aria-live="polite">読込中…</p>';
+  }
   return ticket;
 }
 function closeHazardous() {
@@ -56,6 +59,7 @@ async function hazardousAPI(path, options={}, ticket=hazardousTicket(), permissi
   } catch (error) {
     if (!hazardousOwns(ticket)) throw hazardousCancelled();
     if (error.status === 401 || error.status === 403) clearHazardous();
+    if ((!options.method || options.method==='GET') && typeof ticket.retry==='function') error.hazardousRetry=ticket.retry;
     throw error;
   }
 }
@@ -77,6 +81,10 @@ async function hazardousAction(action, owner=null) {
   } catch (error) {
     if (error.cancelled || (ticket && !hazardousOwns(ticket)) || (!ticket && owner && !hazardousOwns(owner))) return;
     if (!$('hazardousModal') && ticket && hazardousCan('hazardous.read')) hazardousShell(ticket);
+    if ($('hazardousLoading') || typeof error.hazardousRetry==='function') {
+      $('hazardousContent').innerHTML='<p>画面を読み込めませんでした。</p>'+(typeof error.hazardousRetry==='function'?hazardousButton('hazardousReadRetry','この画面を再読込'):'<p>上の一覧・期限から開き直してください。</p>');
+      if(typeof error.hazardousRetry==='function')hazardousBind('hazardousReadRetry',error.hazardousRetry,ticket);
+    }
     if ($('hazardousMessage')) $('hazardousMessage').textContent = error.status === 409
       ? '他の更新または根拠の変更を検出しました。再読込して確認し直してください。草案の根拠が変わった場合は、訂正保存後にHuman確認してください。 ' + error.message
       : error.message;
@@ -120,7 +128,7 @@ function hazardousShell(ticket) {
 }
 async function openHazardous() { return hazardousList(); }
 async function hazardousList(q='', offset=0, status='') {
-  const ticket = hazardousBegin();
+  const ticket = hazardousBegin(()=>hazardousList(q,offset,status));
   const rows = await hazardousAPI('/hazardous/installations?' + new URLSearchParams({q,limit:100,offset,...(status?{status}:{})}), {}, ticket);
   hazardousShell(ticket);
   $('hazardousContent').innerHTML = '<h2>施設・設備一覧</h2><div class="toolbar"><label>名称・区分の検索 <input id="hazardousQ" value="'+esc(q)+'"></label><label>状態 <select id="hazardousStatus"><option value="">すべて</option><option value="active" '+(status==='active'?'selected':'')+'>使用中</option><option value="retired" '+(status==='retired'?'selected':'')+'>廃止</option></select></label>'+hazardousButton('hazardousSearch','検索')+hazardousButton('hazardousPrev','前へ')+hazardousButton('hazardousNext','次へ')+hazardousButton('hazardousNew','施設・設備を登録','hazardous.create')+'</div>'+
@@ -138,7 +146,7 @@ function hazardousBindInstallations(ticket) {
   });
 }
 async function hazardousDetail(id) {
-  const ticket = hazardousBegin();
+  const ticket = hazardousBegin(()=>hazardousDetail(id));
   const row = await hazardousAPI(hazardousPath(id),{},ticket);
   hazardousShell(ticket);
   const active = row.status === 'active';
@@ -159,7 +167,7 @@ function hazardousHistory(rows) {
   return '<h3>変更履歴</h3>' + (rows.length ? rows.map(h=>`<details class="card"><summary>${esc(h.action??h.event_type??'変更')} / ${esc(h.changed_at??h.created_at??'')} / ${esc(h.reason??'')}</summary><p>実施者: ${esc(h.actor_name??h.changed_by??h.actor_user_id??h.created_by??'記録参照')}</p><pre style="white-space:pre-wrap;overflow-wrap:anywhere">${esc(JSON.stringify(h,null,2))}</pre></details>`).join('') : '<p>履歴なし</p>');
 }
 async function hazardousDeadlines(dueBefore='', offset=0) {
-  const ticket = hazardousBegin();
+  const ticket = hazardousBegin(()=>hazardousDeadlines(dueBefore,offset));
   const rows = await hazardousAPI('/hazardous/deadlines?'+new URLSearchParams({limit:100,offset,...(dueBefore?{due_before:dueBefore}:{})}),{},ticket);
   hazardousShell(ticket);
   $('hazardousContent').innerHTML='<h2>記録された期限</h2><p>職員が登録した期限です。法令上の期限を計算する機能ではありません。</p><div class="toolbar"><label>指定日まで <input type="date" id="hazardousDueBefore" value="'+esc(dueBefore)+'"></label>'+hazardousButton('hazardousDueSearch','表示')+hazardousButton('hazardousDuePrev','前へ')+hazardousButton('hazardousDueNext','次へ')+'</div>'+hazardousTable(['施設・記録','期限','証拠確認','操作'],rows.map(r=>[esc(r.installation_name??r.name??'')+' / '+esc(r.title),esc(r.due_on),esc(hazardousRecordStatus(r)),`<button class="btn" type="button" data-hazardous-installation="${esc(r.installation_id)}">台帳を開く</button>`]));
@@ -348,7 +356,7 @@ async function hazardousRecordForm(installation,record=null) {
   },ticket);
 }
 async function hazardousRecordDetail(installationId,recordId) {
-  const ticket=hazardousBegin(),installation=await hazardousAPI(hazardousPath(installationId),{},ticket);
+  const ticket=hazardousBegin(()=>hazardousRecordDetail(installationId,recordId)),installation=await hazardousAPI(hazardousPath(installationId),{},ticket);
   const record=(installation.evidence_records??[]).find(row=>row.record_id===recordId);
   if(!record)throw new Error('記録が見つからないか、関連する根拠の参照権限がありません。');
   hazardousShell(ticket);
@@ -402,7 +410,7 @@ async function hazardousDownload(id,ticket=hazardousTicket()) {
   document.body.append(link);link.click();link.remove();URL.revokeObjectURL(url);
 }
 async function hazardousInspection(installation,record,id) {
-  const ticket=hazardousBegin(),inspection=await hazardousAPI('/inspections/'+encodeURIComponent(id),{},ticket,'inspection.read');
+  const ticket=hazardousBegin(()=>hazardousInspection(installation,record,id)),inspection=await hazardousAPI('/inspections/'+encodeURIComponent(id),{},ticket,'inspection.read');
   if(inspection.building_id!==installation.building_id)throw new Error('査察の対象物が一致しません。');
   hazardousShell(ticket);
   $('hazardousContent').innerHTML=`<h2>関連する査察記録</h2><p>${esc(inspection.inspected_at)} / ${esc(inspection.inspection_type)} / ${esc(inspection.status)}</p><p>${esc(inspection.notes??'')}</p>`+hazardousTable(['指摘事項','改善状態','期限'],(inspection.findings??[]).map(f=>[esc(f.finding_text),esc(f.corrective_status),esc(f.due_date??'未設定')]))+hazardousButton('hazardousInspectionBack','証拠記録に戻る');

@@ -13,10 +13,10 @@ const assert=require('node:assert/strict'),vm=require('node:vm'),fs=require('nod
 const nodes=new Map();
 class Node {
  constructor(id=''){this.id=id;this.textContent='';this.value='';this.checked=false;this.disabled=false;this.isConnected=true;this.dataset={};this.children=[];this.style={};this._html='';this.classList={add:()=>this.hidden=true,remove:()=>this.hidden=false,toggle:(_c,v)=>this.hidden=v,contains:()=>Boolean(this.hidden)};}
- set innerHTML(v){this._html=v;for(const match of v.matchAll(/id="([^"]+)"/g))nodes.set(match[1],new Node(match[1]));}
+ set innerHTML(v){for(const child of this.children)child.remove();this.children=[];this._html=v;for(const match of v.matchAll(/id="([^"]+)"/g)){const child=new Node(match[1]);this.children.push(child);nodes.set(match[1],child);}}
  get innerHTML(){return this._html;}
  append(...children){this.children.push(...children);for(const child of children){child.isConnected=true;if(child.id)nodes.set(child.id,child);}}
- remove(){this.isConnected=false;nodes.delete(this.id);}
+ remove(){this.isConnected=false;for(const child of this.children)child.remove();this.children=[];if(nodes.get(this.id)===this)nodes.delete(this.id);}
  querySelectorAll(){return [];}
  querySelector(){return null;}
  setAttribute(){} click(){if(this.onclick)return this.onclick();}
@@ -269,4 +269,30 @@ context.installation=installation;context.record={record_id:'record-a',title:'Sy
 routes.set('/hazardous/installations/installation-a/records/record-a/confirm',()=>response({...context.record,status:'confirmed'}));routes.set('/hazardous/installations/installation-a',()=>new Promise(resolve=>release=resolve));
 await evaluate('hazardousDecision(installation,record,"confirm")');nodes.get('hazardousField_reason').value='Human confirmation';nodes.get('hazardousField_human_acknowledged').checked=true;const submit=nodes.get('hazardousForm').onsubmit({preventDefault(){}});await turn();assert(release);
 await evaluate('hazardousList()');const current=nodes.get('hazardousContent').innerHTML;release(new Response('{"detail":"Obsolete saved detail failure"}',{status:503}));await submit;assert.equal(nodes.get('hazardousContent').innerHTML,current);assert(!nodes.get('hazardousMessage').textContent.includes('Obsolete'));
+''')
+
+
+def test_deadline_refresh_removes_obsolete_buttons_until_current_results_render(tmp_path):
+    run(tmp_path, r'''
+const deadline={...installation,title:'Same synthetic deadline',due_on:'2026-10-10',status:'draft'};
+let visibleButton;
+document.querySelectorAll=selector=>{
+ if(selector!=='[data-hazardous-installation]'||!nodes.get('hazardousContent')?.innerHTML.includes('data-hazardous-installation'))return [];
+ visibleButton=new Node();visibleButton.dataset.hazardousInstallation='installation-a';nodes.get('hazardousContent').children.push(visibleButton);return [visibleButton];
+};
+routes.set('/hazardous/deadlines?',()=>response([deadline]));routes.set('/hazardous/installations/installation-a',()=>response(installation));await evaluate('hazardousDeadlines()');const obsoleteButton=visibleButton;
+let release;routes.set('/hazardous/deadlines?',()=>new Promise(resolve=>release=resolve));nodes.get('hazardousDueBefore').value='2026-10-11';const refresh=nodes.get('hazardousDueSearch').onclick();await turn();assert(release);
+await obsoleteButton.onclick();assert(!calls.some(call=>call.path==='/hazardous/installations/installation-a'),'the previous button owner is already invalid');
+assert(!nodes.get('hazardousContent').innerHTML.includes('data-hazardous-installation'),'obsolete visible controls must disappear as soon as their ownership expires');assert.equal(obsoleteButton.isConnected,false);assert(nodes.get('hazardousContent').innerHTML.includes('読込中'));
+release(response([deadline]));await refresh;assert(nodes.get('hazardousContent').innerHTML.includes('Same synthetic deadline'));await visibleButton.onclick();assert(nodes.get('hazardousContent').innerHTML.includes('id="hazardousEdit"'));
+''')
+
+
+def test_failed_view_read_retries_same_filter_without_restoring_obsolete_controls(tmp_path):
+    run(tmp_path, r'''
+routes.set('/hazardous/deadlines?',()=>response([{...installation,title:'Obsolete deadline',due_on:'2026-10-10',status:'draft'}]));await evaluate('hazardousDeadlines()');
+routes.set('/hazardous/deadlines?',()=>new Response('{"detail":"Synthetic deadlines unavailable"}',{status:503}));nodes.get('hazardousDueBefore').value='2026-10-11';await nodes.get('hazardousDueSearch').onclick();
+assert(nodes.get('hazardousMessage').textContent.includes('Synthetic deadlines unavailable'));assert(!nodes.get('hazardousContent').innerHTML.includes('Obsolete deadline'));assert(!nodes.get('hazardousContent').innerHTML.includes('読込中'));assert(nodes.get('hazardousReadRetry'));
+routes.set('/hazardous/deadlines?',()=>response([{...installation,title:'Recovered current deadline',due_on:'2026-10-10',status:'draft'}]));await nodes.get('hazardousReadRetry').onclick();
+assert(nodes.get('hazardousContent').innerHTML.includes('Recovered current deadline'));const reads=calls.filter(call=>call.path.startsWith('/hazardous/deadlines?'));assert(reads.at(-1).path.includes('due_before=2026-10-11'));assert(!nodes.get('hazardousLoading'));
 ''')
