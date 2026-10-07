@@ -313,6 +313,26 @@ assert.match(nodes.operationsMessage.textContent,/Synthetic current detail unava
 ''')
 
 
+def test_vehicle_list_rows_cannot_open_while_navigation_authority_is_pending():
+    # Removing the synchronous old-row lock must fail this scenario: the late
+    # list navigation would otherwise overwrite a newly opened vehicle detail.
+    run_ui(r'''
+await run('openOperations()');
+const oldOpen=nodes.operationsContent.querySelectorAll('button').find(node=>node.dataset.operationsOpen);
+assert(oldOpen);let release;
+authorityEndpoint=()=>{authorityEndpoint=async()=>new Response(JSON.stringify(authority));return new Promise(resolve=>release=()=>resolve(new Response(JSON.stringify(authority))));};
+const leaving=event(nodes.operationsVehicles);await flush();
+try{
+ assert.equal(oldOpen.disabled,true,'old vehicle row remains actionable before navigation authority returns');
+ await event(oldOpen);
+ assert.equal(requests.filter(row=>row.path==='/operations/vehicles/vehicle-a').length,0);
+}finally{release();await leaving;}
+const currentOpen=nodes.operationsContent.querySelectorAll('button').find(node=>node.dataset.operationsOpen);
+assert.equal(currentOpen.disabled,false);await event(currentOpen);
+assert(nodes.operationsAssignmentPanel,'current vehicle detail did not open after navigation completed');
+''')
+
+
 @pytest.mark.parametrize('removed', ['nodes.operationsModal.remove()', 'nodes.operationsModal.isConnected=false', 'nodes.operationsContent.isConnected=false'])
 def test_absent_modal_never_grants_owner_or_throws_from_new_owner_helpers(removed):
     run_ui(r'''
