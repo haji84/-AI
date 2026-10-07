@@ -1,10 +1,12 @@
 'use strict';
 const state={permissions:new Set(),task:'ocr',corrections:[],sets:[],artifacts:[],evaluations:[],history:[],champion:{version:1},cases:[],selected:new Set(),sourceOffset:0,correctionOffset:0};
 let requestGeneration=0;
+let refreshGeneration=0;
 class StaleRequest extends Error {}
 const labels={ocr:'OCR補正',proper_names:'地名・固有名詞',audio_correction:'音声認識補正',document_correction:'文書修正',document_classification:'書類分類',facility_linking:'対象物紐付け',photo_classification:'写真分類',workflow_pattern:'業務確認パターン'};
 const el=id=>document.getElementById(id);const message=text=>{el('message').textContent=text;};
 function clearSensitive(){
+ refreshGeneration++;el('taskContent').disabled=true;
  requestGeneration++;state.permissions=new Set();state.task='ocr';state.corrections=[];state.sets=[];state.artifacts=[];state.evaluations=[];state.history=[];state.champion={version:1};state.cases=[];state.selected.clear();state.sourceOffset=0;state.correctionOffset=0;
  for(const id of ['loginForm','sourceSearch','correctionForm','caseForm','setForm','suggestForm'])el(id).reset();
  el('humanReason').value='';
@@ -13,12 +15,12 @@ function clearSensitive(){
  el('workspace').hidden=true;el('loginSection').hidden=false;
 }
 function report(error){if(!(error instanceof StaleRequest))message(error.message);}
-async function request(path,method='GET',body){const generation=requestGeneration;const response=await fetch(path,{method,credentials:'same-origin',headers:body?{'Content-Type':'application/json'}:{},body:body?JSON.stringify(body):undefined});const result=await response.json();if(generation!==requestGeneration)throw new StaleRequest();if(!response.ok){if(response.status===401)clearSensitive();throw new Error(response.status===409?'内容または版が変わりました。再読込して証拠を確認してください。':typeof result.detail==='string'?result.detail:JSON.stringify(result.detail));}return result;}
+async function request(path,method='GET',body){const generation=requestGeneration;const response=await fetch(path,{method,credentials:'same-origin',headers:body?{'Content-Type':'application/json'}:{},body:body?JSON.stringify(body):undefined});const result=await response.json();if(generation!==requestGeneration)throw new StaleRequest();if(!response.ok){if(response.status===401){clearSensitive();message('ログインし直してください。');}throw new Error(response.status===409?'内容または版が変わりました。再読込して証拠を確認してください。':typeof result.detail==='string'?result.detail:JSON.stringify(result.detail));}return result;}
 function reason(){const value=el('humanReason').value.trim();if(!value)throw new Error('確認・実行理由を入力してください。');return value;}
 function td(row,value){const cell=document.createElement('td');cell.textContent=String(value??'');row.appendChild(cell);return cell;}
 function button(cell,label,callback,permission){const item=document.createElement('button');item.textContent=label;item.disabled=permission&&!state.permissions.has(permission);item.addEventListener('click',()=>perform(callback));cell.appendChild(item);}
 function select(id,records,key,name){const node=el(id),previous=node.value;node.replaceChildren();for(const row of records)node.appendChild(new Option(name(row),row[key]));if([...node.options].some(item=>item.value===previous))node.value=previous;}
-async function perform(callback){try{const result=await callback();if(result===false)return;message('保存・確認しました。');await refreshTask();}catch(error){report(error);}}
+async function perform(callback){try{const result=await callback();if(result===false)return;await refreshTask();message('保存・確認しました。');}catch(error){report(error);}}
 async function confirmAction(path,body,description){body.reason=reason();if(!window.confirm(description+'\n理由: '+body.reason))return false;return request(path,'POST',body);}
 async function sourceSearch(offset=0){const task=state.task;state.sourceOffset=offset;const q=new FormData(el('sourceSearch')).get('q');const sources=await request('/learning/sources?'+new URLSearchParams({task,q,offset:String(offset)}));if(state.task!==task)return;for(const id of ['correctionSource','evaluationSources'])select(id,sources,'document_id',row=>row.name+' ['+row.sha256.slice(0,12)+']');el('sourceNext').disabled=sources.length<100;}
 function render(){
@@ -30,17 +32,35 @@ function render(){
  el('history').replaceChildren();for(const item of state.history){const row=document.createElement('tr');td(row,item.applied_version);td(row,item.action+' / '+item.reason);td(row,item.selected_artifact_id?'修正辞書':'補正なし');const action=td(row,'');if(item.applied_version===state.champion.version)button(action,'直前のChampionへ戻す',()=>confirmAction('/learning/champions/'+state.task+'/rollback',{transition_id:item.transition_id,expected_version:state.champion.version},'現在の変更を取り消して直前のChampionへ戻しますか？'),'learning.promote');el('history').appendChild(row);}
 }
 function renderCases(){el('cases').replaceChildren();state.cases.forEach((item,index)=>{const row=document.createElement('tr');td(row,item.input);td(row,item.expected);button(td(row,''),'除く',()=>{state.cases.splice(index,1);renderCases();});el('cases').appendChild(row);});}
-async function refreshTask(){const task=state.task,query='?task='+encodeURIComponent(task);const results=await Promise.all([request('/learning/corrections'+query+'&limit=100'),request('/learning/evaluation-sets'+query),request('/learning/artifacts'+query),request('/learning/evaluations'+query),request('/learning/champions/'+task+'/history'),request('/learning/champions/'+task)]);if(state.task!==task)return;[state.corrections,state.sets,state.artifacts,state.evaluations,state.history,state.champion]=results;state.correctionOffset=state.corrections.length;el('correctionOlder').disabled=state.corrections.length<100;render();}
+function clearTaskResults(){
+ state.corrections=[];state.sets=[];state.artifacts=[];state.evaluations=[];state.history=[];state.champion={version:1};state.correctionOffset=0;
+ for(const id of ['corrections','evaluationSets','evaluations','history'])el(id).replaceChildren();
+ for(const id of ['artifactSelect','setSelect']){const node=el(id),selected=node.value;node.replaceChildren();if(selected)node.appendChild(new Option('再読込しています。',selected));}
+}
+async function refreshTask(){
+ const owner=++refreshGeneration,generation=requestGeneration,task=state.task,query='?task='+encodeURIComponent(task);
+ const current=()=>owner===refreshGeneration&&generation===requestGeneration&&task===state.task;
+ // A previous task's Baseline or evidence must not appear ready during this read.
+ el('taskContent').disabled=true;clearTaskResults();el('champion').textContent='改善対象を再読込しています。';message('');
+ try{
+  const results=await Promise.all([request('/learning/corrections'+query+'&limit=100'),request('/learning/evaluation-sets'+query),request('/learning/artifacts'+query),request('/learning/evaluations'+query),request('/learning/champions/'+task+'/history'),request('/learning/champions/'+task)]);
+  if(!current())throw new StaleRequest();
+  [state.corrections,state.sets,state.artifacts,state.evaluations,state.history,state.champion]=results;state.correctionOffset=state.corrections.length;el('correctionOlder').disabled=state.corrections.length<100;render();el('taskContent').disabled=false;
+ }catch(error){
+  if(!current())throw new StaleRequest();
+  el('champion').textContent='改善対象を読み込めません。再読込してください。';throw error;
+ }
+}
 async function start(){clearSensitive();try{const context=await request('/learning/context');state.permissions=new Set(context.permissions);select('task',context.tasks.map(task=>({task})),'task',row=>labels[row.task]);state.task=el('task').value;if(!state.task)throw new Error('学習対象の原本参照権限がありません。');el('loginSection').hidden=true;el('workspace').hidden=false;for(const node of document.querySelectorAll('[data-permission]'))node.hidden=!state.permissions.has(node.dataset.permission);for(const id of ['syntheticCorrectionLabel','syntheticSetLabel'])el(id).hidden=context.production_mode||!state.permissions.has('account.manage');await Promise.all([sourceSearch(),refreshTask()]);message(context.username+' / 提案と正式データは分離しています。');}catch(error){report(error);}}
 // Human login intent supersedes the anonymous startup read. Its delayed 401
 // must not reset credentials being entered or invalidate a newer login result.
 el('loginForm').addEventListener('input',()=>{requestGeneration++;});
 el('loginForm').addEventListener('submit',async event=>{event.preventDefault();requestGeneration++;try{const data=new FormData(event.target);await request('/auth/login','POST',Object.fromEntries(data));event.target.reset();await start();}catch(error){report(error);}});
 el('sourceSearch').addEventListener('submit',event=>{event.preventDefault();sourceSearch().catch(report);});el('sourceNext').addEventListener('click',()=>sourceSearch(state.sourceOffset+100).catch(report));
-el('task').addEventListener('change',()=>{requestGeneration++;state.task=el('task').value;state.cases=[];el('setEvidence').textContent='';el('suggestion').textContent='';state.selected.clear();renderCases();Promise.all([sourceSearch(),refreshTask()]).catch(report);});
+el('task').addEventListener('change',()=>{requestGeneration++;state.task=el('task').value;state.cases=[];el('setEvidence').textContent='';el('suggestion').textContent='';for(const id of ['correctionSource','evaluationSources','artifactSelect','setSelect'])el(id).replaceChildren();state.selected.clear();renderCases();Promise.all([sourceSearch(),refreshTask()]).catch(report);});
 el('refreshButton').addEventListener('click',()=>refreshTask().catch(report));
 el('correctionForm').addEventListener('submit',event=>{event.preventDefault();perform(async()=>{const form=new FormData(event.target),synthetic=form.get('synthetic')==='on';await request('/learning/corrections','POST',{task:state.task,input_text:form.get('input_text'),output_text:form.get('output_text'),source_document_id:synthetic?null:form.get('source_document_id')||null,synthetic,reason:reason()});event.target.reset();});});
-el('correctionOlder').addEventListener('click',async()=>{try{const task=state.task;const rows=await request('/learning/corrections?'+new URLSearchParams({task,limit:'100',offset:String(state.correctionOffset)}));if(state.task!==task)return;state.corrections.push(...rows);state.correctionOffset+=rows.length;el('correctionOlder').disabled=rows.length<100;render();}catch(error){report(error);}});
+el('correctionOlder').addEventListener('click',async()=>{if(el('taskContent').disabled)return;const owner=refreshGeneration;try{const task=state.task;const rows=await request('/learning/corrections?'+new URLSearchParams({task,limit:'100',offset:String(state.correctionOffset)}));if(state.task!==task||owner!==refreshGeneration)return;state.corrections.push(...rows);state.correctionOffset+=rows.length;el('correctionOlder').disabled=rows.length<100;render();}catch(error){if(owner===refreshGeneration)report(error);}});
 el('buildButton').addEventListener('click',()=>perform(()=>confirmAction('/learning/artifacts',{task:state.task,correction_ids:[...state.selected]},'選択した確認済み修正から辞書Candidateを作成しますか？')));
 el('caseForm').addEventListener('submit',event=>{event.preventDefault();const data=new FormData(event.target);if(state.cases.length>=100){message('評価セットは100ケースまでです。');return;}state.cases.push({input:data.get('input'),expected:data.get('expected')});event.target.reset();renderCases();});
 el('setForm').addEventListener('submit',event=>{event.preventDefault();perform(async()=>{const data=new FormData(event.target);const saved=await confirmAction('/learning/evaluation-sets',{task:state.task,name:data.get('name'),synthetic:data.get('synthetic')==='on',source_document_ids:[...el('evaluationSources').selectedOptions].map(option=>option.value),cases:state.cases},'固定入力・Human正解・評価用原本を保存しますか？');if(saved===false)return false;state.cases=[];renderCases();event.target.reset();});});
