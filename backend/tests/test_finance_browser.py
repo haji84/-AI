@@ -42,7 +42,7 @@ with SessionLocal() as db:
     time.sleep(.1)
   else:raise AssertionError('synthetic server did not start')
   with sync_playwright() as p:
-   browser=p.chromium.launch();page=browser.new_page();errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
+   browser=p.chromium.launch(**({'executable_path':os.environ['FIRE_AI_BROWSER_EXECUTABLE']} if os.environ.get('FIRE_AI_BROWSER_EXECUTABLE') else {}));page=browser.new_page();errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
    page.goto(base+'/ui/');page.locator('#loginUser').fill('uifinance');page.locator('#loginPass').fill('synthetic-ui-password');page.get_by_role('button',name='ログイン',exact=True).click();expect(page.locator('#financeBtn')).to_be_visible();page.locator('#financeBtn').click();expect(page.locator('#financeContent')).to_contain_text('財務処理')
    def save(fragment,status=201):
     try:
@@ -84,3 +84,563 @@ with SessionLocal() as db:
    assert not errors,errors
    browser.close()
  finally:server.terminate();server.wait(timeout=10);logs.close()
+
+
+# Observers record completion without changing guard, action, or promise semantics.
+FINANCE_BROWSER_OBSERVER=r'''() => {
+ const data={timeOrigin:performance.timeOrigin,actions:[],events:[],states:[],watches:[],nextAction:0};
+ window.syntheticFinanceTrace=data;
+ const now=()=>Math.round(performance.now()*10)/10;
+ const snapshot=()=>({pending:!!financePendingAction,generation:financeState.generation,sharedGeneration:window.FireAISession.currentGeneration(),forms:document.querySelectorAll('#financeForm').length,modalHidden:document.getElementById('financeModal')?.classList.contains('hidden'),message:document.getElementById('financeMessage')?.textContent,status:document.getElementById('financePick_document_id_status')?.textContent,disabledControls:document.querySelectorAll('#financeModal button:disabled, #financeModal input:disabled, #financeModal select:disabled, #financeModal textarea:disabled').length});
+ let lastState='';
+ const observeState=()=>{const state=snapshot(),key=JSON.stringify(state);if(key!==lastState){lastState=key;data.states.push({at:now(),...state})}};
+ new MutationObserver(observeState).observe(document.body,{subtree:true,childList:true,attributes:true,attributeFilter:['disabled','class']});
+ for(const type of ['click','change','submit'])window.addEventListener(type,event=>{
+  const target=event.target?.closest?.('button, a, input, select, textarea, form');
+  if(target?.id?.startsWith('finance'))data.events.push({at:now(),type,target:target.id,disabled:!!target.disabled,trusted:event.isTrusted});
+ },true);
+ const original=window.financeAction;
+ window.financeAction=function(...args){
+  const occupied=!!financePendingAction,previousEnd=data.actions.at(-1)?.finished??-1;
+  const interaction=data.events.findLast(event=>event.type==='click'&&event.trusted&&!event.disabled&&event.at>previousEnd);
+  const started=now();
+  const entry=occupied?null:{id:++data.nextAction,started,interactionStarted:interaction?.at??started,label:args[0]?.name||data.events.at(-1)?.target||'finance',settled:false};
+  if(entry)data.actions.push(entry);
+  const result=original.apply(this,args);
+  if(entry)Promise.resolve(result).then(()=>{entry.settled=true;entry.finished=now();entry.actionMs=entry.finished-entry.started;entry.endToEndMs=entry.finished-entry.interactionStarted;observeState()},error=>{entry.settled=true;entry.finished=now();entry.actionMs=entry.finished-entry.started;entry.endToEndMs=entry.finished-entry.interactionStarted;entry.error=String(error?.message);observeState()});
+  return result;
+ };
+ const observers=new Map();
+ window.syntheticFinanceStartWatch=selector=>{
+  const token=data.watches.length,watch={after:data.nextAction,selector,violations:[]};data.watches.push(watch);
+  if(selector){
+   const record=()=>watch.violations.push({at:now(),selector});
+   if(document.querySelector(selector))record();
+   const observer=new MutationObserver(records=>{
+    if(document.querySelector(selector))record();
+    for(const mutation of records)for(const node of mutation.addedNodes??[])if(node.nodeType===1&&(node.matches?.(selector)||node.querySelector?.(selector)))record();
+   });
+   observer.observe(document.body,{childList:true,subtree:true});observers.set(token,observer);
+  }
+  return token;
+ };
+ window.syntheticFinanceFinishWatch=token=>{observers.get(token)?.disconnect();observers.delete(token);const watch=data.watches[token];return {actions:data.actions.filter(action=>action.id>watch.after),violations:watch.violations}};
+ observeState();
+}'''
+
+
+def watch_finance_action(page,absent_selector=None):
+ return page.evaluate('selector=>window.syntheticFinanceStartWatch(selector)',absent_selector)
+
+
+def await_finance_action(page,token):
+ """Wait for the real action promise, not headers, paint, or a fixed sleep."""
+ page.wait_for_function("""token=>{const trace=window.syntheticFinanceTrace,watch=trace.watches[token],actions=trace.actions.filter(action=>action.id>watch.after);return actions.length>0&&actions.every(action=>action.settled)&&financePendingAction===null}""",arg=token,timeout=30_000)
+ result=page.evaluate('token=>window.syntheticFinanceFinishWatch(token)',token)
+ assert len(result['actions'])==1,result
+ assert not result['violations'],result
+ assert 'error' not in result['actions'][0],result
+ return result['actions'][0]
+
+
+class FinanceBrowserTrace:
+ """Bounded per-case synthetic transport evidence; no headers or request bodies."""
+ def __init__(self,page,base):
+  self.page=page;self.base=base;self.started=time.monotonic()
+  self.requests=[];self.responses=[];self.failures=[];self.finished=set();self.records={};self.before=None;self.after=None
+  relevant=lambda url:any(url.startswith(base+prefix) for prefix in ['/auth/','/finance/','/documents/'])
+  def requested(request):
+   if relevant(request.url):
+    record={'id':len(self.requests),'at':time.monotonic()-self.started,'method':request.method,'path':request.url.removeprefix(base)}
+    self.records[request]=record;self.requests.append(record)
+  def responded(response):
+   if relevant(response.url):
+    self.responses.append((time.monotonic()-self.started,response))
+    if response.request in self.records:self.records[response.request].update(response_at=time.monotonic()-self.started,status=response.status)
+  def finished(request):
+   if relevant(request.url):
+    self.finished.add(request)
+    if request in self.records:self.records[request]['finished_at']=time.monotonic()-self.started
+  def failed(request):
+   if relevant(request.url):self.failures.append({'at':time.monotonic()-self.started,'path':request.url.removeprefix(base),'failure':request.failure})
+  page.on('request',requested);page.on('response',responded);page.on('requestfinished',finished);page.on('requestfailed',failed)
+  page.on('pageerror',lambda error:self.failures.append({'at':time.monotonic()-self.started,'kind':'pageerror','message':str(error)}))
+ def save(self,tmp_path,name):
+  for request,record in list(self.records.items()):
+   try:record['timing']=request.timing
+   except Exception as error:record['timing_error']=str(error)
+  save_finance_session_diagnostics(self.page,self.base,tmp_path,name,self.before,self.after,self.requests,self.responses,self.failures,self.finished,artifact_prefix='finance-case-')
+
+
+@pytest.fixture
+def finance_first_use(tmp_path,request):
+ """Real editor session with no documents, accounts or contracts pre-seeded."""
+ from playwright.sync_api import sync_playwright,expect
+ root=Path(__file__).resolve().parents[2]
+ env={**os.environ,'PYTHONPATH':str(root/'backend'),'FIRE_AI_DATABASE_URL':'sqlite+pysqlite:///'+str(tmp_path/'first-use.db'),'FIRE_AI_STORAGE_ROOT':str(tmp_path/'storage'),'FIRE_AI_PRODUCTION_MODE':'false'}
+ env.pop('FIRE_AI_TENANT_ID',None)
+ seed=r'''
+from app.main import app
+from app.db import Base,engine,SessionLocal
+from app.models import User,UserRole,now_utc
+from app.finance_models import FinanceYear
+from app.rbac_seed import seed_rbac
+from app.security import hash_password
+Base.metadata.create_all(engine)
+with SessionLocal() as db:
+ roles=seed_rbac(db)
+ for name,role in [('editor','finance_editor'),('reviewer','finance_reviewer'),('other-editor','finance_editor'),('policy-admin','system_admin')]:
+  u=User(username=name,password_hash=hash_password('synthetic-ui-password'));db.add(u);db.flush();db.add(UserRole(user_id=u.user_id,role_id=roles[role].role_id))
+ # Approved fiscal policy is the separate administrator prerequisite.
+ db.add(FinanceYear(fiscal_year=2026,currency='JPY',decimal_places=2,status='approved',reason='Synthetic approved administrator policy',approved_by=u.user_id,approved_at=now_utc()))
+ db.commit()
+'''
+ subprocess.run([sys.executable,'-c',seed],cwd=root,env=env,check=True)
+ with socket.socket() as allocation:
+  allocation.bind(('127.0.0.1',0));port=allocation.getsockname()[1]
+ base=f'http://127.0.0.1:{port}'
+ with (tmp_path/'server.log').open('w') as logs:
+  server=subprocess.Popen([sys.executable,'-m','uvicorn','app.main:app','--host','127.0.0.1','--port',str(port)],cwd=root,env=env,stdout=logs,stderr=logs)
+  try:
+   for _ in range(100):
+    try:urllib.request.urlopen(base+'/health',timeout=.2).close();break
+    except OSError:
+     if server.poll() is not None:raise AssertionError((tmp_path/'server.log').read_text())
+     time.sleep(.1)
+   else:raise AssertionError('synthetic first-use server did not start')
+   with sync_playwright() as p:
+    browser=p.chromium.launch(**({'executable_path':os.environ['FIRE_AI_BROWSER_EXECUTABLE']} if os.environ.get('FIRE_AI_BROWSER_EXECUTABLE') else {}))
+    page=browser.new_page();errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
+    trace=FinanceBrowserTrace(page,base);page.finance_test_trace=trace
+    try:
+     page.goto(base+'/ui/');page.evaluate(FINANCE_BROWSER_OBSERVER)
+     page.locator('#loginUser').fill('editor');page.locator('#loginPass').fill('synthetic-ui-password');page.get_by_role('button',name='ログイン',exact=True).click()
+     expect(page.locator('#financeBtn')).to_be_visible();token=watch_finance_action(page);page.locator('#financeBtn').click();await_finance_action(page,token);expect(page.locator('#financeContent')).to_contain_text('財務処理')
+     yield page,base,tmp_path
+     assert not errors,errors
+     rejected=page.evaluate("window.syntheticFinanceTrace.actions.filter(action=>action.error).map(action=>action.error)")
+     assert not rejected,rejected
+    finally:
+     # Yield fixtures resume during teardown even when an assertion failed.
+     # Always keep bounded evidence so the next failure has the same coverage.
+     try:trace.save(tmp_path,request.node.name)
+     finally:browser.close()
+  finally:
+   server.terminate();server.wait(timeout=10)
+
+
+def new_first_use_contract(page):
+ from playwright.sync_api import expect
+ page.locator('#financeContracts').click();page.locator('#financeContractNew').click()
+ expect(page.locator('#financePick_document_id_panel')).to_be_visible()
+ page.locator('#financeField_title').fill('Synthetic first-use contract')
+ page.locator('#financeField_amount').fill('250.01')
+ page.locator('#financeField_contract_method').fill('Synthetic entered method')
+ page.locator('#financeField_year_id').select_option(index=1)
+
+
+def test_finance_editor_uploads_first_original_and_saves_only_a_draft(finance_first_use):
+ from hashlib import sha256
+ from playwright.sync_api import expect
+ page,base,tmp_path=finance_first_use
+ assert page.request.get(base+'/finance/documents').json()==[]
+ new_first_use_contract(page)
+ upload=page.locator('#financePick_document_id_upload')
+ expect(upload).to_be_visible()
+ content=b'Synthetic first-use original evidence\n'
+ page.locator('#financePick_document_id_file').set_input_files({'name':'Synthetic first original.txt','mimeType':'text/plain','buffer':content})
+ with page.expect_response(lambda r:r.url==base+'/documents/upload' and r.request.method=='POST') as response:
+  upload.click()
+ assert response.value.status==201,response.value.text()
+ doc=response.value.json()
+ assert doc['sha256']==sha256(content).hexdigest() and doc['building_id'] is None
+ expect(page.locator('#financeField_document_id')).to_have_value(doc['document_id'])
+ expect(page.locator('#financePick_document_id_proof')).to_contain_text(doc['sha256'])
+ expect(page.locator('#financePick_document_id_proof')).to_contain_text(doc['original_filename'])
+ expect(page.locator('#financePick_document_id_proof')).to_contain_text(doc['document_id'])
+ expect(page.locator('#financeField_title')).to_have_value('Synthetic first-use contract')
+ expect(page.locator('#financeField_amount')).to_have_value('250.01')
+ expect(page.locator('#financeField_contract_method')).to_have_value('Synthetic entered method')
+ # Existing picker search keeps the uploaded original selected even off-page.
+ page.locator('#financePick_document_id_q').fill('absent-search-result')
+ search_token=watch_finance_action(page)
+ page.locator('#financePick_document_id_find').click()
+ await_finance_action(page,search_token)
+ expect(page.locator('#financePick_document_id_page')).to_have_text('1～0件')
+ expect(page.locator('#financeField_document_id')).to_have_value(doc['document_id'])
+ save_token=watch_finance_action(page)
+ with page.expect_response(lambda r:r.url==base+'/finance/contracts' and r.request.method=='POST') as saved:
+  page.locator('#financeSave').click()
+ assert saved.value.status==201,saved.value.text()
+ contract=saved.value.json()
+ assert contract['status']=='draft' and contract['amount']=='250.01'
+ detail=page.request.get(base+'/finance/contracts/'+contract['contract_case_id']).json()
+ assert detail['documents'][0]['document_id']==doc['document_id']
+ assert page.request.get(base+'/documents/'+doc['document_id']+'/download').body()==content
+ assert page.request.get(base+'/finance/journal').json()==[]
+ # A POST response is not the completion of the guarded save-and-refresh action.
+ await_finance_action(page,save_token)
+ expect(page.locator('#financeForm')).to_have_count(0)
+ detail_token=watch_finance_action(page)
+ page.locator('[data-finance-contract="'+contract['contract_case_id']+'"]').click()
+ await_finance_action(page,detail_token)
+ expect(page.locator('#financeContent h2')).to_have_text('Synthetic first-use contract / draft')
+ expect(page.locator('#financeContent')).to_contain_text(doc['sha256'])
+ artifact=Path(os.environ.get('FIRE_AI_BROWSER_ARTIFACTS',str(tmp_path/'artifacts')));artifact.mkdir(parents=True,exist_ok=True)
+ page.screenshot(path=str(artifact/'finance-first-original-draft.png'),full_page=True)
+
+
+def select_synthetic_original(page,name='Synthetic pending original.txt'):
+ page.locator('#financePick_document_id_file').set_input_files({'name':name,'mimeType':'text/plain','buffer':b'Synthetic pending original bytes'})
+
+
+def test_finance_upload_empty_selection_and_rejected_request_can_retry(finance_first_use):
+ from playwright.sync_api import expect
+ page,base,_=finance_first_use
+ new_first_use_contract(page)
+ requests=[]
+ page.on('request',lambda r:requests.append(r) if r.url==base+'/documents/upload' else None)
+ upload=page.locator('#financePick_document_id_upload')
+ expect(upload).to_be_disabled()
+ select_synthetic_original(page)
+ expect(upload).to_be_enabled()
+ page.locator('#financePick_document_id_file').set_input_files([])
+ expect(upload).to_be_disabled()
+ assert not requests
+ select_synthetic_original(page)
+ route_once(page,'**/documents/upload',lambda route:route.fulfill(status=422,json={'detail':'Synthetic upload rejected'}))
+ upload.click()
+ expect(page.locator('#financePick_document_id_status')).to_contain_text('Synthetic upload rejected')
+ expect(upload).to_be_enabled()
+ expect(page.locator('#financeSave')).to_be_enabled()
+ expect(page.locator('#financeField_title')).to_have_value('Synthetic first-use contract')
+ assert page.request.get(base+'/finance/documents').json()==[]
+ with page.expect_response(lambda r:r.url==base+'/documents/upload') as response:upload.click()
+ assert response.value.status==201
+ expect(page.locator('#financeField_document_id')).to_have_value(response.value.json()['document_id'])
+ expect(page.locator('#financePick_document_id_status')).not_to_contain_text('rejected')
+ assert len(requests)==2
+
+
+def route_once(page,pattern,handler):
+ """Keep interception enabled: Chromium <155 can strand the next request on expiry.
+
+ See https://github.com/microsoft/playwright/issues/41802. Later matches must
+ fall through to other routes or the real server, including authority checks.
+ """
+ consumed=False
+ def dispatch(route):
+  nonlocal consumed
+  if consumed:return route.fallback()
+  consumed=True
+  return handler(route)
+ page.route(pattern,dispatch)
+
+
+def hold_upload_response(page):
+ """Upload through the real API, but release its response only when the test asks."""
+ held=[]
+ def hold(route):
+  response=route.fetch()
+  held.append((route,response))
+ route_once(page,'**/documents/upload',hold)
+ return held
+
+
+def wait_for_held_upload(page,held):
+ deadline=time.monotonic()+5
+ while not held and time.monotonic()<deadline:page.wait_for_timeout(20)
+ assert len(held)==1,'real upload did not reach delayed response boundary'
+
+
+def test_finance_upload_pending_blocks_old_evidence_save_and_duplicate_click(finance_first_use):
+ from playwright.sync_api import expect
+ page,base,_=finance_first_use
+ new_first_use_contract(page)
+ select_synthetic_original(page,'Synthetic prior original.txt')
+ with page.expect_response(lambda r:r.url==base+'/documents/upload') as previous:page.locator('#financePick_document_id_upload').click()
+ old_id=previous.value.json()['document_id']
+ expect(page.locator('#financeField_document_id')).to_have_value(old_id)
+ select_synthetic_original(page)
+ # File change has its own authority preflight; raw click() does not auto-wait.
+ expect(page.locator('#financePick_document_id_upload')).to_be_enabled()
+ held=hold_upload_response(page)
+ # Both direct repeated activation and a synthetic submit must be guarded by application state.
+ page.locator('#financePick_document_id_upload').evaluate('(b)=>{b.click();b.click()}')
+ expect(page.locator('#financeSave')).to_be_disabled()
+ wait_for_held_upload(page,held)
+ expect(page.locator('#financePick_document_id_upload')).to_be_disabled()
+ page.locator('#financeForm').evaluate("f=>f.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}))")
+ page.wait_for_timeout(150)
+ assert page.request.get(base+'/finance/contracts').json()==[]
+ assert len(held)==1
+ route,response=held[0];new_id=response.json()['document_id'];route.fulfill(response=response)
+ expect(page.locator('#financeField_document_id')).to_have_value(new_id)
+ expect(page.locator('#financeSave')).to_be_enabled()
+ assert new_id!=old_id
+ assert len(page.request.get(base+'/finance/documents').json())==2
+
+
+@pytest.mark.parametrize('leave',['back','nav','close'])
+def test_finance_upload_locks_navigation_and_discards_late_results_after_reset(finance_first_use,leave):
+ from playwright.sync_api import expect
+ page,base,_=finance_first_use
+ new_first_use_contract(page);select_synthetic_original(page)
+ held=hold_upload_response(page)
+ page.locator('#financePick_document_id_upload').click()
+ expect(page.locator('#financeSave')).to_be_disabled()
+ wait_for_held_upload(page,held)
+ control=page.locator({'back':'#financeBack','nav':'#financeCandidates','close':'#financeClose'}[leave])
+ expect(control).to_be_disabled()
+ control.evaluate('(button)=>button.click()')
+ expect(page.locator('#financeField_title')).to_have_value('Synthetic first-use contract')
+ # Shared-session invalidation can tear down an operation even though navigation is locked.
+ page.evaluate('clearFinance()')
+ page.evaluate('initFinance()')
+ page.locator('#financeBtn').click()
+ new_first_use_contract(page)
+ expect(page.locator('#financeField_document_id')).to_have_value('')
+ page.locator('#financeField_title').fill('Synthetic newer untouched draft')
+ assert len(held)==1
+ route,response=held[0]
+ with page.expect_response(lambda r:r.url==base+'/documents/upload'):route.fulfill(response=response)
+ page.wait_for_timeout(150)
+ expect(page.locator('#financeField_document_id')).to_have_value('')
+ expect(page.locator('#financeField_title')).to_have_value('Synthetic newer untouched draft')
+ expect(page.locator('#financeMessage')).to_be_empty()
+ expect(page.locator('#financeSave')).to_be_enabled()
+ assert len(page.request.get(base+'/finance/documents').json())==1
+
+
+def save_finance_session_diagnostics(page,base,tmp_path,next_user,before,after,requests,responses,failures,finished_requests=(),artifact_prefix='finance-session-change-'):
+ """Synthetic failure evidence only; never record cookie/token/password headers."""
+ import json
+ artifact=Path(os.environ.get('FIRE_AI_BROWSER_ARTIFACTS',str(tmp_path/'artifacts')))
+ artifact.mkdir(parents=True,exist_ok=True)
+ prefix=artifact/(artifact_prefix+next_user)
+ evidence={'before':before,'after':after,'requests':requests,'request_failures':failures}
+ output=Path(str(prefix)+'.json')
+ server_log=tmp_path/'server.log'
+ if server_log.exists():Path(str(prefix)+'-server.log').write_text(server_log.read_text())
+ output.write_text(json.dumps(evidence,ensure_ascii=False,indent=2))
+ try:
+  evidence['ui']=page.evaluate("""() => ({financeIdentity:financeState.identity,financeGeneration:financeState.generation,sharedGeneration:window.FireAISession.currentGeneration(),pending:!!financePendingAction,pendingGeneration:financePendingAction?.generation,modalCount:document.querySelectorAll('#financeModal').length,modalHidden:document.getElementById('financeModal')?.classList.contains('hidden'),selectedDocument:document.getElementById('financeField_document_id')?.value,status:document.getElementById('financePick_document_id_status')?.textContent,message:document.getElementById('financeMessage')?.textContent,uploadOutcome:window.syntheticFinanceUploadOutcome,actionTrace:window.syntheticFinanceTrace})""")
+  page.screenshot(path=str(prefix)+'.png',full_page=True)
+ except Exception as error:evidence['capture_error']=str(error)
+ output.write_text(json.dumps(evidence,ensure_ascii=False,indent=2))
+ observed=[]
+ for at,response in list(responses):
+  finished=response.request in finished_requests
+  record={'at':at,'path':response.url.removeprefix(base),'status':response.status,'finished':finished,'timing':getattr(response.request,'timing',None)}
+  if not finished:record['body_pending']=True
+  elif response.url in [base+'/auth/context',base+'/auth/me']:
+   try:
+    data=response.json()
+    record['authority']={key:data[key] for key in ['user_id','session_id','tenant_id','permissions','username'] if key in data}
+   except Exception as error:record['body_error']=str(error)
+  observed.append(record)
+ evidence['responses']=observed
+ output.write_text(json.dumps(evidence,ensure_ascii=False,indent=2))
+ trace=evidence.get('ui',{}).get('actionTrace') or {}
+ summary={'artifact':str(output),'requests':len(requests),'responses':len(observed),'pending_responses':sum(not row['finished'] for row in observed),'actions':[{key:action[key] for key in ['id','label','settled','actionMs','endToEndMs','error'] if key in action} for action in trace.get('actions',[])]}
+ print('Synthetic finance trace:',json.dumps(summary,ensure_ascii=False))
+
+
+@pytest.mark.parametrize('next_user',['editor','other-editor'])
+def test_finance_late_upload_cannot_cross_an_authenticated_session_change(finance_first_use,next_user):
+ from playwright.sync_api import expect
+ page,base,tmp_path=finance_first_use
+ new_first_use_contract(page);select_synthetic_original(page)
+ held=hold_upload_response(page)
+ trace=page.finance_test_trace
+ token=watch_finance_action(page,'a[href^="/documents/"]')
+ page.locator('#financePick_document_id_upload').click()
+ expect(page.locator('#financeSave')).to_be_disabled()
+ wait_for_held_upload(page,held)
+ # Verify the intended cookie switch independently, without invoking the page's guard.
+ before=page.request.get(base+'/auth/context').json();trace.before=before
+ assert page.request.post(base+'/auth/logout').ok
+ login=page.request.post(base+'/auth/login',data={'username':next_user,'password':'synthetic-ui-password'})
+ assert login.ok
+ after=page.request.get(base+'/auth/context').json();trace.after=after
+ assert after['user_id']==login.json()['user_id']
+ assert before['session_id']!=after['session_id']
+ assert (before['user_id']==after['user_id'])==(next_user=='editor')
+ assert len(held)==1
+ route,response=held[0]
+ with page.expect_response(lambda r:r.url==base+'/documents/upload'):route.fulfill(response=response)
+ assert page.evaluate("document.getElementById('financeField_document_id')?.value??''")==''
+ await_finance_action(page,token)
+ expect(page.locator('#financeModal')).to_have_count(0)
+ assert page.evaluate('financeState.identity') is None
+ assert page.evaluate('financeState.permissions.length')==0
+ assert page.request.get(base+'/finance/contracts').json()==[]
+
+@pytest.mark.parametrize('missing',['document.create','document.read'])
+def test_finance_upload_control_requires_both_document_permissions(finance_first_use,missing):
+ from playwright.sync_api import expect
+ page,base,_=finance_first_use
+ permissions=page.request.get(base+'/auth/permissions').json()
+ permissions['permissions'].remove(missing)
+ page.route('**/auth/permissions',lambda route:route.fulfill(json=permissions))
+ page.locator('#financeClose').click();page.locator('#financeBtn').click()
+ if missing=='document.read':
+  page.locator('#financeContracts').click()
+  expect(page.locator('#financeContractNew')).to_have_count(0)
+ else:new_first_use_contract(page)
+ expect(page.locator('#financePick_document_id_upload')).to_have_count(0)
+ expect(page.locator('#financePick_document_id_file')).to_have_count(0)
+
+
+def test_finance_permission_loss_before_upload_is_authoritative(finance_first_use):
+ from playwright.sync_api import expect
+ page,base,_=finance_first_use
+ new_first_use_contract(page);select_synthetic_original(page)
+ # The backend remains the authority when permissions have changed since rendering.
+ assert page.request.post(base+'/auth/logout').ok
+ assert page.request.post(base+'/auth/login',data={'username':'reviewer','password':'synthetic-ui-password'}).ok
+ page.locator('#financePick_document_id_upload').click()
+ expect(page.locator('#financeModal')).to_have_count(0)
+ assert page.request.get(base+'/finance/documents').json()==[]
+
+
+def test_finance_same_user_read_permission_loss_stops_upload(finance_first_use):
+ from playwright.sync_api import expect
+ page,base,_=finance_first_use
+ new_first_use_contract(page);select_synthetic_original(page)
+ permissions=page.request.get(base+'/auth/permissions').json()
+ permissions['permissions'].remove('document.read')
+ page.route('**/auth/permissions',lambda route:route.fulfill(json=permissions))
+ page.locator('#financePick_document_id_upload').click()
+ expect(page.locator('#financeModal')).to_have_count(0)
+ assert page.request.get(base+'/finance/documents').json()==[]
+
+
+def test_finance_postflight_error_does_not_upload_the_known_original_again(finance_first_use):
+ from playwright.sync_api import expect
+ page,base,_=finance_first_use
+ new_first_use_contract(page);select_synthetic_original(page)
+ posted=[]
+ page.on('request',lambda request:posted.append(request) if request.url==base+'/documents/upload' else None)
+ def permissions(route):
+  if posted:route.fulfill(status=503,json={'detail':'Synthetic postflight verification failed'})
+  else:route.continue_()
+ page.route('**/auth/permissions',permissions)
+ page.locator('#financePick_document_id_upload').click()
+ expect(page.locator('#financePick_document_id_status')).to_contain_text('原本は登録済み')
+ expect(page.locator('#financePick_document_id_upload')).to_be_disabled()
+ expect(page.locator('#financeSave')).to_be_enabled()
+ page.locator('#financePick_document_id_upload').evaluate('(button)=>button.click()')
+ assert len(page.request.get(base+'/finance/documents').json())==1
+ assert len(posted)==1
+ expect(page.locator('#financeField_title')).to_have_value('Synthetic first-use contract')
+
+
+@pytest.mark.parametrize('leave',['back','menu'])
+def test_finance_failed_navigation_preserves_pending_upload_and_draft(finance_first_use,leave):
+ from playwright.sync_api import expect
+ page,base,_=finance_first_use
+ new_first_use_contract(page);select_synthetic_original(page)
+ held=hold_upload_response(page)
+ page.locator('#financePick_document_id_upload').click()
+ wait_for_held_upload(page,held)
+ path='**/finance/contracts?*' if leave=='back' else '**/finance/candidates?*'
+ route_once(page,path,lambda route:route.fulfill(status=503,json={'detail':'Synthetic navigation unavailable'}))
+ control=page.locator('#financeBack' if leave=='back' else '#financeCandidates')
+ expect(control).to_be_disabled()
+ control.evaluate('(button)=>button.click()')
+ route,response=held[0];route.fulfill(response=response)
+ expect(page.locator('#financeField_document_id')).to_have_value(response.json()['document_id'])
+ expect(page.locator('#financeSave')).to_be_enabled()
+ control.click()
+ expect(page.locator('#financeMessage')).to_contain_text('Synthetic navigation unavailable')
+ expect(page.locator('#financeField_title')).to_have_value('Synthetic first-use contract')
+ expect(page.locator('#financeField_amount')).to_have_value('250.01')
+
+
+def test_finance_uploaded_original_link_uses_shared_pc_download_guard(finance_first_use):
+ from playwright.sync_api import expect
+ page,base,_=finance_first_use
+ new_first_use_contract(page);select_synthetic_original(page)
+ with page.expect_response(lambda r:r.url==base+'/documents/upload') as response:page.locator('#financePick_document_id_upload').click()
+ document_id=response.value.json()['document_id']
+ expect(page.locator('#financeField_document_id')).to_have_value(document_id)
+ page.route('**/documents/'+document_id+'/download',lambda route:route.fulfill(status=403,json={'detail':'Synthetic original access revoked'}))
+ page.locator('#financePick_document_id_proof a').click()
+ expect(page.locator('#financeModal')).to_have_count(0)
+ assert page.evaluate('financeState.permissions.length')==0
+
+
+def test_finance_known_upload_success_survives_canonical_postflight_failure_without_retry_post(finance_first_use):
+ from playwright.sync_api import expect
+ page,base,_=finance_first_use
+ new_first_use_contract(page);select_synthetic_original(page)
+ posted=[]
+ page.on('request',lambda request:posted.append(request) if request.url==base+'/documents/upload' else None)
+ def identity(route):
+  if posted:route.fulfill(status=503,json={'detail':'Synthetic postflight identity unavailable'})
+  else:route.continue_()
+ page.route('**/auth/me',identity)
+ page.locator('#financePick_document_id_upload').click()
+ expect(page.locator('#financePick_document_id_status')).to_contain_text('原本は登録済み')
+ expect(page.locator('#financePick_document_id_upload')).to_be_disabled()
+ expect(page.locator('#financeField_document_id')).to_have_value('')
+ expect(page.locator('#financePick_document_id_proof')).to_be_empty()
+ page.locator('#financePick_document_id_upload').evaluate('(button)=>button.click()')
+ assert len(page.request.get(base+'/finance/documents').json())==1
+ assert len(posted)==1
+
+
+@pytest.mark.parametrize('pending_upload',[False,True])
+def test_finance_failed_reopen_never_resurfaces_closed_draft(finance_first_use,pending_upload):
+ from playwright.sync_api import expect
+ page,base,_=finance_first_use
+ new_first_use_contract(page);select_synthetic_original(page)
+ held=[]
+ if pending_upload:
+  held=hold_upload_response(page)
+  page.locator('#financePick_document_id_upload').click()
+  wait_for_held_upload(page,held)
+  expect(page.locator('#financeClose')).to_be_disabled()
+  page.locator('#financeClose').evaluate('(button)=>button.click()')
+  route,response=held[0];route.fulfill(response=response)
+  expect(page.locator('#financeClose')).to_be_enabled()
+ page.locator('#financeClose').click()
+ expect(page.locator('#financeModal')).to_be_hidden()
+ expect(page.locator('#financeForm')).to_have_count(0)
+ route_once(page,'**/finance/proposals?*',lambda route:route.fulfill(status=503,json={'detail':'Synthetic reopen unavailable'}))
+ token=watch_finance_action(page,'#financeForm')
+ page.locator('#financeBtn').click()
+ expect(page.locator('#financeModal')).to_be_visible()
+ expect(page.locator('#financeForm')).to_have_count(0)
+ await_finance_action(page,token)
+ expect(page.locator('#financeMessage')).to_contain_text('Synthetic reopen unavailable')
+ expect(page.locator('#financeClose')).to_be_enabled()
+ expect(page.locator('#financeForm')).to_have_count(0)
+ new_first_use_contract(page)
+ expect(page.locator('#financeSave')).to_be_enabled()
+ expect(page.locator('#financeField_document_id')).to_have_value('')
+
+
+def test_finance_upload_preflight_synchronously_locks_the_whole_draft(finance_first_use):
+ from playwright.sync_api import expect
+ page,base,_=finance_first_use
+ new_first_use_contract(page);select_synthetic_original(page)
+ expect(page.locator('#financePick_document_id_upload')).to_be_enabled()
+ context=[]
+ def hold_context(route):context.append((route,route.fetch()))
+ route_once(page,'**/auth/context',hold_context)
+ uploaded=hold_upload_response(page)
+ page.locator('#financePick_document_id_upload').click()
+ wait_for_held_upload(page,context)
+ for field in ['#financeField_title','#financeField_amount','#financeSave','#financeBack','#financeClose','#financePick_document_id_file']:
+  expect(page.locator(field)).to_be_disabled()
+ assert uploaded==[]
+ route,response=context[0];route.fulfill(response=response)
+ wait_for_held_upload(page,uploaded)
+ expect(page.locator('#financeField_title')).to_be_disabled()
+ route,response=uploaded[0];route.fulfill(response=response)
+ expect(page.locator('#financeField_document_id')).to_have_value(response.json()['document_id'])
+ expect(page.locator('#financeField_title')).to_be_enabled()
+ expect(page.locator('#financeField_title')).to_have_value('Synthetic first-use contract')
+ expect(page.locator('#financeField_amount')).to_have_value('250.01')

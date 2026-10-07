@@ -897,3 +897,29 @@ def test_finance_postgresql_original_fixtures_preserve_storage_identity(client):
   assert len({r.storage_path for r in originals})==7
   assert len({r.document_id for r in originals})==7
   db.rollback()
+
+
+def test_finance_editor_first_original_uses_shared_document_and_draft_gate(client):
+ """Independent finance original needs no facility or pre-existing Document."""
+ from hashlib import sha256
+ from app.rbac_seed import ROLE_POLICY
+ y=year(client)
+ allowed=ROLE_POLICY['finance_editor']['permissions']
+ for code in set(CODES)-allowed:remove(code)
+ assert client.get('/finance/documents').json()==[]
+ raw=b'Synthetic first-use finance original'
+ result=client.post('/documents/upload',files={'file':('Synthetic first original.txt',raw,'text/plain')})
+ assert result.status_code==201,result.text
+ d=result.json()
+ assert d['building_id'] is None and d['sha256']==sha256(raw).hexdigest()
+ assert client.get('/documents/'+d['document_id']+'/download').content==raw
+ assert client.get('/finance/documents?q='+d['sha256']).json()[0]['document_id']==d['document_id']
+ c=post(client,'/contracts',{'title':'Synthetic first-use editor contract','amount':'250.01','currency':'JPY','year_id':y['year_id'],'document_id':d['document_id']})
+ assert c['status']=='draft'
+ detail=client.get('/finance/contracts/'+c['contract_case_id']).json()
+ assert detail['documents'][0]['document_id']==d['document_id']
+ assert client.post('/finance/contracts/'+c['contract_case_id']+'/approve',json={'expected_version':c['version'],'reason':'Editor cannot approve'}).status_code==403
+ assert client.get('/finance/journal').json()==[]
+ with SessionLocal() as db:
+  audit=db.scalar(select(AuditLog).where(AuditLog.action=='document.upload',AuditLog.entity_id==d['document_id']))
+  assert audit and audit.after_data['sha256']==d['sha256']
