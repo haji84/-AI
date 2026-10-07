@@ -142,6 +142,36 @@ def assignment_browser(tmp_path):
         logs.close()
 
 
+def test_pending_navigation_locks_old_vehicle_rows_before_authority_returns(assignment_browser):
+    from playwright.sync_api import expect
+    page, _, ids, _, _, vehicle, _, _ = assignment_browser
+    vehicle()
+    page.locator('#operationsVehicles').click()
+    row = page.locator('[data-operations-open="'+ids['vehicle']+'"]')
+    expect(row).to_be_enabled()
+    held = []
+
+    def hold_first_context(route):
+        if not held:
+            held.append(route)
+        else:
+            route.continue_()
+
+    page.route('**/auth/context', hold_first_context)
+    try:
+        with page.expect_request(lambda request: request.url.endswith('/auth/context')):
+            page.locator('#operationsVehicles').click()
+        expect(row).to_be_disabled()
+        assert len(held) == 1
+    finally:
+        page.unroute('**/auth/context', hold_first_context)
+        for route in held:
+            route.continue_()
+    expect(row).to_be_enabled()
+    row.click()
+    expect(page.locator('#operationsAssignmentPanel')).to_be_visible()
+
+
 def test_assign_transfer_unassign_retained_history_and_frozen_org_names(assignment_browser, tmp_path):
     from playwright.sync_api import expect
     page, base, ids, database, _, vehicle, edit, save = assignment_browser

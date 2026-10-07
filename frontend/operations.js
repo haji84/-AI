@@ -190,6 +190,10 @@ function operationsVehicleOwner(isCurrent=()=>true){
     if(!target||target.disabled||target===owner.pendingTarget)return;
     if(!['operationsClose','operationsIncidents','operationsVehicles','operationsSummary','operationsAlerts','operationsRates','operationsExchange','operationsReload','operationsEdit','operationsTripNew','operationsFuelNew','operationsServiceNew','operationsAssignmentBack'].includes(target.id))return;
     owner.pendingTarget=target;owner.interrupted=true;
+    // Navigation owns the old view before SharedSession awaits authority. Old
+    // rows must not start a detail that the queued navigation would overwrite.
+    // Keep the initiating control enabled so its guarded replay can proceed.
+    for(const node of owner.content.querySelectorAll('button, input, select, textarea'))if(node!==target)node.disabled=true;
     if($('operationsAssignmentSave'))$('operationsAssignmentSave').disabled=true;
     if($('operationsAssignmentMessage'))$('operationsAssignmentMessage').textContent='画面を切り替えています…';
   };
