@@ -7,7 +7,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from ..audit import write_audit
-from ..authz import require_permission
+from ..authz import permission_codes, require_permission
 from ..db import get_db
 from ..legal_requirement_engine import evaluate_approved_requirement_rules
 from ..models import (
@@ -589,17 +589,24 @@ def facility_dashboard(
 ):
     if not db.get(Facility, building_id):
         raise HTTPException(status_code=404, detail="facility not found")
-    inspections_total = db.scalar(select(func.count()).select_from(Inspection).where(Inspection.building_id == building_id)) or 0
-    open_findings = db.scalar(
-        select(func.count()).select_from(InspectionFinding)
-        .join(Inspection, Inspection.inspection_id == InspectionFinding.inspection_id)
-        .where(Inspection.building_id == building_id, InspectionFinding.corrective_status != "completed")
-    ) or 0
-    latest_inspection = db.scalar(
-        select(Inspection).where(Inspection.building_id == building_id).order_by(Inspection.inspected_at.desc()).limit(1)
-    )
-    types = db.scalars(select(SubmissionType).where(SubmissionType.active.is_(True)).order_by(SubmissionType.name)).all()
-    statuses: list[FacilityComplianceStatusOut] = []
+    permissions = permission_codes(db, user.user_id)
+    # Null means unavailable; authorized empty sources keep their real zero/empty values.
+    inspections_total = open_findings = latest_inspection = None
+    if "inspection.read" in permissions:
+        inspections_total = db.scalar(select(func.count()).select_from(Inspection).where(Inspection.building_id == building_id)) or 0
+        open_findings = db.scalar(
+            select(func.count()).select_from(InspectionFinding)
+            .join(Inspection, Inspection.inspection_id == InspectionFinding.inspection_id)
+            .where(Inspection.building_id == building_id, InspectionFinding.corrective_status != "completed")
+        ) or 0
+        latest_inspection = db.scalar(
+            select(Inspection).where(Inspection.building_id == building_id).order_by(Inspection.inspected_at.desc()).limit(1)
+        )
+    types = []
+    statuses: list[FacilityComplianceStatusOut] | None = None
+    if "submission.read" in permissions:
+        types = db.scalars(select(SubmissionType).where(SubmissionType.active.is_(True)).order_by(SubmissionType.name)).all()
+        statuses = []
     for st in types:
         if not (st.rules or {}).get("dashboard"):
             continue
