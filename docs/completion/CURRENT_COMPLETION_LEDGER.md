@@ -2,9 +2,9 @@
 
 Status date: 2026-10-07 UTC
 
-Audited implementation base: `1b3bf5b7442941fb19c186095290231ab3dd2fbf`
+Audited implementation base: `9d6f86b1c21e61b1df51eef058bf01b26e5c54e9`
 
-Verified implementation tree: `6f3eac85eba6187a604c19d432e0688d499adb7a`
+Verified implementation tree: `c3d4f2afa32bdf44b82c2fe62d183e63d678f7d0`
 
 Previous reviewed baseline: `c1b684c5c38fc52fe908d2116a21a16ef48dcb34`
 
@@ -12,13 +12,13 @@ Canonical requirements: [Master Specification v2.0](../SPECIFICATION.md), chapte
 
 This is the current status index for the stated implementation base. It preserves the complete [c1b684c evidence baseline](COMPLETION_BASELINE_20261007.md) and its [reviewed classification/status changelog](COMPLETION_STATUS_CHANGELOG.md). The historical [MASTER_FEATURE_MATRIX](MASTER_FEATURE_MATRIX.md) is retained unchanged as dated evidence. Do not use its old totals as this base's status.
 
-**Completed 11 / Partial 44 / Missing 1 / External Gate 1 = 57.** The primary-status changes since the independently validated c1b684c baseline are chapters 36 and 16, both Missing → Partial. Chapter counts are not a completion percentage, production approval, or a substitute for the Definition of Done.
+**Completed 12 / Partial 44 / Missing 0 / External Gate 1 = 57.** Since the independently validated c1b684c baseline, chapters 36, 16 and 34 change Missing → Partial, and chapter 23 changes Partial → Completed after its independent-assignment exit criterion is fulfilled. Chapter 34 remains a bounded observed-statistics workflow with substantial internal requirements. Shared-platform assignment extensions remain separately open in chapters 9/35/41. Chapter counts are not a completion percentage, production approval, or a substitute for the Definition of Done.
 
 | Primary status | Chapters | Count |
 |---|---|---:|
-| Completed | 2, 8, 11, 22, 24, 40, 42, 47, 55, 56, 57 | 11 |
-| Partial | 1, 3–7, 9–10, 12–21, 23, 25–33, 35–39, 41, 43–46, 48, 50–54 | 44 |
-| Missing | 34 | 1 |
+| Completed | 2, 8, 11, 22–24, 40, 42, 47, 55, 56, 57 | 12 |
+| Partial | 1, 3–7, 9–10, 12–21, 25–39, 41, 43–46, 48, 50–54 | 44 |
+| Missing | None | 0 |
 | External Gate | 49 | 1 |
 | Total | Chapters 1–57, exactly once | 57 |
 
@@ -26,11 +26,11 @@ This is the current status index for the stated implementation base. It preserve
 
 Use exactly four primary statuses: **Completed / Partial / Missing / External Gate**. Completed credits the bounded chapter's internal foundation and required core workflow; actual-site acceptance remains separately recorded. Partial requires a concrete remaining internal requirement. Missing means the central workflow is not integrated into the stated main snapshot, not that checkpoint work never existed. External Gate means its internal framework exists and the decisive remaining evidence requires real reference data, infrastructure, or accountable Human input; domain adapters remain internal requirements under their own chapters.
 
-The baseline was independently reconciled to 11/42/3/1 using chapter-specific evidence. This update reviews the merged deltas and preserves that full baseline. Baseline path/line references are pinned to c1b684c. Delta links below are pinned to 1b3bf5b7442941fb19c186095290231ab3dd2fbf. Test definitions establish coverage present in source; executed results come from the exact-head CI or recorded verification run identified below. This documentation edit itself does not rerun the application suites.
+The baseline was independently reconciled to 11/42/3/1 using chapter-specific evidence. This update reviews the merged deltas and preserves that full baseline. Baseline path/line references are pinned to c1b684c; D1–D6 retain their 1b3bf5b source links. D7–D9 retain the PR76-merge snapshot c1b491e; D10 links to the current PR77-merge snapshot 9d6f86b. Test definitions establish coverage present in source; executed results come from the exact-head CI or recorded verification run identified below. This documentation edit itself does not rerun the application suites.
 
 ## Execution evidence and current-base limit
 
-The implementation base is `1b3bf5b7442941fb19c186095290231ab3dd2fbf`. Its [post-merge CI run 37584491507](https://github.com/haji84/-AI/actions/runs/37584491507) passed: backend 974 passed / 67 skipped; browser job 52 passed (43 Chromium + 9 Node/API checks); migration parser and frontend JavaScript passed. This verifies the stated implementation base, not a later artifact manifest or production acceptance.
+The implementation base is `9d6f86b1c21e61b1df51eef058bf01b26e5c54e9`, the actual PR77 merge. Its tree matches the final combined PR77 head `ee7572204432064fe604d2ccbb5b010a41b9a4e2`: `c3d4f2afa32bdf44b82c2fe62d183e63d678f7d0`. That head's [CI37606910763](https://github.com/haji84/-AI/actions/runs/37606910763) passed with backend 1198 passed / 95 skipped and browser job 71 passed (62 Chromium + 9 Node/API), plus migration parser and JavaScript checks. **The final-main [post-merge CI37609190838](https://github.com/haji84/-AI/actions/runs/37609190838) also passed: backend 1198 passed / 95 skipped, browser job 71 passed (62 Chromium + 9 Node/API), migration parser and JavaScript.** This is execution evidence for runtime main 9d6f86b, not a new test run at a later documentation/package commit or production acceptance.
 
 Completed execution records are kept at their actual commits:
 
@@ -40,6 +40,14 @@ Completed execution records are kept at their actual commits:
 | PR70 final head `3ad3b163e540043c954d0a8c12816b461d3bff80` | [37581843529](https://github.com/haji84/-AI/actions/runs/37581843529), green | 862 passed / 61 skipped | 51 passed = 42 Chromium + 9 Node/API | Exact PR-head record |
 | Main after PR70 `f72e4fad98054b82a98a76b74703653dc0ff4f95` | [37582780375](https://github.com/haji84/-AI/actions/runs/37582780375), green | Refer to run record | Refer to run record | Post-merge result at this earlier main |
 | PR71 final head `affa44f14f06dc3358b8f1424332cb240534bdef` | [37583265279](https://github.com/haji84/-AI/actions/runs/37583265279), green | 974 passed / 67 skipped | 52 passed = 43 Chromium + 9 Node/API | Migration parser and JavaScript passed |
+| Main after PR71 `1b3bf5b7442941fb19c186095290231ab3dd2fbf` | [37584491507](https://github.com/haji84/-AI/actions/runs/37584491507), green | 974 passed / 67 skipped | 52 passed = 43 Chromium + 9 Node/API | Previous ledger's exact implementation base |
+| PR74 final head `c352b6b86a8f13e41460a087bc507cb1c6f99886` | [37594097700](https://github.com/haji84/-AI/actions/runs/37594097700), green | Refer to run record | Refer to run record | Workforce runtime repair |
+| PR75 final head `ef133b0934eb1bf06858e6bfb8e5e9184d01f63f` | [37602962182](https://github.com/haji84/-AI/actions/runs/37602962182), green | 1098 passed / 88 skipped | 64 passed = 55 Chromium + 9 Node/API | Migration parser and JavaScript passed |
+| Main after PR75 `f53084a76d27d209a311f1136ce07ef2125d547c` | [37604792930](https://github.com/haji84/-AI/actions/runs/37604792930), green | 1098 passed / 88 skipped | 64 passed = 55 Chromium + 9 Node/API | Exact post-merge result |
+| PR76 final head `cc74399046346fd696603d19b821190dc60e9a75` | [37605645865](https://github.com/haji84/-AI/actions/runs/37605645865), green | 1184 passed / 95 skipped | 71 passed = 62 Chromium + 9 Node/API | Migration parser and JavaScript passed; earlier merge c1b491e has the same tree |
+| Main after PR76 `c1b491eb3ab2b973d29590d8938c4c8ad7b765b3` | [37607563240](https://github.com/haji84/-AI/actions/runs/37607563240), green | 1184 passed / 95 skipped | 71 passed = 62 Chromium + 9 Node/API | Exact post-merge result; migration parser and JavaScript passed |
+| PR77 final combined head `ee7572204432064fe604d2ccbb5b010a41b9a4e2` | [37606910763](https://github.com/haji84/-AI/actions/runs/37606910763), green | 1198 passed / 95 skipped | 71 passed = 62 Chromium + 9 Node/API | Migration parser and JavaScript passed; current merge 9d6f86b has the same tree |
+| Main after PR77 `9d6f86b1c21e61b1df51eef058bf01b26e5c54e9` | [37609190838](https://github.com/haji84/-AI/actions/runs/37609190838), green | 1198 passed / 95 skipped | 71 passed = 62 Chromium + 9 Node/API | Exact runtime-base post-merge result; migration parser and JavaScript passed |
 
 The 9 Node/API cases are within the intake-browser module; browser-job totals must not be described as all actual-browser cases. Skipped cases do not establish acceptance. Earlier main or PR-head success does not substitute for the current main result, unimplemented chapter requirements, production-host acceptance, or real-model quality gates.
 
@@ -85,9 +93,43 @@ Implementation: [backend/app/hazardous_models.py](https://github.com/haji84/-AI/
 
 Remaining: executable hazardous-material Rule evaluation is not implemented. Human-confirmed evidence is not permit issuance or a legal-compliance decision. Approved statutory conditions, real source/form/policy acceptance and whole-system integration remain open. The documented empty related-violation frame after closing during a load is a remaining display limitation. Migration 052 is additive; no credit is taken for unintegrated checkpoint work.
 
+### D7 — PR74 workforce Human-operation refresh
+
+Merged as `71754c593066cd2720178372fcf0c8c4620aab50` ([PR74](https://github.com/haji84/-AI/pull/74)). Human controls stay locked from the first asynchronous boundary through response handling, current authority checks and the refreshed display. Queued clicks and obsolete views cannot start a second transition; an accepted operation with a failed display refresh has a distinct recovery message. This is a runtime repair, separate from D4's earlier test-only synchronization.
+
+Implementation: [frontend/workforce.js](https://github.com/haji84/-AI/blob/c1b491eb3ab2b973d29590d8938c4c8ad7b765b3/frontend/workforce.js). Coverage: [test_workforce_human_loading.py](https://github.com/haji84/-AI/blob/c1b491eb3ab2b973d29590d8938c4c8ad7b765b3/backend/tests/test_workforce_human_loading.py), [test_workforce_browser.py](https://github.com/haji84/-AI/blob/c1b491eb3ab2b973d29590d8938c4c8ad7b765b3/backend/tests/test_workforce_browser.py), and [test_workforce_browser_state.py](https://github.com/haji84/-AI/blob/c1b491eb3ab2b973d29590d8938c4c8ad7b765b3/backend/tests/test_workforce_browser_state.py). No business API/schema or additional workforce capability is introduced. Chapter 25 stays Partial for teams/work results, remaining operational interfaces and expiry/compensatory-time reconciliation; no checkpoint recovery is claimed.
+
+### D8 — PR75 vehicle current assignment and additional registration acceptance
+
+Merged as `f53084a76d27d209a311f1136ce07ef2125d547c` ([PR75](https://github.com/haji84/-AI/pull/75)). The independent vehicle registry assignment required by §23 is now implemented. Authorized Humans can assign, reassign or explicitly record no assignment using existing organizations, without creating a dispatch. Never-recorded/unknown and explicitly unassigned states remain distinct. Versioned changes, frozen organization names, reasons, source-reference text and Human acknowledgement are retained in immutable history with transactional audit.
+
+Implementation: [vehicle_assignment_service.py](https://github.com/haji84/-AI/blob/c1b491eb3ab2b973d29590d8938c4c8ad7b765b3/backend/app/vehicle_assignment_service.py), [operations_models.py](https://github.com/haji84/-AI/blob/c1b491eb3ab2b973d29590d8938c4c8ad7b765b3/backend/app/operations_models.py), [routers/operations.py](https://github.com/haji84/-AI/blob/c1b491eb3ab2b973d29590d8938c4c8ad7b765b3/backend/app/routers/operations.py), [frontend/operations.js](https://github.com/haji84/-AI/blob/c1b491eb3ab2b973d29590d8938c4c8ad7b765b3/frontend/operations.js) and additive [migration 053](https://github.com/haji84/-AI/blob/c1b491eb3ab2b973d29590d8938c4c8ad7b765b3/db/migrations/053_vehicle_assignments.sql). Coverage: [test_vehicle_assignments.py](https://github.com/haji84/-AI/blob/c1b491eb3ab2b973d29590d8938c4c8ad7b765b3/backend/tests/test_vehicle_assignments.py), [test_vehicle_assignment_concurrency.py](https://github.com/haji84/-AI/blob/c1b491eb3ab2b973d29590d8938c4c8ad7b765b3/backend/tests/test_vehicle_assignment_concurrency.py), and [real registration/assignment browser flow](https://github.com/haji84/-AI/blob/c1b491eb3ab2b973d29590d8938c4c8ad7b765b3/backend/tests/test_vehicle_assignment_browser.py#L461).
+
+Additional vehicles can be registered through the existing real form, then searched, assigned and reopened with their history. The browser acceptance also checks creation audit and denies creation to a read-only user. Registration was already implemented; this merge verifies it as part of the new assignment journey. [User procedure and remaining scope](VEHICLE_ASSIGNMENT_VERIFICATION_20261007.md).
+
+Chapter 23 changes **Partial → Completed** under the same core-scope convention as chapters 22/24/47. The [preserved baseline's chapter-23 exit](COMPLETION_BASELINE_20261007.md#chapter-23) required independent assignment/reassignment without a dispatch, versioned/audited changes and readable current assignment/history. PR75's source and API/PostgreSQL/browser tests fulfill that criterion while retaining mileage/fuel/service and Human resolution. Additional-vehicle registration is also verified through the actual form. This current classification supersedes the historical Partial wording in the linked vehicle verification record; its procedure and implementation limits remain valid.
+
+Assignment's direct original-Document linkage, CSV/XLSX exchange and cross-module-search extensions remain explicitly open under **chapters 9/41/35**. Reference text is not a verified Document/hash, and this chapter promotion does not claim those shared-platform extensions complete. Existing vehicle import/export/search remain credited. Future/retroactive/temporary/multiple assignment or a separate approval hierarchy are not newly inferred requirements. Preserve the dated baseline finding and actual-site/combined-chain acceptance boundaries.
+
+### D9 — PR76 bounded observed statistics
+
+Merged as `c1b491eb3ab2b973d29590d8938c4c8ad7b765b3` ([PR76](https://github.com/haji84/-AI/pull/76)). Chapter 34 changes **Missing → Partial**. The first central workflow reads canonical emergency, operation/dispatch and fleet-trip sources without business-data re-entry. Its seven measures keep cases, patient records, incidents, dispatches and trips distinct; patient-record count is not unique-person count, and trip distance uses exact decimals.
+
+Selected inclusive dates, the explicit business timezone (default `Asia/Tokyo`), resolved UTC bounds, definitions, units, date basis, exclusions and query versions are preserved. A coherent department-bound read snapshot produces immutable public values and private source evidence. Human confirmation rechecks full source membership/dependencies; replacement creates a new saved identity and keeps prior facts/history. Current command/source aggregate rights are required, and original-record navigation separately checks detail rights. Generic CSV/XLSX exports use frozen values and identify themselves as non-official output.
+
+Implementation: [statistics_sources.py](https://github.com/haji84/-AI/blob/c1b491eb3ab2b973d29590d8938c4c8ad7b765b3/backend/app/statistics_sources.py), [statistics_service.py](https://github.com/haji84/-AI/blob/c1b491eb3ab2b973d29590d8938c4c8ad7b765b3/backend/app/statistics_service.py), [statistics_reports.py](https://github.com/haji84/-AI/blob/c1b491eb3ab2b973d29590d8938c4c8ad7b765b3/backend/app/statistics_reports.py), [statistics_drilldown.py](https://github.com/haji84/-AI/blob/c1b491eb3ab2b973d29590d8938c4c8ad7b765b3/backend/app/statistics_drilldown.py), [statistics_exports.py](https://github.com/haji84/-AI/blob/c1b491eb3ab2b973d29590d8938c4c8ad7b765b3/backend/app/statistics_exports.py), [frontend/statistics.js](https://github.com/haji84/-AI/blob/c1b491eb3ab2b973d29590d8938c4c8ad7b765b3/frontend/statistics.js) and additive [migration 054](https://github.com/haji84/-AI/blob/c1b491eb3ab2b973d29590d8938c4c8ad7b765b3/db/migrations/054_observed_statistics.sql). Coverage: [source tests](https://github.com/haji84/-AI/blob/c1b491eb3ab2b973d29590d8938c4c8ad7b765b3/backend/tests/test_observed_statistics_sources.py), [API tests](https://github.com/haji84/-AI/blob/c1b491eb3ab2b973d29590d8938c4c8ad7b765b3/backend/tests/test_observed_statistics_api.py), [PostgreSQL tests](https://github.com/haji84/-AI/blob/c1b491eb3ab2b973d29590d8938c4c8ad7b765b3/backend/tests/test_observed_statistics_postgres.py), [browser tests](https://github.com/haji84/-AI/blob/c1b491eb3ab2b973d29590d8938c4c8ad7b765b3/backend/tests/test_statistics_browser.py), [browser-state tests](https://github.com/haji84/-AI/blob/c1b491eb3ab2b973d29590d8938c4c8ad7b765b3/backend/tests/test_statistics_browser_state.py), and [application/role registration tests](https://github.com/haji84/-AI/blob/c1b491eb3ab2b973d29590d8938c4c8ad7b765b3/backend/tests/test_statistics_registration.py). [User procedure and limits](OBSERVED_STATISTICS_VERIFICATION_20261007.md).
+
+Remaining: financial currency/amount aggregation; historical personnel/vehicle populations; remaining source adapters; fiscal/yearly/prior-year comparison semantics; coverage declarations; survey definitions and registered original-template/PDF output. Missing prior-year values must remain distinct from zero when comparison is implemented. Coverage remains `unknown` after Human confirmation; observed zero does not prove completeness. Denominators are null for these non-ratio measures, not implemented historical populations. Unknown-date exclusions are department-wide, not presumed members of the selected period. Conservative SQLite timestamp admission can undercount legacy records; generic XLSX does not promise byte-identical regeneration. This is new bounded work, not recovered Run A code or whole-chapter acceptance.
+
+### D10 — PR77 learning refresh ownership
+
+Merged as `9d6f86b1c21e61b1df51eef058bf01b26e5c54e9` ([PR77](https://github.com/haji84/-AI/pull/77)). A late same-task refresh can no longer replace newer evaluation/artifact controls or their selected values. Refresh generation owns results, errors and control state; old content clears before awaiting, task controls remain disabled during loading, and navigation/logout remain available. Same-task Human selections are retained only when valid; account/task changes clear them.
+
+Implementation: [frontend/learning.js](https://github.com/haji84/-AI/blob/9d6f86b1c21e61b1df51eef058bf01b26e5c54e9/frontend/learning.js), [frontend/learning.html](https://github.com/haji84/-AI/blob/9d6f86b1c21e61b1df51eef058bf01b26e5c54e9/frontend/learning.html). Coverage: [test_learning_refresh_state.py](https://github.com/haji84/-AI/blob/9d6f86b1c21e61b1df51eef058bf01b26e5c54e9/backend/tests/test_learning_refresh_state.py), [test_learning_browser.py](https://github.com/haji84/-AI/blob/9d6f86b1c21e61b1df51eef058bf01b26e5c54e9/backend/tests/test_learning_browser.py). The four-file repair preserves API, permission, learning/model and Human-decision semantics. Chapters 37/43/45/48 remain Partial; actual OCR/STT/photo/model adapters are not supplied by this race fix.
+
 ### X1 — Current boundaries and module-disable policy
 
-Only merged source through `1b3bf5b7442941fb19c186095290231ab3dd2fbf` is credited. Later local-only work receives no status credit. Chapter 34 remains Missing in this main snapshot; chapter 36 remains Partial.
+Only merged source through `9d6f86b1c21e61b1df51eef058bf01b26e5c54e9` is credited, including PR77. Chapter 23 is Completed under D8; chapters 34 and 36 remain Partial. Later local or unmerged work receives no status credit.
 
 For chapter 46, the c1b684c baseline records observed reads from an operations module whose flag was false. That observation alone does not settle whether historical detail, audit, export or source-reference access should remain available when new work is disabled. The canonical disable/history/dependency policy is explicitly awaiting a decision. Direct creation and other new operations work are still not consistently gated by the existing flags, while work-list filtering, learning, and the hazardous register have scoped controls. Define the intended capabilities first, then implement and verify them consistently without deleting history or disabling tenant/auth/audit/security foundations. This update neither labels every historical read a bug nor credits an unimplemented application-wide policy.
 
@@ -95,13 +137,17 @@ For chapter 46, the c1b684c baseline records observed reads from an operations m
 
 Canonical main is the implementation authority. Known Run A statistics and Run B workforce/protected-document/dispatch/template checkpoint work is not verified as integrated here. Preserve available originals, branch/PR history, and migration provenance. Before an overlapping new requirement, compare the current main implementation, active work, available checkpoints and migration inventory; then scope a bounded change around the remaining requirement. Recovery can still be pursued, but lack of access is not a permanent ban on that collision-assessed work. Do not describe checkpoint code as recovered or lost without evidence.
 
-This ledger allocates no migration and changes no historical migration. Incomplete central-server/dynamic-worker/offline-requeue/OwnerDR context remains an architecture reconciliation item; no competing topology is credited or authorized.
+PR76's new bounded statistics implementation is separate from the unavailable Run A checkpoint. Migration 051 remains reserved for the stranded workforce/checkpoint work; PR75/76 add 053/054 without reusing 051 or rewriting prior SQL. This ledger allocates no migration and changes no historical migration.
+
+### X3 — Later architecture context, not implemented capability
+
+Central-server coordination, dynamic workers/offline requeue and an OwnerRecoveryVault/backup-vault design remain architecture context to reconcile with the approved per-department boundary. Ordinary service-owner visibility is envisaged as operational status, capacity and last-success information; emergency restoration is a separate, explicitly governed path. Enrollment, key custody, privacy boundaries and recovery policy are unresolved. These ideas establish no implemented service, routine access to department records, recovery capability or deployment/access authority. Preserve the current canonical database/runtime/storage isolation and its chapter-2 completion credit.
 
 ## All 57 current chapter statuses
 
 Each baseline link retains the chapter's present implementation, exact source/test references, internal requirement, external gate, and exit evidence. Apply the listed current delta to it; later main changes do not silently rewrite the dated baseline.
 
-| # | Specification chapter | Status at 1b3bf5b7 | Baseline evidence | Current-base delta / remaining gap |
+| # | Specification chapter | Status at 9d6f86b | Baseline evidence | Current-base delta / remaining gap |
 |---:|---|---|---|---|
 | 1 | Product Vision | Partial | [Chapter 1](COMPLETION_BASELINE_20261007.md#chapter-1) | D1/D2: connected work-list and intake journeys added; broader system DoD remains open. |
 | 2 | Canonical Architecture | Completed | [Chapter 2](COMPLETION_BASELINE_20261007.md#chapter-2) | Baseline finding retained; no chapter-status change from these merges. |
@@ -111,7 +157,7 @@ Each baseline link retains the chapter's present implementation, exact source/te
 | 6 | Employee, Organization and Account | Partial | [Chapter 6](COMPLETION_BASELINE_20261007.md#chapter-6) | Baseline finding retained; no chapter-status change from these merges. |
 | 7 | Authorization | Partial | [Chapter 7](COMPLETION_BASELINE_20261007.md#chapter-7) | D1/D2/D5: source filtering and mutation checks added; reproduced dashboard disclosure closed; remaining selector/authorization coverage stays Partial. |
 | 8 | Audit | Completed | [Chapter 8](COMPLETION_BASELINE_20261007.md#chapter-8) | Baseline finding retained; no chapter-status change from these merges. |
-| 9 | Document Platform | Partial | [Chapter 9](COMPLETION_BASELINE_20261007.md#chapter-9) | D6: hazardous-original source rights added; common display-name/source/derived metadata contract remains incomplete. |
+| 9 | Document Platform | Partial | [Chapter 9](COMPLETION_BASELINE_20261007.md#chapter-9) | D6: hazardous-original source rights added; D8 assignment original-Document linkage and common display-name/source/derived metadata remain incomplete. |
 | 10 | Document Intake and OCR | Partial | [Chapter 10](COMPLETION_BASELINE_20261007.md#chapter-10) | D2: lifecycle integrity and actual intake journey tests integrated; multi-page/quality/adapters and resumable review remain. |
 | 11 | Facility Registry | Completed | [Chapter 11](COMPLETION_BASELINE_20261007.md#chapter-11) | Baseline finding retained; no chapter-status change from these merges. |
 | 12 | Inspection | Partial | [Chapter 12](COMPLETION_BASELINE_20261007.md#chapter-12) | Baseline finding retained; no chapter-status change from these merges. |
@@ -125,9 +171,9 @@ Each baseline link retains the chapter's present implementation, exact source/te
 | 20 | Occupancy Classification and Drawing Consultation | Partial | [Chapter 20](COMPLETION_BASELINE_20261007.md#chapter-20) | Baseline finding retained; no chapter-status change from these merges. |
 | 21 | Emergency Module | Partial | [Chapter 21](COMPLETION_BASELINE_20261007.md#chapter-21) | Baseline finding retained; no chapter-status change from these merges. |
 | 22 | Incident and Dispatch | Completed | [Chapter 22](COMPLETION_BASELINE_20261007.md#chapter-22) | Baseline finding retained; no chapter-status change from these merges. |
-| 23 | Fleet and Vehicle | Partial | [Chapter 23](COMPLETION_BASELINE_20261007.md#chapter-23) | Baseline finding retained; no chapter-status change from these merges. |
+| 23 | Fleet and Vehicle | Completed | [Chapter 23](COMPLETION_BASELINE_20261007.md#chapter-23) | D8: baseline independent-assignment/current-history exit fulfilled; registration verified. Shared original-link/exchange/search extensions remain under 9/41/35; site and full-chain acceptance stay separate. |
 | 24 | Operational Assets and Inventory | Completed | [Chapter 24](COMPLETION_BASELINE_20261007.md#chapter-24) | Baseline finding retained; no chapter-status change from these merges. |
-| 25 | Workforce and Duty Management | Partial | [Chapter 25](COMPLETION_BASELINE_20261007.md#chapter-25) | D4: browser test synchronization only; no additional workforce business implementation credited. |
+| 25 | Workforce and Duty Management | Partial | [Chapter 25](COMPLETION_BASELINE_20261007.md#chapter-25) | D4/D7: test synchronization and runtime Human-operation locking repaired; teams/work results and remaining operational interfaces/policy reconciliation stay open. |
 | 26 | Contract and Procurement | Partial | [Chapter 26](COMPLETION_BASELINE_20261007.md#chapter-26) | Baseline finding retained; no chapter-status change from these merges. |
 | 27 | Budget and Finance | Partial | [Chapter 27](COMPLETION_BASELINE_20261007.md#chapter-27) | Baseline finding retained; no chapter-status change from these merges. |
 | 28 | Council, Assembly and Inquiry Support | Partial | [Chapter 28](COMPLETION_BASELINE_20261007.md#chapter-28) | Baseline finding retained; no chapter-status change from these merges. |
@@ -135,28 +181,28 @@ Each baseline link retains the chapter's present implementation, exact source/te
 | 30 | Fire Photo Intelligence | Partial | [Chapter 30](COMPLETION_BASELINE_20261007.md#chapter-30) | Baseline finding retained; no chapter-status change from these merges. |
 | 31 | Voice, Statement and Evidence Comparison | Partial | [Chapter 31](COMPLETION_BASELINE_20261007.md#chapter-31) | Baseline finding retained; no chapter-status change from these merges. |
 | 32 | Fire Report Drafting | Partial | [Chapter 32](COMPLETION_BASELINE_20261007.md#chapter-32) | Baseline finding retained; no chapter-status change from these merges. |
-| 33 | Official Form Platform | Partial | [Chapter 33](COMPLETION_BASELINE_20261007.md#chapter-33) | Baseline finding retained; no chapter-status change from these merges. |
-| 34 | Cross-module Statistics, Annual Reports and Surveys | Missing | [Chapter 34](COMPLETION_BASELINE_20261007.md#chapter-34) | X2: main integration gap; checkpoint preservation and collision assessment required for further work. |
-| 35 | Unified Search | Partial | [Chapter 35](COMPLETION_BASELINE_20261007.md#chapter-35) | D6: hazardous register search added; baseline pagination/filter/performance gaps remain. |
+| 33 | Official Form Platform | Partial | [Chapter 33](COMPLETION_BASELINE_20261007.md#chapter-33) | D9: statistics provides generic CSV/XLSX only; original-template adapters and baseline requirements remain. |
+| 34 | Cross-module Statistics, Annual Reports and Surveys | Partial | [Chapter 34](COMPLETION_BASELINE_20261007.md#chapter-34) | D9: Missing → Partial; seven observed measures, immutable saved values, Human confirmation/replacement and generic output; remaining adapters, populations, comparisons, coverage and official forms remain. |
+| 35 | Unified Search | Partial | [Chapter 35](COMPLETION_BASELINE_20261007.md#chapter-35) | D6: hazardous search added; D8's new assignment fields are not yet searchable; baseline pagination/filter/performance gaps remain. |
 | 36 | Dashboard and Personal Work Queue | Partial | [Chapter 36](COMPLETION_BASELINE_20261007.md#chapter-36) | D1: Missing → Partial; four live source providers and guarded navigation; assignment/other providers remain. |
-| 37 | Learning Platform | Partial | [Chapter 37](COMPLETION_BASELINE_20261007.md#chapter-37) | D3: learning-login startup race repaired; actual learning/model adapter integration remains. |
+| 37 | Learning Platform | Partial | [Chapter 37](COMPLETION_BASELINE_20261007.md#chapter-37) | D3/D10: startup and current-refresh races repaired; actual learning/model adapter integration remains. |
 | 38 | Autonomous Task and Self-extension Platform | Partial | [Chapter 38](COMPLETION_BASELINE_20261007.md#chapter-38) | Baseline finding retained; no chapter-status change from these merges. |
 | 39 | AI Decision Levels | Partial | [Chapter 39](COMPLETION_BASELINE_20261007.md#chapter-39) | Baseline finding retained; no chapter-status change from these merges. |
 | 40 | AI Failure Mode | Completed | [Chapter 40](COMPLETION_BASELINE_20261007.md#chapter-40) | Baseline finding retained; no chapter-status change from these merges. |
-| 41 | Import Framework | Partial | [Chapter 41](COMPLETION_BASELINE_20261007.md#chapter-41) | D2: intake transition safety improved; shared typed import framework remains incomplete. |
+| 41 | Import Framework | Partial | [Chapter 41](COMPLETION_BASELINE_20261007.md#chapter-41) | D2: intake transition safety improved; D8 assignment exchange and shared typed import framework remain incomplete. |
 | 42 | Backup and Restore | Completed | [Chapter 42](COMPLETION_BASELINE_20261007.md#chapter-42) | Baseline finding retained; no chapter-status change from these merges. |
-| 43 | Security | Partial | [Chapter 43](COMPLETION_BASELINE_20261007.md#chapter-43) | D1/D2/D3/D5/D6: scoped source/session protections integrated; dashboard disclosure closed; broader security/hosting review remains. |
+| 43 | Security | Partial | [Chapter 43](COMPLETION_BASELINE_20261007.md#chapter-43) | D1/D2/D3/D5–D10: scoped source/session protections integrated, including statistics aggregate/detail separation; broader security/hosting review remains. |
 | 44 | External Integration and Network Policy | Partial | [Chapter 44](COMPLETION_BASELINE_20261007.md#chapter-44) | Baseline finding retained; no chapter-status change from these merges. |
-| 45 | User Experience | Partial | [Chapter 45](COMPLETION_BASELINE_20261007.md#chapter-45) | D1–D6: work-list, intake, learning, facility and hazardous journeys improved; whole-shell usability remains Partial. |
+| 45 | User Experience | Partial | [Chapter 45](COMPLETION_BASELINE_20261007.md#chapter-45) | D1–D10: source journeys, workforce pending controls, vehicle assignment, observed statistics and learning refresh improved; whole-shell usability remains Partial. |
 | 46 | Module Configuration per Department | Partial | [Chapter 46](COMPLETION_BASELINE_20261007.md#chapter-46) | X1: application-wide disable/history policy awaits decision; direct new work is not consistently gated by existing flags. |
 | 47 | Formal Evidence Model | Completed | [Chapter 47](COMPLETION_BASELINE_20261007.md#chapter-47) | Baseline finding retained; no chapter-status change from these merges. |
-| 48 | Testing | Partial | [Chapter 48](COMPLETION_BASELINE_20261007.md#chapter-48) | D1–D6: queue/intake/learning/workforce/dashboard/hazardous evidence added; full-chain/profile/load acceptance remains. |
+| 48 | Testing | Partial | [Chapter 48](COMPLETION_BASELINE_20261007.md#chapter-48) | D1–D10: bounded source/API/PostgreSQL/browser coverage added; runtime-base post-merge CI passed; full-chain/profile/load acceptance remains. |
 | 49 | AI Benchmark and Acceptance | External Gate | [Chapter 49](COMPLETION_BASELINE_20261007.md#chapter-49) | Baseline finding retained; no chapter-status change from these merges. |
 | 50 | Data Migration | Partial | [Chapter 50](COMPLETION_BASELINE_20261007.md#chapter-50) | Baseline finding retained; no chapter-status change from these merges. |
 | 51 | Operational Hosting | Partial | [Chapter 51](COMPLETION_BASELINE_20261007.md#chapter-51) | Baseline finding retained; no chapter-status change from these merges. |
 | 52 | Release Artifacts | Partial | [Chapter 52](COMPLETION_BASELINE_20261007.md#chapter-52) | This ledger improves traceability only; full manuals/package/final release evidence remain incomplete. |
 | 53 | Definition of Done | Partial | [Chapter 53](COMPLETION_BASELINE_20261007.md#chapter-53) | No system-completion or production-readiness claim; retain all material internal and external gates. |
-| 54 | Required Cross-module E2E | Partial | [Chapter 54](COMPLETION_BASELINE_20261007.md#chapter-54) | D2/D6: intake and hazardous integration coverage added; complete ten-flow acceptance remains open; stated-base post-merge CI passed; final ten-flow acceptance remains open. |
+| 54 | Required Cross-module E2E | Partial | [Chapter 54](COMPLETION_BASELINE_20261007.md#chapter-54) | D2/D6/D8/D9: intake, hazardous, vehicle-registration/assignment and observed-statistics journeys covered; complete ten-flow acceptance remains open. |
 | 55 | Development Governance | Completed | [Chapter 55](COMPLETION_BASELINE_20261007.md#chapter-55) | Baseline finding retained; no chapter-status change from these merges. |
 | 56 | Priority Rule | Completed | [Chapter 56](COMPLETION_BASELINE_20261007.md#chapter-56) | Baseline finding retained; no chapter-status change from these merges. |
 | 57 | Completion Principle | Completed | [Chapter 57](COMPLETION_BASELINE_20261007.md#chapter-57) | Baseline finding retained; no chapter-status change from these merges. |
