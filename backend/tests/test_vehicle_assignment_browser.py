@@ -11,6 +11,8 @@ import subprocess
 import sys
 import time
 import urllib.request
+from urllib.parse import parse_qs, urlsplit
+from uuid import uuid4
 
 import pytest
 
@@ -32,7 +34,7 @@ from app.security import hash_password
 Base.metadata.create_all(engine)
 with SessionLocal() as db:
  seed_rbac(db)
- for name,rights in [('assignment-ui',['fleet.read','fleet.update','fleet.create']),('assignment-reader',['fleet.read'])]:
+ for name,rights in [('assignment-ui',['fleet.read','fleet.update','fleet.create']),('assignment-reader',['fleet.read']),('assignment-auditor',['audit.read'])]:
   role=Role(code=name,name='Synthetic '+name);db.add(role);db.flush()
   for code in rights:
    permission=db.scalar(select(Permission).where(Permission.code==code));assert permission is not None
@@ -454,3 +456,109 @@ def test_older_real_alerts_cannot_replace_new_assignment_draft(assignment_browse
             route.continue_()
         page.unroute(path, hold)
         page.evaluate('operationsAlerts=originalAssignmentAlerts;delete window.originalAssignmentAlerts')
+
+
+def test_human_can_register_an_additional_vehicle_then_assign_it(assignment_browser, tmp_path):
+    from playwright.sync_api import expect
+    page, base, ids, _, login, _, edit, save = assignment_browser
+    code = 'SYN-ADDED-'+uuid4().hex[:12]
+    name = 'Synthetic additional rescue van'
+    reason = 'Synthetic first placement of an additional vehicle'
+    reference = 'Synthetic additional vehicle placement notice'
+
+    def search_added_vehicle():
+        page.locator('#operationsQ').fill(code)
+        with page.expect_response(lambda response: response.request.method=='GET'
+                and urlsplit(response.url).path=='/operations/vehicles'
+                and parse_qs(urlsplit(response.url).query).get('q')==[code]) as filtered:
+            page.locator('#operationsSearch').click()
+        assert filtered.value.status == 200, filtered.value.text()
+        target = page.locator('[data-operations-open="'+vehicle_id+'"]')
+        expect(target).to_be_visible()
+        return target
+
+    permissions = page.request.get(base+'/auth/permissions')
+    assert permissions.status == 200
+    assert {'fleet.read','fleet.create','fleet.update'} <= set(permissions.json()['permissions'])
+    assert 'audit.read' not in permissions.json()['permissions']
+    actor = page.request.get(base+'/auth/me').json()['user_id']
+    before = page.request.get(base+'/operations/vehicles', params={'q':code})
+    assert before.status == 200 and before.json() == []
+
+    # The new vehicle must come from the real Human form, never a seed or direct
+    # POST. Its server-returned identity drives every later lookup and placement.
+    page.locator('#operationsBtn').click()
+    # This fleet-only operator opens directly into the initial vehicle list.
+    expect(page.locator('#operationsNew')).to_be_visible()
+    page.locator('#operationsNew').click()
+    expect(page.locator('#operationsContent h2')).to_have_text('車両登録')
+    page.locator('#operationsField_code').fill(code)
+    page.locator('#operationsField_name').fill(name)
+    page.locator('#operationsField_registration').fill('SYN-ADDED-REG')
+    page.locator('#operationsField_odometer').fill('12.5')
+    page.locator('#operationsField_notes').fill('Synthetic Human vehicle registration')
+    with page.expect_response(lambda response: response.url==base+'/operations/vehicles' and response.request.method=='POST') as created_response:
+        page.locator('#operationsForm button[type="submit"]').click()
+    assert created_response.value.status == 201, created_response.value.text()
+    created = created_response.value.json()
+    vehicle_id = created['vehicle_id']
+    assert created['code'] == code and created['name'] == name
+    assert created['registration'] == 'SYN-ADDED-REG' and float(created['odometer']) == 12.5
+    assert created['version'] == 1
+    expect(page.locator('#operationsAssignmentPanel')).to_be_visible()
+    expect(page.locator('#operationsContent h2')).to_have_text(code+' / '+name)
+    expect(page.locator('#operationsAssignmentCurrent')).to_have_text('未記録（現在の配属は不明）')
+
+    edit('a', reason, reference)
+    changed = save()
+    assert changed['vehicle_version'] == 2
+    assert changed['current']['organization']['organization_id'] == ids['a']
+    assert changed['change']['changed_by'] == actor
+    history_response = page.request.get(base+'/operations/vehicles/'+vehicle_id+'/assignments')
+    assert history_response.status == 200
+    history = history_response.json()
+    assert history['vehicle_id'] == vehicle_id and history['total'] == 1
+    assert history['items'][0]['reason'] == reason and history['items'][0]['source_evidence'] == reference
+
+    # Search and reopen the newly registered record within the existing modal.
+    page.locator('#operationsVehicles').click()
+    search_added_vehicle().click()
+    expect(page.locator('#operationsContent h2')).to_have_text(code+' / '+name)
+    expect(page.locator('#operationsAssignmentCurrent')).to_contain_text('Synthetic Alpha Station')
+    expect(page.locator('#operationsAssignmentPanel tbody')).to_contain_text(reason)
+    expect(page.locator('#operationsAssignmentPanel tbody')).to_contain_text(reference)
+    artifacts = Path(os.environ.get('FIRE_AI_BROWSER_ARTIFACTS', str(tmp_path/'artifacts')))
+    artifacts.mkdir(parents=True, exist_ok=True)
+    page.screenshot(path=str(artifacts/'vehicle-created-and-assigned-through-ui.png'), full_page=True)
+
+    # Audit access is independent of the fleet operator's session and rights.
+    audit_context = page.context.browser.new_context()
+    try:
+        logged_in = audit_context.request.post(base+'/auth/login', data={
+            'username':'assignment-auditor','password':'synthetic-assignment-password'})
+        assert logged_in.status == 200, logged_in.text()
+        audited = audit_context.request.get(base+'/administration/audit', params={
+            'action':'fleet.vehicle.create','entity_type':'operation_vehicles'})
+        assert audited.status == 200, audited.text()
+        creation = [row for row in audited.json() if row['entity_id']==vehicle_id]
+        assert len(creation) == 1
+        assert creation[0]['user_id'] == actor and creation[0]['success'] is True
+        assert creation[0]['after_data']['version'] == 1 and creation[0]['occurred_at']
+    finally:
+        audit_context.close()
+
+    # Existing fleet.read access includes the added record, but does not grant
+    # the New control or the underlying create endpoint.
+    assert page.request.post(base+'/auth/logout').status == 200
+    login('assignment-reader')
+    page.locator('#operationsBtn').click()
+    expect(page.locator('#operationsSearch')).to_be_visible()
+    expect(page.locator('#operationsNew')).to_have_count(0)
+    search_added_vehicle().click()
+    expect(page.locator('#operationsAssignmentPanel tbody')).to_contain_text(reference)
+    expect(page.locator('#operationsAssignmentEdit')).to_have_count(0)
+    denied_code = 'DENIED-'+uuid4().hex[:12]
+    denied = page.request.post(base+'/operations/vehicles', data={'code':denied_code,'name':'Synthetic denied addition'})
+    assert denied.status == 403
+    denied_lookup = page.request.get(base+'/operations/vehicles', params={'q':denied_code})
+    assert denied_lookup.status == 200 and denied_lookup.json() == []
