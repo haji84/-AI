@@ -24,7 +24,7 @@
 - [ ] 同一commitからの再生成一致とarchive verifyが成功する
 - [ ] マニュアル、更新/rollback、既知の制約、最終テスト報告が揃っている
 
-未実装・未実施をExternal Gateへ振り替えないこと。現在の残作業は `docs/completion/MASTER_FEATURE_MATRIX.md` と実コードを照合して更新します。matrixの過去commit集計だけで現在の完成度を断定しません。
+未実装・未実施をExternal Gateへ振り替えないこと。現在の残作業は [CURRENT_COMPLETION_LEDGER](../completion/CURRENT_COMPLETION_LEDGER.md) の固定base・全57章・merge差分と実コードを照合します。分類変更は [STATUS_CHANGELOG](../completion/COMPLETION_STATUS_CHANGELOG.md)、c1b684cの全章Evidenceは [BASELINE](../completion/COMPLETION_BASELINE_20261007.md) に記録します。旧MASTER_FEATURE_MATRIXと過去の検証報告は履歴であり、現在の完成度や最新manifestの実行結果へ読み替えません。
 
 ## 本部・実機側のExternal Gate
 
@@ -45,3 +45,12 @@
 - CIのskipは成功した機能検証として数えません。CI成功でも実LAN・本番受入を代替しません。
 - 収録内容は生成時に指定した固定commitに従います。`PACKAGING_TEST_REPORT.md` の初回検証基準707ccddと、現在配布するmanifest commitの検証記録を区別します。他ブランチの未merge作業は自動収録しません。
 - PR #63・#64統合後のmainには、財務画面からの共通原本登録・自動選択が含まれます。権限と年度設定の事前準備、登録から草案保存までの手順は `INSTALLATION.md` に記載しています。合成データによる実ブラウザ検証が成功していても、本部の実機・実利用者による受入は未完了として別途記録します。
+
+
+## 現在の実装baseと受入の区別
+
+完成状況の基準はmain `1b3bf5b7442941fb19c186095290231ab3dd2fbf`。分類はCompleted11 / Partial44 / Missing1 / External Gate1で、章16（危険物）・36（個人work list）はPartial、章34（共通統計）はMissingです。PR70の対象物dashboard権限修復とPR71の危険物台帳はmerge済みですが、これだけで全体完成とは扱いません。
+
+各PR head・以前のmainのCIと、現在mainのpost-merge CI・実際の配布manifest commitを区別します。現在mainの [CI37584491507](https://github.com/haji84/-AI/actions/runs/37584491507) はbackend974件成功/67件スキップ、browser job52件成功（実Chromium43＋Node/API9）、migration parser/JavaScript成功を確認しました。初回packaging報告を変更せず、次の生成物ではそのmanifest commit/tree/hashと検証結果を別途記録します。`production_ready: false` は継続し、上の全体・本部・実機Gateを満たすまで本番受入完了としません。
+
+利用者の初回操作は [INSTALLATIONの案内](INSTALLATION.md#first-use-common-workflows) から、今日の業務・文書受付・危険物台帳の各手順へ進めます。

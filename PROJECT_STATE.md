@@ -1,8 +1,20 @@
 # PROJECT_STATE
 
-更新日: 2026-10-06
+更新日: 2026-10-07
 
-## 完成タスクの現在地（2026-10-06再監査）
+## 現在の完成状況（main `1b3bf5b7` 基準）
+
+57章の現在地は [CURRENT_COMPLETION_LEDGER](docs/completion/CURRENT_COMPLETION_LEDGER.md) を参照。実装基準は `1b3bf5b7442941fb19c186095290231ab3dd2fbf`、tree `6f3eac85eba6187a604c19d432e0688d499adb7a`。c1b684cの全章baselineに、merge済みPR67（受付lifecycle）、PR68（個人work list）、PR69（学習login）、PR72（勤務browser test同期）、PR70（対象物dashboard権限）、PR71（危険物台帳）を反映した。**Completed 11 / Partial 44 / Missing 1 / External Gate 1**。章16・36はPartial、章34はMissing。システム全体の完成・本番受入を意味しない。
+
+PR70の最終head [CI37581843529](https://github.com/haji84/-AI/actions/runs/37581843529) はbackend862 passed/61 skipped、browser job51件（実Chromium42＋Node/API9）。同merge後main [CI37582780375](https://github.com/haji84/-AI/actions/runs/37582780375) もgreen。PR71最終head [CI37583265279](https://github.com/haji84/-AI/actions/runs/37583265279) はbackend974 passed/67 skipped、browser job52件（実Chromium43＋Node/API9）、migration parser/JavaScript成功。現在mainの [CI37584491507](https://github.com/haji84/-AI/actions/runs/37584491507) も成功し、backend974 passed/67 skipped、browser job52件（実Chromium43＋Node/API9）、migration parser/JavaScript成功を確認した。配布物は別途、そのmanifest commit・ハッシュ・展開後の起動を照合する。
+
+[STATUS_CHANGELOG](docs/completion/COMPLETION_STATUS_CHANGELOG.md) に分類根拠、[COMPLETION_BASELINE_20261007](docs/completion/COMPLETION_BASELINE_20261007.md) にc1b684c全57章Evidenceを保存。旧MASTER_FEATURE_MATRIXと以下のPhase/過去集計は履歴として保持する。対象物dashboardの再現済み情報露出はPR70で修復済み。危険物のHuman証拠確認は法令適合判定ではなく、Rule評価は未実装。
+
+章46のmodule無効時の履歴閲覧・出力・参照をどう扱うかは明示方針の決定待ち。新規業務の直接APIが既存flagで一貫して止まる状態ではない。履歴参照を一律に不具合と断定せず、方針と実行制御の残差を区別する。
+
+未照合のRun A統計/Run B勤務等のcheckpointは原本を保持する。mainを正本に、既存branch/PR/実装/migrationとの衝突を確認して残要件を小さく実装できる。未照合を「復旧済み」「消失」と扱わず、恒久的な開発禁止にも扱わない。後続のローカル変更にはこの集計で実装creditを付けない。
+
+## 完成タスクの現在地（2026-10-06再監査・履歴）
 
 main922d292c（PR61、議会・照会統合後、main CI37523158483 SUCCESS）を正本として確認。小さなPRの完了はシステム完成を意味しない。
 - PR41/43: 共通コード＋本部別DB/実行環境/原本/backupを固定。UUID照合、専用構成生成、PostgreSQL移行/復元/役割境界をCI検証済み。
