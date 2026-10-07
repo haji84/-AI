@@ -132,8 +132,10 @@ def test_migration052_upgrades_existing_rows_and_reruns_cleanly(tmp_path):
     from app.migrations import apply_migrations
     migrations = Path(__file__).resolve().parents[2] / 'db/migrations'
     historical = tmp_path / 'historical'; historical.mkdir()
+    through_052 = tmp_path / 'through_052'; through_052.mkdir()
     for source in migrations.glob('*.sql'):
         if source.name < '052': shutil.copy(source, historical / source.name)
+        if source.name[:3] <= '052': shutil.copy(source, through_052 / source.name)
     database = 'fi_hazardous_' + uuid4().hex[:16]
     cluster = create_engine(make_url(base).set(database='postgres'), isolation_level='AUTOCOMMIT')
     target = make_url(base).set(database=database).render_as_string(hide_password=False)
@@ -146,8 +148,8 @@ def test_migration052_upgrades_existing_rows_and_reruns_cleanly(tmp_path):
         identity = str(uuid4())
         with engine.begin() as connection:
             connection.execute(text("INSERT INTO facilities(building_id,name,status,version) VALUES (:id,'Synthetic pre-052 facility','active',7)"), {'id': identity})
-        assert apply_migrations(target, migrations) == ['052_hazardous_materials_register.sql']
-        assert apply_migrations(target, migrations) == []
+        assert apply_migrations(target, through_052) == ['052_hazardous_materials_register.sql']
+        assert apply_migrations(target, through_052) == []
         with engine.connect() as connection:
             assert connection.execute(text('SELECT version FROM facilities WHERE building_id=:id'), {'id': identity}).scalar_one() == 7
             assert connection.execute(text('SELECT COUNT(*) FROM hazardous_history')).scalar_one() == 0
