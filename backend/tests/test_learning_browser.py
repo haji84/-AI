@@ -45,8 +45,31 @@ with Session(engine) as db:
             browser=browser_api.chromium.launch();page=browser.new_page();errors=[]
             page.on('pageerror',lambda error:errors.append(str(error)))
             page.on('dialog',lambda dialog:dialog.accept())
+            # Hold the real anonymous startup response while the Human begins
+            # typing. A late 401 must not erase that newer login intent.
+            startup = []
+            def hold_startup(route):
+                if startup:
+                    route.continue_()
+                    return
+                startup.append((route, route.fetch()))
+            page.route('**/learning/context', hold_startup)
             page.goto('http://127.0.0.1:9091/ui/learning.html')
-            page.locator('#loginForm input[name=username]').fill('learningui');page.locator('#loginForm input[name=password]').fill('synthetic-learning-ui-password');page.locator('#loginForm button').click()
+            deadline=time.monotonic()+10
+            while not startup and time.monotonic()<deadline:
+                page.wait_for_timeout(20)
+            assert startup, 'anonymous context request did not arrive'
+            route,response=startup[0]
+            assert response.status==401,response.text()
+            page.locator('#loginForm input[name=username]').fill('learningui')
+            with page.expect_response(lambda r:r.url.endswith('/learning/context') and r.status==401):
+                route.fulfill(response=response)
+            page.evaluate('() => initialStartup')
+            expect(page.locator('#loginForm input[name=username]')).to_have_value('learningui')
+            page.locator('#loginForm input[name=password]').fill('synthetic-learning-ui-password')
+            with page.expect_response(lambda r:r.url.endswith('/auth/login')) as login:
+                page.locator('#loginForm button').click()
+            assert login.value.status==200,login.value.text()
             expect(page.locator('#workspace')).to_be_visible();page.locator('#task').select_option('ocr')
             expect(page.locator('#champion')).to_contain_text('Baseline')
             page.locator('#humanReason').fill('Synthetic Human verification')
