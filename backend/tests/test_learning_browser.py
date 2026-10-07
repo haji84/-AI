@@ -93,8 +93,24 @@ with Session(engine) as db:
             page.screenshot(path=str(artifact/'human-gated-learning.png'),full_page=True)
             # A second account lacks fire-investigation source access. It must never
             # inherit the first account's private evidence, form drafts or proposals.
-            page.locator('#task').select_option('audio_correction')
+            # Hold the next task's read to verify native fieldset actionability.
+            # The previous task's Baseline must disappear before any response.
+            pending_audio = []
+            def hold_audio_champion(route):
+                pending_audio.append(route)
+            page.route('**/learning/champions/audio_correction', hold_audio_champion, times=1)
+            with page.expect_request(lambda request: request.url.endswith('/learning/champions/audio_correction')):
+                page.locator('#task').select_option('audio_correction')
+            expect(page.locator('#champion')).not_to_contain_text('Baseline')
+            expect(page.locator('#evaluationSets')).to_be_empty()
+            for selector in ['#correctionForm button', '#evaluateButton', '#suggestForm button']:
+                expect(page.locator(selector)).to_be_disabled()
+            for selector in ['#task', '#refreshButton', '#logoutButton']:
+                expect(page.locator(selector)).to_be_enabled()
+            assert pending_audio, 'task champion request did not reach its route'
+            pending_audio[0].continue_()
             expect(page.locator('#champion')).to_contain_text('Baseline')
+            expect(page.locator('#correctionForm button')).to_be_enabled()
             private='PRIVATE synthetic fire-investigation evidence'
             fixed=page.request.post('http://127.0.0.1:9091/learning/evaluation-sets',data={'task':'audio_correction','name':private,'synthetic':True,'cases':[{'input':private,'expected':'Synthetic Human answer'}],'reason':'Synthetic restricted evidence'})
             assert fixed.status==201,fixed.text()
