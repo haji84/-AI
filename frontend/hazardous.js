@@ -170,12 +170,12 @@ async function hazardousDeadlines(dueBefore='', offset=0) {
   hazardousBindInstallations(ticket);
 }
 function hazardousMaterialValues(row) {
-  const exact = value => typeof value === 'string' && /^\d{1,18}(?:\.\d{1,6})?$/.test(value);
+  const exact = value => typeof value === 'string' && /^(?:0|[1-9][0-9]{0,17})(?:\.[0-9]{1,6})?$/.test(value);
   const quantity = row.quantity, capacity = row.capacity??'';
   if (!row.name?.trim() || !row.quantity_unit?.trim()) throw new Error('品名・数量単位を入力してください。');
-  if (!exact(quantity)) throw new Error('数量は0以上の十進数（整数18桁・小数6桁以内）で入力してください。');
+  if (!exact(quantity)) throw new Error('数量は0以上の十進数（整数18桁・小数6桁以内）で入力してください。01・00.1のような余分な先頭の0は使えません。');
   if ((capacity !== '') !== Boolean(row.capacity_unit?.trim())) throw new Error('容量と容量単位は両方入力するか、両方空欄にしてください。');
-  if (capacity !== '' && !exact(capacity)) throw new Error('容量は0以上の十進数（整数18桁・小数6桁以内）で入力してください。');
+  if (capacity !== '' && !exact(capacity)) throw new Error('容量は0以上の十進数（整数18桁・小数6桁以内）で入力してください。01・00.1のような余分な先頭の0は使えません。');
   return {name:row.name.trim(),category_label:row.category_label?.trim()??'',quantity,quantity_unit:row.quantity_unit.trim(),capacity:capacity === '' ? null : capacity,capacity_unit:row.capacity_unit?.trim()||null};
 }
 async function hazardousSourceQuery(kind,q,offset,extra,picker,ticket) {
@@ -234,7 +234,7 @@ async function hazardousInstallationForm(row=null) {
     hazardousField('name','施設・設備の名称',row?.name??'','text',true)+
     hazardousField('category_label','原本に記載された区分（職員入力）',row?.category_label??'','text',true)+
     hazardousField('location_detail','設置場所',row?.location_detail??'')+hazardousField('notes','備考',row?.notes??'','textarea')+
-    '<h3>品名・数量・容量</h3><p class="muted">数量は整数18桁・小数6桁以内。原本の単位をそのまま入力します。容量を入力する場合は容量単位も必要です。</p><div id="hazardousMaterials"></div>'+hazardousButton('hazardousMaterialAdd','品目を追加')+
+    '<h3>品名・数量・容量</h3><p class="muted">数量は整数18桁・小数6桁以内。01・00.1のような余分な先頭の0は入力できません。原本の単位をそのまま入力します。容量を入力する場合は容量単位も必要です。</p><div id="hazardousMaterials"></div>'+hazardousButton('hazardousMaterialAdd','品目を追加')+
     (row?hazardousField('reason','訂正理由','','textarea',true):'');
   const form=hazardousForm(row?'施設・設備・数量の訂正':'施設・設備を登録',body,ticket,async()=>{
     const materials=[...$('hazardousMaterials').querySelectorAll('[data-hazardous-material]')].map(element=>{

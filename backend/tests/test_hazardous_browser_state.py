@@ -2,6 +2,7 @@
 from pathlib import Path
 import subprocess
 import os
+import json
 
 
 def run(tmp_path, scenario):
@@ -46,11 +47,48 @@ const installation={installation_id:'installation-a',building_id:'building-a',na
 
 def test_exact_material_strings_and_unit_pairs(tmp_path):
     run(tmp_path, r'''
-const material={name:'Synthetic',category_label:'Human category',quantity:'999999999999999999.123456',quantity_unit:'L',capacity:'000000000000000001.000001',capacity_unit:'L'};
+const material={name:'Synthetic',category_label:'Human category',quantity:'999999999999999999.123456',quantity_unit:'L',capacity:'1.000001',capacity_unit:'L'};
 context.material=material;const actual=evaluate('hazardousMaterialValues(material)');assert.equal(actual.quantity,material.quantity);assert.equal(actual.capacity,material.capacity);
 for(const quantity of ['-1','1e3','1.1234567','1000000000000000000','', 'NaN']){context.material={...material,quantity};assert.throws(()=>evaluate('hazardousMaterialValues(material)'));}
+for(const value of ['00','01','00.1','000000000000000001.000001']){for(const key of ['quantity','capacity']){context.material={...material,[key]:value};assert.throws(()=>evaluate('hazardousMaterialValues(material)'),/先頭の0/);}}
 context.material={...material,capacity:'',capacity_unit:'L'};assert.throws(()=>evaluate('hazardousMaterialValues(material)'));
 context.material={...material,quantity:'0',capacity:'',capacity_unit:''};assert.equal(evaluate('hazardousMaterialValues(material).capacity'),null);
+''')
+
+
+
+def test_decimal_client_matches_real_backend_material_schema(tmp_path):
+    """Prevent browser-only fixtures from accepting strings rejected by the API."""
+    from pydantic import ValidationError
+    from app.hazardous_schemas import Material
+
+    base = {'name': 'Synthetic', 'category_label': 'Human category',
+            'quantity': '1.000001', 'quantity_unit': 'L',
+            'capacity': '999999999999999999.123456', 'capacity_unit': 'm³'}
+    spellings = ['0', '0.000000', '0.000001', '1', '1.000001',
+                 '999999999999999999', '999999999999999999.123456',
+                 '00', '01', '00.1', '01.000001', '000000000000000001.000001',
+                 '1000000000000000000', '1.1234567', '-1', '-0', '+1',
+                 '.1', '1.', '1e3', 'NaN', 'Infinity', 1, 0.000001]
+    inputs = [{**base, field: value} for field in ('quantity', 'capacity') for value in spellings]
+    inputs += [{**base, 'capacity': capacity, 'capacity_unit': unit}
+               for capacity, unit in [('', ''), (None, None), ('', 'L'), (None, 'L'), ('1', ''), ('1', None)]]
+    cases = []
+    for material in inputs:
+        # Empty optional form controls intentionally become null in the API payload.
+        payload = {**material, 'capacity': None if material['capacity'] == '' else material['capacity'],
+                   'capacity_unit': None if material['capacity_unit'] == '' else material['capacity_unit']}
+        try:
+            expected = Material.model_validate(payload).model_dump()
+        except ValidationError:
+            expected = None
+        cases.append({'material': material, 'expected': expected})
+    run(tmp_path, 'const materialCases=' + json.dumps(cases, ensure_ascii=False) + r'''
+for(const item of materialCases){
+ context.material=item.material;let actual=null;
+ try{actual=JSON.parse(JSON.stringify(evaluate('hazardousMaterialValues(material)')));}catch{}
+ assert.deepEqual(actual,item.expected,'Client/server disagreement for '+JSON.stringify(item.material));
+}
 ''')
 
 

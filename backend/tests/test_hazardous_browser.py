@@ -114,10 +114,16 @@ def test_hazardous_sources_upload_human_confirmation_revision_deadline_and_histo
             page.locator('#hazardousField_location_detail').fill('Synthetic storage location')
             page.locator('#hazardousMaterialAdd').click()
             material = page.locator('[data-hazardous-material]')
-            for key, value in {'name':'Synthetic substance','category_label':'Original material category','quantity':'999999999999999999.123456','quantity_unit':'L','capacity':'000000000000000001.000001','capacity_unit':'m³'}.items():
+            for key, value in {'name':'Synthetic substance','category_label':'Original material category','quantity':'999999999999999999.123456','quantity_unit':'L','capacity':'1.000001','capacity_unit':'m³'}.items():
                 material.locator('[data-material-field=' + key + ']').fill(value)
+            material.locator('[data-material-field=capacity]').fill('01.000001')
+            page.locator('#hazardousSave').click()
+            expect(page.locator('#hazardousMessage')).to_contain_text('先頭の0')
+            assert page.request.get(base + '/hazardous/installations').json() == []
+            material.locator('[data-material-field=capacity]').fill('1.000001')
             installation = save('/hazardous/installations', 201)
             assert installation['materials'][0]['quantity'] == '999999999999999999.123456'
+            assert installation['materials'][0]['capacity'] == '1.000001'
             assert installation['materials'][0]['capacity_unit'] == 'm³'
             path = '/hazardous/installations/' + installation['installation_id']
             page.locator('#hazardousRecordNew').click()
