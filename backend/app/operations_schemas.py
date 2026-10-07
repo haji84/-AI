@@ -17,6 +17,28 @@ class Version(Strict):
     expected_version:int=Field(ge=1)
 class Action(Version):
     note:str=Field(min_length=1,max_length=4000)
+
+
+class VehicleAssignmentInput(Strict):
+    expected_version: int = Field(ge=1, strict=True)
+    action: Literal['assign', 'unassign']
+    organization_id: str | None = None
+    expected_organization_version: int | None = Field(default=None, ge=1, strict=True)
+    reason: str = Field(min_length=1, max_length=4000)
+    source_evidence: str = Field(min_length=1, max_length=4000)
+    human_acknowledged: bool = Field(strict=True)
+
+    @model_validator(mode='after')
+    def explicit_human_assignment(self):
+        if not self.human_acknowledged:
+            raise ValueError('Human acknowledgement is required')
+        if self.action == 'assign':
+            if self.organization_id is None or self.expected_organization_version is None:
+                raise ValueError('assignment requires an organization and its expected version')
+        elif {'organization_id', 'expected_organization_version'} & self.model_fields_set:
+            raise ValueError('unassignment must not supply a target organization or version')
+        return self
+
 Kind=Literal['fire','rescue','emergency_support','watch','storm','other']
 Money=Field(ge=0,max_digits=14,decimal_places=2)
 Mileage=Field(ge=0,max_digits=14,decimal_places=1)

@@ -40,6 +40,35 @@ class Vehicle(Versioned, Base):
     notes: Mapped[str|None] = mapped_column(Text)
     __table_args__=(CheckConstraint('odometer >= 0 AND fuel_stock >= 0',name='ck_vehicle_nonnegative'),CheckConstraint('next_service_odometer IS NULL OR next_service_odometer >= 0',name='ck_vehicle_service_odometer'))
 
+
+class VehicleAssignmentChange(Base):
+    """Append-only Human registry statements; no dispatch or effective-date facts."""
+    __tablename__ = 'operation_vehicle_assignment_changes'
+    assignment_change_id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True, default=uuid_str)
+    vehicle_id: Mapped[str] = mapped_column(ForeignKey('operation_vehicles.vehicle_id'), nullable=False)
+    action: Mapped[str] = mapped_column(String(20), nullable=False)
+    before_organization_id: Mapped[str | None] = mapped_column(ForeignKey('organization_units.organization_id'))
+    after_organization_id: Mapped[str | None] = mapped_column(ForeignKey('organization_units.organization_id'))
+    before_organization: Mapped[dict | None] = mapped_column(JSON(none_as_null=True))
+    after_organization: Mapped[dict | None] = mapped_column(JSON(none_as_null=True))
+    vehicle_version_before: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    vehicle_version_after: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    changed_by: Mapped[str] = mapped_column(ForeignKey('app_users.user_id'), nullable=False)
+    changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=now_utc)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    source_evidence: Mapped[str] = mapped_column(Text, nullable=False)
+    human_acknowledged: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    __table_args__ = (
+        UniqueConstraint('vehicle_id', 'vehicle_version_after', name='uq_vehicle_assignment_version'),
+        CheckConstraint("action IN ('assign','unassign')", name='ck_vehicle_assignment_action'),
+        CheckConstraint('vehicle_version_before >= 1 AND vehicle_version_after = vehicle_version_before + 1', name='ck_vehicle_assignment_versions'),
+        CheckConstraint("(action = 'assign' AND after_organization_id IS NOT NULL AND after_organization IS NOT NULL) OR (action = 'unassign' AND after_organization_id IS NULL AND after_organization IS NULL)", name='ck_vehicle_assignment_target'),
+        CheckConstraint('(before_organization_id IS NULL) = (before_organization IS NULL)', name='ck_vehicle_assignment_before'),
+        CheckConstraint('length(trim(reason)) > 0 AND length(reason) <= 4000', name='ck_vehicle_assignment_reason'),
+        CheckConstraint('length(trim(source_evidence)) > 0 AND length(source_evidence) <= 4000', name='ck_vehicle_assignment_evidence'),
+        CheckConstraint('human_acknowledged = true', name='ck_vehicle_assignment_human'),
+    )
+
 class AllowanceRate(Versioned, Base):
     __tablename__='operation_allowance_rates'
     rate_id: Mapped[str] = mapped_column(Uuid(as_uuid=False),primary_key=True,default=uuid_str)

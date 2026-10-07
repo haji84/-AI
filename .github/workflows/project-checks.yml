@@ -76,7 +76,7 @@ jobs:
           python -m pip install -e 'backend[test]' 'playwright>=1.55,<2'
           python -m playwright install --with-deps chromium
       - name: Human administration browser test
-        run: python -m pytest backend/tests/test_admin_browser.py backend/tests/test_assets_browser.py backend/tests/test_learning_browser.py backend/tests/test_password_browser.py backend/tests/test_authorization_browser.py backend/tests/test_finance_browser.py backend/tests/test_workforce_browser.py backend/tests/test_violation_browser.py backend/tests/test_inquiries_browser.py backend/tests/test_shared_session_browser.py backend/tests/test_work_queue_browser.py backend/tests/test_intake_browser.py backend/tests/test_facility_dashboard_browser.py backend/tests/test_hazardous_browser.py backend/tests/test_statistics_browser.py -q
+        run: python -m pytest backend/tests/test_admin_browser.py backend/tests/test_assets_browser.py backend/tests/test_learning_browser.py backend/tests/test_password_browser.py backend/tests/test_authorization_browser.py backend/tests/test_finance_browser.py backend/tests/test_workforce_browser.py backend/tests/test_violation_browser.py backend/tests/test_inquiries_browser.py backend/tests/test_shared_session_browser.py backend/tests/test_work_queue_browser.py backend/tests/test_intake_browser.py backend/tests/test_facility_dashboard_browser.py backend/tests/test_hazardous_browser.py backend/tests/test_vehicle_assignment_browser.py backend/tests/test_statistics_browser.py -q
       - uses: actions/upload-artifact@v4
         if: always()
         with:
