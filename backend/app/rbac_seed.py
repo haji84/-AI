@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from .models import Permission, Role, RolePermission
 
 PERMISSIONS: dict[str, str] = {
+    **{f"statistics.{action}": "観測統計 "+action for action in ("read", "record", "export")},
     **{f"hazardous.{action}": "危険物台帳 "+action for action in ("read","create","update","review")},
     **{f"inquiry.{action}": "議会・照会 "+action for action in ("read","create","update","review","approve","admin","import","export")},
     **{f"learning.{action}": "学習 "+action for action in ("read","record","review","evaluate","promote")},
