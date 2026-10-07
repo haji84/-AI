@@ -36,22 +36,7 @@ SOURCE_BYTES = (
 ).encode("utf-8")
 
 
-@pytest.fixture
-def intake_browser(tmp_path):
-    if os.environ.get("FIRE_AI_TEST_BROWSER") != "1":
-        pytest.skip("actual Chromium intake journey executes in dedicated CI job")
-    from playwright.sync_api import expect, sync_playwright
-
-    root = Path(__file__).resolve().parents[2]
-    env = {
-        **os.environ,
-        "PYTHONPATH": str(root / "backend"),
-        "FIRE_AI_DATABASE_URL": "sqlite+pysqlite:///" + str(tmp_path / "synthetic.db"),
-        "FIRE_AI_STORAGE_ROOT": str(tmp_path / "storage"),
-        "FIRE_AI_PRODUCTION_MODE": "false",
-    }
-    env.pop("FIRE_AI_TENANT_ID", None)
-    seed = """
+INTAKE_SEED = """
 from app.main import app
 from app.db import Base, engine, SessionLocal
 from app.models import Facility, User, UserRole
@@ -71,8 +56,24 @@ with SessionLocal() as db:
     db.add(Facility(name='Synthetic Intake Unselected Hotel', address='Synthetic untouched address 303', phone='0997-33-3333', status='active'))
     db.commit()
 """
+
+@pytest.fixture
+def intake_browser(tmp_path):
+    if os.environ.get("FIRE_AI_TEST_BROWSER") != "1":
+        pytest.skip("actual Chromium intake journey executes in dedicated CI job")
+    from playwright.sync_api import expect, sync_playwright
+
+    root = Path(__file__).resolve().parents[2]
+    env = {
+        **os.environ,
+        "PYTHONPATH": str(root / "backend"),
+        "FIRE_AI_DATABASE_URL": "sqlite+pysqlite:///" + str(tmp_path / "synthetic.db"),
+        "FIRE_AI_STORAGE_ROOT": str(tmp_path / "storage"),
+        "FIRE_AI_PRODUCTION_MODE": "false",
+    }
+    env.pop("FIRE_AI_TENANT_ID", None)
     subprocess.run(
-        [sys.executable, "-c", seed], cwd=root, env=env, check=True, capture_output=True
+        [sys.executable, "-c", INTAKE_SEED], cwd=root, env=env, check=True, capture_output=True
     )
     with socket.socket() as allocation:
         allocation.bind(("127.0.0.1", 0))
@@ -138,6 +139,16 @@ def _get(page, base, path):
     return response.json()
 
 
+def _selected_submissions(page, base, selected, other):
+    # The list API is facility-scoped. Always inspect both fixture facilities so
+    # an unexpected receipt on the unselected target cannot escape a count check.
+    rows = _get(page, base, "/submissions?building_id=" + selected["building_id"])
+    untouched = _get(page, base, "/submissions?building_id=" + other["building_id"])
+    assert untouched == [], "unselected facility has an unexpected receipt: " + repr(untouched)
+    assert all(row["building_id"] == selected["building_id"] for row in rows)
+    return rows
+
+
 def _route_once(page, pattern, handler):
     # Keep the handler installed after its first match; later requests fall through.
     # Expiring an interception can strand the next request on older Chromium.
@@ -190,6 +201,7 @@ class _PromptJourney:
         self.before_receipt = before_receipt
         self.upload_failure = upload_failure
         self.finished = False
+        self.callback_error = None
         self.messages = []
         self.failures = []
         self.responses = []
@@ -213,6 +225,22 @@ class _PromptJourney:
             self.responses.append(response)
 
     def answer(self, dialog):
+        if self.callback_error is not None:
+            dialog.dismiss()
+            return
+        try:
+            self._answer(dialog)
+        except Exception as exc:
+            # Playwright event listeners otherwise log this exception and leave
+            # the native dialog open, hiding the assertion behind a timeout.
+            self.callback_error = exc
+            self.finished = True
+            try:
+                dialog.dismiss()
+            except Exception:
+                pass  # Preserve the original assertion if already dismissed.
+
+    def _answer(self, dialog):
         message = dialog.message
         self.messages.append(message)
         if message.startswith("文書解析完了"):
@@ -277,6 +305,8 @@ class _PromptJourney:
         deadline = time.monotonic() + 20
         while not self.finished and time.monotonic() < deadline:
             self.page.wait_for_timeout(20)
+        if self.callback_error is not None:
+            raise self.callback_error
         assert self.finished, self.messages
         assert not self.failures, self.failures
 
@@ -328,7 +358,7 @@ def test_intake_document_human_receipt_address_only_and_unified_search(intake_br
     gate_snapshots = []
 
     def check_human_gate():
-        gate_snapshots.append(_get(page, base, "/submissions"))
+        gate_snapshots.append(_selected_submissions(page, base, selected, other))
         assert gate_snapshots[-1] == []
         assert _facility(page, base, selected["building_id"]) == before
         assert _facility(page, base, other["building_id"]) == untouched
@@ -364,7 +394,7 @@ def test_intake_document_human_receipt_address_only_and_unified_search(intake_br
         assert updated["name"] == SELECTED_NAME
         assert updated["version"] == before["version"] + 1
         assert _facility(page, base, other["building_id"]) == untouched
-        assert len(_get(page, base, "/submissions")) == 1
+        assert len(_selected_submissions(page, base, selected, other)) == 1
         original = _assert_original(page, base, doc["document_id"])
         confirmed = _get(page, base, "/document-analyses/" + key)
         assert confirmed["status"] == "receipt_confirmed"
@@ -378,7 +408,7 @@ def test_intake_document_human_receipt_address_only_and_unified_search(intake_br
                 data={"expected_version": version, "official_number": "5402", "submitted_at": "2026-10-05"},
             )
             assert duplicate.status == 409, duplicate.text()
-        assert len(_get(page, base, "/submissions")) == 1
+        assert len(_selected_submissions(page, base, selected, other)) == 1
         expect(page.locator("#detailView h1")).to_have_text(SELECTED_NAME)
         expect(page.locator("#detailView")).to_contain_text(NEW_ADDRESS)
         expect(page.locator("#detailView")).to_contain_text("5402")
@@ -438,7 +468,7 @@ def test_intake_cancel_leaves_original_without_receipt_or_facility_changes(intak
         analysis = journey.result("/document-analyses", 201)
         current = _get(page, base, "/document-analyses/" + analysis["document_analysis_id"])
         assert current["status"] == ("analyzed" if cancel_at in ("facility", "classification") else "reviewed")
-        assert _get(page, base, "/submissions") == []
+        assert _selected_submissions(page, base, selected, other) == []
         assert not any(request.url.endswith(("/confirm-receipt", "/apply")) for request in journey.requests)
         assert [_facility(page, base, row["building_id"]) for row in (selected, other)] == before
         _assert_original(page, base, doc["document_id"])
@@ -460,7 +490,7 @@ def test_intake_rejected_upload_can_retry_from_same_facility(intake_browser):
         assert failed.result("/documents/upload", 503)["detail"] == "Synthetic upload unavailable"
         assert len(failed.requests) == 1
         assert _get(page, base, "/document-analyses") == []
-        assert _get(page, base, "/submissions") == []
+        assert _selected_submissions(page, base, selected, other) == []
         assert [_facility(page, base, row["building_id"]) for row in (selected, other)] == before
     finally:
         failed.close()
@@ -471,7 +501,7 @@ def test_intake_rejected_upload_can_retry_from_same_facility(intake_browser):
         doc = retried.result("/documents/upload", 201)
         retried.result("/confirm-receipt", 201)
         assert len(_get(page, base, "/document-analyses")) == 1
-        assert len(_get(page, base, "/submissions")) == 1
+        assert len(_selected_submissions(page, base, selected, other)) == 1
         _assert_original(page, base, doc["document_id"])
     finally:
         retried.close()
@@ -509,7 +539,7 @@ def test_intake_stale_facility_keeps_receipt_and_rejects_address_apply(intake_br
         assert actual["phone"] == "0997-44-4444"
         assert actual["version"] == selected["version"] + 1
         assert _facility(page, base, other["building_id"]) == untouched
-        assert len(_get(page, base, "/submissions")) == 1
+        assert len(_selected_submissions(page, base, selected, other)) == 1
         proposals = _get(page, base, "/document-analyses/" + analysis["document_analysis_id"] + "/change-proposals")
         assert len(proposals) == 1 and proposals[0]["status"] == "pending"
         _assert_original(page, base, doc["document_id"])
@@ -553,7 +583,7 @@ def test_intake_late_upload_cannot_cross_authenticated_session_change(intake_bro
     assert page.evaluate("state.detail") is None
     assert dialogs == [], dialogs
     assert _get(page, base, "/document-analyses") == []
-    assert _get(page, base, "/submissions") == []
+    assert _selected_submissions(page, base, selected, other) == []
     assert [_facility(page, base, row["building_id"]) for row in (selected, other)] == before_facilities
     _assert_original(page, base, doc["document_id"])
     _artifact(page, tmp_path, "intake-session-change-" + next_user)
@@ -633,4 +663,82 @@ vm.runInContext(html.slice(start,end),context);
         [node, "-e", script, str(root / "frontend" / "index.html"), scenario],
         capture_output=True, text=True, timeout=20,
     )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_intake_dialog_callback_failure_is_reported_without_waiting():
+    from types import SimpleNamespace
+
+    failure = AssertionError('Synthetic receipt query returned 422')
+    actions = []
+    def fail_gate():
+        raise failure
+    def unexpected_wait(_):
+        pytest.fail('callback failure must be reported before waiting for another dialog')
+    page = SimpleNamespace(on=lambda *_: None, wait_for_timeout=unexpected_wait)
+    dialog = SimpleNamespace(message='台帳との差分候補があります', accept=lambda: actions.append('accept'), dismiss=lambda: actions.append('dismiss'))
+    journey = _PromptJourney(page, before_receipt=fail_gate)
+    journey.answer(dialog)
+    with pytest.raises(AssertionError) as captured:
+        journey.wait()
+    assert captured.value is failure
+    assert actions == ['dismiss']
+
+
+def test_intake_browser_receipt_queries_match_real_api(tmp_path):
+    """Run the browser's exact seed and receipt helper against the real API, without Chromium."""
+    root = Path(__file__).resolve().parents[2]
+    env = {
+        **os.environ,
+        'PYTHONPATH': os.pathsep.join((str(root / 'backend'), str(root / 'backend' / 'tests'))),
+        'FIRE_AI_DATABASE_URL': 'sqlite+pysqlite:///' + str(tmp_path / 'api-contract.db'),
+        'FIRE_AI_STORAGE_ROOT': str(tmp_path / 'storage'),
+        'FIRE_AI_PRODUCTION_MODE': 'false',
+    }
+    env.pop('FIRE_AI_TENANT_ID', None)
+    contract = r'''
+from types import SimpleNamespace
+from fastapi.testclient import TestClient
+from test_intake_browser import _selected_submissions, SOURCE_BYTES, PASSWORD, SELECTED_NAME, OTHER_NAME
+with TestClient(app) as client:
+    response = client.post('/auth/login', json={'username': 'intake-operator', 'password': PASSWORD})
+    assert response.status_code == 200, response.text
+    missing = client.get('/submissions')
+    assert missing.status_code == 422, missing.text
+    assert missing.json()['detail'][0]['loc'] == ['query', 'building_id']
+    facilities = client.get('/facilities').json()['items']
+    selected = next(row for row in facilities if row['name'] == SELECTED_NAME)
+    other = next(row for row in facilities if row['name'] == OTHER_NAME)
+    queries = []
+    def get(url):
+        queries.append(url)
+        response = client.get(url)
+        return SimpleNamespace(status=response.status_code, text=lambda: response.text, json=response.json)
+    page = SimpleNamespace(request=SimpleNamespace(get=get))
+    def receipts():
+        queries.clear()
+        rows = _selected_submissions(page, '', selected, other)
+        assert queries == ['/submissions?building_id=' + selected['building_id'], '/submissions?building_id=' + other['building_id']]
+        return rows
+    assert receipts() == []
+    def create_receipt(facility):
+        upload = client.post('/documents/upload', files={'file': ('synthetic-intake.txt', SOURCE_BYTES, 'text/plain')}, data={'document_type': 'submission_source'})
+        assert upload.status_code == 201, upload.text
+        response = client.post('/submissions', json={'building_id': facility['building_id'], 'submission_type_code': 'equipment_inspection_report', 'document_ids': [upload.json()['document_id']], 'official_number': '5402'})
+        assert response.status_code == 201, response.text
+        return response.json()
+    first = create_receipt(selected)
+    assert [row['submission_id'] for row in receipts()] == [first['submission_id']]
+    second = create_receipt(selected)
+    assert {row['submission_id'] for row in receipts()} == {first['submission_id'], second['submission_id']}, 'duplicate receipts must remain visible to browser count assertions'
+    unexpected = create_receipt(other)
+    try:
+        receipts()
+    except AssertionError as exc:
+        assert 'unselected facility has an unexpected receipt' in str(exc)
+        assert unexpected['submission_id'] in str(exc)
+    else:
+        raise AssertionError('an orphan receipt on the unselected facility escaped detection')
+'''
+    result = subprocess.run([sys.executable, '-c', INTAKE_SEED + contract], cwd=root, env=env, capture_output=True, text=True, timeout=30)
     assert result.returncode == 0, result.stdout + result.stderr
