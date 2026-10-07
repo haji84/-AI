@@ -164,9 +164,9 @@ def test_pending_navigation_locks_old_vehicle_rows_before_authority_returns(assi
         expect(row).to_be_disabled()
         assert len(held) == 1
     finally:
-        page.unroute('**/auth/context', hold_first_context)
         for route in held:
             route.continue_()
+        page.unroute('**/auth/context', hold_first_context)
     expect(row).to_be_enabled()
     row.click()
     expect(page.locator('#operationsAssignmentPanel')).to_be_visible()
