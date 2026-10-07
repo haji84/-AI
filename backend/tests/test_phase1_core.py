@@ -642,7 +642,7 @@ def test_phase4_change_proposal_requires_explicit_paths_and_facility_version():
         json={"expected_version": reviewed["version"], "building_id": bid, "submission_type_code": "fire_manager_appointment"},
     )
     assert rereview.status_code == 200
-    proposal2 = client.get(f"/document-analyses/{analysis['document_analysis_id']}/change-proposals").json()[0]
+    proposal2 = next(p for p in client.get(f"/document-analyses/{analysis['document_analysis_id']}/change-proposals").json() if p["status"] == "pending")
     applied = client.post(
         f"/facility-change-proposals/{proposal2['facility_change_proposal_id']}/apply",
         json={"expected_version": proposal2["version"], "expected_facility_version": 2, "accepted_paths": ["facility.address"]},
