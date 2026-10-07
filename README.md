@@ -43,26 +43,15 @@
 - Phase 13: 本番評価・改善
 
 
-## Phase 1 開発起動
+## 起動・導入
 
-Phase 1 backend is under `backend/`. Production target is PostgreSQL; SQLite is only a local test fallback.
+- localhostでの合成データ確認と本部別PostgreSQL導入: [導入手順](docs/release/INSTALLATION.md)
+- 現行の本番配置契約: [本部別運用](docs/architecture/TENANT_OPERATIONS.md)、[設定一式の生成](deploy/tenants/README.md)
+- 固定commitのソース配布: [リリース候補](docs/release/README.md)、[受入確認](docs/release/RELEASE_READINESS.md)
 
-```bash
-cd backend
-python -m pip install -e .
-cp .env.example .env
-# repo rootからmigration/RBAC seed
-cd ..
-PYTHONPATH=backend python scripts/migrate_database.py
-PYTHONPATH=backend python scripts/seed_rbac.py
+コマンドはreleaseルートから実行し、設定を環境変数として明示します。`.env` はカレントディレクトリ基準です。`backend/.env` を置いてもルートからのmigrationには読み込まれません。
 
-# 初回管理者
-cd backend
-python -m app.bootstrap --username admin --display-name 管理者
-uvicorn app.main:app --host 0.0.0.0 --port 8080
-```
-
-Client PCs only open the server URL in a browser. Operational XLSM/PDF/photo/audio data must never be committed to Git.
+本番は本部専用PostgreSQL・UUID・原本保存先・通常/移行DB roleを使用します。SQLiteはlocalhostでの開発・合成テスト専用です。通常職員のPCはサーバーURLをブラウザで開くだけです。実運用XLSM/PDF/写真/録音、DB、資格情報をGitや配布物へ入れないでください。
 
 ## Phase 1 verification
 
@@ -73,7 +62,7 @@ PYTHONPATH=backend python scripts/verify_phase1_legacy_imports.py \
   /path/to/inspection.xlsm /path/to/emergency.xlsm
 ```
 
-LAN/PostgreSQL deployment steps are in `docs/phase1/LAN_DEPLOYMENT.md`.
+現行のLAN/PostgreSQL導入は `deploy/tenants/README.md` を優先します。`docs/phase1/LAN_DEPLOYMENT.md` は初期Phaseの履歴資料です。
 
 
 ## Phase 2 UI
