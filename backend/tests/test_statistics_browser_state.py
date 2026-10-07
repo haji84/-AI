@@ -200,6 +200,16 @@ release();await pending;assert.equal(requests.filter(r=>r.method==='POST').lengt
 ''')
 
 
+def test_processing_status_remains_outside_scrolling_content_across_views():
+    run_ui(r'''
+await run('openStatistics()');choose();const status=nodes.statisticsStatus;
+assert(status);assert(!html().includes('id="statisticsStatus"'),'status must not scroll away with the form');
+let release,checks=0;authorityEndpoint=()=>++checks===1?new Promise(resolve=>release=()=>resolve(new Response(JSON.stringify(authority)))):new Response(JSON.stringify(authority));
+const pending=click(nodes.statisticsSave);await flush();assert.equal(nodes.statisticsStatus,status);assert(status.textContent.includes('権限を確認中'));
+release();await pending;assert.equal(nodes.statisticsStatus,status);assert.equal(status.textContent,'');assert(html().includes('保存済み'));
+''')
+
+
 def test_newer_list_intent_survives_old_query_during_authority_preflight():
     run_ui(r'''
 await run('openStatistics()');choose();let releaseQuery;endpoint=path=>path==='/statistics/query'?new Promise(resolve=>releaseQuery=resolve):regularEndpoint(path);const query=invoke('statisticsQuery');await flush();

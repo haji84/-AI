@@ -1,5 +1,6 @@
 """Saved observations and current-source-authorized Human transitions."""
 from copy import deepcopy
+from datetime import datetime, timezone
 from uuid import UUID
 from fastapi import HTTPException
 from sqlalchemy import select, update
@@ -22,10 +23,23 @@ def get_report(db, key):
     return row
 
 
+def public_lifecycle_time(value: datetime | None):
+    """Serialize only statistics lifecycle times produced by server-owned now_utc.
+
+    SQLite drops tzinfo from these known UTC fields. Source/legacy event times
+    have separate admission contracts and must never use this serializer.
+    """
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc).isoformat()
+
+
 def public_report(row):
     return {'report_id': row.report_id, 'version': row.version, 'state': row.state,
             'predecessor_id': row.predecessor_id, 'successor_id': row.successor_id,
-            'created_at': row.created_at.isoformat(), 'confirmed_at': row.confirmed_at.isoformat() if row.confirmed_at else None,
+            'created_at': public_lifecycle_time(row.created_at), 'confirmed_at': public_lifecycle_time(row.confirmed_at),
             'snapshot': deepcopy(row.snapshot)}
 
 

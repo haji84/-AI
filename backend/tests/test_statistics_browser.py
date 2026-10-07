@@ -283,7 +283,10 @@ def test_aggregate_only_drilldown_denial_and_read_only_saved_access(statistics_b
     expect(page.locator('#statisticsSnapshot')).to_contain_text('観測値: 2')
     assert CASE_ID not in page.locator('#statisticsContent').inner_html()
     page.locator('#statisticsClose').click()
-    page.locator('#logoutBtn').click()
+    # SharedSession shows login before logout's awaited HTTP call and reload.
+    # Wait for that real reload before the next account's login navigates again.
+    with page.expect_navigation(wait_until='load'):
+        page.locator('#logoutBtn').click()
     expect(page.locator('#loginView')).to_be_visible()
     ui['login']('statistics-reader')
     ui['open']()
@@ -430,6 +433,7 @@ def test_actual_save_click_is_busy_during_authority_preflight(statistics_browser
         expect(page.locator('#statisticsSave')).to_be_disabled()
         expect(page.locator('#statisticsStart')).to_be_disabled()
         expect(page.locator('#statisticsStatus')).to_contain_text('権限を確認中')
+        expect(page.locator('#statisticsModal .modalHead #statisticsStatus')).to_be_in_viewport(ratio=1)
         page.screenshot(path=str(ui['artifacts'] / 'statistics-authority-preflight-busy.png'), full_page=True)
         page.locator('#statisticsSave').dispatch_event('click')
         assert not writes

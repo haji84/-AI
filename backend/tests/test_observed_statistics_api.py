@@ -303,3 +303,38 @@ def test_export_formula_safety_applies_to_every_metadata_and_value_cell():
     raw,_=render_export(report,'xlsx')
     workbook=load_workbook(BytesIO(raw),data_only=False)
     assert not any(cell.data_type=='f' for sheet in workbook for row in sheet for cell in row)
+
+
+def test_server_generated_lifecycle_times_keep_explicit_utc_across_save_get_confirm_history(statistics_api):
+    from datetime import timedelta
+    client,engine,refs=statistics_api
+    saved=save(client)
+    path='/statistics/reports/'+saved['report_id']
+    loaded=client.get(path).json()
+    response=client.post(path+'/confirm',json={'expected_version':1,'acknowledged':True,'review_note':'Synthetic lifecycle timestamp check'})
+    assert response.status_code==200,response.text
+    confirmed=response.json()
+    reloaded=client.get(path).json()
+    history=client.get(path+'/history').json()['items']
+    times={**{stage+'.created_at':row['created_at'] for stage,row in [('save',saved),('get',loaded),('confirm',confirmed),('confirmed_get',reloaded)]},
+           'confirm.confirmed_at':confirmed['confirmed_at'],'confirmed_get.confirmed_at':reloaded['confirmed_at'],
+           **{'history.'+item['action']:item['occurred_at'] for item in history}}
+    ambiguous={key:value for key,value in times.items() if datetime.fromisoformat(value).tzinfo is None}
+    assert not ambiguous,ambiguous
+    assert all(datetime.fromisoformat(value).utcoffset()==timedelta(0) for value in times.values())
+    assert saved['created_at']==loaded['created_at']==confirmed['created_at']==reloaded['created_at']
+    assert confirmed['confirmed_at']==reloaded['confirmed_at']
+    assert saved['confirmed_at'] is None and loaded['confirmed_at'] is None
+    assert all(row['snapshot']==saved['snapshot'] for row in [loaded,confirmed,reloaded])
+
+
+def test_lifecycle_public_serialization_converts_aware_server_times_to_utc():
+    from types import SimpleNamespace
+    from app.statistics_reports import public_report
+    row=SimpleNamespace(report_id='synthetic',version=2,state='confirmed',predecessor_id=None,successor_id=None,
+        created_at=datetime.fromisoformat('2026-10-07T18:00:00+09:00'),
+        confirmed_at=datetime.fromisoformat('2026-10-07T19:00:00+09:00'),snapshot={'untouched':'synthetic'})
+    public=public_report(row)
+    assert public['created_at']=='2026-10-07T09:00:00+00:00'
+    assert public['confirmed_at']=='2026-10-07T10:00:00+00:00'
+    assert row.created_at.isoformat()=='2026-10-07T18:00:00+09:00'

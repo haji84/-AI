@@ -76,7 +76,7 @@ def history(key:str,response:Response,limit:int=Query(50,ge=1,le=200),offset:int
     with service.final_session(identity,{'statistics.read'}) as final:
         row=reports.get_report(final,key);service.authorize(final,identity,reports.report_codes(row))
         rows=list(final.scalars(select(StatisticsHistory).where(StatisticsHistory.report_id==row.report_id).order_by(StatisticsHistory.version)))
-        result={'items':[{'action':item.action,'version':item.version,'occurred_at':item.occurred_at.isoformat()} for item in rows[offset:offset+limit]],'total':len(rows),'limit':limit,'offset':offset}
+        result={'items':[{'action':item.action,'version':item.version,'occurred_at':reports.public_lifecycle_time(item.occurred_at)} for item in rows[offset:offset+limit]],'total':len(rows),'limit':limit,'offset':offset}
         service.audit_statistics(final,identity,'history',report_id=row.report_id,version=row.version,metric_keys=row.metric_keys);final.commit()
         return result
 
