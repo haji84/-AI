@@ -299,6 +299,20 @@ with SessionLocal() as db:
             # background session check may already reset the view before we
             # invoke it; starting a fresh ownerless navigation then would test
             # a new action instead of the stale one a user had available.
+            page.evaluate("""() => {
+                window.syntheticSessionTrace=[];
+                const originalAssert=hazardousAssert;
+                hazardousAssert=ticket=>{
+                    window.syntheticSessionTrace.push({event:'owner',ticket:[ticket.generation,ticket.view],current:[hazardousState.generation,hazardousState.viewGeneration],shared:FireAISession.currentGeneration()});
+                    return originalAssert(ticket);
+                };
+                const originalReset=clearSharedPrivateState;
+                FireAISession.install({reset:()=>{
+                    window.syntheticSessionTrace.push({event:'reset-start'});
+                    try{originalReset();window.syntheticSessionTrace.push({event:'reset-end'});}
+                    catch(error){window.syntheticSessionTrace.push({event:'reset-error',message:error.message});throw error;}
+                }});
+            }""")
             page.evaluate("() => { window.syntheticCachedHazardousList = document.getElementById('hazardousListNav').onclick; }")
             expect(page.locator('#hazardousContent')).to_contain_text('変更履歴')
             before = page.request.get(base + '/auth/context').json()
@@ -315,6 +329,7 @@ with SessionLocal() as db:
                 print('Synthetic session diagnostic:', json.dumps({
                     'before_session': before['session_id'], 'after_session': after['session_id'],
                     'browser_session': browser_after['session_id'], 'page_errors': page_errors,
+                    'trace': page.evaluate('window.syntheticSessionTrace'),
                     'ui': page.evaluate("({generation:hazardousState.generation,view:hazardousState.viewGeneration,permissions:hazardousState.permissions.length,loginHidden:document.getElementById('loginView').classList.contains('hidden')})")
                 }))
                 raise
