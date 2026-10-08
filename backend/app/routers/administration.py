@@ -566,101 +566,144 @@ def grantable_role(db,identity,ack):
     role=get(db,Role,identity)
     if not role.active:raise HTTPException(409,'role inactive')
     if role.code=='system_admin':raise HTTPException(422,'system administrator requires a permanent explicit account grant')
-    approv…10999 tokens truncated…lt = subprocess.run(['node', str(script), str(source)], text=True, capture_output=True, timeout=10)
-    assert result.returncode == 0, result.stderr
+    approved_codes(db,role_permissions(db,role.role_id),ack)
+    return role
 
 
-def test_slow_old_list_cannot_replace_new_detail(tmp_path):
-    run(tmp_path, r'''
-handler=async(path)=>path==='/personnel-intake/proposals'?new Promise(resolve=>waiting=resolve):proposal;
-const old=controller.load();await tick();assert.ok(waiting);
-await controller.detail('NOTICE');assert.equal(shown.proposal.proposal_id,'NOTICE');
-waiting([{proposal_id:'OLD PRIVATE'}]);await old;
-assert.equal(shown.proposal.proposal_id,'NOTICE');
-''')
+def grant_source(db,actor,identity,expected_sha256):
+    if identity is None:return {'source_document_id':None,'source_sha256':None}
+    if 'document.read' not in permission_codes(db,actor.user_id):raise HTTPException(403,'source document read required')
+    source=get(db,Document,identity)
+    if source.sha256!=expected_sha256:raise HTTPException(409,'source changed since Human preview')
+    return {'source_document_id':source.document_id,'source_sha256':source.sha256}
 
 
-def test_inflight_session_change_discards_private_detail(tmp_path):
-    run(tmp_path, r'''
-handler=async()=>new Promise(resolve=>waiting=resolve);
-const old=controller.detail('NOTICE');await tick();authority.session_id='REPLACED';waiting(proposal);await old;
-assert.equal(shown,null);assert.ok(clears>0);
-''')
+def exact_assignment(rule,row):
+    return (rule.organization_id is None or rule.organization_id==row.organization_id) and (rule.title is None or rule.title==row.title) and (rule.kind is None or rule.kind==row.kind)
 
 
-def test_lost_management_right_prevents_cached_review(tmp_path):
-    run(tmp_path, r'''
-handler=async()=>proposal;await controller.detail('NOTICE');
-authority.permissions=authority.permissions.filter(x=>x!=='personnel.manage');
-await controller.decision('review','Synthetic Human reason',true);
-assert.equal(calls.filter(x=>x.method==='POST').length,0);assert.equal(shown,null);
-''')
+def revoke_role_sessions(db,role_id):
+    identities=set(db.scalars(select(UserRole.user_id).where(UserRole.role_id==role_id)))
+    identities.update(db.scalars(select(TemporaryRoleGrant.user_id).where(TemporaryRoleGrant.role_id==role_id)))
+    identities.update(db.scalars(select(User.user_id).join(EmployeeAssignment,EmployeeAssignment.employee_id==User.employee_id).join(AssignmentRole,AssignmentRole.assignment_id==EmployeeAssignment.assignment_id).where(AssignmentRole.role_id==role_id)))
+    rules=db.scalars(select(HumanRoleRule).where(HumanRoleRule.role_id==role_id)).all()
+    if rules:
+        employees={row.employee_id for row in db.scalars(select(EmployeeAssignment)) if any(exact_assignment(rule,row) for rule in rules)}
+        if employees:identities.update(db.scalars(select(User.user_id).where(User.employee_id.in_(employees))))
+    if identities:db.execute(update(UserSession).where(UserSession.user_id.in_(identities),UserSession.revoked_at.is_(None)).values(revoked_at=now_utc()))
+    return len(identities)
 
 
-def test_human_acknowledgement_and_double_click_guard(tmp_path):
-    run(tmp_path, r'''
-handler=async()=>proposal;await controller.detail('NOTICE');
-await controller.decision('review','Synthetic Human reason',false);
-assert.equal(calls.filter(x=>x.method==='POST').length,0);
-handler=async()=>new Promise(resolve=>waiting=resolve);
-const first=controller.decision('review','Synthetic Human reason',true);await tick();
-await controller.decision('review','Synthetic Human reason',true);
-assert.equal(calls.filter(x=>x.method==='POST').length,1);
-waiting({...proposal,status:'reviewed',version:2});await first;
-assert.equal(shown.proposal.status,'reviewed');assert.equal(shown.busy,false);
-''')
+def permission_audit(db,actor,action,row,before=None,reason=None,extra=None):
+    after=role_output(db,row) if isinstance(row,Role) else output(row)
+    def dates(data):return {key:value.isoformat() if isinstance(value,date) else value for key,value in data.items()}
+    write_audit(db,user_id=actor.user_id,action=action,entity_type=row.__tablename__,entity_id=str(getattr(row,next(iter(row.__table__.primary_key.columns)).name)),before=dates(before) if before else None,after={**dates(after),'reason':reason,**(extra or {})})
 
 
-def test_permission_loss_after_mutation_cannot_restore_private_state(tmp_path):
-    run(tmp_path, r'''
-handler=async()=>proposal;await controller.detail('NOTICE');
-handler=async()=>{authority.permissions=[];return {...proposal,status:'reviewed',version:2}};
-await controller.decision('review','Synthetic Human reason',true);
-assert.equal(shown,null);assert.ok(clears>0);
-''')
+@router.get('/permissions')
+def permission_registry(actor=Depends(require_permission('account.manage')),db:Session=Depends(get_db)):
+    return [{'code':row.code,'description':row.description,'sensitive':sensitive_permission(row.code)} for row in db.scalars(select(Permission).order_by(Permission.code))]
 
 
-def test_conflict_removes_cached_mutation_target(tmp_path):
-    run(tmp_path, r'''
-handler=async()=>proposal;await controller.detail('NOTICE');
-handler=async()=>{throw Object.assign(new Error('source stale'),{status:409})};
-await controller.decision('review','Synthetic Human reason',true);
-assert.equal(shown.proposal,null);assert.equal(shown.busy,false);
-const count=calls.length;await controller.decision('review','Synthetic Human reason',true);
-assert.equal(calls.length,count);
-''')
+@router.get('/permission-roles')
+def permission_roles(offset:int=0,limit:int=100,actor=Depends(require_permission('account.manage')),db:Session=Depends(get_db)):
+    if offset<0 or not 1<=limit<=500:raise HTTPException(422,'invalid role page')
+    return [role_output(db,row) for row in db.scalars(select(Role).order_by(Role.name,Role.role_id).offset(offset).limit(limit))]
 
 
-def test_focus_check_erases_private_state_while_mutation_is_pending(tmp_path):
-    run(tmp_path, r'''
-handler=async()=>proposal;await controller.detail('NOTICE');
-handler=async()=>new Promise(resolve=>waiting=resolve);
-const action=controller.decision('review','Synthetic Human reason',true);await tick();
-authority.permissions=[];await controller.check();
-assert.equal(shown,null,'permission loss must clear before pending mutation completes');
-waiting({...proposal,status:'reviewed',version:2});await action;
-assert.equal(shown,null);
-''')
+@router.post('/permission-roles',status_code=201)
+def create_permission_role(payload:PermissionRoleCreate,actor=Depends(require_permission('account.manage')),db:Session=Depends(get_db)):
+    administration_lock(db,actor,'account.manage');permissions=approved_codes(db,payload.permission_codes,payload.sensitive_acknowledged)
+    name=payload.name.strip()
+    if not name:raise HTTPException(422,'role name must not be blank')
+    if db.scalar(select(Role.role_id).where(Role.name==name)):raise HTTPException(409,'role name already exists')
+    row=Role(code='dept_'+uuid4().hex,name=name,system_role=False,active=payload.active);db.add(row);db.flush()
+    for permission in permissions:db.add(RolePermission(role_id=row.role_id,permission_id=permission.permission_id))
+    db.flush();permission_audit(db,actor,'permission.role.create',row,reason=payload.reason);commit(db);return role_output(db,row)
 
 
-def test_unavailable_authority_clears_cached_source_before_reload(tmp_path):
-    run(tmp_path, r'''
-handler=async()=>proposal;await controller.detail('NOTICE');
-assert.equal(shown.proposal.source_text,proposal.source_text);
-authorityFailure=Object.assign(new Error('authority unavailable'),{status:503});
-const before=calls.filter(x=>x.path.startsWith('/personnel-intake/')).length;
-await controller.load();
-assert.equal(shown,null,'failed authority verification must erase cached originals');
-assert.equal(calls.filter(x=>x.path.startsWith('/personnel-intake/')).length,before);
-''')
+@router.patch('/permission-roles/{role_id}')
+def edit_permission_role(role_id:UUID,payload:PermissionRolePatch,actor=Depends(require_permission('account.manage')),db:Session=Depends(get_db)):
+    administration_lock(db,actor,'account.manage');row=get(db,Role,role_id)
+    if row.system_role or row.code=='system_admin':raise HTTPException(422,'code-owned system role is read-only')
+    if payload.name is None and payload.permission_codes is None and payload.active is None:raise HTTPException(422,'empty role change')
+    before=role_output(db,row);changes={'version':payload.expected_version+1}
+    if payload.name is not None:
+        name=payload.name.strip()
+        if not name:raise HTTPException(422,'role name must not be blank')
+        if db.scalar(select(Role.role_id).where(Role.name==name,Role.role_id!=str(role_id))):raise HTTPException(409,'role name already exists')
+        changes['name']=name
+    if payload.active is not None:changes['active']=payload.active
+    permissions=approved_codes(db,payload.permission_codes,payload.sensitive_acknowledged) if payload.permission_codes is not None else None
+    if payload.active is True and not row.active and payload.permission_codes is None:approved_codes(db,role_permissions(db,row.role_id),payload.sensitive_acknowledged)
+    changed=db.execute(update(Role).where(Role.role_id==str(role_id),Role.version==payload.expected_version).values(**changes)).rowcount
+    if changed!=1:raise HTTPException(409,'role version conflict')
+    if permissions is not None:
+        for grant in db.scalars(select(RolePermission).where(RolePermission.role_id==row.role_id)):db.delete(grant)
+        db.flush()
+        for permission in permissions:db.add(RolePermission(role_id=row.role_id,permission_id=permission.permission_id))
+    db.flush();db.refresh(row);retain_administrator(db);count=revoke_role_sessions(db,row.role_id)
+    permission_audit(db,actor,'permission.role.update',row,before,payload.reason,{'affected_accounts':count});commit(db);return role_output(db,row)
 
 
-def test_invalid_authority_context_clears_cached_source_before_reload(tmp_path):
-    run(tmp_path, r'''
-handler=async()=>proposal;await controller.detail('NOTICE');
-authority=null;
-const before=calls.filter(x=>x.path.startsWith('/personnel-intake/')).length;
-await controller.load();
-assert.equal(shown,null,'malformed authority context must erase cached originals');
-assert.equal(calls.filter(x=>x.path.startsWith('/personnel-intake/')).length,before);
-''')
+@router.get('/role-rules')
+def role_rules(offset:int=0,limit:int=100,actor=Depends(require_permission('account.manage')),db:Session=Depends(get_db)):
+    if offset<0 or not 1<=limit<=500:raise HTTPException(422,'invalid rule page')
+    return [output(row) for row in db.scalars(select(HumanRoleRule).order_by(HumanRoleRule.created_at.desc(),HumanRoleRule.rule_id).offset(offset).limit(limit))]
+
+
+@router.post('/role-rules',status_code=201)
+def create_role_rule(payload:RoleRuleCreate,actor=Depends(require_permission('account.manage')),db:Session=Depends(get_db)):
+    administration_lock(db,actor,'account.manage');role=grantable_role(db,payload.role_id,payload.sensitive_acknowledged)
+    if payload.organization_id and not get(db,OrganizationUnit,payload.organization_id).active:raise HTTPException(409,'organization inactive')
+    row=HumanRoleRule(name=payload.name.strip(),role_id=role.role_id,organization_id=str(payload.organization_id) if payload.organization_id else None,title=payload.title,kind=payload.kind,valid_from=payload.valid_from,valid_to=payload.valid_to,reason=payload.reason,created_by=actor.user_id,**grant_source(db,actor,payload.source_document_id,payload.expected_source_sha256))
+    if not row.name:raise HTTPException(422,'rule name must not be blank')
+    db.add(row);db.flush();count=revoke_role_sessions(db,row.role_id);permission_audit(db,actor,'permission.rule.create',row,reason=payload.reason,extra={'affected_accounts':count});commit(db);return output(row)
+
+
+@router.patch('/role-rules/{rule_id}')
+def edit_role_rule(rule_id:UUID,payload:RoleRuleState,actor=Depends(require_permission('account.manage')),db:Session=Depends(get_db)):
+    administration_lock(db,actor,'account.manage');row=get(db,HumanRoleRule,rule_id);before=output(row)
+    if payload.active:
+        grantable_role(db,row.role_id,payload.sensitive_acknowledged)
+        if row.organization_id and not get(db,OrganizationUnit,row.organization_id).active:raise HTTPException(409,'organization inactive')
+        if row.source_document_id and get(db,Document,row.source_document_id).sha256!=row.source_sha256:raise HTTPException(409,'rule source changed; create a new Human rule')
+    changed=db.execute(update(HumanRoleRule).where(HumanRoleRule.rule_id==str(rule_id),HumanRoleRule.version==payload.expected_version).values(active=payload.active,version=payload.expected_version+1,reason=payload.reason)).rowcount
+    if changed!=1:raise HTTPException(409,'rule version conflict')
+    db.refresh(row);count=revoke_role_sessions(db,row.role_id);permission_audit(db,actor,'permission.rule.state',row,before,payload.reason,{'affected_accounts':count});commit(db);return output(row)
+
+
+@router.get('/role-grants')
+def role_grants(user_id:UUID|None=None,offset:int=0,limit:int=100,actor=Depends(require_permission('account.manage')),db:Session=Depends(get_db)):
+    if offset<0 or not 1<=limit<=500:raise HTTPException(422,'invalid grant page')
+    query=select(TemporaryRoleGrant)
+    if user_id is not None:query=query.where(TemporaryRoleGrant.user_id==str(user_id))
+    return [output(row) for row in db.scalars(query.order_by(TemporaryRoleGrant.created_at.desc(),TemporaryRoleGrant.grant_id).offset(offset).limit(limit))]
+
+
+@router.post('/role-grants',status_code=201)
+def create_role_grant(payload:RoleGrantCreate,actor=Depends(require_permission('account.manage')),db:Session=Depends(get_db)):
+    administration_lock(db,actor,'account.manage');role=grantable_role(db,payload.role_id,payload.sensitive_acknowledged);user=get(db,User,payload.user_id)
+    if not user.active or not employee_available(db,user):raise HTTPException(409,'grantee inactive')
+    if payload.acting_for_employee_id:
+        principal=get(db,Employee,payload.acting_for_employee_id)
+        if not principal.active or principal.employee_id==user.employee_id:raise HTTPException(422,'acting principal must be a different active employee')
+    row=TemporaryRoleGrant(user_id=user.user_id,role_id=role.role_id,acting_for_employee_id=str(payload.acting_for_employee_id) if payload.acting_for_employee_id else None,valid_from=payload.valid_from,valid_to=payload.valid_to,reason=payload.reason,created_by=actor.user_id,**grant_source(db,actor,payload.source_document_id,payload.expected_source_sha256))
+    db.add(row);db.flush();revoke_sessions(db,row.user_id);permission_audit(db,actor,'permission.grant.create',row,reason=payload.reason);commit(db);return output(row)
+
+
+@router.post('/role-grants/{grant_id}/revoke')
+def revoke_role_grant(grant_id:UUID,payload:RoleGrantRevoke,actor=Depends(require_permission('account.manage')),db:Session=Depends(get_db)):
+    administration_lock(db,actor,'account.manage');row=get(db,TemporaryRoleGrant,grant_id);before=output(row)
+    changed=db.execute(update(TemporaryRoleGrant).where(TemporaryRoleGrant.grant_id==str(grant_id),TemporaryRoleGrant.version==payload.expected_version,TemporaryRoleGrant.revoked_at.is_(None)).values(revoked_at=now_utc(),revoked_by=actor.user_id,revocation_reason=payload.reason,version=payload.expected_version+1)).rowcount
+    if changed!=1:raise HTTPException(409,'grant changed or already revoked')
+    db.refresh(row);revoke_sessions(db,row.user_id);permission_audit(db,actor,'permission.grant.revoke',row,before,payload.reason);commit(db);return output(row)
+
+
+@router.get('/own-role-explanation')
+def own_role_explanation(actor=Depends(current_user),db:Session=Depends(get_db)):
+    from ..personnel import effective_role_sources
+    sources=effective_role_sources(db,actor.user_id)
+    return {'username':actor.username,'business_date':business_date(),
+        'roles':[{**source,'name':get(db,Role,source['role_id']).name} for source in sources],
+        'permissions':[{'code':code,'description':db.scalar(select(Permission.description).where(Permission.code==code))} for code in sorted(permission_codes(db,actor.user_id))]}
