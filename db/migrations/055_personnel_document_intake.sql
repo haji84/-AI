@@ -1,0 +1,30 @@
+-- Human-reviewed notice candidates; no automatic Role/Employee mutation.
+CREATE TABLE personnel_document_proposals (
+    proposal_id uuid PRIMARY KEY,
+    source_document_id uuid NOT NULL REFERENCES documents(document_id),
+    source_sha256 varchar(64) NOT NULL,
+    extraction_method varchar(100) NOT NULL,
+    source_text text NOT NULL,
+    source_quote text NOT NULL,
+    proposed jsonb NOT NULL DEFAULT '{}',
+    errors jsonb NOT NULL DEFAULT '[]',
+    before_snapshot jsonb NOT NULL DEFAULT '{}',
+    after_snapshot jsonb NOT NULL DEFAULT '{}',
+    employee_id uuid REFERENCES employees(employee_id),
+    organization_id uuid REFERENCES organization_units(organization_id),
+    status varchar(20) NOT NULL DEFAULT 'candidate',
+    version bigint NOT NULL DEFAULT 1,
+    reason text NOT NULL DEFAULT 'deterministic notice extraction',
+    created_by uuid NOT NULL REFERENCES app_users(user_id),
+    reviewed_by uuid REFERENCES app_users(user_id),
+    applied_by uuid REFERENCES app_users(user_id),
+    applied_assignment_id uuid REFERENCES employee_assignments(assignment_id),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    reviewed_at timestamptz,
+    applied_at timestamptz,
+    CONSTRAINT personnel_proposal_status CHECK (status IN ('candidate','reviewed','applied','rejected')),
+    CONSTRAINT personnel_proposal_version CHECK (version >= 1),
+    CONSTRAINT personnel_proposal_review CHECK (status NOT IN ('reviewed','applied') OR (reviewed_by IS NOT NULL AND reviewed_at IS NOT NULL)),
+    CONSTRAINT personnel_proposal_apply CHECK (status <> 'applied' OR (applied_by IS NOT NULL AND applied_at IS NOT NULL AND applied_assignment_id IS NOT NULL))
+);
+CREATE INDEX personnel_document_proposals_source_document_id ON personnel_document_proposals(source_document_id);
