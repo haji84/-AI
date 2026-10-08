@@ -20,6 +20,9 @@ def upload_document(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("document.create")),
 ):
+    if document_type == 'personnel_notice':
+        from ..inquiries_service import need
+        need(db, user, 'personnel.manage', 'personnel.read')
     if building_id and not db.get(Facility, building_id):
         raise HTTPException(status_code=404, detail="facility not found")
     storage_path, digest, size=store_upload(file)
@@ -42,7 +45,7 @@ def get_document(document_id: str, response:Response, db: Session = Depends(get_
     if not doc: raise HTTPException(status_code=404,detail="document not found")
     from ..inquiries_service import guard_document
     guard_document(db,user,doc)
-    if doc.document_type in ('inquiry_import_original','inquiry_rendered_original','hazardous_evidence'):response.headers['Cache-Control']='no-store'
+    if doc.document_type in ('inquiry_import_original','inquiry_rendered_original','hazardous_evidence','personnel_notice'):response.headers['Cache-Control']='no-store'
     return DocumentOut(document_id=doc.document_id, building_id=doc.building_id,
                        original_filename=doc.original_filename, sha256=doc.sha256,
                        size_bytes=doc.size_bytes, mime_type=doc.mime_type,
@@ -69,6 +72,6 @@ def download_document(
         str(path),
         media_type=doc.mime_type or "application/octet-stream",
         filename=doc.original_filename,
-        headers={'Cache-Control':'no-store'} if doc.document_type in ('inquiry_import_original','inquiry_rendered_original','hazardous_evidence') else None,
+        headers={'Cache-Control':'no-store'} if doc.document_type in ('inquiry_import_original','inquiry_rendered_original','hazardous_evidence','personnel_notice') else None,
     )
 
