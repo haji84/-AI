@@ -33,3 +33,14 @@
 既存Chromiumの業務キューjourneyには財務カード→実財務画面→Human操作権限→取消後再読込を追加した。実Chromium/PostgreSQL・PR/main CI結果は実行後のEvidenceに記録する。skipを成功と数えない。
 
 残差: 財務候補・契約/請求期限のキュー、章27の残り正式仕様、章36の全モジュール対応、実運用規模性能測定は未完。
+
+## CI再開とセッション試験の修復（2026-10-09 JST）
+
+リポジトリをpublicへ変更後、PR #80 head `46b57e75ed0177ad52f81158f172cb6fab09d262` の run `37700838286` attempt 3は実際に起動した。過去の課金・利用制限による起動前失敗とは区別する。
+
+- backend-tests job `113584198257`: 成功、実PostgreSQLを含む `1212 passed / 96 skipped`。Migration parser、JavaScript syntaxも成功。
+- administration-browser job `113584198465`: `1 failed / 71 passed`。失敗は既存 `test_hazardous_browser.py` の同一職員・新セッション試験。run全体は失敗であり、このheadをmergeできない。
+
+原因を実 `shared-session.js` と `hazardous.js` で再現した。背景の権限・セッション照合が先にresetした場合、旧試験が呼ぶownerなしの新規 `hazardousList` は新セッションの新規画面を開く。実画面の旧ボタンは元ownerを保持しており、背景reset後には取得・再表示を行わない。修復はセッション変更前に実 `hazardousListNav.onclick` を捕捉し、その同じ旧操作を変更後に実行する。modal消去・login表示・権限キャッシュ消去のassertionは維持する。遅延や無条件再実行は追加しない。
+
+状態回帰試験では、背景resetが操作前に起きる場合と、旧操作の照合中に起きる場合の両方で、modalなし・権限0・危険物原記録の追加取得0を確認する。危険物状態試験はローカル `25 passed`。本番セッション処理・RBAC・Human Gateは変更していない。新headの実Chromium・全CI結果は別途検証するまで未完。

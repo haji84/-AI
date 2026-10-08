@@ -295,11 +295,16 @@ with SessionLocal() as db:
             page.locator('[data-hazardous-installation]').click()
             expect(page.locator('#hazardousContent')).to_contain_text('Synthetic hazardous installation')
             # Same account, new session: the current private view and cached actions must disappear.
+            # Capture the actual rendered action and its originating owner. A
+            # background session check may already reset the view before we
+            # invoke it; starting a fresh ownerless navigation then would test
+            # a new action instead of the stale one a user had available.
+            page.evaluate("window.syntheticCachedHazardousList = document.getElementById('hazardousListNav').onclick")
             before = page.request.get(base + '/auth/context').json()
             assert page.request.post(base + '/auth/login', data={'username':'hazardous-browser','password':'synthetic-hazardous-password'}).status == 200
             after = page.request.get(base + '/auth/context').json()
             assert before['session_id'] != after['session_id']
-            page.evaluate('hazardousAction(()=>hazardousList())')
+            page.evaluate('window.syntheticCachedHazardousList()')
             expect(page.locator('#hazardousModal')).to_have_count(0)
             expect(page.locator('#loginView')).to_be_visible()
             assert page.evaluate('hazardousState.permissions.length') == 0
