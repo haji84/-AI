@@ -44,3 +44,7 @@
 原因を実 `shared-session.js` と `hazardous.js` で再現した。背景の権限・セッション照合が先にresetした場合、旧試験が呼ぶownerなしの新規 `hazardousList` は新セッションの新規画面を開く。実画面の旧ボタンは元ownerを保持しており、背景reset後には取得・再表示を行わない。修復はセッション変更前に実 `hazardousListNav.onclick` を捕捉し、その同じ旧操作を変更後に実行する。modal消去・login表示・権限キャッシュ消去のassertionは維持する。遅延や無条件再実行は追加しない。
 
 状態回帰試験では、背景resetが操作前に起きる場合と、旧操作の照合中に起きる場合の両方で、modalなし・権限0・危険物原記録の追加取得0を確認する。危険物状態試験はローカル `25 passed`。本番セッション処理・RBAC・Human Gateは変更していない。新headの実Chromium・全CI結果は別途検証するまで未完。
+
+修復head `d18de9bba8c62e369ea183d0d42d4145b9f04edf` の run37858927140も、実backendは成功したが、Chromiumは同じmodal assertionで1failed/71passed。先のタイミング説明だけでは実失敗の解消を証明できない。追加の試験不備として、handler保存の代入式が関数値を返し、Playwright自身がその関数を実行していた。[公式page.evaluate契約](https://playwright.dev/python/docs/api/class-page#page-evaluate)とインストール済Playwrightの実UtilityScriptで、保存だけのつもりがviewGenerationを1→2へ進めるREDを再現。返り値なしの関数で保存する形に直すと、この実評価器のprobeはGreen。評価器内部への依存は恒久テストに追加せず、native journey自身で保存後も変更履歴画面のままであることを確認する。
+
+さらに実ブラウザのauth/contextとHTTP fixtureの新session IDが一致することを確認し、modal失敗時は合成UI/非秘密session ID/page errorの診断と合成screenshotを残す。Cookie/tokenは出力しない。ブラウザ試験の選択集合は全16ファイルを維持し、危険物を先頭にして失敗時だけ停止する。Green時は全選択を実行する。新headのnative/full CI成功までmergeしない。
