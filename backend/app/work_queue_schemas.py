@@ -4,14 +4,14 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-Module = Literal['operational_assets', 'fleet', 'violations', 'inquiries', 'budget']
+Module = Literal['operational_assets', 'fleet', 'violations', 'inquiries', 'budget', 'hazardous_materials']
 Relationship = Literal['created_by_me', 'borrowed_by_me', 'available_to_my_role', 'shared_deadline']
-SourceType = Literal['asset', 'asset_lot', 'asset_loan', 'vehicle', 'vehicle_service', 'corrective_action', 'inquiry', 'finance_proposal']
+SourceType = Literal['asset', 'asset_lot', 'asset_loan', 'vehicle', 'vehicle_service', 'corrective_action', 'inquiry', 'finance_proposal', 'hazardous_record', 'hazardous_evaluation']
 
 
 class Navigation(BaseModel):
     model_config = ConfigDict(extra='forbid')
-    surface: Literal['asset', 'vehicle', 'violation', 'inquiry', 'finance_proposal']
+    surface: Literal['asset', 'vehicle', 'violation', 'inquiry', 'finance_proposal', 'hazardous_installation', 'hazardous_evaluation']
     id: str
 
 
@@ -20,7 +20,7 @@ class Provenance(BaseModel):
     source_api: str
     as_of: date
     source_version: int
-    parent_source_type: Literal['asset', 'vehicle', 'violation'] | None = None
+    parent_source_type: Literal['asset', 'vehicle', 'violation', 'hazardous_installation'] | None = None
     parent_source_id: str | None = None
     parent_source_version: int | None = None
 

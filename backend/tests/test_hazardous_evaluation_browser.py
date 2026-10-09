@@ -88,6 +88,12 @@ def test_approved_rule_candidate_trace_separate_human_review_and_current_rights(
             assert [item['state'] for item in candidate['results']] == ['matched', 'unresolved']
             expect(page.locator('#hazardousContent')).to_contain_text('未解決・Human確認が必要')
             expect(page.locator('#hazardousContent')).to_contain_text('正式な適合・違反・許可の判定ではありません')
+            page.locator('#hazardousClose').click()
+            page.locator('#workQueueBtn').click()
+            expect(page.locator('#workQueuePanel')).to_contain_text('危険物評価候補のHuman確認')
+            expect(page.locator('#workQueuePanel')).not_to_contain_text('Synthetic exact material')
+            page.locator('[data-work-queue-open]').click()
+            expect(page.locator('#hazardousContent')).to_contain_text('未解決・Human確認が必要')
             page.locator('#hazardousContent details').click()
             expect(page.locator('#hazardousContent pre')).to_contain_text('Synthetic Article 1')
             artifacts = Path(os.environ.get('FIRE_AI_BROWSER_ARTIFACTS', str(tmp_path / 'artifacts')))
@@ -103,6 +109,42 @@ def test_approved_rule_candidate_trace_separate_human_review_and_current_rights(
             expect(page.locator('#hazardousContent')).to_contain_text('Human確認済')
             expect(page.locator('#hazardousEvaluationReview')).to_have_count(0)
             page.screenshot(path=str(artifacts / 'hazardous-evaluation-human-reviewed.png'), full_page=True)
+            page.locator('#hazardousClose').click()
+            page.locator('#workQueueBtn').click()
+            expect(page.locator('[data-work-queue-open]')).to_have_count(0)
+            page.screenshot(path=str(artifacts / 'hazardous-queue-reviewed-removal.png'), full_page=True)
+            record_path = '/hazardous/installations/' + identifiers['installation_id'] + '/records'
+            evidence = candidate['rules_snapshot'][0]['source']
+            created_record = page.request.post(base + record_path, data={
+                'expected_installation_version': 1, 'kind': 'notification',
+                'title': 'Synthetic notification original evidence', 'recorded_on': '2026-10-01',
+                'due_on': '2026-10-10', 'document_ids': [evidence['original']['document_id']],
+                'legal_source_version_ids': [evidence['legal_source_version_id']]})
+            assert created_record.status == 201, created_record.text()
+            record_id = created_record.json()['record_id']
+            page.locator('#workQueueRefresh').click()
+            pending_record = page.locator('#workQueuePanel article').filter(has_text='危険物記録の原本・根拠確認')
+            expect(pending_record).to_have_count(1)
+            expect(page.locator('#workQueuePanel')).not_to_contain_text('Synthetic notification original evidence')
+            pending_record.get_by_role('button', name='元記録を開く', exact=True).click()
+            expect(page.locator('#hazardousContent')).to_contain_text('Synthetic notification original evidence')
+            page.locator('#hazardousConfirm').click()
+            page.locator('#hazardousField_reason').fill('Synthetic independent original confirmation')
+            page.locator('#hazardousField_human_acknowledged').check()
+            with page.expect_response(lambda r: r.url.endswith('/records/' + record_id + '/confirm') and r.request.method == 'POST') as confirmed_record:
+                page.locator('#hazardousSave').click()
+            assert confirmed_record.value.status == 200, confirmed_record.value.text()
+            expect(page.locator('#hazardousContent')).to_contain_text('現行の事実・原本をHuman確認済')
+            page.locator('#hazardousClose').click()
+            page.locator('#workQueueBtn').click()
+            expect(page.locator('#workQueuePanel')).not_to_contain_text('危険物記録の原本・根拠確認')
+            expect(page.locator('#workQueuePanel')).to_contain_text('危険物記録の期限確認')
+            page.screenshot(path=str(artifacts / 'hazardous-queue-record-confirmed-deadline.png'), full_page=True)
+            page.locator('#hazardousBtn').click()
+            page.locator('[data-hazardous-installation]').click()
+            page.locator('#hazardousEvaluationList').click()
+            page.locator('[data-hazardous-evaluation]').click()
+            expect(page.locator('#hazardousContent')).to_contain_text('Human確認済')
             revoke = "from app.db import engine; from test_hazardous_rule_authoring import revoke_original_access; revoke_original_access(engine)"
             subprocess.run([sys.executable, '-c', revoke], cwd=root, env=env, check=True, capture_output=True)
             page.locator('#hazardousEvaluationReload').click()

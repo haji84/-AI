@@ -13,6 +13,7 @@ from .operations_models import Vehicle, VehicleService
 from .violation_models import CorrectiveAction, ViolationCase
 from .work_queue_schemas import Navigation, Provenance, WorkQueueItem, WorkQueueResponse
 from .work_queue_finance import finance_work_items
+from .work_queue_hazardous import hazardous_work_items
 
 ASSET_LABELS = {
     'pressure_test': '耐圧試験', 'use': '使用期限', 'calibration': '校正',
@@ -176,7 +177,7 @@ def list_work_queue(db, user, *, as_of=None, days=30, scope='all', limit=50, off
     """
     flags = dict(db.execute(select(FeatureFlag.key, FeatureFlag.enabled).where(
         FeatureFlag.key.in_([f'module.{code}.enabled' for code in (
-            'work_queue', 'operational_assets', 'fleet', 'violations', 'inquiries', 'budget')]))).all())
+            'work_queue', 'operational_assets', 'fleet', 'violations', 'inquiries', 'budget', 'hazardous_materials')]))).all())
 
     def enabled(module):
         return flags.get(f'module.{module}.enabled', True)
@@ -196,6 +197,7 @@ def list_work_queue(db, user, *, as_of=None, days=30, scope='all', limit=50, off
         ('violations', 'violation.read', lambda: _corrections(db, user, as_of, through)),
         ('inquiries', 'inquiry.read', lambda: _inquiries(db, user, permissions, as_of)),
         ('budget', 'finance.read', lambda: finance_work_items(db, user, as_of, _item)),
+        ('hazardous_materials', 'hazardous.read', lambda: hazardous_work_items(db, user, as_of, through, _item)),
     )
     for module, permission, provider in providers:
         if enabled(module) and permission in permissions:

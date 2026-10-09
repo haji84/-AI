@@ -4,6 +4,8 @@ Status vocabulary: **Completed / Partial / Missing / External Gate**. This log p
 
 ## Status checkpoints
 
+2026-10-09: PR83 merged as `07b854552d173b7736323d5d18b3144b6ae9d32a`, tree `477ee5c16f2693e4a698c52c00494f4213a47064`. Exact-head CI37873610982 and independent main CI37874629139 succeeded (backend1353/98 skipped; browser job74; parser/JavaScript), including native057 PostgreSQL and Chromium Human-candidate acceptance. §16 **Partial → Completed**, after [facet re-audit](HAZARDOUS_CHAPTER16_COMPLETION_20261009.md) against canonical targets and preserved exit. **13 Completed / 43 Partial / 0 Missing / 1 External Gate**. §17, §36, ten-flow E2E and release remain internal Partial. Formal policy approval, real originals and site acceptance remain Human-Gated. No common queue credit yet; no whole-system completion claim.
+
 2026-10-09: PR82 merged as `fc96af9dc6cd235487c5fe47ebf42d2b0553e887` (tree `d1c1fe35dfbd31d91006ab31db3a6980da93657b`). Exact-head CI37871180915 and independent main CI37872231434 succeeded, including native056 PostgreSQL and Chromium workflows. Adds primary-source-bound hazardous Rule authoring and immutable approval evidence. **12 Completed / 44 Partial / 0 Missing / 1 External Gate**, unchanged; dedicated installation evaluation workflow remains unmerged and chapters16/17 remain Partial. See current ledger D14 and the authoring verification record.
 
 | Checkpoint | Completed | Partial | Missing | External Gate | Basis |

@@ -180,6 +180,28 @@ await run('openWorkQueue()');const old=sourceButtons()[0].onclick();await flush(
 ''')
 
 
+@pytest.mark.parametrize('surface,source_type,expected', [
+    ('hazardous_installation', 'hazardous_record', ['record', 'synthetic-installation', 'synthetic-record']),
+    ('hazardous_evaluation', 'hazardous_evaluation', ['evaluation', 'synthetic-installation']),
+])
+def test_hazardous_navigation_selects_exact_source_and_propagates_cancellation(surface, source_type, expected):
+    run_ui(r'''
+authority.permissions.push('hazardous.read','facility.read');
+let calls=[],owners=[],release;
+context.hazardousAction=async fn=>fn();
+context.openHazardous=async owned=>{owners.push(owned);nodes.hazardousModal=element('hazardousModal');if(release===null)await new Promise(resolve=>release=resolve)};
+context.hazardousRecordDetail=async(parent,id,owned)=>{calls.push(['record',parent,id]);owners.push(owned)};
+context.hazardousEvaluationDetail=async(id,owned)=>{calls.push(['evaluation',id]);owners.push(owned)};
+endpoint=async()=>envelope([card({module:'hazardous_materials',source_type:SOURCE_TYPE,source_id:'synthetic-record',required_permissions:['hazardous.read','facility.read'],navigation:{surface:SURFACE,id:'synthetic-installation'}})]);
+await run('openWorkQueue()');await sourceButtons()[0].onclick();
+assert.deepEqual(calls,[EXPECTED]);assert.equal(owners.length,2);assert(owners.every(owner=>typeof owner==='function'));
+calls=[];owners=[];release=null;await run('openWorkQueue()');
+const pending=sourceButtons()[0].onclick();await flush();assert.equal(typeof release,'function');
+await run('openWorkQueue()');assert.equal(owners[0](),false);release();await pending;
+assert.deepEqual(calls,[],'obsolete initial open continued to a source detail');
+'''.replace('SOURCE_TYPE', json.dumps(source_type)).replace('SURFACE', json.dumps(surface)).replace('EXPECTED', json.dumps(expected)))
+
+
 def test_home_replaces_facility_pane_and_owns_main_navigation():
     # Home must hide the facility placeholder/detail and invalidate pending detail.
     run_ui(r'''
