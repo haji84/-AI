@@ -2,11 +2,13 @@
 
 更新日: 2026-10-09
 
-## 最新の監査差分（main `f7b4058` 基準）
+## 最新の監査差分（main `be5185e` 基準）
 
 正本mainは `f7b4058c884454fed58f4cb1a02b931f8992f799`、tree `6bb7ae78e22daf9a0412a56a697d7d21cc82f45b`。PR79の車両権限再照合中の旧操作ロックと、PR80の財務確認・承認待ちから共通Work Queueへの接続を反映済み。PR80 exact-head [CI37864361725](https://github.com/haji84/-AI/actions/runs/37864361725) はbackend1213 passed/96 skipped、browser job72 passed、migration parser/JavaScript成功。独立した [main CI37865572873](https://github.com/haji84/-AI/actions/runs/37865572873) も成功（backend1213 passed/96 skipped/467.60s、browser job72 passed/716.09s、parser/JavaScript成功）。skipを成功と数えない。
 
-分類は **Completed12 / Partial44 / Missing0 / External Gate1** を維持する。根拠・残要件は完成台帳D11/D12。人事通知取込と危険物Rule評価の未merge候補はmainの実装creditに含めない。下の9d6f86b基準と過去Phase説明は履歴で、最新の正本や完成判定へ読み替えない。
+PR81の人事原本→未知コード候補→Human引用補正→独立確認→将来日付の正式適用をmerge済み。最新mainは `be5185e53a5f126d6524bee1291d83a7e41fde92`、tree `3f56f3155343325c2d845fa5647ad23a66ad6618`。exact PR head d605625の[CI37867368670](https://github.com/haji84/-AI/actions/runs/37867368670)はbackend1245 passed/97 skipped、browser job73 passed。独立mainの[CI37868495428](https://github.com/haji84/-AI/actions/runs/37868495428)もbackend1245 passed/97 skipped/608.80s、browser job73 passed/734.45s、migration parser/JavaScript成功。人事辞令の自然文AI品質・独立役職code・全人事要件は未完で、章6全体の完了ではない。
+
+分類は **Completed12 / Partial44 / Missing0 / External Gate1** を維持する。根拠・残要件は完成台帳D11–D13。危険物Rule authoring/engineの未merge候補はmainの実装creditに含めない。下の9d6f86b基準と過去Phase説明は履歴で、最新の正本や完成判定へ読み替えない。
 
 ## 現在の完成状況（main `9d6f86b` 基準）
 

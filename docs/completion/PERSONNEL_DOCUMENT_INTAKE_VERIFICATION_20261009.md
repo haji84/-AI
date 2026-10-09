@@ -1,6 +1,12 @@
 # 人事原本からの辞令候補 — 使用手順と検証境界
 
-実装中のbounded Slice。mainへの統合・正確なheadのCI・merge後mainの検証が揃うまで完成済みとしない。章6等の全条件を満たしたとの主張ではない。
+PR81でmainへ統合・exact-head CI・merge後main検証が揃ったbounded Slice。章6等の全条件を満たしたとの主張ではない。
+
+## 完了した統合検証（2026-10-09）
+
+Exact head `d60562582e7337ee5511002445c200aa6d85f846`、tree `3f56f3155343325c2d845fa5647ad23a66ad6618`の[PR CI37867368670](https://github.com/haji84/-AI/actions/runs/37867368670)はbackend1245 passed/97 skipped/667.62s、browser job73 passed/561.78s、parser/JavaScript成功。実PostgreSQLの旧DB更新・再実行・競合適用200/409と、実ChromiumのHuman原本ワークフローを含む。artifact11589261754 SHA256 `813fe056c84aff83975dfae31c9dd1eda74f3c60685fa6bcc7843e4f393c213e`。
+
+Merge後main `be5185e53a5f126d6524bee1291d83a7e41fde92`は同じtree。独立した[main CI37868495428](https://github.com/haji84/-AI/actions/runs/37868495428)もbackend1245 passed/97 skipped/608.80s、browser job73 passed/734.45s、parser/JavaScript成功。artifact11589264283 SHA256 `8e6ce38464683d2eabad88683d3fec953168106942ced2707b69b027f7bcaea0`。Browser job総数は既存Node/APIを含み、73件すべてをChromiumとは扱わない。以下の途中記録は履歴として保持し、この終了結果でnative pending状態を更新する。Skip・実人事原本・自然文AI品質・章6全体・10本E2E・Release完成を成功と扱わない。
 
 ## 使用手順
 

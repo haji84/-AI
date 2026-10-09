@@ -28,6 +28,7 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.db import engine
 assert 'personnel_document_proposals' in inspect(engine).get_table_names(), 'bootstrap omitted personnel candidate table'
+assert 'hazardous_rule_approvals' in inspect(engine).get_table_names(), 'bootstrap omitted hazardous approval evidence table'
 with TestClient(app, raise_server_exceptions=False) as client:
     assert client.post('/auth/login', json={'username':'synthetic-notice-bootstrap','password':'synthetic-notice-bootstrap-password'}).status_code == 200
     legal = client.get('/hazardous/sources/legal')

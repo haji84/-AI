@@ -472,7 +472,7 @@ class FacilityChangeProposalApply(BaseModel):
 class LegalRuleCreate(BaseModel):
     rule_code: str = Field(min_length=1, max_length=150)
     name: str = Field(min_length=1, max_length=300)
-    domain: Literal["submission_requirement", "equipment_requirement", "occupancy_classification", "equipment_placement"]
+    domain: Literal["submission_requirement", "equipment_requirement", "occupancy_classification", "equipment_placement", "hazardous_requirement"]
     description: str | None = None
 
 class LegalRuleOut(BaseModel):
@@ -647,7 +647,7 @@ class LegalSourceDocumentVersionOut(BaseModel):
 
 class LegalRuleDraftCandidateCreate(BaseModel):
     source_legal_document_version_id: str | None = None
-    domain: Literal["submission_requirement","equipment_requirement","occupancy_classification","equipment_placement"]
+    domain: Literal["submission_requirement","equipment_requirement","occupancy_classification","equipment_placement","hazardous_requirement"]
     proposed_rule_code: str | None = None
     proposed_name: str = Field(min_length=1, max_length=300)
     proposed_conditions: dict

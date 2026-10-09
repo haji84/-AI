@@ -1,0 +1,26 @@
+# 危険物Rule authoringと一次根拠の固定 — 検証境界
+
+先行mainはPR81後のbe5185e53a5f126d6524bee1291d83a7e41fde92、tree3f56f3155343325c2d845fa5647ad23a66ad6618。独立main CI37868495428はbackend1245passed/97skipped、browser job73passed、parser/JavaScript成功。これは本Sliceのnative成功証拠ではない。
+
+## 実装した契約
+
+- 共通LegalRule/Version/Draft/Citationにhazardous_requirementを追加。既存4domainの条件/結論の意味を維持。
+- 数量・容量は18桁整数/6桁小数までの正確な非負decimal文字列。単位の完全一致を要求し、変換・異種合算・法令分類推定をしない。純engineはmatched/not_matched/unresolvedを返すだけで業務DBを書かない。
+- 条件は閉じたall/any・最大64句。登録済の名称/カテゴリーの完全一致・集合包含と、数量/容量の明示比較のみ。結論は必要事項の候補文とhuman_review_required=trueのみ。正式違反・許可・適合を自動確定する結論を拒否。
+- Humanレビュー・Rule承認にはactive jurisdiction/official source、管理領域内原本・version hash・URL、一次条文引用を要求。自由文reference・参考引用だけで承認しない。canonical provision hashとserver-owned表示名/見出し/本文引用を確認。
+- 作成/引用追加/草案編集/レビュー/昇格/承認は既存account/session exclusionを再利用。新domainの引用追加は版を更新し、旧版での承認409。Human承認後のRuleへ引用を追加できない。
+- 一覧・版・引用・草案・coverage・関連source-provision本文は、selected sourceだけでなく引用先原本も現在の権限で照合。source-less草案に引用があっても迂回しない。権限不足403時に書込みを残さない。共通HTTP応答はno-store。
+- shared auditは新domainのRule名/条件/必要事項/原文referenceを出さずhashを記録。保護されたimmutable hazardous_rule_approvalsに承認時Rule/source/citations/承認者/時刻を同一transactionで固定する。今後の専用評価は現在データとこの固定根拠を比較する。
+- Migration056はappend-only domain拡張とapproval evidence table/immutable trigger。過去SQL・予約051は変更しない。空DBbootstrapへのmodel登録を追加。
+
+## 実行した検証
+
+APIのREDは非公式source・無効source・原本改変・引用差替え・source権限喪失・source-less引用・一覧/条文迂回・audit-only本文露出・参考引用のみの承認を再現。修復後のpure engine/validators/API/bootstrapと旧法令authoring回帰は94passed/1nativePGskip/108deselected（45.13s）。独立final authoring review20passed（23.67s）、Critical/Importantなし。追加のsource-less引用のみでの共有条文endpoint回帰も独立1passed（5.46s）。最新caseを含む既存危険物台帳/検索/原本境界との統合試験は126passed/41skipped（113.29s）。Skipはローカル未実施のnativePG等であり成功と数えない。54本SQLのparserとfrontend script syntax/diff check成功。
+
+実PostgreSQL試験は055以前のDB・旧Ruleを維持して056だけを更新し、retry空、actual citation API、同時Human承認200/409・1audit・固定根拠1件・UPDATE/DELETE拒否を要求する。ローカルskipでnative成功と扱わない。exact-head CIとmerge後main CIを確認して追記する。
+
+## 内部未完とHuman Gate
+
+本Sliceはauthoringとpure engineの基盤であり、installation評価candidate保存/選択profileとjurisdiction/effective Rule適用/固定承認根拠のdrift照合/独立Human評価確認/UI・Chromium連携は次の内部Slice。章16/17、10本Cross-module E2E、実図面Benchmark、Release完成を宣言しない。
+
+正式な日本の法令・条例内容、閾値、対応コード、実運用原本と適用範囲は責任者による一次資料確認とHuman承認が必要。synthetic fixtureはmechanicsだけを証明し、本番の正式Ruleをseedしない。既存の本部別DB/実行環境/原本/backup分離を維持する。
