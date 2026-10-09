@@ -18,6 +18,7 @@ After payload construction the endpoint checks the originating session, current 
 - Fresh isolated full application bootstrap and authenticated HTTP reads for all three exact source kinds: **PASS**. This verifies actual route/module registration, not Chromium.
 - After adding native PostgreSQL cases, source API rerun: **7 passed / 3 native skipped, 12.98s**. Held-request browser synchronization waits for the actual route callback, not a fixed delay or a fabricated response.
 - Independent review after both fixes: **48 passed / 1 native skipped, 22.71s**, no remaining Critical/Important; git diff check passed. This independent run preceded the additional three native PostgreSQL parametrizations.
+- Final independent source review, after adding native cases and cancelling obsolete source errors before caller recovery: **38 passed / 3 native skipped, 21.33s**, including existing workforce state/Human-control tests. No remaining Critical/Important; diff/JavaScript syntax PASS. A dependent search Node regression reproduced old403 reopening search over a newer Human view; the source catch now cancels that obsolete error.
 - Native PostgreSQL tests use the fully migrated disposable database and a separate writer after payload construction. Chromium journey uses actual statistics→exact source→close and a held actual HTTP request interrupted by the normal workforce view. Both remain unexecuted locally; skips receive no acceptance credit.
 
 ## Remaining acceptance
