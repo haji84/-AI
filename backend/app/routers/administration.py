@@ -212,7 +212,7 @@ def guard_rule_assignment(db,actor,assignment):
             raise HTTPException(403,'account.manage required for assignment changes affecting Human Role Rules')
 
 
-def assign(db, actor, employee_id, payload, transfer=False):
+def assign(db, actor, employee_id, payload, transfer=False, commit_result=True):
     administration_lock(db,actor,"personnel.manage");employee=get(db,Employee,employee_id)
     if not employee.active:raise HTTPException(409,'employee inactive')
     organization=get(db,OrganizationUnit,payload.organization_id)
@@ -246,7 +246,8 @@ def assign(db, actor, employee_id, payload, transfer=False):
     for role in roles:db.add(AssignmentRole(assignment_id=row.assignment_id,role_id=role.role_id))
     audit(db,actor,'personnel.transfer' if transfer else 'personnel.assignment.create',row,reason=payload.reason,
           extra={'role_ids':[role.role_id for role in roles],'employee_version':payload.expected_version+1})
-    commit(db);return {**output(row),'role_ids':[role.role_id for role in roles],'employee_version':payload.expected_version+1}
+    if commit_result:commit(db)
+    return {**output(row),'role_ids':[role.role_id for role in roles],'employee_version':payload.expected_version+1}
 
 
 @router.post('/staff/{employee_id}/assignments',status_code=201)
