@@ -264,8 +264,8 @@ function unifiedSearchAction(hit){
     return '<button class="btn" onclick="openUnifiedSearchHit(\''+esc(hit.module)+'\',\''+esc(hit.source_type)+'\',\''+esc(hit.source_id)+'\',\'\',\''+esc(nav.asset_id||hit.parent_id||hit.source_id)+'\')">開く</button>';
   }
   if(nav.surface==='violations'){return '<button class="btn" onclick="openUnifiedSearchHit(\'violations\',\'violation_cases\',\''+esc(hit.source_id)+'\',\'\',\'\')">案件を開く</button>';}
-  if(nav.surface==='workforce'){
-    return '<button class="btn" onclick="workforceAction(openWorkforce)">勤務を開く</button>';
+  if(nav.surface==='workforce_roster'&&nav.record_id===hit.source_id&&/^[A-Za-z0-9_-]{1,128}$/.test(hit.source_id)){
+    return '<button class="btn" onclick="openUnifiedWorkforceSource(\''+esc(hit.source_id)+'\')">元記録を開く</button>';
   }
   if(nav.surface==='operations'){
     return '<button class="btn" onclick="openUnifiedSearchHit(\''+esc(hit.module)+'\',\''+esc(hit.source_type)+'\',\''+esc(hit.source_id)+'\',\'\',\'\')">開く</button>';
@@ -2453,6 +2453,7 @@ async function runRequirementEvaluation(domain){
 <script src="/ui/assets.js"></script>
 <script src="/ui/violations.js"></script>
 <script src="/ui/workforce.js"></script>
+<script src="/ui/unified-source.js"></script>
 <script src="/ui/finance.js"></script>
 <script src="/ui/inquiries.js"></script>
 <script src="/ui/hazardous.js"></script>
