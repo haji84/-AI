@@ -16,6 +16,8 @@ Status vocabulary: **Completed / Partial / Missing / External Gate**. This log p
 
 ## Primary-status change log
 
+2026-10-09: PR81 personnel-original intake is merged as `be5185e53a5f126d6524bee1291d83a7e41fde92`, tree `3f56f3155343325c2d845fa5647ad23a66ad6618`. Exact d605625 PR CI37867368670 and independent main CI37868495428 passed backend1245/97 skipped, browser-job73, migration parser and JavaScript. Migration055 upgrade/retry/competing Human application and Chromium notice correction/review/apply/revocation ran. See ledgerD13. No primary chapter-status change: 12/44/0/1; chapter6 full personnel/code/qualification/duty/AI-quality requirements remain internal. Hazardous authoring/evaluation remains unmerged, not completion credit.
+
 2026-10-09: PR79 fleet authority refresh and PR80 read-only finance Work Queue are merged through `f7b4058c884454fed58f4cb1a02b931f8992f799`, tree `6bb7ae78e22daf9a0412a56a697d7d21cc82f45b`. Exact PR80 head CI37864361725 passed backend1213/96 skipped and browser-job72, parser and JavaScript. Independent main CI37865572873 passed: backend1213 passed / 96 skipped / 467.60s; browser job72 passed / 716.09s; migration parser and JavaScript succeeded. No primary chapter-status change: 12/44/0/1. See ledgerD11/D12. Personnel notice intake and hazardous rule checkpoints are unmerged and receive no completed-chapter credit.
 
 | Base / chapter | Before | After | Justification |

@@ -2,9 +2,9 @@
 
 Status date: 2026-10-09 UTC
 
-Audited implementation base: `f7b4058c884454fed58f4cb1a02b931f8992f799`
+Audited implementation base: `be5185e53a5f126d6524bee1291d83a7e41fde92`
 
-Verified implementation tree: `6bb7ae78e22daf9a0412a56a697d7d21cc82f45b`
+Verified implementation tree: `3f56f3155343325c2d845fa5647ad23a66ad6618`
 
 Previous reviewed baseline: `c1b684c5c38fc52fe908d2116a21a16ef48dcb34`
 
@@ -30,7 +30,15 @@ The baseline was independently reconciled to 11/42/3/1 using chapter-specific ev
 
 ## Execution evidence and current-base limit
 
-The current implementation base is actual PR80 merge `f7b4058c884454fed58f4cb1a02b931f8992f799`; its tree exactly matches verified PR head `4e52b9fc4ab355d29138f3b2e8aa0caf1f07d3dc`: `6bb7ae78e22daf9a0412a56a697d7d21cc82f45b`. [CI37864361725](https://github.com/haji84/-AI/actions/runs/37864361725) passed: backend1213 passed / 96 skipped / 738.55s, browser job72 passed / 643.17s, migration parser and JavaScript. The independent [main push CI37865572873](https://github.com/haji84/-AI/actions/runs/37865572873) passed: backend1213 passed / 96 skipped / 467.60s; browser job72 passed / 716.09s; migration parser and JavaScript succeeded. No unmerged personnel intake, hazardous evaluation checkpoint, skipped test, real-data benchmark or production acceptance receives completion credit.
+The previous implementation checkpoint is actual PR80 merge `f7b4058c884454fed58f4cb1a02b931f8992f799`; its tree exactly matches verified PR head `4e52b9fc4ab355d29138f3b2e8aa0caf1f07d3dc`: `6bb7ae78e22daf9a0412a56a697d7d21cc82f45b`. [CI37864361725](https://github.com/haji84/-AI/actions/runs/37864361725) passed: backend1213 passed / 96 skipped / 738.55s, browser job72 passed / 643.17s, migration parser and JavaScript. The independent [main push CI37865572873](https://github.com/haji84/-AI/actions/runs/37865572873) passed: backend1213 passed / 96 skipped / 467.60s; browser job72 passed / 716.09s; migration parser and JavaScript succeeded. At that checkpoint personnel intake was unmerged. Skipped tests, real-data benchmarks and production acceptance receive no completion credit.
+
+PR81 is now merged as the current implementation base `be5185e53a5f126d6524bee1291d83a7e41fde92`, tree `3f56f3155343325c2d845fa5647ad23a66ad6618`, identical to exact PR head d605625. [PR CI37867368670](https://github.com/haji84/-AI/actions/runs/37867368670) passed backend1245/97 skipped/667.62s and browser job73/561.78s. Independent [main CI37868495428](https://github.com/haji84/-AI/actions/runs/37868495428) passed backend1245/97 skipped/608.80s and browser job73/734.45s, migration parser and JavaScript. New native PostgreSQL upgrade/concurrent-application and Chromium Human-notice workflows ran; skip remains unverified. The previous paragraph records PR80, not the current base. Hazardous authoring/evaluation work remains unmerged and receives no chapter completion credit.
+
+### D13 — Human personnel-original intake, PR81
+
+Protected personnel_notice originals produce separate candidates. Unknown employee/organization/title codes block application. Exact original quotation and reason support Human correction; independent review does not change official history. Separate future-effective application verifies original hash and employee/assignment/organization versions, reuses administration assignment/overlap/last-admin gates, and atomically records candidate/history/audit. Candidates never infer or grant Role IDs. Private text/reasons stay behind current original/personnel rights; shared audit contains identifiers/hashes. Session/tenant/permission ownership and no-store responses prevent stale private responses. Migration055 is append-only; actual PG upgrade/retry/concurrent200/409 and real Chromium upload/correction/review/apply/revocation passed at the identified runs. Initial fresh-bootstrap model omission was reproduced and repaired, with isolated bootstrap→source-picker→protected-original→candidate HTTP regression.
+
+Evidence: [personnel intake verification](PERSONNEL_DOCUMENT_INTAKE_VERIFICATION_20261009.md), [PR81](https://github.com/haji84/-AI/pull/81). **Chapter6 remains Partial**: full qualification/duty/code registration and natural-language AI quality remain internal requirements. No ten-flow/release/production claim.
 
 ### Historical PR77 execution checkpoint
 
@@ -168,7 +176,7 @@ Each baseline link retains the chapter's present implementation, exact source/te
 | 3 | Deployment Profiles | Partial | [Chapter 3](COMPLETION_BASELINE_20261007.md#chapter-3) | Baseline finding retained; no chapter-status change from these merges. |
 | 4 | Update, Release and Rollback | Partial | [Chapter 4](COMPLETION_BASELINE_20261007.md#chapter-4) | Baseline finding retained; no chapter-status change from these merges. |
 | 5 | Common Data Principles | Partial | [Chapter 5](COMPLETION_BASELINE_20261007.md#chapter-5) | D2: intake transition/proposal integrity repaired; broader correction provenance remains open. |
-| 6 | Employee, Organization and Account | Partial | [Chapter 6](COMPLETION_BASELINE_20261007.md#chapter-6) | Baseline finding retained; no chapter-status change from these merges. |
+| 6 | Employee, Organization and Account | Partial | [Chapter 6](COMPLETION_BASELINE_20261007.md#chapter-6) | D13 adds protected original→candidate→Human correction/review→future history application; full qualification/duty/code registration and natural-language AI quality remain internal. |
 | 7 | Authorization | Partial | [Chapter 7](COMPLETION_BASELINE_20261007.md#chapter-7) | D1/D2/D5: source filtering and mutation checks added; reproduced dashboard disclosure closed; remaining selector/authorization coverage stays Partial. |
 | 8 | Audit | Completed | [Chapter 8](COMPLETION_BASELINE_20261007.md#chapter-8) | Baseline finding retained; no chapter-status change from these merges. |
 | 9 | Document Platform | Partial | [Chapter 9](COMPLETION_BASELINE_20261007.md#chapter-9) | D6: hazardous-original source rights added; D8 assignment original-Document linkage and common display-name/source/derived metadata remain incomplete. |

@@ -2,12 +2,13 @@ from __future__ import annotations
 
 from datetime import date, datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from ..audit import write_audit
 from ..authz import require_permission
+from ..hazardous_rule_sources import authoring_access, authoring_guard
 from ..db import get_db
 from ..legal_rule_validation import validate_rule_conditions
 from ..legal_outcome_validation import validate_rule_outcome_references
@@ -45,7 +46,11 @@ from ..schemas import (
     OccupancyRuleCoverageOut,
 )
 
-router = APIRouter(prefix="/legal-rule-drafts", tags=["legal-rule-drafts"])
+def no_store(response: Response):
+    response.headers['Cache-Control'] = 'no-store'
+
+
+router = APIRouter(prefix="/legal-rule-drafts", tags=["legal-rule-drafts"], dependencies=[Depends(no_store)])
 
 
 def _date(value: str | None, *, required: bool = False) -> date | None:
@@ -76,12 +81,14 @@ def _provision_out(row: LegalProvision) -> LegalProvisionOut:
     )
 
 
-def _out(db: Session, row: LegalRuleDraftCandidate) -> LegalRuleDraftCandidateOut:
+def _out(db: Session, row: LegalRuleDraftCandidate, user: User) -> LegalRuleDraftCandidateOut:
     citations = db.scalars(
         select(LegalRuleDraftCitation)
         .where(LegalRuleDraftCitation.legal_rule_draft_candidate_id == row.legal_rule_draft_candidate_id)
         .order_by(LegalRuleDraftCitation.citation_role, LegalRuleDraftCitation.legal_provision_id)
     ).all()
+    if row.domain == 'hazardous_requirement':
+        authoring_access(db, user, row, citations)
     citation_out = []
     for citation in citations:
         provision = db.get(LegalProvision, citation.legal_provision_id)
@@ -113,7 +120,7 @@ def _out(db: Session, row: LegalRuleDraftCandidate) -> LegalRuleDraftCandidateOu
     )
 
 
-def _validate_ready_for_review(db: Session, row: LegalRuleDraftCandidate) -> None:
+def _validate_ready_for_review(db: Session, row: LegalRuleDraftCandidate, user: User) -> None:
     if not (row.proposed_rule_code or "").strip():
         raise HTTPException(status_code=409, detail="proposed_rule_code is required before review")
     if not row.proposed_conditions:
@@ -121,7 +128,7 @@ def _validate_ready_for_review(db: Session, row: LegalRuleDraftCandidate) -> Non
     if not row.proposed_outcome:
         raise HTTPException(status_code=409, detail="proposed_outcome must be completed before review")
     try:
-        validate_rule_conditions(row.proposed_conditions)
+        validate_rule_conditions(row.proposed_conditions, domain=row.domain)
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=f"invalid proposed_conditions: {exc}")
     try:
@@ -132,6 +139,11 @@ def _validate_ready_for_review(db: Session, row: LegalRuleDraftCandidate) -> Non
         )
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=f"invalid proposed_outcome: {exc}")
+    if row.domain == 'hazardous_requirement' and not row.source_legal_document_version_id:
+        raise HTTPException(status_code=409, detail='hazardous Rule requires structured primary-source citations')
+    if row.domain == 'hazardous_requirement':
+        from ..hazardous_rule_sources import primary_source_snapshot
+        primary_source_snapshot(db, user, row.source_legal_document_version_id, lock=True)
     if row.source_legal_document_version_id:
         citations = db.scalars(
             select(LegalRuleDraftCitation).where(
@@ -140,7 +152,12 @@ def _validate_ready_for_review(db: Session, row: LegalRuleDraftCandidate) -> Non
         ).all()
         if not citations:
             raise HTTPException(status_code=409, detail="structured-source draft requires at least one citation")
+        if row.domain == 'hazardous_requirement' and not any(c.citation_role == 'primary' for c in citations):
+            raise HTTPException(409, 'hazardous Rule requires a primary provision citation')
         for citation in citations:
+            if row.domain == 'hazardous_requirement':
+                from ..hazardous_rule_sources import citation_snapshot
+                citation_snapshot(db, citation, row.source_legal_document_version_id, lock=True)
             provision = db.get(LegalProvision, citation.legal_provision_id)
             if (
                 provision is None
@@ -319,7 +336,7 @@ def list_drafts(
         stmt.order_by(LegalRuleDraftCandidate.created_at.desc())
         .limit(max(1, min(limit, 500)))
     ).all()
-    return [_out(db, x) for x in rows]
+    return [_out(db, x, user) for x in rows]
 
 
 @router.post("", response_model=LegalRuleDraftCandidateOut, status_code=201)
@@ -335,6 +352,10 @@ def create_draft(
     if not payload.proposed_conditions or not payload.proposed_outcome:
         raise HTTPException(status_code=422, detail="proposed conditions and outcome are required")
     provisions = _validate_citations(db, payload.source_legal_document_version_id, payload.citations)
+    if payload.domain == 'hazardous_requirement':
+        from ..authz import require_mutation_permission
+        user = require_mutation_permission('legal_rule.manage')(user=user, db=db)
+        authoring_access(db, user, payload, payload.citations, lock=True)
     row = LegalRuleDraftCandidate(
         source_legal_document_version_id=payload.source_legal_document_version_id,
         domain=payload.domain,
@@ -373,7 +394,7 @@ def create_draft(
         ai_model_version=row.model_version,
     )
     db.commit()
-    return _out(db, row)
+    return _out(db, row, user)
 
 
 @router.patch("/{draft_id}", response_model=LegalRuleDraftCandidateOut)
@@ -386,6 +407,9 @@ def patch_draft(
     row = db.get(LegalRuleDraftCandidate, draft_id)
     if not row:
         raise HTTPException(status_code=404, detail="legal Rule draft not found")
+    if row.domain == 'hazardous_requirement':
+        from ..hazardous_rule_sources import authoring_guard
+        user, row = authoring_guard(db, user, row, 'legal_rule.manage')
     if row.version != payload.expected_version:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="draft was updated")
     if row.status != "pending":
@@ -404,7 +428,7 @@ def patch_draft(
         after={"changed_fields": sorted(changes), "version": row.version},
     )
     db.commit()
-    return _out(db, row)
+    return _out(db, row, user)
 
 
 @router.post("/{draft_id}/review", response_model=LegalRuleDraftCandidateOut)
@@ -417,12 +441,15 @@ def review_draft(
     row = db.get(LegalRuleDraftCandidate, draft_id)
     if not row:
         raise HTTPException(status_code=404, detail="legal Rule draft not found")
+    if row.domain == 'hazardous_requirement':
+        from ..hazardous_rule_sources import authoring_guard
+        user, row = authoring_guard(db, user, row, 'legal_rule.manage')
     if row.version != payload.expected_version:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="draft was updated")
     if row.status != "pending":
         raise HTTPException(status_code=409, detail="only pending drafts can be reviewed")
     if payload.status == "reviewed":
-        _validate_ready_for_review(db, row)
+        _validate_ready_for_review(db, row, user)
     row.status = payload.status
     row.reviewed_by = user.user_id
     row.reviewed_at = datetime.now(timezone.utc)
@@ -437,7 +464,7 @@ def review_draft(
         after={"status": row.status, "version": row.version},
     )
     db.commit()
-    return _out(db, row)
+    return _out(db, row, user)
 
 
 @router.post("/{draft_id}/promote", response_model=LegalRuleDraftCandidateOut)
@@ -450,11 +477,14 @@ def promote_draft(
     row = db.get(LegalRuleDraftCandidate, draft_id)
     if not row:
         raise HTTPException(status_code=404, detail="legal Rule draft not found")
+    if row.domain == 'hazardous_requirement':
+        from ..hazardous_rule_sources import authoring_guard
+        user, row = authoring_guard(db, user, row, 'legal_rule.approve')
     if row.version != payload.expected_version:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="draft was updated")
     if row.status != "reviewed":
         raise HTTPException(status_code=409, detail="draft must be reviewed before promotion")
-    _validate_ready_for_review(db, row)
+    _validate_ready_for_review(db, row, user)
     citations = db.scalars(
         select(LegalRuleDraftCitation).where(
             LegalRuleDraftCitation.legal_rule_draft_candidate_id == row.legal_rule_draft_candidate_id
@@ -535,4 +565,4 @@ def promote_draft(
         },
     )
     db.commit()
-    return _out(db, row)
+    return _out(db, row, user)

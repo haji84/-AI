@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timezone
+from copy import deepcopy
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
@@ -10,6 +11,9 @@ from ..audit import write_audit
 from ..authz import require_permission
 from ..db import get_db
 from ..legal_rule_validation import validate_rule_conditions
+from ..hazardous_rule_sources import (audit_data, authoring_access, authoring_citations, authoring_guard,
+    citation_snapshot, primary_source_snapshot, source_has_hazardous_authoring)
+from ..hazardous_rule_models import HazardousRuleApproval
 from ..legal_requirement_engine import evaluate_approved_requirement_rules
 from ..legal_outcome_validation import validate_rule_outcome_references
 from ..models import (
@@ -41,7 +45,11 @@ from ..schemas import (
     RequirementEvaluationOut,
 )
 
-router = APIRouter(prefix="/legal-rules", tags=["legal-rules"])
+def no_store(response: Response):
+    response.headers['Cache-Control'] = 'no-store'
+
+
+router = APIRouter(prefix="/legal-rules", tags=["legal-rules"], dependencies=[Depends(no_store)])
 
 ALLOWED_FIELDS = {
     "status",
@@ -148,9 +156,9 @@ def _evaluation_out(row: RequirementEvaluation) -> RequirementEvaluationOut:
     )
 
 
-def _validate_conditions(payload: dict) -> None:
+def _validate_conditions(payload: dict, *, domain: str | None = None) -> None:
     try:
-        validate_rule_conditions(payload)
+        validate_rule_conditions(payload, domain=domain)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
 
@@ -240,7 +248,12 @@ def list_rules(
     stmt = select(LegalRule).order_by(LegalRule.rule_code)
     if domain:
         stmt = stmt.where(LegalRule.domain == domain)
-    return [_rule_out(x) for x in db.scalars(stmt).all()]
+    rows = db.scalars(stmt).all()
+    for row in rows:
+        if row.domain == 'hazardous_requirement':
+            for version in db.scalars(select(LegalRuleVersion).where(LegalRuleVersion.rule_id == row.rule_id)):
+                authoring_access(db, user, version, authoring_citations(db, version))
+    return [_rule_out(x) for x in rows]
 
 
 @router.post("", response_model=LegalRuleOut, status_code=201)
@@ -266,7 +279,7 @@ def create_rule(
         action="legal_rule.create",
         entity_type="legal_rule",
         entity_id=row.rule_id,
-        after=_rule_out(row).model_dump(mode="json"),
+        after=audit_data(row.domain, _rule_out(row).model_dump(mode="json")),
     )
     db.commit()
     return _rule_out(row)
@@ -277,7 +290,11 @@ def legal_rule_coverage(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("legal_rule.read")),
 ):
-    tracked_domains = ("equipment_requirement", "submission_requirement", "occupancy_classification", "equipment_placement")
+    tracked_domains = ("equipment_requirement", "submission_requirement", "occupancy_classification", "equipment_placement", "hazardous_requirement")
+    for row in db.scalars(select(LegalRuleDraftCandidate).where(LegalRuleDraftCandidate.domain == 'hazardous_requirement')):
+        authoring_access(db, user, row, authoring_citations(db, row))
+    for row in db.scalars(select(LegalRuleVersion).join(LegalRule).where(LegalRule.domain == 'hazardous_requirement')):
+        authoring_access(db, user, row, authoring_citations(db, row))
 
     def nested(rows):
         out: dict[str, dict[str, int]] = {domain: {} for domain in tracked_domains}
@@ -364,13 +381,17 @@ def list_versions(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("legal_rule.read")),
 ):
-    if not db.get(LegalRule, rule_id):
+    rule = db.get(LegalRule, rule_id)
+    if not rule:
         raise HTTPException(status_code=404, detail="legal rule not found")
     rows = db.scalars(
         select(LegalRuleVersion)
         .where(LegalRuleVersion.rule_id == rule_id)
         .order_by(LegalRuleVersion.version_no.desc())
     ).all()
+    if rule.domain == 'hazardous_requirement':
+        for row in rows:
+            authoring_access(db, user, row, authoring_citations(db, row))
     return [_version_out(x) for x in rows]
 
 
@@ -384,7 +405,11 @@ def create_version(
     rule = db.get(LegalRule, rule_id)
     if not rule:
         raise HTTPException(status_code=404, detail="legal rule not found")
-    _validate_conditions(payload.conditions)
+    if rule.domain == 'hazardous_requirement':
+        from ..authz import require_mutation_permission
+        user = require_mutation_permission('legal_rule.manage')(user=user, db=db)
+        authoring_access(db, user, payload, lock=True)
+    _validate_conditions(payload.conditions, domain=rule.domain)
     if not payload.outcome:
         raise HTTPException(status_code=422, detail="outcome must not be empty")
     try:
@@ -428,7 +453,7 @@ def create_version(
         action="legal_rule_version.create",
         entity_type="legal_rule_version",
         entity_id=row.legal_rule_version_id,
-        after=_version_out(row).model_dump(mode="json"),
+        after=audit_data(rule.domain, _version_out(row).model_dump(mode="json")),
     )
     db.commit()
     return _version_out(row)
@@ -444,13 +469,24 @@ def approve_version(
     row = db.get(LegalRuleVersion, version_id)
     if not row:
         raise HTTPException(status_code=404, detail="legal rule version not found")
+    rule_for_approval = db.get(LegalRule, row.rule_id)
+    if rule_for_approval is None:
+        raise HTTPException(status_code=409, detail="legal Rule missing")
+    if rule_for_approval.domain == 'hazardous_requirement':
+        user, row = authoring_guard(db, user, row, 'legal_rule.approve')
     if row.version != payload.expected_version:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="rule version was updated")
     if row.status != "draft":
         raise HTTPException(status_code=409, detail="only draft rule versions can be approved")
-    rule_for_approval = db.get(LegalRule, row.rule_id)
-    if rule_for_approval is None:
-        raise HTTPException(status_code=409, detail="legal Rule missing")
+    if rule_for_approval.domain == 'hazardous_requirement':
+        if not row.source_legal_document_version_id:
+            raise HTTPException(status_code=409, detail='hazardous Rule requires structured primary-source citations')
+        hazardous_source = primary_source_snapshot(db, user, row.source_legal_document_version_id, lock=True)
+        hazardous_citations = []
+        try:
+            validate_rule_conditions(row.conditions, domain=rule_for_approval.domain)
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc))
     try:
         validate_rule_outcome_references(
             db,
@@ -476,7 +512,11 @@ def approve_version(
                 status_code=409,
                 detail="at least one structured provision citation is required for a structured legal source",
             )
+        if rule_for_approval.domain == 'hazardous_requirement' and not any(c.citation_role == 'primary' for c in citations):
+            raise HTTPException(409, 'hazardous Rule requires a primary provision citation')
         for citation in citations:
+            if rule_for_approval.domain == 'hazardous_requirement':
+                hazardous_citations.append(citation_snapshot(db, citation, row.source_legal_document_version_id, lock=True))
             provision = db.get(LegalProvision, citation.legal_provision_id)
             if (
                 provision is None
@@ -500,6 +540,12 @@ def approve_version(
     row.approved_at = datetime.now(timezone.utc)
     row.version += 1
     row.updated_at = datetime.now(timezone.utc)
+    if rule_for_approval.domain == 'hazardous_requirement':
+        frozen_rule = _version_out(row).model_dump(mode='json')
+        frozen_rule['rule'] = _rule_out(rule_for_approval).model_dump(mode='json')
+        db.add(HazardousRuleApproval(legal_rule_version_id=row.legal_rule_version_id,
+            rule_snapshot=deepcopy(frozen_rule), source_snapshot=deepcopy(hazardous_source),
+            citations=deepcopy(hazardous_citations), approved_by=user.user_id, approved_at=row.approved_at))
     db.flush()
     write_audit(
         db,
@@ -507,8 +553,8 @@ def approve_version(
         action="legal_rule_version.approve",
         entity_type="legal_rule_version",
         entity_id=row.legal_rule_version_id,
-        before=before,
-        after=_version_out(row).model_dump(mode="json"),
+        before=audit_data(rule_for_approval.domain, before),
+        after=audit_data(rule_for_approval.domain, _version_out(row).model_dump(mode="json")),
     )
     db.commit()
     return _version_out(row)
@@ -528,6 +574,9 @@ def list_source_provisions(
 ):
     if not db.get(LegalSourceDocumentVersion, source_version_id):
         raise HTTPException(status_code=404, detail="legal source document version not found")
+    if source_has_hazardous_authoring(db, source_version_id):
+        from ..hazardous_service import legal_access
+        legal_access(db, user, source_version_id)
     stmt = select(LegalProvision).where(
         LegalProvision.legal_source_document_version_id == source_version_id,
         LegalProvision.present_in_source.is_(True),
@@ -558,13 +607,17 @@ def list_rule_citations(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("legal_rule.read")),
 ):
-    if not db.get(LegalRuleVersion, version_id):
+    version = db.get(LegalRuleVersion, version_id)
+    if not version:
         raise HTTPException(status_code=404, detail="legal rule version not found")
     rows = db.scalars(
         select(LegalRuleCitation)
         .where(LegalRuleCitation.legal_rule_version_id == version_id)
         .order_by(LegalRuleCitation.citation_role, LegalRuleCitation.legal_provision_id)
     ).all()
+    rule = db.get(LegalRule, version.rule_id)
+    if rule.domain == 'hazardous_requirement':
+        authoring_access(db, user, version, rows)
     return [_citation_out(db, x) for x in rows]
 
 
@@ -578,11 +631,19 @@ def add_rule_citation(
     version = db.get(LegalRuleVersion, version_id)
     if not version:
         raise HTTPException(status_code=404, detail="legal rule version not found")
+    rule = db.get(LegalRule, version.rule_id)
+    hazardous = rule.domain == 'hazardous_requirement'
+    if hazardous:
+        user, version = authoring_guard(db, user, version, 'legal_rule.manage')
+        authoring_access(db, user, version, lock=True)
     if version.status != "draft":
         raise HTTPException(status_code=409, detail="citations can only be changed while Rule Version is draft")
     provision = db.get(LegalProvision, payload.legal_provision_id)
     if not provision or not provision.present_in_source:
         raise HTTPException(status_code=422, detail="legal provision not found in current source")
+    if hazardous:
+        from ..hazardous_service import legal_access
+        legal_access(db, user, provision.legal_source_document_version_id, lock=True)
     if (
         version.source_legal_document_version_id
         and provision.legal_source_document_version_id != version.source_legal_document_version_id
@@ -605,6 +666,9 @@ def add_rule_citation(
         created_by=user.user_id,
     )
     db.add(row)
+    if hazardous:
+        version.version += 1
+        version.updated_at = datetime.now(timezone.utc)
     write_audit(
         db,
         user_id=user.user_id,

@@ -24,7 +24,11 @@ ALLOWED_RULE_FIELDS = {
 ALLOWED_RULE_OPS = {"eq", "ne", "in", "contains", "contains_any", "contains_all", "gte", "lte", "gt", "lt", "exists"}
 
 
-def validate_rule_conditions(payload: dict) -> None:
+def validate_rule_conditions(payload: dict, *, domain: str | None = None) -> None:
+    if domain == 'hazardous_requirement':
+        from .hazardous_rule_engine import validate_conditions
+        validate_conditions(payload)
+        return
     if not isinstance(payload, dict):
         raise ValueError("conditions must be an object")
     unexpected = set(payload) - {"all", "any"}

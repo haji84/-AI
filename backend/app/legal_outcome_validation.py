@@ -15,6 +15,16 @@ def validate_rule_outcome_references(
     if not isinstance(outcome, dict) or not outcome:
         raise ValueError("outcome must be a non-empty object")
 
+    if domain == 'hazardous_requirement':
+        if set(outcome) != {'decision', 'requirement', 'human_review_required'}:
+            raise ValueError('hazardous outcome requires only explicit candidate fields')
+        if outcome['decision'] != 'hazardous_requirement_candidate' or outcome['human_review_required'] is not True:
+            raise ValueError('hazardous evaluation emits candidates requiring separate Human review')
+        requirement = outcome['requirement']
+        if not isinstance(requirement, str) or not requirement.strip() or len(requirement) > 4000:
+            raise ValueError('bounded explicit hazardous candidate requirement is required')
+        return
+
     if domain == "equipment_requirement":
         code = outcome.get("equipment_type_code")
         if code:
