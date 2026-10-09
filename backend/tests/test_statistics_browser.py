@@ -221,6 +221,45 @@ def test_workforce_catalog_actual_query_confirmation_and_frozen_exports(statisti
     content = path.read_text(encoding='utf-8-sig')
     assert '990' in content and 'approved_overtime_minutes' in content and 'PRIVATE' not in content
     page.screenshot(path=str(ui['artifacts'] / 'statistics-workforce-observed.png'), full_page=True)
+    with page.expect_response(lambda response:'/drilldown?' in response.url) as lineage:
+        page.locator('[data-statistics-drill="0"]').click()
+    assert lineage.value.status == 200, lineage.value.text()
+    item = lineage.value.json()['items'][0]
+    assert item['navigation'] == {'surface':'workforce_roster','id':item['record_id']}
+    with page.expect_response(lambda response:response.url.endswith('/workforce/source-records/roster/'+item['record_id'])) as source:
+        page.locator('[data-statistics-source]').first.click()
+    assert source.value.status == 200, source.value.text()
+    expect(page.locator('#workforceContent')).to_contain_text('勤務表の元記録')
+    expect(page.locator('#workforceContent')).to_contain_text('PRIVATE workforce employee')
+    expect(page.locator('#workforceContent')).to_contain_text('Version 1')
+    expect(page.locator('[data-workforce-human]')).to_have_count(0)
+    page.screenshot(path=str(ui['artifacts'] / 'statistics-workforce-source.png'), full_page=True)
+    page.locator('#workforceClose').click()
+    expect(page.locator('#workforceContent')).to_be_empty()
+
+    held = []
+    page.evaluate('window.__workforceSourceHeld = false')
+    def hold(route):
+        held.append(route)
+        page.evaluate('window.__workforceSourceHeld = true')
+    pattern = '**/workforce/source-records/roster/*'
+    page.route(pattern, hold)
+    try:
+        with page.expect_request(lambda request:'/workforce/source-records/roster/' in request.url):
+            page.locator('[data-statistics-source]').first.click()
+        page.wait_for_function('window.__workforceSourceHeld === true')
+        assert held, 'actual source request was not held'
+        expect(page.locator('#workforceContent')).to_contain_text('元記録を読み込みます')
+        page.locator('#workforceBtn').click()
+        expect(page.locator('#workforceRosterDate')).to_be_visible()
+        assert held, 'actual source request was not held'
+        for route in held: route.continue_()
+        held.clear()
+        expect(page.locator('#workforceRosterDate')).to_be_visible()
+        expect(page.locator('#workforceContent')).not_to_contain_text('PRIVATE workforce employee')
+    finally:
+        for route in held: route.continue_()
+        page.unroute(pattern, hold)
 
 
 def test_real_query_recapture_confirmation_history_and_safe_frozen_downloads(statistics_browser):

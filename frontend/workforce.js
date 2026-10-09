@@ -1,8 +1,10 @@
 // Shared PC workforce surface. Uses existing session, workforceAPI(), esc(), and modal styles.
 const workforceState={permissions:[],employees:[],organizations:[],shifts:[],date:new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Tokyo'}),identity:null,generation:0,viewGeneration:0};
 let workforcePendingHuman=null;
+let workforceSourceTicket=null;
 function clearWorkforce(){
   workforcePendingHuman=null;
+  workforceSourceTicket=null;
   workforceState.generation++;workforceState.viewGeneration++;Object.assign(workforceState,{identity:null,permissions:[],employees:[],organizations:[],shifts:[]});
   for(const id of ['workforceContent','workforceNav','workforceMessage','workforceHumanStatus'])if($(id))$(id).innerHTML='';
   if($('workforceModal')){$('workforceModal').innerHTML='';$('workforceModal').remove();}
@@ -19,7 +21,10 @@ async function workforceAPI(url,opt={}){
     const result=await api(url,opt);
     if(ticket!==workforceState.generation)throw Object.assign(new Error('late workforce response discarded'),{cancelled:true});
     workforceAssertView(view);return result;
-  }catch(e){if(e.status===401||e.status===403)clearWorkforce();throw e;}
+  }catch(e){
+    if(ticket!==workforceState.generation||view!==workforceState.viewGeneration)throw Object.assign(new Error('obsolete workforce error discarded'),{cancelled:true});
+    if(e.status===401||e.status===403)clearWorkforce();throw e;
+  }
 }
 async function workforceList(url){
   const result=[];let offset=0;const limit=1000;
@@ -55,6 +60,7 @@ async function workforceRefs(){
   Object.assign(workforceState,{employees,organizations,shifts});
 }
 async function openWorkforce(){
+  workforceSourceTicket=null;workforceState.viewGeneration++;
   await initWorkforce();if(workforceCan('workforce.read'))await workforceRefs();
   if(!$('workforceModal')){
     const el=document.createElement('div');el.id='workforceModal';el.className='modalWrap';el.style.zIndex='73';
@@ -78,6 +84,65 @@ async function openWorkforce(){
   workforceBind('workforceStats',workforceStats);
   workforceBind('workforceExchange',workforceExchange);
   if(workforceCan('workforce.read'))await workforceRoster(workforceState.date);else if(workforceCan('workforce.aggregate'))await workforceStats();else if(workforceCan('workforce.import')||workforceCan('workforce.export'))await workforceExchange();else $('workforceContent').textContent='勤務記録の表示にはworkforce.read権限が必要です。';
+}
+// Statistics opens only a guarded read-only current source, without loading a
+// department-wide roster or borrowing cached employee names from another view.
+const workforceSourceLocal=ticket=>ticket.generation===workforceState.generation&&ticket.view===workforceState.viewGeneration;
+function workforceSourceAssert(ticket){
+  if(!workforceSourceLocal(ticket)||!ticket.owned()){
+    if(workforceSourceLocal(ticket)&&ticket.modal&&$('workforceModal')===ticket.modal){
+      workforceState.viewGeneration++;ticket.modal.remove();
+    }
+    throw Object.assign(new Error('元記録の画面・権限が変更されました。'),{cancelled:true});
+  }
+}
+async function workforceSourceAuthority(ticket,required=['workforce.read','personnel.read']){
+  workforceSourceAssert(ticket);await window.FireAISession.check();workforceSourceAssert(ticket);
+  const rights=await api('/auth/permissions');workforceSourceAssert(ticket);
+  if(!required.every(code=>rights.permissions?.includes(code)))throw Object.assign(new Error('元の勤務記録・原本の閲覧権限がありません。'),{status:403});
+  workforceState.permissions=rights.permissions;
+}
+async function openWorkforceSource(owned){
+  if(typeof owned!=='function'||!owned())throw Object.assign(new Error('元記録への移動が取消されました。'),{cancelled:true});
+  const ticket={generation:workforceState.generation,view:++workforceState.viewGeneration,owned,modal:null};
+  workforceSourceTicket=ticket;
+  try{
+    await workforceSourceAuthority(ticket);
+    if(!$('workforceModal')){
+      const modal=document.createElement('div');modal.id='workforceModal';modal.className='modalWrap';modal.style.zIndex='75';document.body.append(modal);
+    }
+    ticket.modal=$('workforceModal');ticket.modal.classList.remove('hidden');
+    ticket.modal.innerHTML='<div class="modal" style="width:min(1240px,98vw)"><div class="modalHead"><b>勤務・人員配置</b><span class="grow"></span><button class="btn" id="workforceClose" type="button">閉じる</button></div><div class="modalBody"><div id="workforceMessage" role="alert"></div><div id="workforceHumanStatus" role="status"></div><div id="workforceNav" class="toolbar"></div><div id="workforceContent"><p role="status">元記録を読み込みます。</p></div></div></div>';
+    $('workforceClose').onclick=()=>{workforceState.viewGeneration++;ticket.modal.classList.add('hidden');$('workforceContent').innerHTML='';$('workforceNav').innerHTML='';};
+  }catch(error){
+    if(workforceSourceLocal(ticket)&&(error.status===401||error.status===403))clearWorkforce();
+    if(error.cancelled)workforceSourceAssert(ticket);
+    throw error;
+  }
+}
+async function workforceSourceDetail(kind,id,owned){
+  const ticket=workforceSourceTicket;
+  if(!ticket||!['roster','attendance','time'].includes(kind)||!/^[A-Za-z0-9_-]{1,128}$/.test(id))throw Object.assign(new Error('元記録の参照が無効です。'),{cancelled:true});
+  ticket.owned=owned;workforceSourceAssert(ticket);
+  try{
+    await workforceSourceAuthority(ticket);
+    const data=await api('/workforce/source-records/'+kind+'/'+encodeURIComponent(id));workforceSourceAssert(ticket);
+    await workforceSourceAuthority(ticket,['workforce.read','personnel.read',...(data.required_permissions??[])]);
+    if(data.kind!==kind||data.record_id!==id||!data.record||!data.employee)throw new Error('元記録の応答を確認できません。');
+    const row=data.record,title={roster:'勤務表の元記録',attendance:'出退勤の元記録',time:'時間外・代休の元記録'}[kind];
+    const fields=[['勤務日・発生日',row.work_date??row.occurred_on],['状態',row.status],['開始',row.starts_at??row.check_in_at],['終了',row.ends_at??row.check_out_at],['勤務表の予定算定分（実績ではありません）',row.payable_minutes],['保存された実勤務分',row.worked_minutes],['保存された時間外・代休の種別',row.kind],['保存された分数',row.minutes],['記録の備考',row.note]];
+    workforceSourceAssert(ticket);
+    $('workforceContent').innerHTML=`<h2>${esc(title)}</h2><p>${esc(data.employee.display_name)} / Version ${esc(data.version)}</p><p>現在の元記録です。統計の保存後に更新されている場合があります。給与・手当の正式な判断ではありません。</p><dl>${fields.filter(([,value])=>value!==undefined).map(([label,value])=>`<dt>${esc(label)}</dt><dd>${esc(value??'未記録・未算出')}</dd>`).join('')}</dl>`;
+    $('workforceNav').innerHTML='';
+    // Initial navigation is complete. Subsequent Human navigation belongs to
+    // workforce viewGeneration, rather than the closed statistics operation.
+    ticket.owned=()=>true;
+  }catch(error){
+    workforceSourceAssert(ticket);
+    if(workforceSourceLocal(ticket)&&[401,403,404,503].includes(error.status))clearWorkforce();
+    if(error.cancelled)workforceSourceAssert(ticket);
+    throw error;
+  }
 }
 async function workforceRoster(day){
   const view=++workforceState.viewGeneration;

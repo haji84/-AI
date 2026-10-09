@@ -206,6 +206,9 @@ async function statisticsDownload(format){
 function statisticsNavigation(item){
   const nav=item?.navigation;if(!nav||!statisticsID(nav.id))return null;
   switch(nav.surface){
+    case 'workforce_roster':return {open:current=>openWorkforceSource(current),detail:current=>workforceSourceDetail('roster',nav.id,current),modal:'workforceModal'};
+    case 'workforce_attendance':return {open:current=>openWorkforceSource(current),detail:current=>workforceSourceDetail('attendance',nav.id,current),modal:'workforceModal'};
+    case 'workforce_time':return {open:current=>openWorkforceSource(current),detail:current=>workforceSourceDetail('time',nav.id,current),modal:'workforceModal'};
     case 'vehicle':return {open:current=>openOperations(current),detail:current=>operationsAction(()=>operationsVehicleDetail(nav.id,current)),modal:'operationsModal'};
     case 'incident':return {open:current=>openOperations(current),detail:current=>operationsAction(()=>operationsIncidentDetail(nav.id,current)),modal:'operationsModal'};
     case 'dispatch':return {open:current=>openOperations(current),detail:current=>operationsAction(()=>operationsDispatchDetail(nav.id,current)),modal:'operationsModal'};

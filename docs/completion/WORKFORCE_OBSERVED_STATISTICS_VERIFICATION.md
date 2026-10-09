@@ -1,4 +1,12 @@
-# Workforce observed statistics — unmerged checkpoint
+# Workforce observed statistics — accepted PR85
+
+PR85 accepted main `e617b7be16ac2d14a646a439ff54241e17307bde`, tree `aaa05171683174995c3c0081ba1fdb83fcf0785e`, exactly matches head `0a487a6a55e71d528175bb709dd7b3eb55207333`. Exact CI37878688575 SUCCESS: backend1382/99 skipped/521.31s; browser-job75/786.01s; parser/JavaScript. Exact artifact11593713337 SHA256 `3268c879ad5ed2b412f3faebc81b5eebc1ab393c9eef3e0bd9d38a72d2d29f16`. Independent main CI37879825992 SUCCESS: backend1382/99 skipped/763.21s; browser-job75/738.49s; parser/JavaScript. Main artifact11594855031 SHA256 `d2c18c85f71afed52ff04bc56a2f4962726e2df0cf6d83b018353021886bf7b3`.
+
+Actual disposable PostgreSQL approved snapshots and Human confirmation, plus actual Chromium catalog/query/save/Human confirmation/frozen CSV ran. Skips are unverified, browser75 includes existing Node/API cases, and no real deployment or formal salary judgment is accepted. Chapters25/34/36 remain Partial. Subsequent exact source navigation/search is local unmerged work, not this accepted tree.
+
+## Historical local implementation checkpoint
+
+The following pending-native statements describe the pre-publication checkpoint and are superseded by the accepted execution above.
 
 Dependency PR84 merged as canonical main `a3ae2e37b2bebba95bd107c8abe5ee6501b51d59`, tree `9c5c3fdd545657f88b2ad715cecd51ba3bc30ee6`. Exact CI37876067326 and independent main CI37877280792 SUCCESS (backend1371/98 skipped; browser-job74; parser/JavaScript), with extended actual Chromium queue/Human/deadline acceptance. This workforce delta is local, unmerged and receives no new native/main acceptance credit.
 

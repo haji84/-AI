@@ -4,8 +4,7 @@ from .models import EmergencyCase, EmergencyPatient
 from .operations_models import Incident, Dispatch, VehicleTrip
 from .operations_service import source_permission
 from .workforce_models import WorkforceRosterEntry, WorkforceAttendance, WorkforceTimeEntry
-from .models import Document
-from .inquiries_service import document_permissions
+from .workforce_source import original_rights
 
 
 def drilldown(db, row, evidence, key, permissions, limit, offset):
@@ -27,17 +26,10 @@ def drilldown(db, row, evidence, key, permissions, limit, offset):
             continue
         item = {'source_module': key.split('.')[0], 'record_type': 'case', 'record_id': identity}
         if isinstance(source, (WorkforceRosterEntry, WorkforceAttendance, WorkforceTimeEntry)):
-            parent = db.get(WorkforceAttendance, source.attendance_id) if isinstance(source, WorkforceTimeEntry) and source.attendance_id else None
-            roster_id = source.roster_entry_id if isinstance(source, WorkforceAttendance) else (parent.roster_entry_id if parent else None)
-            roster = source if isinstance(source, WorkforceRosterEntry) else (db.get(WorkforceRosterEntry, roster_id) if roster_id else None)
-            if roster and roster.document_id:
-                document = db.get(Document, roster.document_id)
-                if document is None or not document_permissions(db, document).issubset(permissions):
-                    raise HTTPException(403, 'Original workforce document permissions are required')
+            if not original_rights(db, source).issubset(permissions):
+                raise HTTPException(403, 'Original workforce document permissions are required')
             kind = 'roster' if isinstance(source, WorkforceRosterEntry) else ('attendance' if isinstance(source, WorkforceAttendance) else 'time')
-            # API lineage pointer only. Shared-shell workforce deep navigation is
-            # intentionally unavailable until it accepts external view ownership.
-            item.update(record_type=kind, navigation=None)
+            item.update(record_type=kind, navigation={'surface':'workforce_'+kind,'id':identity})
         elif isinstance(source, EmergencyPatient):
             item.update(record_type='patient_record', parent_id=source.emergency_case_id, navigation={'surface':'emergency_case','id':source.emergency_case_id})
         elif isinstance(source, EmergencyCase):

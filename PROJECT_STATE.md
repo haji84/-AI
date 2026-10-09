@@ -2,7 +2,13 @@
 
 更新日: 2026-10-09
 
-## 最新の監査差分（main `a3ae2e3` 基準）
+## 最新の監査差分（main `e617b7b` 基準）
+
+正本main `e617b7be16ac2d14a646a439ff54241e17307bde`、tree `aaa05171683174995c3c0081ba1fdb83fcf0785e`。PR85で承認済勤務表記録数・保存実勤務分・時間外勤務分を横断観測統計へ接続済み。exact [CI37878688575](https://github.com/haji84/-AI/actions/runs/37878688575) 成功: backend1382 passed/99 skipped/521.31s、browser job75 passed/786.01s、parser/JavaScript成功。独立 [main CI37879825992](https://github.com/haji84/-AI/actions/runs/37879825992) 成功: backend1382 passed/99 skipped/763.21s、browser job75 passed/738.49s、parser/JavaScript成功。実PostgreSQLのsnapshot/Human確認と実Chromiumのquery→保存→Human確認→凍結CSVを確認。main artifact11594855031 SHA256 `d2c18c85f71afed52ff04bc56a2f4962726e2df0cf6d83b018353021886bf7b3`。
+
+分類は **Completed13 / Partial43 / Missing0 / External Gate1**。D17を参照。実勤務の未算出を0へ推定せず、網羅性unknownと本部設定・現在権限・個別原本境界を維持。第25/34/36章は他source/母数/比較/正式様式・出動連携・全module queue等の内部残がありPartial。個別の勤務元記録画面・横断検索は未mergeで、10本E2E・Release・全体完成へcreditを付けない。以下の旧base段落は履歴。
+
+## 以前の監査差分（main `a3ae2e3` 基準）
 
 正本main `a3ae2e37b2bebba95bd107c8abe5ee6501b51d59`、tree `9c5c3fdd545657f88b2ad715cecd51ba3bc30ee6`。PR84で危険物の原本確認待ち・期限・評価候補を共通Work Queueへ接続済み。exact-head [CI37876067326](https://github.com/haji84/-AI/actions/runs/37876067326) 成功: backend1371 passed/98 skipped/693.04s、browser job74 passed/750.60s、parser/JavaScript成功。独立した [main CI37877280792](https://github.com/haji84/-AI/actions/runs/37877280792) もbackend1371 passed/98 skipped/580.71s、browser job74 passed/758.51s、parser/JavaScript成功。実Chromiumのqueue→評価Human確認→消去、原本記録確認→確認待ち消去・期限保持を確認済み。main artifact11592784603 SHA256 `ff207c9b11066d2b7c8edbe2dd4a2ff20e80a96679c2a8ff70be585cfabc7658`。
 
