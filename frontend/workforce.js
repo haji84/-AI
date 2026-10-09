@@ -35,7 +35,8 @@ function workforceKey(kind,row){return row[{roster:'roster_entry_id',leave:'leav
 function workforceLocalTime(value){return value.length===16?value+':00+09:00':value+'+09:00';}
 const workforceCan=p=>workforceState.permissions.includes(p);
 const workforceJSON=(method,data)=>({method,headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
-async function workforceAction(fn){try{await fn();if($('workforceMessage'))$('workforceMessage').textContent=''}catch(e){if(e.cancelled)return;if($('workforceMessage'))$('workforceMessage').textContent=e.status===409?'更新競合または根拠変更があります。最新データを再読込してください。':String(e.message)}}
+function workforceError(e){if(e.cancelled)return;if($('workforceMessage'))$('workforceMessage').textContent=e.status===409?'更新競合または根拠変更があります。最新データを再読込してください。':String(e.message)}
+async function workforceAction(fn){try{await fn();if($('workforceMessage'))$('workforceMessage').textContent=''}catch(e){workforceError(e)}}
 async function initWorkforce(){try{const r=await workforceAPI('/auth/permissions');if(!r.permissions.includes('workforce.read'))clearWorkforce();workforceState.permissions=r.permissions;$('workforceBtn')?.classList.toggle('hidden',!r.permissions.some(p=>p.startsWith('workforce.')))}catch(e){if(e.cancelled)throw e;}}
 function workforceButton(id,label,permission){return !permission||workforceCan(permission)?`<button class="btn" id="${id}" type="button">${esc(label)}</button>`:''}
 function workforceBind(id,fn){if($(id))$(id).onclick=()=>workforceAction(fn)}
@@ -74,6 +75,7 @@ async function openWorkforce(){
     workforceButton('workforceWarnings','最低人員','workforce.read')+
     workforceButton('workforceLeave','休暇','workforce.read')+
     workforceButton('workforceAttendance','勤怠・時間外','workforce.read')+
+    (workforceCan('workforce.read')?workforceButton('workforceTeams','班','personnel.read'):'')+
     workforceButton('workforceSettings','勤務設定','workforce.admin')+
     workforceButton('workforceStats','集計','workforce.aggregate')+
     workforceButton('workforceExchange','取込・出力',workforceCan('workforce.import')?'workforce.import':'workforce.export');
@@ -81,6 +83,7 @@ async function openWorkforce(){
   workforceBind('workforceWarnings',()=>workforceWarnings(workforceState.date));
   workforceBind('workforceLeave',workforceLeave);
   workforceBind('workforceAttendance',workforceAttendance);
+  workforceBind('workforceTeams',()=>workforceTeams());
   workforceBind('workforceSettings',workforceSettings);
   workforceBind('workforceStats',workforceStats);
   workforceBind('workforceExchange',workforceExchange);
@@ -165,6 +168,7 @@ function workforceHumanButtons(kind,row){
   return controls;
 }
 function workforceHumanAllowed(button){
+  if(button.dataset.workforceTeamEdit)return workforceCan('workforce.admin')&&workforceCan('personnel.read');
   if(button.dataset.workforceEdit)return workforceCan('workforce.update');
   const [,action]=button.dataset.workforceHuman.split(':');
   if(action==='approve-work-rule')return ['workforce.admin','workforce.review','workforce.approve'].every(workforceCan);
@@ -172,7 +176,7 @@ function workforceHumanAllowed(button){
 }
 function workforceLockHumanControls(){
   if(!workforcePendingHuman)return;
-  for(const button of document.querySelectorAll('[data-workforce-human], [data-workforce-edit]')){
+  for(const button of document.querySelectorAll('[data-workforce-human], [data-workforce-edit], [data-workforce-team-edit]')){
     if(!workforcePendingHuman.controls.has(button))workforcePendingHuman.controls.set(button,{disabled:button.disabled,view:workforceState.viewGeneration});
     button.disabled=true;
   }

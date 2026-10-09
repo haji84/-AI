@@ -2,7 +2,11 @@
 
 更新日: 2026-10-09
 
-## 最新の監査差分（main `70953ba` 基準）
+## 最新の監査差分（main `cc9e676` 基準）
+
+正本main `cc9e676d14fe0439abc69b8ab2be9034e450ffbb`、tree `155ed4e71d40311256b049e77b7adf6042a44803`。PR88で既存Draft勤怠の退勤・秒/小数秒を保持する訂正と、理由付きHuman取消を同一画面へ接続。exact [CI37888019576](https://github.com/haji84/-AI/actions/runs/37888019576) 成功: backend1424 passed/99 skipped/794.23s、browser75 passed/780.79s。独立 [main CI37889200619](https://github.com/haji84/-AI/actions/runs/37889200619) 成功: backend1424 passed/99 skipped/806.95s、browser75 passed/761.35s、parser/JS成功。main artifact11597408712 SHA256 `b4d962d85ca02244e2a563dcc620a4efa8ebe5cd74f835b4f12da75cbd114769`。D20、13Completed/43Partial/0Missing/1ExternalGate。班・業務実績・残高/隊員UX・出動/時間外/手当接続・全module接続・10本E2E・Releaseは内部未完。承認済み記録の不変性と本番/正式判断のHuman Gateを維持。
+
+## 過去の監査差分（main `70953ba` 基準）
 
 正本main `70953bab88116318cf9f69342be39361c75da4d8`、tree `3a81c1b7b7aac271019f83cdc79b2b72e4dfd228`。PR87の勤務横断検索は現在のpersonnel権限・個別原本権限で件数/limit前に保護し、readonly元記録へ接続済み。exact [CI37885361278](https://github.com/haji84/-AI/actions/runs/37885361278) 成功: backend1417 passed/99 skipped/815.86s、browser75 passed/801.10s。独立 [main CI37886725333](https://github.com/haji84/-AI/actions/runs/37886725333) 成功: backend1417 passed/99 skipped/798.48s、browser75 passed/778.63s、migration parser/JS成功。main artifact11596498778 SHA256 `313d699e72e75bf0b16187d4fe521aa92f4c6c082b6288ba1449bd8683333f95`。D19、13Completed/43Partial/0Missing/1ExternalGate。skipは未検証。退勤訂正・班・業務実績・残りmodule接続・10本E2E・Releaseは内部未完。正式判断・実原本・本番移行のHuman Gateを維持。
 

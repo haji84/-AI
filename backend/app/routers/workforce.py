@@ -16,8 +16,10 @@ from ..workforce_schemas import (
     LeaveCreate,AttendanceCreate,AttendancePatch,TimeEntryCreate,HumanAction,ImportConfirm,
 )
 from .. import workforce_service as svc
+from .workforce_teams import router as teams_router
 
 router=APIRouter(prefix='/workforce',tags=['workforce'])
+router.include_router(teams_router)
 def no_store(response:Response):response.headers['Cache-Control']='no-store'
 
 @router.get('/source-records/{kind}/{key}',dependencies=[Depends(no_store)])
