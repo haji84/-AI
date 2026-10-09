@@ -2,9 +2,9 @@
 
 Status date: 2026-10-09 UTC
 
-Audited implementation base: `a3ae2e37b2bebba95bd107c8abe5ee6501b51d59`
+Audited implementation base: `e617b7be16ac2d14a646a439ff54241e17307bde`
 
-Verified implementation tree: `9c5c3fdd545657f88b2ad715cecd51ba3bc30ee6`
+Verified implementation tree: `aaa05171683174995c3c0081ba1fdb83fcf0785e`
 
 Previous reviewed baseline: `c1b684c5c38fc52fe908d2116a21a16ef48dcb34`
 
@@ -29,6 +29,12 @@ Use exactly four primary statuses: **Completed / Partial / Missing / External Ga
 The baseline was independently reconciled to 11/42/3/1 using chapter-specific evidence. This update reviews the merged deltas and preserves that full baseline. Baseline path/line references are pinned to c1b684c; D1–D6 retain their 1b3bf5b source links. D7–D9 retain the PR76-merge snapshot c1b491e; D10 links to the current PR77-merge snapshot 9d6f86b. Test definitions establish coverage present in source; executed results come from the exact-head CI or recorded verification run identified below. This documentation edit itself does not rerun the application suites.
 
 ## Execution evidence and current-base limit
+
+### D17 — PR85 approved workforce observations accepted
+
+Main `e617b7be16ac2d14a646a439ff54241e17307bde`, tree `aaa05171683174995c3c0081ba1fdb83fcf0785e`, matches exact PR head `0a487a6a55e71d528175bb709dd7b3eb55207333`. [Exact-head CI37878688575](https://github.com/haji84/-AI/actions/runs/37878688575) SUCCESS: backend1382 passed/99 skipped/521.31s, browser job75 passed/786.01s, parser/JavaScript success. [Independent main CI37879825992](https://github.com/haji84/-AI/actions/runs/37879825992) SUCCESS: backend1382 passed/99 skipped/763.21s, browser job75 passed/738.49s, parser/JavaScript success. Actual disposable fully migrated PostgreSQL snapshot/Human confirmation and Chromium workforce catalog→query→save→Human confirmation→frozen CSV ran. Main artifact11594855031 SHA256 `d2c18c85f71afed52ff04bc56a2f4962726e2df0cf6d83b018353021886bf7b3`. Skips remain unverified; browser75 includes existing Node/API cases.
+
+Three workforce measures reuse approved source-owned DATE records and saved integer minutes. Missing approved minutes remain unavailable/null when no known values exist; coverage stays unknown. Individual originals require separate current rights; disabled sources are excluded before mixed-report list counts/page and checked again before capture/release. Reseeding preserves Human-disabled configuration. [Verification](WORKFORCE_OBSERVED_STATISTICS_VERIFICATION.md). No migration or privilege grants. Chapters25/34/36 stay Partial (13/43/0/1); other sources/populations/comparisons/forms, dispatch linkage, whole-module queue, ten-flow and release remain internal. Exact individual source-navigation and search deltas are still unmerged and receive no current-main credit.
 
 ### D16 — PR84 hazardous common Work Queue acceptance
 

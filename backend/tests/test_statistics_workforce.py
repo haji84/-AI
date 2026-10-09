@@ -169,7 +169,7 @@ def test_workforce_lineage_pointers_require_live_individual_and_linked_original_
     response = client.get(url, params={'metric_key':metric})
     assert response.status_code == 200, response.text
     assert response.json()['total'] > 0
-    assert all(item['navigation'] is None for item in response.json()['items'])
+    assert all(item['navigation']['surface'].startswith('workforce_') and item['navigation']['id']==item['record_id'] for item in response.json()['items'])
     assert 'PRIVATE' not in response.text and 'employee_id' not in response.text
     revoke(engine, refs, 'hazardous.read')
     denied = client.get(url, params={'metric_key':metric,'limit':1})

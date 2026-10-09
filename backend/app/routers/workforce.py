@@ -1,6 +1,6 @@
 from datetime import date
 from typing import Literal
-from fastapi import APIRouter,Depends,File,Form,Query,Response,UploadFile
+from fastapi import APIRouter,Depends,File,Form,Query,Response,UploadFile,HTTPException
 from sqlalchemy import or_,select
 from sqlalchemy.orm import Session
 from ..authz import require_permission,require_mutation_permission
@@ -19,6 +19,26 @@ from .. import workforce_service as svc
 
 router=APIRouter(prefix='/workforce',tags=['workforce'])
 def no_store(response:Response):response.headers['Cache-Control']='no-store'
+
+@router.get('/source-records/{kind}/{key}',dependencies=[Depends(no_store)])
+def original_record(kind:Literal['roster','attendance','time'],key:str,db:Session=Depends(get_db),user:User=Depends(require_permission('workforce.read'))):
+    from hashlib import sha256
+    from ..workforce_source import current_source, source_payload, original_rights
+    from ..audit import write_audit
+    row=current_source(db,user,kind,key)
+    db.expire_all()
+    row=current_source(db,user,kind,key)
+    data=source_payload(db,row,kind)
+    db.expire_all()
+    row=current_source(db,user,kind,key)
+    if row.version!=data['version']:
+        raise HTTPException(409,'Workforce source changed while preparing the response; reload')
+    data['required_permissions']=sorted({'workforce.read','personnel.read',*original_rights(db,row)})
+    svc.need(db,user,*data['required_permissions'])
+    write_audit(db,user_id=user.user_id,action='workforce.source.read',entity_type='workforce_source',
+                after={'kind':kind,'version':row.version,'source_ref_sha256':sha256(data['record_id'].encode()).hexdigest()})
+    svc.save(db)
+    return data
 
 @router.get('/policy',dependencies=[Depends(no_store)])
 def policy(db:Session=Depends(get_db),user:User=Depends(require_permission('workforce.read'))):
