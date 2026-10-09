@@ -45,6 +45,12 @@ PR80財務の権限閉包と人事原本の保護を同じ候補へ統合した�
 
 ## 残る制約
 
+### PR81初回CIの導入経路修復
+
+Head90e6529、run37866942877のbrowser job113615799440は、新しい人事試験より前に既存の危険物台帳の法令原本pickerで0件となり15.49sで失敗した。bootstrapの開発用create_all前のmodel登録にpersonnel_intake_modelsが欠け、起動後の原本権限閉包が参照する候補tableが新規DBに存在しなかった。別プロセスで実bootstrap→app起動を行う回帰試験で「candidate table omitted」をREDとして再現した。model登録を1行追加し、productionのappend-only migration経路は変更しない。
+
+修正後のbootstrap/統計登録/危険物検索は9passed/4nativePG skipped（41.61s）。さらに既存hazardous browserと同じ合成source fixtureを用いた実bootstrap→法令原本picker API→保護人事原本→未解決候補→一覧の回帰試験が1passed（15.22s）。新しいexact-head全PG/Chromium CIで再確認するまでnative修復完了とは宣言しない。
+
 人事原本・候補を含むHTTP応答のcache防止を追加検証した。create/list/getだけでなく、補正・確認・適用・却下まで実APIを通し、全応答の`Cache-Control: no-store`を要求する回帰試験は追加前RED、router共通dependency追加後Green。人事API全体は20passed、独立レビューの対象試験も1passed（7.63s）、Critical/Importantなし。権限・Human承認・transactionは変更しない。
 
 - 最初のdeterministic adapterは抽出された明示JSON項目を読む。非JSON原本は抽出previewを残し、Humanが項目と正確な根拠引用を補正する。自然文辞令の実AI判読品質を主張しない。
