@@ -9,7 +9,7 @@ from .db import BoundSession
 from .models import User
 from .personnel import account_change_lock, employee_available
 from .settings import settings
-from .statistics_sources import capture_sources, pin_period, required_permissions
+from .statistics_sources import capture_sources, pin_period, required_permissions, require_workforce_available
 
 
 @dataclass(frozen=True)
@@ -31,6 +31,8 @@ def authorize(db, identity, codes, *, mutation=False):
     current_user(user)
     if not set(codes).issubset(permission_codes(db, identity.user_id)):
         raise HTTPException(403, 'Statistics source or command permission is no longer effective')
+    if any(code.startswith('workforce.') for code in codes):
+        require_workforce_available(db)
     return user
 
 
