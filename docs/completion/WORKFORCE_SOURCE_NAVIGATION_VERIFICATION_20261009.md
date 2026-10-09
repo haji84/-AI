@@ -23,4 +23,6 @@ After payload construction the endpoint checks the originating session, current 
 
 ## Remaining acceptance
 
+Initial exact-head CI37881248722 browser failed after66 passes at the new held-source interruption: workforceModal intercepted the attempted header click. Actual readonly source assertions had already passed. Repair uses the available workforceClose and statisticsClose controls before clicking the normal workforce header; it keeps the actual held HTTP body and late-response/newer-view assertions. No forced click, fabricated response, product permission change or waived safety assertion. Fresh exact-head full CI is required after this test repair.
+
 Exact remote parent/tree equality, complete exact-head CI, merge and independent main CI remain required. Actual PostgreSQL/Chromium success and artifact digest must be recorded after execution, never inferred from local tests. Broader all-module statistics/populations/forms, dispatch/workforce linkage, queue providers, ten canonical E2Es, deployment profiles and installable release remain internal requirements. No real personal data or original document was used.

@@ -250,6 +250,8 @@ def test_workforce_catalog_actual_query_confirmation_and_frozen_exports(statisti
         page.wait_for_function('window.__workforceSourceHeld === true')
         assert held, 'actual source request was not held'
         expect(page.locator('#workforceContent')).to_contain_text('元記録を読み込みます')
+        page.locator('#workforceClose').click()
+        page.locator('#statisticsClose').click()
         page.locator('#workforceBtn').click()
         expect(page.locator('#workforceRosterDate')).to_be_visible()
         assert held, 'actual source request was not held'
