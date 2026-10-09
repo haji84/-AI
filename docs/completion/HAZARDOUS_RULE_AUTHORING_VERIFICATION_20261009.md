@@ -19,6 +19,12 @@ APIのREDは非公式source・無効source・原本改変・引用差替え・so
 
 実PostgreSQL試験は055以前のDB・旧Ruleを維持して056だけを更新し、retry空、actual citation API、同時Human承認200/409・1audit・固定根拠1件・UPDATE/DELETE拒否を要求する。ローカルskipでnative成功と扱わない。exact-head CIとmerge後main CIを確認して追記する。
 
+### 初回exact-head CIと既存照会テストの待機修復
+
+PR82 head0f009bc6759fdf2b92c47a270f72a3ad65778a16、CI37870229132のbackend job113626373588は1329passed/97skipped（475.98s）、migration parser/JavaScript成功。実056 PostgreSQL更新・再実行・同時承認・不変triggerも実行された。Browser job113626373400は既存照会回答の根拠保存POST待機でtimeoutし、29passed/1failed（395.28s）。Actions起動や新危険物APIの失敗ではなく、全browser成功・merge条件は未達。
+
+初期根拠previewと再検索の本文が同じため、本文の一致だけでは検索完了を証明しない。実JSの遅延検索回帰は、旧本文が一致していても保存がlockされ、処理中submitはPOSTを発行せず、応答後に有効化することを再現した。既存の処理中操作/Human Gateを弱めず、Chromium試験だけを正確な検索GETの応答・検索/保存controlの有効化待ちへ修復し、重複した同値source-type変更を避けた。Node状態試験6passed（1.21s）。修復後の新headで全CIを再実行し、前headのbackend結果を新head全Greenと混同しない。
+
 ## 内部未完とHuman Gate
 
 本Sliceはauthoringとpure engineの基盤であり、installation評価candidate保存/選択profileとjurisdiction/effective Rule適用/固定承認根拠のdrift照合/独立Human評価確認/UI・Chromium連携は次の内部Slice。章16/17、10本Cross-module E2E、実図面Benchmark、Release完成を宣言しない。

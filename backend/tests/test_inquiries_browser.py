@@ -39,7 +39,19 @@ with SessionLocal() as db:
    page.locator('#inquiryNew').click();page.locator('#inquiryNewYear').fill('2026');page.locator('#inquiryQuestion').fill('Synthetic browser council count')
    with page.expect_response(lambda r:r.url.endswith('/inquiries') and r.request.method=='POST') as response:page.locator('#inquiryCreate').click()
    assert response.value.status==201,response.value.text();row=response.value.json();key=row['inquiry_id']
-   page.locator('#inquiryEvidence').click();expect(page.locator('#inquirySourceSelect')).to_contain_text('Synthetic count 12 people.');page.locator('#inquirySourceType').select_option('document');page.locator('#inquirySourceQuery').fill('Synthetic count');page.locator('#inquirySourceFind').click();expect(page.locator('#inquirySourceText')).to_contain_text('Synthetic count 12 people.');page.locator('#inquiryExcerpt').fill('Synthetic count 12 people.')
+   page.locator('#inquiryEvidence').click();expect(page.locator('#inquirySourceSelect')).to_contain_text('Synthetic count 12 people.')
+   expect(page.locator('#inquirySourceType')).to_have_value('document')
+   expect(page.locator('#inquirySourceFind')).to_be_enabled()
+   page.locator('#inquirySourceQuery').fill('Synthetic count')
+   # The initial preview has identical text. It cannot prove this search has
+   # finished; wait for its actual response and the pending-operation release.
+   with page.expect_response(lambda r:r.request.method=='GET' and r.url.startswith(base+'/inquiries/sources?') and parse_qs(urlsplit(r.url).query).get('source_type')==['document'] and parse_qs(urlsplit(r.url).query).get('q')==['Synthetic count']) as searched:
+    page.locator('#inquirySourceFind').click()
+   assert searched.value.status==200,searched.value.text()
+   expect(page.locator('#inquirySourceFind')).to_be_enabled()
+   expect(page.locator('#inquiryEvidenceSave')).to_be_enabled()
+   expect(page.locator('#inquirySourceText')).to_contain_text('Synthetic count 12 people.')
+   page.locator('#inquiryExcerpt').fill('Synthetic count 12 people.')
    with page.expect_response(lambda r:r.url.endswith('/evidence') and r.request.method=='POST') as response:page.locator('#inquiryEvidenceSave').click()
    assert response.value.status==201,response.value.text();evidence=response.value.json();expect(page.locator('#inquiryContent')).to_contain_text(evidence['snapshot']['documents'][0]['sha256'])
    page.locator('#inquiryEdit').click();page.locator('#inquiryDraft').fill('Unsupported count 13 people.')

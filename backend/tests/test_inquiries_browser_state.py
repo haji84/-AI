@@ -2,6 +2,37 @@
 from pathlib import Path
 import subprocess
 
+
+def test_identical_source_preview_does_not_imply_search_or_save_is_ready():
+ root=Path(__file__).resolve().parents[2];js=(root/'frontend/inquiries.js').read_text()
+ script=r'''
+const assert=require('node:assert/strict'),vm=require('node:vm');
+const nodes={};
+function element(id){return {id,value:'',disabled:false,isConnected:true,_html:'',get innerHTML(){return this._html},set innerHTML(html){this._html=html;for(const match of html.matchAll(/id="([^"]+)"/g))nodes[match[1]]=element(match[1]);}}}
+for(const id of ['inquiryContent','inquiryMessage'])nodes[id]=element(id);
+const source={source_type:'document',source_id:'synthetic-original',text:'Synthetic count 12 people.',record_version:null};
+let reads=0,release,posts=0;
+const context={console,URLSearchParams,$:id=>nodes[id],esc:s=>String(s??''),api:async(path,opt={})=>{
+ if(path==='/auth/me')return {user_id:'synthetic-user'};
+ if(path.startsWith('/inquiries/sources?')){reads++;if(reads>1)return await new Promise(resolve=>release=()=>resolve([source]));return [source];}
+ if(opt.method==='POST'){posts++;return {};}
+ return [];
+}};vm.createContext(context);
+'''+"vm.runInContext("+__import__('json').dumps(js)+r''',context);
+async function main(){
+ vm.runInContext("inquiryState.permissions=['document.read','inquiry.update'];",context);
+ await vm.runInContext("inquiryEvidence({inquiry_id:'synthetic-inquiry',version:1})",context);
+ nodes.inquirySourceType.value='document';nodes.inquirySourceQuery.value='Synthetic count';
+ const pending=nodes.inquirySourceFind.onclick();await new Promise(resolve=>setImmediate(resolve));
+ assert(nodes.inquirySourceText.innerHTML.includes(source.text),'old preview already matches the new search');
+ assert.equal(nodes.inquiryEvidenceSave.disabled,true);assert(release);
+ nodes.inquiryEvidenceForm.onsubmit({preventDefault(){}});assert.equal(posts,0);
+ release();await pending;assert.equal(nodes.inquiryEvidenceSave.disabled,false);assert.equal(reads,2);assert.equal(posts,0);
+}main().catch(error=>{console.error(error);process.exitCode=1});
+'''
+ result=subprocess.run(['node','-e',script],capture_output=True,text=True,timeout=20)
+ assert result.returncode==0,result.stderr
+
 def test_inquiry_shared_pc_identity_revocation_late_response_and_escaping():
  root=Path(__file__).resolve().parents[2]
  js=(root/'frontend/inquiries.js').read_text()
