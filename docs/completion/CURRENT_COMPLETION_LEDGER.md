@@ -2,9 +2,9 @@
 
 Status date: 2026-10-09 UTC
 
-Audited implementation base: `e617b7be16ac2d14a646a439ff54241e17307bde`
+Audited implementation base: `a2586a6a8d4426e3f79966f437a3bb6e46161fee`
 
-Verified implementation tree: `aaa05171683174995c3c0081ba1fdb83fcf0785e`
+Verified implementation tree: `db2d44c136cdcf9accc948ad937871cca839f29c`
 
 Previous reviewed baseline: `c1b684c5c38fc52fe908d2116a21a16ef48dcb34`
 
@@ -29,6 +29,12 @@ Use exactly four primary statuses: **Completed / Partial / Missing / External Ga
 The baseline was independently reconciled to 11/42/3/1 using chapter-specific evidence. This update reviews the merged deltas and preserves that full baseline. Baseline path/line references are pinned to c1b684c; D1–D6 retain their 1b3bf5b source links. D7–D9 retain the PR76-merge snapshot c1b491e; D10 links to the current PR77-merge snapshot 9d6f86b. Test definitions establish coverage present in source; executed results come from the exact-head CI or recorded verification run identified below. This documentation edit itself does not rerun the application suites.
 
 ## Execution evidence and current-base limit
+
+### D18 — PR86 exact workforce source navigation accepted
+
+Main `a2586a6a8d4426e3f79966f437a3bb6e46161fee`, tree `db2d44c136cdcf9accc948ad937871cca839f29c`, matches repaired exact PR head `5a82bf3153565dc3d29ec1ff8b20bac295137a20`. [Exact CI37882703445](https://github.com/haji84/-AI/actions/runs/37882703445) SUCCESS: backend1400 passed/99 skipped/783.07s; browser75 passed/765.16s. [Independent main CI37883890162](https://github.com/haji84/-AI/actions/runs/37883890162) SUCCESS: backend1400 passed/99 skipped/774.84s; browser75 passed/716.32s; parser/JavaScript SUCCESS. Native PostgreSQL post-payload permission/session/version checks and actual Chromium statistics→exact read-only roster→close→newer Human view after the real late promise settles ran. Initial CI37881248722 failed at a header hidden behind the modal; repair uses normal close controls and awaits the original full handoff, without fabricated response or weakened guard. Main artifact11595692705 SHA256 `f659fa647874a323f42324f163cf09ab68adf6f5cd77cd1870fc52927ccdc969`.
+
+Current individual/typed-transitive original rights, source availability, session and version are checked independently of aggregate permission. No new grant, Human approval or formal salary decision. Chapters25/34/36/45/48/54 remain Partial; protected common search, checkout/team/dispatch/work-result/balance/crew interfaces, all-module adapters, ten canonical E2Es and release remain internal. Counts unchanged13/43/0/1; skips receive no execution credit.
 
 ### D17 — PR85 approved workforce observations accepted
 

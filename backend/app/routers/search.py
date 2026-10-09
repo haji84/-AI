@@ -4,6 +4,7 @@ from datetime import date, datetime
 from typing import Iterable
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.routing import APIRoute
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
@@ -39,7 +40,20 @@ from ..models import (
 from ..schemas import UnifiedSearchHitOut, UnifiedSearchResponse
 from ..unified_search import SEARCH_VERSION, lexical_score, make_snippet, query_sha256, query_terms
 
-router = APIRouter(prefix="/search", tags=["search"])
+class PrivateSearchRoute(APIRoute):
+    def get_route_handler(self):
+        original=super().get_route_handler()
+        async def handler(request):
+            try:response=await original(request)
+            except HTTPException as error:
+                error.headers={**(error.headers or {}),'Cache-Control':'no-store'}
+                raise
+            response.headers['Cache-Control']='no-store'
+            return response
+        return handler
+
+
+router = APIRouter(prefix="/search", tags=["search"],route_class=PrivateSearchRoute)
 
 from ..assets_models import OperationalAsset, AssetLot
 from ..operations_models import Incident, Vehicle
@@ -80,6 +94,7 @@ def _authorized_modules(perms: set[str]) -> list[str]:
         for module in DEFAULT_MODULE_ORDER
         if any(permission in perms for permission in MODULE_PERMISSIONS[module])
         and (module != "hazardous_materials" or "facility.read" in perms)
+        and (module != "workforce" or "personnel.read" in perms)
     ]
 
 
@@ -830,23 +845,35 @@ def _search_assets(db,q,limit):
 
 
 def _search_workforce(db: Session, q: str, limit: int) -> list[UnifiedSearchHitOut]:
+    from ..workforce_source import current_source
+    from ..statistics_sources import workforce_available
+    if not workforce_available(db):return []
+    user=db.get(User,db.info.get('inquiry_search_user_id'))
+    if user is None:raise HTTPException(401,'originating search user unavailable')
     rows = db.execute(
         select(WorkforceRosterEntry, Employee, OrganizationUnit, WorkforceShiftType)
         .join(Employee, Employee.employee_id == WorkforceRosterEntry.employee_id)
         .join(OrganizationUnit, OrganizationUnit.organization_id == WorkforceRosterEntry.organization_id)
         .join(WorkforceShiftType, WorkforceShiftType.shift_type_id == WorkforceRosterEntry.shift_type_id)
         .where(_like_condition(q,Employee.display_name,Employee.employee_code,OrganizationUnit.name,OrganizationUnit.code,WorkforceShiftType.name,WorkforceShiftType.code,WorkforceRosterEntry.note,WorkforceRosterEntry.status))
-        .order_by(WorkforceRosterEntry.work_date.desc()).limit(limit)
-    ).all()
-    return [
+        .order_by(WorkforceRosterEntry.work_date.desc(),WorkforceRosterEntry.roster_entry_id)
+    ).yield_per(50)
+    hits=[]
+    for roster,employee,organization,shift in rows:
+        try:current_source(db,user,'roster',roster.roster_entry_id)
+        except HTTPException as error:
+            if error.status_code==503:return []
+            if error.status_code in (404,409):continue
+            raise
+        hits.append(
         _hit(q,module="workforce",source_type="workforce_roster",source_id=roster.roster_entry_id,
             title=f"{employee.display_name} ・ {organization.name} ・ {shift.name}",
             body=" / ".join(x for x in [employee.employee_code,roster.work_date.isoformat(),roster.status,"応援配置" if roster.support_placement else "通常配置",roster.note] if x),
             parent_id=employee.employee_id,occurred_at=roster.work_date,required_permission="workforce.read",
-            navigation={"surface":"workforce","roster_entry_id":roster.roster_entry_id,"employee_id":employee.employee_id},
-            evidence={"record_version":roster.version,"status":roster.status,"assignment_id":roster.assignment_id,"assignment_version":roster.assignment_version})
-        for roster,employee,organization,shift in rows
-    ]
+            navigation={"surface":"workforce_roster","record_id":roster.roster_entry_id},
+            evidence={"record_version":roster.version,"status":roster.status,"assignment_id":roster.assignment_id,"assignment_version":roster.assignment_version}))
+        if len(hits)>=limit:break
+    return hits
 
 
 def _search_finance(db,q,limit,perms,module):
@@ -974,6 +1001,25 @@ def unified_search(
     for module in selected:
         db.info["inquiry_search_user_id"]=user.user_id
         hits.extend(SEARCHERS[module](db, query, source_limit, perms))
+
+    if 'workforce' in selected:
+        from ..authz import revalidate_session
+        from ..workforce_source import current_source
+        from ..workforce_service import need
+        db.expire_all()
+        revalidate_session(db,user.user_id)
+        need(db,user,'search.use','workforce.read','personnel.read')
+        visible=[]
+        for hit in hits:
+            if hit.module!='workforce':visible.append(hit);continue
+            try:row=current_source(db,user,'roster',hit.source_id)
+            except HTTPException as error:
+                if error.status_code in (404,409,503):continue
+                raise
+            if row.version!=hit.evidence['record_version']:
+                raise HTTPException(409,'Workforce search source changed; repeat the query')
+            visible.append(hit)
+        hits=visible
 
     hits.sort(
         key=lambda x: (

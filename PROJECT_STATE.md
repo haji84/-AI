@@ -2,7 +2,11 @@
 
 更新日: 2026-10-09
 
-## 最新の監査差分（main `e617b7b` 基準）
+## 最新の監査差分（main `a2586a6` 基準）
+
+正本main `a2586a6a8d4426e3f79966f437a3bb6e46161fee`、tree `db2d44c136cdcf9accc948ad937871cca839f29c`。PR86の勤務元記録参照を統計drilldownへ接続済み。修復exact [CI37882703445](https://github.com/haji84/-AI/actions/runs/37882703445) 成功: backend1400 passed/99 skipped/783.07s、browser75 passed/765.16s。独立 [main CI37883890162](https://github.com/haji84/-AI/actions/runs/37883890162) 成功: backend1400 passed/99 skipped/774.84s、browser75 passed/716.32s、parser/JS成功。実PGの応答前権限・session・version再確認と実Chromiumの統計→readonly元記録→閉じる→遅い実応答完了後の新Human画面保持を確認。main artifact11595692705 SHA256 `f659fa647874a323f42324f163cf09ab68adf6f5cd77cd1870fc52927ccdc969`。D18、分類13Completed/43Partial/0Missing/1ExternalGateのまま。検索・退勤訂正・班管理・出動/業務実績・全Module集計/Work Queue・10本E2E・releaseは内部未完として継続する。正式判断・実原本・本番移行はHuman Gateを維持。
+
+## 過去の監査差分（main `e617b7b` 基準）
 
 正本main `e617b7be16ac2d14a646a439ff54241e17307bde`、tree `aaa05171683174995c3c0081ba1fdb83fcf0785e`。PR85で承認済勤務表記録数・保存実勤務分・時間外勤務分を横断観測統計へ接続済み。exact [CI37878688575](https://github.com/haji84/-AI/actions/runs/37878688575) 成功: backend1382 passed/99 skipped/521.31s、browser job75 passed/786.01s、parser/JavaScript成功。独立 [main CI37879825992](https://github.com/haji84/-AI/actions/runs/37879825992) 成功: backend1382 passed/99 skipped/763.21s、browser job75 passed/738.49s、parser/JavaScript成功。実PostgreSQLのsnapshot/Human確認と実Chromiumのquery→保存→Human確認→凍結CSVを確認。main artifact11594855031 SHA256 `d2c18c85f71afed52ff04bc56a2f4962726e2df0cf6d83b018353021886bf7b3`。
 

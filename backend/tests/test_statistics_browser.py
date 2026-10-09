@@ -272,6 +272,25 @@ def test_workforce_catalog_actual_query_confirmation_and_frozen_exports(statisti
         for route in held: route.continue_()
         page.unroute(pattern, hold)
 
+    page.locator('#workforceClose').click()
+    page.locator('#unifiedSearchBtn').click()
+    page.locator('#unifiedSearchQ').fill('PRIVATE workforce')
+    with page.expect_response(lambda response:'/search?' in response.url) as searched:
+        page.locator('button[onclick="runUnifiedSearch()"]').click()
+    assert searched.value.status == 200, searched.value.text()
+    hits=[hit for hit in searched.value.json()['hits'] if hit['module']=='workforce']
+    assert hits and all(hit['navigation']['surface']=='workforce_roster' for hit in hits)
+    expect(page.locator('#unifiedSearchResults')).to_contain_text('PRIVATE workforce employee')
+    with page.expect_response(lambda response:'/workforce/source-records/roster/' in response.url) as exact:
+        page.locator('[onclick^="openUnifiedWorkforceSource("]').first.click()
+    assert exact.value.status == 200, exact.value.text()
+    assert exact.value.json()['record_id']==hits[0]['source_id']
+    expect(page.locator('#workforceContent')).to_contain_text('PRIVATE workforce employee')
+    expect(page.locator('#workforceContent')).to_contain_text('Version 1')
+    assert page.locator('#workforceContent [data-workforce-human]').count()==0
+    page.screenshot(path=str(ui['artifacts'] / 'workforce-search-exact-source.png'),full_page=True)
+    page.locator('#workforceClose').click()
+
 
 def test_real_query_recapture_confirmation_history_and_safe_frozen_downloads(statistics_browser):
     from openpyxl import load_workbook
