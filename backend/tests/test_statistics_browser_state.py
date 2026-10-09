@@ -29,10 +29,10 @@ function element(id='',attrs='',tag='div'){
   remove(){this.isConnected=false;for(const child of this.children)child.remove();if(nodes[this.id]===this)delete nodes[this.id]},
   _html:'',get innerHTML(){return this._html},set innerHTML(html){this._html=html;for(const child of this.children)child.remove();this.children=[];
    for(const match of html.matchAll(/<(button|input|select|textarea|div|p|span|section|article|form|a)\b([^>]*)>/g)){
-    const attrs=match[2],key=attrs.match(/\bid="([^"]+)"/)?.[1];if(!key&&!attrs.includes('data-statistics-'))continue;
+    const attrs=match[2],key=attrs.match(/\bid="([^"]+)"/)?.[1];if(!key&&!attrs.includes('data-'))continue;
     const child=element(key??'',attrs,match[1]);for(const m of attrs.matchAll(/data-([a-z-]+)="([^"]*)"/g))child.dataset[m[1].replace(/-([a-z])/g,(_,x)=>x.toUpperCase())]=m[2];this.append(child);
    }
-  },querySelectorAll(selector){const all=this.children.flatMap(c=>[c,...c.querySelectorAll('*')]);if(selector==='*')return all;if(selector==='button, input, select, textarea')return all.filter(c=>['BUTTON','INPUT','SELECT','TEXTAREA'].includes(c.tagName));const data=selector.match(/^\[data-([a-z-]+)\]$/)?.[1];if(data){const key=data.replace(/-([a-z])/g,(_,x)=>x.toUpperCase());return all.filter(c=>c.dataset[key]!==undefined)}return []}
+  },querySelectorAll(selector){const all=this.children.flatMap(c=>[c,...c.querySelectorAll('*')]);if(selector==='*')return all;if(selector==='button, input, select, textarea')return all.filter(c=>['BUTTON','INPUT','SELECT','TEXTAREA'].includes(c.tagName));if(selector.includes(','))return [...new Set(selector.split(',').flatMap(part=>this.querySelectorAll(part.trim())))];const data=selector.match(/^\[data-([a-z-]+)(?:\^="([^"]*)")?\]$/);if(data){const key=data[1].replace(/-([a-z])/g,(_,x)=>x.toUpperCase());return all.filter(c=>c.dataset[key]!==undefined&&(data[2]===undefined||c.dataset[key].startsWith(data[2])))}return []}
  };if(id)nodes[id]=node;return node;
 }
 const document={body:element('body'),createElement:tag=>element('', '',tag),getElementById:id=>nodes[id],addEventListener(name,fn){(handlers[name]??=[]).push(fn)},querySelectorAll:selector=>document.body.querySelectorAll(selector),visibilityState:'visible'};
