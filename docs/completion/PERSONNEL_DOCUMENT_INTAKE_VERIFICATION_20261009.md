@@ -43,6 +43,8 @@ PR80財務の権限閉包と人事原本の保護を同じ候補へ統合した�
 
 ## 残る制約
 
+人事原本・候補を含むHTTP応答のcache防止を追加検証した。create/list/getだけでなく、補正・確認・適用・却下まで実APIを通し、全応答の`Cache-Control: no-store`を要求する回帰試験は追加前RED、router共通dependency追加後Green。人事API全体は20passed、独立レビューの対象試験も1passed（7.63s）、Critical/Importantなし。権限・Human承認・transactionは変更しない。
+
 - 最初のdeterministic adapterは抽出された明示JSON項目を読む。非JSON原本は抽出previewを残し、Humanが項目と正確な根拠引用を補正する。自然文辞令の実AI判読品質を主張しない。
 - 役職は既存Employee/Assignment/HumanRoleRuleの完全一致名称のみ。独立の役職コードregistry・コード対応表の正式移行は別の内部未完。
 - before表示には履歴の本務/兼務・役職・期間を出すが、旧組織名と閉じる予定日の比較表示は未拡張（レビューMinor）。before snapshotの元組織IDと版照合、既存異動処理の期間変更は保持する。

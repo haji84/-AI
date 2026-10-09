@@ -299,29 +299,19 @@ with SessionLocal() as db:
             # background session check may already reset the view before we
             # invoke it; starting a fresh ownerless navigation then would test
             # a new action instead of the stale one a user had available.
-            page.evaluate("""() => {
-                window.syntheticSessionTrace=[];
-                const originalAssert=hazardousAssert;
-                hazardousAssert=ticket=>{
-                    window.syntheticSessionTrace.push({event:'owner',ticket:[ticket.generation,ticket.view],current:[hazardousState.generation,hazardousState.viewGeneration],shared:FireAISession.currentGeneration()});
-                    return originalAssert(ticket);
-                };
-                const originalReset=clearSharedPrivateState;
-                FireAISession.install({reset:()=>{
-                    window.syntheticSessionTrace.push({event:'reset-start'});
-                    try{originalReset();window.syntheticSessionTrace.push({event:'reset-end'});}
-                    catch(error){window.syntheticSessionTrace.push({event:'reset-error',message:error.message});throw error;}
-                }});
-            }""")
-            page.evaluate("() => { window.syntheticCachedHazardousList = document.getElementById('hazardousListNav').onclick; }")
             expect(page.locator('#hazardousContent')).to_contain_text('変更履歴')
+            page.evaluate("() => { window.syntheticCachedHazardousList = document.getElementById('hazardousListNav').onclick; }")
+            replacement_source_requests = []
+            page.on('request', lambda request: replacement_source_requests.append(request.url) if '/hazardous/' in request.url else None)
             before = page.request.get(base + '/auth/context').json()
             assert page.request.post(base + '/auth/login', data={'username':'hazardous-browser','password':'synthetic-hazardous-password'}).status == 200
             after = page.request.get(base + '/auth/context').json()
             assert before['session_id'] != after['session_id']
             browser_after = page.evaluate("async () => (await fetch('/auth/context', {cache:'no-store'})).json()")
             assert browser_after['session_id'] == after['session_id'], 'browser and HTTP fixture must share the replaced session'
-            page.evaluate('window.syntheticCachedHazardousList()')
+            # A real user click includes the document's session preflight.
+            # Directly calling onclick would bypass that security boundary.
+            page.locator('#hazardousListNav').click()
             try:
                 expect(page.locator('#hazardousModal')).to_have_count(0)
             except AssertionError:
@@ -329,12 +319,16 @@ with SessionLocal() as db:
                 print('Synthetic session diagnostic:', json.dumps({
                     'before_session': before['session_id'], 'after_session': after['session_id'],
                     'browser_session': browser_after['session_id'], 'page_errors': page_errors,
-                    'trace': page.evaluate('window.syntheticSessionTrace'),
                     'ui': page.evaluate("({generation:hazardousState.generation,view:hazardousState.viewGeneration,permissions:hazardousState.permissions.length,loginHidden:document.getElementById('loginView').classList.contains('hidden')})")
                 }))
                 raise
             expect(page.locator('#loginView')).to_be_visible()
             assert page.evaluate('hazardousState.permissions.length') == 0
+            page.evaluate('window.syntheticCachedHazardousList()')
+            expect(page.locator('#hazardousModal')).to_have_count(0)
+            expect(page.locator('#loginView')).to_be_visible()
+            assert page.evaluate('hazardousState.permissions.length') == 0
+            assert replacement_source_requests == [], 'session preflight and stale owner must prevent source requests'
             assert not page_errors, page_errors
             browser.close()
     finally:

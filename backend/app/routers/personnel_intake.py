@@ -9,7 +9,11 @@ from ..personnel_intake_models import PersonnelDocumentProposal
 from ..personnel_intake_schemas import NoticeCreate, NoticePatch, NoticeDecision
 from .. import personnel_intake_service as svc
 
-router = APIRouter(prefix='/personnel-intake', tags=['personnel intake'])
+def no_store(response: Response):
+    response.headers['Cache-Control'] = 'no-store'
+
+
+router = APIRouter(prefix='/personnel-intake', tags=['personnel intake'], dependencies=[Depends(no_store)])
 
 
 @router.get('/proposals')

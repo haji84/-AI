@@ -83,6 +83,33 @@ def test_candidate_does_not_change_assignment(notice):
     assert decide(client, row, 'apply').status_code == 409
 
 
+def test_private_notice_responses_disable_http_caching(notice):
+    client, _, _, document, _, _ = notice
+    original, raw = document()
+    created = client.post('/personnel-intake/proposals', json={'document_id': original['document_id']})
+    assert created.status_code == 201, created.text
+    row = created.json()
+    responses = [created, client.get('/personnel-intake/proposals'),
+        client.get('/personnel-intake/proposals/' + row['proposal_id'])]
+    revised = client.patch('/personnel-intake/proposals/' + row['proposal_id'], json={
+        'expected_version': row['version'], 'reason': 'Synthetic Human correction',
+        'proposed': json.loads(raw), 'source_quote': raw.decode()})
+    assert revised.status_code == 200, revised.text
+    responses.append(revised)
+    reviewed = decide(client, revised.json(), 'review')
+    assert reviewed.status_code == 200, reviewed.text
+    responses.append(reviewed)
+    applied = decide(client, reviewed.json(), 'apply')
+    assert applied.status_code == 200, applied.text
+    responses.append(applied)
+    other = client.post('/personnel-intake/proposals', json={'document_id': original['document_id']})
+    assert other.status_code == 201, other.text
+    rejected = decide(client, other.json(), 'reject')
+    assert rejected.status_code == 200, rejected.text
+    responses.append(rejected)
+    assert all(response.headers.get('cache-control') == 'no-store' for response in responses)
+
+
 def test_apply_reason_stays_protected_from_audit_only_reader(notice):
     from app.personnel_intake_models import PersonnelDocumentProposal
     client, engine, ids, _, candidate, _ = notice

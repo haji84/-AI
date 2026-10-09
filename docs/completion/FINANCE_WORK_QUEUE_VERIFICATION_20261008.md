@@ -1,5 +1,11 @@
 # 財務処理の業務キュー連携
 
+## 最新のnative失敗診断と修復対象
+
+診断head `4bacd482ebd544e0718669abd8f26f00daf08a35`、run37861580579/job113598341390は84.82秒で1failed。実traceは、保存したhandlerのownerが39、詳細の完了後のcurrentが40となり、最後のowner検査で停止したことを示した。resetの開始・終了・例外はいずれも記録されなかった。handler保存前の名称検査は一覧内の名称にも一致し、保存後の履歴検査でようやく詳細完了を待っていた。そのため保存済み操作はセッション置換前から古くなっていた。またonclickの直接呼出しはdocumentのセッション事前検査を通らない。
+
+修復は本番コードを変更せず、詳細履歴の待機を保存前へ移し、Playwrightの実クリックでセッション事前検査を通す。modal消去・login表示・権限消去を検査し、その後に古い保存handlerを実行して同じ条件と危険物API追加要求0件を検査する。元の安全性検査と25件の実JavaScript状態回帰は維持し、診断wrapperは撤去する。独立レビュー後、更新headの全PostgreSQL/Chromium CIで修復を検証する。ここでは未実行のCI成功を主張しない。
+
 ## 範囲
 
 章27・36の内部Partialを減らす限定Slice。章全体のCompleted、10本のCross-module E2E、完成Releaseの証拠ではない。
