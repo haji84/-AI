@@ -1,5 +1,13 @@
 # Hazardous deterministic evaluation candidate — verification checkpoint
 
+## Final accepted PR83 / independent main evidence
+
+PR83 accepted head `85760f60801044e884a5ae8029c9c0df2f744baa`, tree `477ee5c16f2693e4a698c52c00494f4213a47064`; merge main `07b854552d173b7736323d5d18b3144b6ae9d32a` has the same tree. [PR CI37873610982](https://github.com/haji84/-AI/actions/runs/37873610982) SUCCESS: backend1353 passed/98 skipped/479.53s, browser job74 passed/567.47s, parser/JavaScript success; artifact11590814854 SHA256 `f3489d6579a18bba3d9a5ac6dd91efffca3b13d3668b25b47f67b0ff12a3022f`.
+
+[Independent main CI37874629139](https://github.com/haji84/-AI/actions/runs/37874629139) SUCCESS: backend1353 passed/98 skipped/719.85s, browser job74 passed/533.96s, parser/JavaScript success. Artifact11592033248 SHA256 `5020cee1ff28ce628679c2264253c304792b74017cf620e3e73c59da3b18a7f6`. Native057 upgrade/retry/concurrent200/409/one-audit/immutable evidence and actual Chromium explicit profile/date→matched/unresolved→citation/original→separate Human review→permission revocation ran. Skips remain unverified. Browser job includes existing Node/API tests; not all74 are Chromium.
+
+The [chapter16 re-audit](HAZARDOUS_CHAPTER16_COMPLETION_20261009.md) supersedes the pre-merge Partial statement below. All pending/local paragraphs below are preserved historical checkpoints. This acceptance neither approves real legal policy nor completes chapter17, all-module Work Queue, ten cross-module E2Es or production release.
+
 Canonical main at start: `be5185e53a5f126d6524bee1291d83a7e41fde92`, tree `3f56f3155343325c2d845fa5647ad23a66ad6618`.
 Dependency: PR #82 hazardous Rule authoring, head `e4a1c1ecbf57b7bfeaede259c4f99e315ff4db32`, tree `d1c1fe35dfbd31d91006ab31db3a6980da93657b`.
 This evaluation Slice is local and unmerged. Dependency CI run `37871180915` is still running at this checkpoint. No evaluation CI, actual PostgreSQL, or Chromium success is claimed.

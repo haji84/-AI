@@ -1,0 +1,11 @@
+# Hazardous work pointers — bounded continuation plan
+
+Canonical main is PR82 merge `fc96af9dc6cd235487c5fe47ebf42d2b0553e887`, tree `d1c1fe35dfbd31d91006ab31db3a6980da93657b`, exact/main CI accepted. Active dependency PR83 head `85760f60801044e884a5ae8029c9c0df2f744baa`, tree `477ee5c16f2693e4a698c52c00494f4213a47064`, CI37873610982 running. This worktree starts at the identical local dependency tree. Publish only the additional queue delta after dependency merge and independent main acceptance. No migration is needed for read-only pointers.
+
+Chapter36 requires live source pointers, current role/relationship filtering, no duplicated official data and no inaccessible module counts. Existing providers cover assets/fleet/violations/inquiries/budget. Hazardous register deadline/confirmation and new evaluation review are absent from the common queue. Chapter16 has its own due/review views; queue integration is a separate internal requirement, not an External gate.
+
+1. RED actual API tests: pending evaluation points to current protected source, explicit generic title without material/source prose, creator/role relationships, separate review removal, source rights before counts/page, disabled module, stale/retired inputs, hidden linked originals and record lineage.
+2. Add a hazardous_materials provider using existing current source guards. Show pending evidence review and due-record pointers, plus candidate evaluation review. No permission grants or business writes. Parent/source versions remain provenance; never duplicate private notes, amounts, material names or original text.
+3. Extend closed module/source/navigation enums and whitelisted frontend handlers. Keep schema-v1 compatibility. Hazardous async entry paths accept external navigation ownership, cancel obsolete responses before private DOM and avoid closing a newer Human view. No server-controlled URL/function dispatch.
+4. Actual Node deferred-body and queued-navigation regressions plus native Chromium queue → original hazardous source → separate Human action → refreshed pointer removal. Retain all prior native tests.
+5. Independent review, source regression and exact-head full CI; merge, independent main CI, ledger/evidence; continue remaining providers/statistics/E2Es/release. No all-module dashboard completion claim from one provider.

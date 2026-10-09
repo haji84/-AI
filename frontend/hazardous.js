@@ -10,12 +10,20 @@ const hazardousSourceRights = {facilities:'facility.read', documents:'document.r
 const hazardousSourceAvailable = kind => hazardousCan(hazardousSourceRights[kind]) && (kind !== 'legal' || hazardousCan('document.read'));
 const hazardousPath = id => '/hazardous/installations/' + encodeURIComponent(id);
 const hazardousTicket = () => ({generation:hazardousState.generation, view:hazardousState.viewGeneration});
-const hazardousOwns = ticket => ticket.generation === hazardousState.generation && ticket.view === hazardousState.viewGeneration;
-function hazardousAssert(ticket) { if (!hazardousOwns(ticket)) throw hazardousCancelled(); }
-function hazardousBegin(retry=null) {
+const hazardousLocalOwns = ticket => ticket.generation === hazardousState.generation && ticket.view === hazardousState.viewGeneration;
+const hazardousOwns = ticket => hazardousLocalOwns(ticket) && (!ticket.owned || ticket.owned());
+function hazardousAssert(ticket) {
+  if (!hazardousOwns(ticket)) {
+    if (hazardousLocalOwns(ticket) && ticket.owned && !ticket.owned()) closeHazardous();
+    throw hazardousCancelled();
+  }
+}
+function hazardousReleaseOwner(ticket) { hazardousAssert(ticket); ticket.owned=null; }
+function hazardousBegin(retry=null,owned=null) {
+  if (owned && !owned()) throw hazardousCancelled();
   hazardousState.viewGeneration++;
   if ($('hazardousMessage')) $('hazardousMessage').textContent = '';
-  const ticket = {...hazardousTicket(),retry};
+  const ticket = {...hazardousTicket(),retry,owned};
   if ($('hazardousModal')) {
     hazardousShell(ticket);
     $('hazardousContent').innerHTML='<p id="hazardousLoading" role="status" aria-live="polite">読込中…</p>';
@@ -126,9 +134,9 @@ function hazardousShell(ticket) {
   hazardousBind('hazardousListNav',()=>hazardousList(),ticket);
   hazardousBind('hazardousDeadlinesNav',()=>hazardousDeadlines(),ticket);
 }
-async function openHazardous() { return hazardousList(); }
-async function hazardousList(q='', offset=0, status='') {
-  const ticket = hazardousBegin(()=>hazardousList(q,offset,status));
+async function openHazardous(owned=null) { return hazardousList('',0,'',owned); }
+async function hazardousList(q='', offset=0, status='', owned=null) {
+  const ticket = hazardousBegin(()=>hazardousList(q,offset,status,owned),owned);
   const rows = await hazardousAPI('/hazardous/installations?' + new URLSearchParams({q,limit:100,offset,...(status?{status}:{})}), {}, ticket);
   hazardousShell(ticket);
   $('hazardousContent').innerHTML = '<h2>施設・設備一覧</h2><div class="toolbar"><label>名称・区分の検索 <input id="hazardousQ" value="'+esc(q)+'"></label><label>状態 <select id="hazardousStatus"><option value="">すべて</option><option value="active" '+(status==='active'?'selected':'')+'>使用中</option><option value="retired" '+(status==='retired'?'selected':'')+'>廃止</option></select></label>'+hazardousButton('hazardousSearch','検索')+hazardousButton('hazardousPrev','前へ')+hazardousButton('hazardousNext','次へ')+hazardousButton('hazardousNew','施設・設備を登録','hazardous.create')+'</div>'+
@@ -139,14 +147,15 @@ async function hazardousList(q='', offset=0, status='') {
   hazardousBind('hazardousNext',()=>hazardousList(q,offset+100,status),ticket);
   hazardousBind('hazardousNew',()=>hazardousInstallationForm(),ticket);
   hazardousBindInstallations(ticket);
+  hazardousReleaseOwner(ticket);
 }
 function hazardousBindInstallations(ticket) {
   document.querySelectorAll('[data-hazardous-installation]').forEach(button=>{
     button.onclick = () => hazardousAction(()=>hazardousDetail(button.dataset.hazardousInstallation),ticket);
   });
 }
-async function hazardousDetail(id) {
-  const ticket = hazardousBegin(()=>hazardousDetail(id));
+async function hazardousDetail(id,owned=null) {
+  const ticket = hazardousBegin(()=>hazardousDetail(id,owned),owned);
   const row = await hazardousAPI(hazardousPath(id),{},ticket);
   hazardousShell(ticket);
   const active = row.status === 'active';
@@ -163,6 +172,7 @@ async function hazardousDetail(id) {
   document.querySelectorAll('[data-hazardous-record]').forEach(button=>{
     button.onclick=()=>hazardousAction(()=>hazardousRecordDetail(id,button.dataset.hazardousRecord),ticket);
   });
+  hazardousReleaseOwner(ticket);
 }
 function hazardousRecordStatus(row) {
   return row.status === 'confirmed' ? (row.confirmation_current ? '現行の事実・原本をHuman確認済' : '過去の確認（現行の事実・原本は未確認）') : hazardousLabels[row.status]??row.status;
@@ -194,8 +204,8 @@ async function hazardousEvaluationForm(installation) {
     await hazardousAfterSave(()=>hazardousEvaluationDetail(row.evaluation_id));
   },()=>hazardousEvaluations(installation.installation_id),'評価候補を作る');
 }
-async function hazardousEvaluationDetail(id) {
-  const ticket=hazardousBegin(()=>hazardousEvaluationDetail(id));
+async function hazardousEvaluationDetail(id,owned=null) {
+  const ticket=hazardousBegin(()=>hazardousEvaluationDetail(id,owned),owned);
   const row=await hazardousAPI('/hazardous/evaluations/'+encodeURIComponent(id),{},ticket);
   hazardousShell(ticket);
   const states={matched:'条件に該当する候補',not_matched:'このRuleの条件に該当しない',unresolved:'未解決・Human確認が必要'};
@@ -209,6 +219,7 @@ async function hazardousEvaluationDetail(id) {
   hazardousBind('hazardousEvaluationBack',()=>hazardousEvaluations(row.installation_id),ticket);
   hazardousBind('hazardousEvaluationReload',()=>hazardousEvaluationDetail(id),ticket);
   hazardousBind('hazardousEvaluationReview',()=>hazardousEvaluationReview(row),ticket);
+  hazardousReleaseOwner(ticket);
 }
 async function hazardousEvaluationReview(row) {
   const ticket=hazardousBegin();
@@ -412,8 +423,8 @@ async function hazardousRecordForm(installation,record=null) {
     }finally{if(hazardousOwns(ticket)){$('hazardousUpload').disabled=false;uploading=false;form.setBusy(false);}}
   },ticket);
 }
-async function hazardousRecordDetail(installationId,recordId) {
-  const ticket=hazardousBegin(()=>hazardousRecordDetail(installationId,recordId)),installation=await hazardousAPI(hazardousPath(installationId),{},ticket);
+async function hazardousRecordDetail(installationId,recordId,owned=null) {
+  const ticket=hazardousBegin(()=>hazardousRecordDetail(installationId,recordId,owned),owned),installation=await hazardousAPI(hazardousPath(installationId),{},ticket);
   const record=(installation.evidence_records??[]).find(row=>row.record_id===recordId);
   if(!record)throw new Error('記録が見つからないか、関連する根拠の参照権限がありません。');
   hazardousShell(ticket);
@@ -425,6 +436,7 @@ async function hazardousRecordDetail(installationId,recordId) {
   hazardousBind('hazardousRecordEdit',()=>hazardousRecordForm(installation,record),ticket);
   for(const [id,verb] of [['hazardousConfirm','confirm'],['hazardousCancel','cancel'],['hazardousRevision','revisions']])hazardousBind(id,()=>hazardousDecision(installation,record,verb),ticket);
   hazardousBindSources(installation,record,ticket);
+  hazardousReleaseOwner(ticket);
 }
 function hazardousSafeURL(raw) {
   try{const url=new URL(raw);return ['https:','http:'].includes(url.protocol)?url.href:null;}catch{return null;}

@@ -2,9 +2,9 @@
 
 Status date: 2026-10-09 UTC
 
-Audited implementation base: `fc96af9dc6cd235487c5fe47ebf42d2b0553e887`
+Audited implementation base: `07b854552d173b7736323d5d18b3144b6ae9d32a`
 
-Verified implementation tree: `d1c1fe35dfbd31d91006ab31db3a6980da93657b`
+Verified implementation tree: `477ee5c16f2693e4a698c52c00494f4213a47064`
 
 Previous reviewed baseline: `c1b684c5c38fc52fe908d2116a21a16ef48dcb34`
 
@@ -12,12 +12,12 @@ Canonical requirements: [Master Specification v2.0](../SPECIFICATION.md), chapte
 
 This is the current status index for the stated implementation base. It preserves the complete [c1b684c evidence baseline](COMPLETION_BASELINE_20261007.md) and its [reviewed classification/status changelog](COMPLETION_STATUS_CHANGELOG.md). The historical [MASTER_FEATURE_MATRIX](MASTER_FEATURE_MATRIX.md) is retained unchanged as dated evidence. Do not use its old totals as this base's status.
 
-**Completed 12 / Partial 44 / Missing 0 / External Gate 1 = 57.** Since the independently validated c1b684c baseline, chapters 36, 16 and 34 change Missing → Partial, and chapter 23 changes Partial → Completed after its independent-assignment exit criterion is fulfilled. Chapter 34 remains a bounded observed-statistics workflow with substantial internal requirements. Shared-platform assignment extensions remain separately open in chapters 9/35/41. Chapter counts are not a completion percentage, production approval, or a substitute for the Definition of Done.
+**Completed 13 / Partial 43 / Missing 0 / External Gate 1 = 57.** Since the independently validated c1b684c baseline, chapters 36, 16 and 34 changed Missing → Partial, chapter 23 changed Partial → Completed, and accepted PR83 plus the chapter-specific re-audit makes chapter16 Completed (D15). Chapter34 still has substantial internal requirements. Shared-platform extensions remain open under their own chapters. Chapter counts are not a completion percentage, production approval, or a substitute for the Definition of Done.
 
 | Primary status | Chapters | Count |
 |---|---|---:|
-| Completed | 2, 8, 11, 22–24, 40, 42, 47, 55, 56, 57 | 12 |
-| Partial | 1, 3–7, 9–10, 12–21, 25–39, 41, 43–46, 48, 50–54 | 44 |
+| Completed | 2, 8, 11, 16, 22–24, 40, 42, 47, 55, 56, 57 | 13 |
+| Partial | 1, 3–7, 9–10, 12–15, 17–21, 25–39, 41, 43–46, 48, 50–54 | 43 |
 | Missing | None | 0 |
 | External Gate | 49 | 1 |
 | Total | Chapters 1–57, exactly once | 57 |
@@ -29,6 +29,12 @@ Use exactly four primary statuses: **Completed / Partial / Missing / External Ga
 The baseline was independently reconciled to 11/42/3/1 using chapter-specific evidence. This update reviews the merged deltas and preserves that full baseline. Baseline path/line references are pinned to c1b684c; D1–D6 retain their 1b3bf5b source links. D7–D9 retain the PR76-merge snapshot c1b491e; D10 links to the current PR77-merge snapshot 9d6f86b. Test definitions establish coverage present in source; executed results come from the exact-head CI or recorded verification run identified below. This documentation edit itself does not rerun the application suites.
 
 ## Execution evidence and current-base limit
+
+### D15 — PR83 accepted hazardous candidate workflow and chapter16 re-audit
+
+Main `07b854552d173b7736323d5d18b3144b6ae9d32a`, tree `477ee5c16f2693e4a698c52c00494f4213a47064`, exactly matches PR head `85760f60801044e884a5ae8029c9c0df2f744baa`. [Exact-head CI37873610982](https://github.com/haji84/-AI/actions/runs/37873610982) succeeded: backend1353 passed/98 skipped/479.53s, browser job74 passed/567.47s, parser/JavaScript success. [Independent main CI37874629139](https://github.com/haji84/-AI/actions/runs/37874629139) succeeded: backend1353 passed/98 skipped/719.85s, browser job74 passed/533.96s, parser/JavaScript success. Native057 PostgreSQL upgrade/retry/concurrent Human review/immutability and actual Chromium candidate/evidence/separate Human review/current-rights journey ran. Main browser artifact11592033248 SHA256 `5020cee1ff28ce628679c2264253c304792b74017cf620e3e73c59da3b18a7f6`. Skips remain unverified; job74 includes existing Node/API cases, not 74 Chromium tests.
+
+The [chapter16 facet re-audit](HAZARDOUS_CHAPTER16_COMPLETION_20261009.md) maps all §16 targets and the preserved source→Human change/inspection→due/review→evidence/history exit to integrated source/tests. **Chapter16 Partial → Completed**. Dedicated views fulfill chapter16; the additional common Work Queue provider is still an unmerged chapter36 requirement and receives no current-main credit. Human legal policy approval, real permit originals and site acceptance remain genuine External requirements. Chapter17 amendment impacts/adapters, chapter36 all-module dashboard/queue, ten canonical E2Es and release acceptance remain internal Partial. Earlier D6/D14 remaining-evaluation statements describe their historical checkpoints and are superseded here.
 
 The previous implementation checkpoint is actual PR80 merge `f7b4058c884454fed58f4cb1a02b931f8992f799`; its tree exactly matches verified PR head `4e52b9fc4ab355d29138f3b2e8aa0caf1f07d3dc`: `6bb7ae78e22daf9a0412a56a697d7d21cc82f45b`. [CI37864361725](https://github.com/haji84/-AI/actions/runs/37864361725) passed: backend1213 passed / 96 skipped / 738.55s, browser job72 passed / 643.17s, migration parser and JavaScript. The independent [main push CI37865572873](https://github.com/haji84/-AI/actions/runs/37865572873) passed: backend1213 passed / 96 skipped / 467.60s; browser job72 passed / 716.09s; migration parser and JavaScript succeeded. At that checkpoint personnel intake was unmerged. Skipped tests, real-data benchmarks and production acceptance receive no completion credit.
 
@@ -194,7 +200,7 @@ Each baseline link retains the chapter's present implementation, exact source/te
 | 13 | Violations and Corrective Actions | Partial | [Chapter 13](COMPLETION_BASELINE_20261007.md#chapter-13) | Baseline finding retained; no chapter-status change from these merges. |
 | 14 | Submission and Application | Partial | [Chapter 14](COMPLETION_BASELINE_20261007.md#chapter-14) | D2: exactly-once receipt and preserved review/proposal evidence integrated; configurable type workflows remain. |
 | 15 | Submission Requirement Tracking | Partial | [Chapter 15](COMPLETION_BASELINE_20261007.md#chapter-15) | Baseline finding retained; no chapter-status change from these merges. |
-| 16 | Hazardous Materials | Partial | [Chapter 16](COMPLETION_BASELINE_20261007.md#chapter-16) | D6: Missing → Partial; source-backed register, exact quantities, Human evidence and history integrated; executable Rule evaluation remains. |
+| 16 | Hazardous Materials | Completed | [Chapter 16](COMPLETION_BASELINE_20261007.md#chapter-16) | D15: accepted register/source/inspection/change/due/history plus exact approved-Rule candidate and separate Human review; chapter-specific exit verified. Formal policy/original/site approval remains Human-Gated. |
 | 17 | Legal and Rule Engine | Partial | [Chapter 17](COMPLETION_BASELINE_20261007.md#chapter-17) | Baseline finding retained; no chapter-status change from these merges. |
 | 18 | Equipment Requirement and Installed Equipment | Partial | [Chapter 18](COMPLETION_BASELINE_20261007.md#chapter-18) | Baseline finding retained; no chapter-status change from these merges. |
 | 19 | Drawing AI | Partial | [Chapter 19](COMPLETION_BASELINE_20261007.md#chapter-19) | Baseline finding retained; no chapter-status change from these merges. |

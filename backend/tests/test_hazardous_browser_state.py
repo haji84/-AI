@@ -324,3 +324,24 @@ const pending=evaluate('hazardousEvaluationDetail("evaluation-a")');await turn()
 authority={...authority,permissions:authority.permissions.filter(p=>p!=='document.read')};
 release();await assert.rejects(pending,e=>e.cancelled);assert.equal(resetCount,1);assert(!nodes.get('hazardousModal'));
 ''')
+
+
+def test_queue_owner_loss_cancels_delayed_evaluation_without_private_dom(tmp_path):
+    run(tmp_path, r'''
+authority.permissions.push('legal_rule.read','legal_rule.evaluate');await evaluate('openHazardous()');
+const candidate={evaluation_id:'evaluation-a',installation_id:'installation-a',status:'candidate',version:1,evaluation_date:'2026-10-09',coverage_status:'unavailable',is_stale:false,input_snapshot:{installation:{...installation,name:'PRIVATE obsolete queue candidate'},profile:{name:'Synthetic profile'}},results:[],rules_snapshot:[]};
+let release;routes.set('/hazardous/evaluations/evaluation-a',()=>new Response(new ReadableStream({start(controller){release=()=>{controller.enqueue(new TextEncoder().encode(JSON.stringify(candidate)));controller.close();};}})));
+await evaluate('globalThis.syntheticQueueOwned=true');const pending=evaluate('hazardousEvaluationDetail("evaluation-a",()=>syntheticQueueOwned)');await turn();
+await evaluate('syntheticQueueOwned=false');release();await assert.rejects(pending,e=>e.cancelled);assert(!nodes.get('hazardousModal'));
+''')
+
+
+def test_obsolete_queue_body_does_not_close_a_new_human_view(tmp_path):
+    run(tmp_path, r'''
+authority.permissions.push('legal_rule.read','legal_rule.evaluate');await evaluate('openHazardous()');
+const candidate={evaluation_id:'evaluation-a',installation_id:'installation-a',status:'candidate',version:1,evaluation_date:'2026-10-09',coverage_status:'unavailable',is_stale:false,input_snapshot:{installation:{...installation,name:'PRIVATE obsolete queue candidate'},profile:{name:'Synthetic profile'}},results:[],rules_snapshot:[]};
+let release;routes.set('/hazardous/evaluations/evaluation-a',()=>new Response(new ReadableStream({start(controller){release=()=>{controller.enqueue(new TextEncoder().encode(JSON.stringify(candidate)));controller.close();};}})));
+await evaluate('globalThis.syntheticQueueOwned=true');const pending=evaluate('hazardousEvaluationDetail("evaluation-a",()=>syntheticQueueOwned)');await turn();
+await evaluate('syntheticQueueOwned=false');routes.set('/hazardous/installations/installation-a',()=>response(installation));await evaluate('hazardousDetail("installation-a")');
+release();await assert.rejects(pending,e=>e.cancelled);assert(nodes.get('hazardousModal'));assert(nodes.get('hazardousContent').innerHTML.includes('Synthetic installation'));assert(!nodes.get('hazardousContent').innerHTML.includes('PRIVATE obsolete'));
+''')

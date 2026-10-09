@@ -2,6 +2,12 @@
 
 更新日: 2026-10-09
 
+## 最新の監査差分（main `07b8545` 基準）
+
+正本main `07b854552d173b7736323d5d18b3144b6ae9d32a`、tree `477ee5c16f2693e4a698c52c00494f4213a47064`。PR83の危険物評価候補・正確な条件比較・一次原本追跡・独立Human確認を統合済み。exact-head [CI37873610982](https://github.com/haji84/-AI/actions/runs/37873610982) はbackend1353 passed/98 skipped/479.53s、browser job74 passed/567.47s。独立した [main CI37874629139](https://github.com/haji84/-AI/actions/runs/37874629139) もbackend1353 passed/98 skipped/719.85s、browser job74 passed/533.96s、migration parser/JavaScript成功。実PostgreSQL057更新・再実行・同時Human確認200/409・証拠改変拒否、実Chromium候補/原本/Human確認/失権時消去を実行済み。skipは未検証のまま。
+
+第16章の対象と既存baseline exitを実コード・実行証拠へ再照合し **Completed13 / Partial43 / Missing0 / External Gate1**。根拠は [第16章再監査](docs/completion/HAZARDOUS_CHAPTER16_COMPLETION_20261009.md)、完成台帳D15。正式法令Rule承認・実原本・現場受入はHuman Gateのまま。第17章の改正影響等、第36章の全module queue/dashboard、10本E2E、Releaseは内部未完で、全体完成ではない。共通Work Queue追加はこの文書を含む後続Sliceで未merge・未native検証。以下fc96af9以前の集計・未実装記述は各時点の履歴であり、最新監査へ読み替えない。
+
 ## 最新の監査差分（main `fc96af9` 基準）
 
 正本mainは `fc96af9dc6cd235487c5fe47ebf42d2b0553e887`、tree `d1c1fe35dfbd31d91006ab31db3a6980da93657b`。PR82で危険物Rule authoring・正確な条件比較engine・一次原本/引用/承認時snapshotの固定を統合した。exact-head e4a1c1eの[CI37871180915](https://github.com/haji84/-AI/actions/runs/37871180915)はbackend1330 passed/97 skipped/484.42s、browser job73 passed/706.14s、migration parser/JavaScript成功。独立した[main CI37872231434](https://github.com/haji84/-AI/actions/runs/37872231434)もbackend1330 passed/97 skipped/498.40s、browser job73 passed/751.64s、parser/JavaScript成功。056の実PostgreSQL更新・再実行・同時Human承認・根拠改変拒否も実行済み。章16/17はPartialを維持し、専用installation評価候補・Human確認・画面の後続Sliceは未mergeで完成creditを付けない。実法令条件の正式承認や正式違反/許可をAIが行うものではない。[検証記録](docs/completion/HAZARDOUS_RULE_AUTHORING_VERIFICATION_20261009.md)。
