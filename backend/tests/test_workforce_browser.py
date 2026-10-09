@@ -48,7 +48,7 @@ with TestClient(app) as client:
  approved('/workforce/staffing-rules',rule,'staffing_rule_id')
  roster=post('/workforce/rosters',{'employee_id':emp,'organization_id':organization,'shift_type_id':shift['shift_type_id'],'work_date':'2026-10-10'})
  roster=approved('/workforce/rosters',roster,'roster_entry_id')
- attendance=post('/workforce/attendance',{'employee_id':emp,'roster_entry_id':roster['roster_entry_id'],'work_date':'2026-10-10','check_in_at':'2026-10-10T08:00:00+09:00','check_out_at':'2026-10-10T17:00:00+09:00'})
+ attendance=post('/workforce/attendance',{'employee_id':emp,'roster_entry_id':roster['roster_entry_id'],'work_date':'2026-10-10','check_in_at':'2026-10-10T08:00:00+09:00'})
  ledger=post('/workforce/time-entries',{'employee_id':emp,'kind':'comp_grant','minutes':60,'occurred_on':'2026-10-10'})
  print(json.dumps({'attendance':attendance['attendance_id'],'time':ledger['time_entry_id'],'shift':shift['shift_type_id'],'shift_version':shift['version'],'employee':emp}))
 '''
@@ -70,6 +70,19 @@ with TestClient(app) as client:
             page.on('pageerror',lambda error:errors.append(str(error)));page.on('dialog',lambda dialog:dialog.accept('Human synthetic browser rationale'))
             page.goto(base+'/ui/');page.locator('#loginUser').fill('uiworkforce');page.locator('#loginPass').fill('synthetic-ui-password');page.get_by_role('button',name='ログイン',exact=True).click()
             expect(page.locator('#workforceBtn')).to_be_visible();page.locator('#workforceBtn').click();page.locator('#workforceAttendance').click()
+            page.locator('#workforceEditAttendance_'+ids['attendance']).click()
+            expect(page.locator('#workforceField_check_in_at')).to_have_value('2026-10-10T08:00:00')
+            expect(page.locator('#workforceField_check_out_at')).to_have_value('')
+            page.locator('#workforceField_check_out_at').fill('2026-10-10T17:00')
+            with page.expect_response(lambda response:response.url.endswith('/workforce/attendance/'+ids['attendance']) and response.request.method=='PATCH') as checkout:
+                page.locator('#workforceSaveAttendanceEdit').click()
+            assert checkout.value.status==200,checkout.value.text()
+            assert checkout.value.request.post_data_json=={'expected_version':1,'check_in_at':'2026-10-10T08:00:00+09:00','check_out_at':'2026-10-10T17:00:00+09:00'}
+            assert checkout.value.json()['version']==2
+            assert checkout.value.json()['status']=='draft'
+            assert checkout.value.json()['worked_minutes']==480
+            expect(page.locator('#workforceEditAttendance_'+ids['attendance'])).to_be_visible()
+            expect(page.locator('#workforceHumanStatus')).to_have_text('')
             held_posts=[]
             def hold_human_post(route):
                 held_posts.append(route)
@@ -79,8 +92,9 @@ with TestClient(app) as client:
                     assert route.request.method=='POST'
                     expect(page.locator('#workforceHumanStatus')).to_be_visible()
                     expect(page.locator('#workforceHumanStatus')).to_contain_text('処理中')
-                    expect(page.locator('[data-workforce-human]')).to_have_count(2)
+                    expect(page.locator('[data-workforce-human]')).to_have_count(4)
                     expect(page.locator('[data-workforce-human]:enabled')).to_have_count(0)
+                    expect(page.locator('#workforceEditAttendance_'+ids['attendance'])).to_be_disabled()
                 finally:
                     route.continue_()
             page.route(base+'/workforce/attendance/'+ids['attendance']+'/review',hold_human_post,times=1)
@@ -95,11 +109,21 @@ with TestClient(app) as client:
                     expect(row.get_by_role('cell',name=status,exact=True)).to_be_visible()
                     expect(page.locator('#workforceHumanStatus')).to_have_text('')
             assert len(held_posts)==1,'the real Human POST must reach the paused route'
+            expect(page.locator('#workforceEditAttendance_'+ids['attendance'])).to_have_count(0)
+            expect(page.locator('[data-workforce-human="attendance:cancel:'+ids['attendance']+'"]')).to_have_count(0)
             page.locator('#workforceLeave').click();page.locator('#workforceLeaveNew').click()
             expect(page.locator('#workforceField_employee_id option[value="'+ids['employee']+'"]')).to_have_count(1)
             page.locator('#workforceField_kind').select_option('use');page.locator('#workforceField_quantity_minutes').fill('60');page.locator('#workforceField_effective_on').fill('2026-10-16');page.locator('#workforceField_leave_start_at').fill('2026-10-16T08:00');page.locator('#workforceField_leave_end_at').fill('2026-10-16T09:00')
             with page.expect_response(lambda r:r.url.endswith('/workforce/leave') and r.request.method=='POST') as saved:page.locator('#workforceSaveLeave').click()
             assert saved.value.status==201,saved.value.text()
+            leave_id=saved.value.json()['leave_entry_id']
+            with page.expect_response(lambda response:response.url.endswith('/workforce/leave/'+leave_id+'/cancel') and response.request.method=='POST') as cancelled:
+                page.locator('[data-workforce-human="leave:cancel:'+leave_id+'"]').click()
+            assert cancelled.value.status==200,cancelled.value.text()
+            assert cancelled.value.request.post_data_json=={'expected_version':1,'note':'Human synthetic browser rationale'}
+            expect(page.locator('#workforceContent')).to_contain_text('cancelled')
+            expect(page.locator('[data-workforce-human="leave:cancel:'+leave_id+'"]')).to_have_count(0)
+            expect(page.locator('#workforceHumanStatus')).to_have_text('')
             changed=page.request.patch(base+'/workforce/shift-types/'+ids['shift'],data={'expected_version':ids['shift_version'],'name':'Synthetic changed configuration'});assert changed.status==200,changed.text()
             page.locator('#workforceWarnings').click();page.locator('#workforceWarningDate').fill('2026-10-10');page.locator('#workforceWarningLoad').click();expect(page.locator('#workforceContent')).to_contain_text('判定不可')
             assert page.request.post(base+'/auth/logout').status==200

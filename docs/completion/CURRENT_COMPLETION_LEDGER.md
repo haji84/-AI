@@ -2,9 +2,9 @@
 
 Status date: 2026-10-09 UTC
 
-Audited implementation base: `a2586a6a8d4426e3f79966f437a3bb6e46161fee`
+Audited implementation base: `70953bab88116318cf9f69342be39361c75da4d8`
 
-Verified implementation tree: `db2d44c136cdcf9accc948ad937871cca839f29c`
+Verified implementation tree: `3a81c1b7b7aac271019f83cdc79b2b72e4dfd228`
 
 Previous reviewed baseline: `c1b684c5c38fc52fe908d2116a21a16ef48dcb34`
 
@@ -29,6 +29,12 @@ Use exactly four primary statuses: **Completed / Partial / Missing / External Ga
 The baseline was independently reconciled to 11/42/3/1 using chapter-specific evidence. This update reviews the merged deltas and preserves that full baseline. Baseline path/line references are pinned to c1b684c; D1–D6 retain their 1b3bf5b source links. D7–D9 retain the PR76-merge snapshot c1b491e; D10 links to the current PR77-merge snapshot 9d6f86b. Test definitions establish coverage present in source; executed results come from the exact-head CI or recorded verification run identified below. This documentation edit itself does not rerun the application suites.
 
 ## Execution evidence and current-base limit
+
+### D19 — PR87 protected workforce common search accepted
+
+Main `70953bab88116318cf9f69342be39361c75da4d8`, tree `3a81c1b7b7aac271019f83cdc79b2b72e4dfd228`, matches exact head `1ff9fd5d26803ca73e6a6e80901154c0c6042e1a`. [Exact CI37885361278](https://github.com/haji84/-AI/actions/runs/37885361278) SUCCESS: backend1417 passed/99 skipped/815.86s; browser75 passed/801.10s. [Independent main CI37886725333](https://github.com/haji84/-AI/actions/runs/37886725333) SUCCESS: backend1417 passed/99 skipped/798.48s; browser75 passed/778.63s; parser/JavaScript success. Native PostgreSQL authority/filter-before-limit/post-payload checks and actual Chromium common search→exact readonly roster/version navigation ran. Main artifact11596498778 SHA256 `313d699e72e75bf0b16187d4fe521aa92f4c6c082b6288ba1449bd8683333f95`.
+
+Current personnel/typed-transitive original rights gate private rows before projection/count/limit; postflight session/module/source/version checks and no-store guard responses. No migration, grant or formal approval. Chapters25/34/36/45/48/54 remain Partial. Checkout/teams/work results, all-module queue/statistics, ten canonical E2Es and Release remain internal requirements. Counts unchanged13/43/0/1; skips receive no execution credit. Earlier checkpoint remainder statements describe their historical bases.
 
 ### D18 — PR86 exact workforce source navigation accepted
 

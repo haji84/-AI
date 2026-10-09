@@ -2,7 +2,11 @@
 
 更新日: 2026-10-09
 
-## 最新の監査差分（main `a2586a6` 基準）
+## 最新の監査差分（main `70953ba` 基準）
+
+正本main `70953bab88116318cf9f69342be39361c75da4d8`、tree `3a81c1b7b7aac271019f83cdc79b2b72e4dfd228`。PR87の勤務横断検索は現在のpersonnel権限・個別原本権限で件数/limit前に保護し、readonly元記録へ接続済み。exact [CI37885361278](https://github.com/haji84/-AI/actions/runs/37885361278) 成功: backend1417 passed/99 skipped/815.86s、browser75 passed/801.10s。独立 [main CI37886725333](https://github.com/haji84/-AI/actions/runs/37886725333) 成功: backend1417 passed/99 skipped/798.48s、browser75 passed/778.63s、migration parser/JS成功。main artifact11596498778 SHA256 `313d699e72e75bf0b16187d4fe521aa92f4c6c082b6288ba1449bd8683333f95`。D19、13Completed/43Partial/0Missing/1ExternalGate。skipは未検証。退勤訂正・班・業務実績・残りmodule接続・10本E2E・Releaseは内部未完。正式判断・実原本・本番移行のHuman Gateを維持。
+
+## 過去の監査差分（main `a2586a6` 基準）
 
 正本main `a2586a6a8d4426e3f79966f437a3bb6e46161fee`、tree `db2d44c136cdcf9accc948ad937871cca839f29c`。PR86の勤務元記録参照を統計drilldownへ接続済み。修復exact [CI37882703445](https://github.com/haji84/-AI/actions/runs/37882703445) 成功: backend1400 passed/99 skipped/783.07s、browser75 passed/765.16s。独立 [main CI37883890162](https://github.com/haji84/-AI/actions/runs/37883890162) 成功: backend1400 passed/99 skipped/774.84s、browser75 passed/716.32s、parser/JS成功。実PGの応答前権限・session・version再確認と実Chromiumの統計→readonly元記録→閉じる→遅い実応答完了後の新Human画面保持を確認。main artifact11595692705 SHA256 `f659fa647874a323f42324f163cf09ab68adf6f5cd77cd1870fc52927ccdc969`。D18、分類13Completed/43Partial/0Missing/1ExternalGateのまま。検索・退勤訂正・班管理・出動/業務実績・全Module集計/Work Queue・10本E2E・releaseは内部未完として継続する。正式判断・実原本・本番移行はHuman Gateを維持。
 

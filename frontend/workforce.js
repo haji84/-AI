@@ -18,6 +18,7 @@ async function workforceAPI(url,opt={}){
     if(ticket!==workforceState.generation)throw Object.assign(new Error('session state changed'),{cancelled:true});
     if(workforceState.identity&&identity.user_id!==workforceState.identity){clearWorkforce();throw Object.assign(new Error('session identity changed'),{cancelled:true});}
     workforceState.identity=identity.user_id;
+    workforceAssertView(view);
     const result=await api(url,opt);
     if(ticket!==workforceState.generation)throw Object.assign(new Error('late workforce response discarded'),{cancelled:true});
     workforceAssertView(view);return result;
@@ -157,18 +158,21 @@ async function workforceRoster(day){
   workforceBind('workforceRosterLoad',()=>workforceRoster($('workforceRosterDate').value));workforceBind('workforceRosterNew',workforceRosterForm);workforceBindHuman(rows,'roster',workforceRoster);
 }
 function workforceHumanButtons(kind,row){
-  if(row.status==='draft'&&workforceCan('workforce.review'))return `<button class="btn" data-workforce-human="${kind}:review:${workforceKey(kind,row)}">Human確認</button>`;
-  if(row.status==='reviewed'&&workforceCan('workforce.approve'))return `<button class="btn primary" data-workforce-human="${kind}:approve:${workforceKey(kind,row)}">Human承認</button>`;
-  return '';
+  let controls='';
+  if(row.status==='draft'&&workforceCan('workforce.review'))controls+=`<button class="btn" data-workforce-human="${kind}:review:${workforceKey(kind,row)}">Human確認</button>`;
+  if(row.status==='reviewed'&&workforceCan('workforce.approve'))controls+=`<button class="btn primary" data-workforce-human="${kind}:approve:${workforceKey(kind,row)}">Human承認</button>`;
+  if(['draft','reviewed'].includes(row.status)&&workforceCan('workforce.review'))controls+=`<button class="btn danger" data-workforce-human="${kind}:cancel:${workforceKey(kind,row)}">取消</button>`;
+  return controls;
 }
 function workforceHumanAllowed(button){
+  if(button.dataset.workforceEdit)return workforceCan('workforce.update');
   const [,action]=button.dataset.workforceHuman.split(':');
   if(action==='approve-work-rule')return ['workforce.admin','workforce.review','workforce.approve'].every(workforceCan);
-  return action==='review'?workforceCan('workforce.review'):action==='approve'&&workforceCan('workforce.approve');
+  return ['review','cancel'].includes(action)?workforceCan('workforce.review'):action==='approve'&&workforceCan('workforce.approve');
 }
 function workforceLockHumanControls(){
   if(!workforcePendingHuman)return;
-  for(const button of document.querySelectorAll('[data-workforce-human]')){
+  for(const button of document.querySelectorAll('[data-workforce-human], [data-workforce-edit]')){
     if(!workforcePendingHuman.controls.has(button))workforcePendingHuman.controls.set(button,{disabled:button.disabled,view:workforceState.viewGeneration});
     button.disabled=true;
   }
@@ -251,10 +255,57 @@ async function workforceAttendance(){
   const [attendance,times]=await Promise.all([workforceList('/workforce/attendance'),workforceList('/workforce/time-entries')]);
   const employee=id=>workforceState.employees.find(x=>x.employee_id===id);
   workforceAssertView(view);$('workforceContent').innerHTML=`<div class="toolbar">${workforceButton('workforceAttendanceNew','勤怠Draft','workforce.create')}${workforceButton('workforceTimeNew','時間外/代休Ledger','workforce.create')}</div>
-  <h3>勤怠</h3><table><thead><tr><th>職員</th><th>日</th><th>入</th><th>出</th><th>勤務分</th><th>状態</th><th></th></tr></thead><tbody>${attendance.map(r=>`<tr><td>${esc(employee(r.employee_id)?.display_name??r.employee_id)}</td><td>${esc(r.work_date)}</td><td>${esc(r.check_in_at)}</td><td>${esc(r.check_out_at??'')}</td><td>${esc(r.worked_minutes??'')}</td><td>${esc(r.status)}</td><td>${workforceHumanButtons('attendance',r)}</td></tr>`).join('')}</tbody></table>
+  <h3>勤怠</h3><table><thead><tr><th>職員</th><th>日</th><th>入</th><th>出</th><th>勤務分</th><th>状態</th><th></th></tr></thead><tbody>${attendance.map(r=>`<tr><td>${esc(employee(r.employee_id)?.display_name??r.employee_id)}</td><td>${esc(r.work_date)}</td><td>${esc(r.check_in_at)}</td><td>${esc(r.check_out_at??'')}</td><td>${esc(r.worked_minutes??'')}</td><td>${esc(r.status)}</td><td>${r.status==='draft'?workforceButton('workforceEditAttendance_'+r.attendance_id,'退勤・出退勤訂正','workforce.update'):''}${workforceHumanButtons('attendance',r)}</td></tr>`).join('')}</tbody></table>
   <h3>時間外・代休</h3><table><thead><tr><th>職員</th><th>種別</th><th>分</th><th>日</th><th>状態</th><th></th></tr></thead><tbody>${times.map(r=>`<tr><td>${esc(employee(r.employee_id)?.display_name??r.employee_id)}</td><td>${esc(r.kind)}</td><td>${r.minutes}</td><td>${esc(r.occurred_on)}</td><td>${esc(r.status)}</td><td>${workforceHumanButtons('time',r)}</td></tr>`).join('')}</tbody></table>`;
   workforceBind('workforceAttendanceNew',workforceAttendanceForm);workforceBind('workforceTimeNew',workforceTimeForm);
+  const generation=workforceState.generation;
+  for(const row of attendance){
+    const control=$('workforceEditAttendance_'+row.attendance_id);if(control)control.dataset.workforceEdit='attendance';
+    workforceBind('workforceEditAttendance_'+row.attendance_id,()=>{
+      if(generation===workforceState.generation&&view===workforceState.viewGeneration)return workforceAttendanceEdit(row);
+    });
+  }
   workforceBindHuman(attendance,'attendance',workforceAttendance);workforceBindHuman(times,'time',workforceAttendance);
+}
+function workforceJapanInput(value){
+  if(!value)return '';
+  const instant=new Date(value);if(!Number.isFinite(instant.getTime()))return '';
+  const fraction=String(value).match(/\.(\d+)(?=Z$|[+-]\d{2}:\d{2}$)/)?.[1];
+  return new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Tokyo',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).format(instant).replace(' ','T')+(fraction?'.'+fraction:'');
+}
+function workforceAttendanceEdit(row){
+  if(row.status!=='draft'||!workforceCan('workforce.update')||workforcePendingHuman)return;
+  const generation=workforceState.generation,view=++workforceState.viewGeneration;
+  const current=()=>generation===workforceState.generation&&view===workforceState.viewGeneration&&!$('workforceModal')?.classList.contains('hidden');
+  const fields=[['check_in_at','出勤日時（日本時間 YYYY-MM-DDTHH:mm:ss）','text'],['check_out_at','退勤日時（日本時間 YYYY-MM-DDTHH:mm:ss）','text']];
+  const values={check_in_at:workforceJapanInput(row.check_in_at),check_out_at:workforceJapanInput(row.check_out_at)};
+  $('workforceContent').innerHTML=`<h2>退勤・出退勤訂正</h2><p>勤務日 ${esc(row.work_date)} / Version ${esc(row.version)}</p><p>Draftの出退勤を更新します。実勤務分は本部の承認済み勤務Ruleで再算定し、正式な確認・承認は別に行います。</p><div class="grid2">${fields.map(field=>workforceField(field,values)).join('')}</div><div class="toolbar"><button class="btn primary" id="workforceSaveAttendanceEdit" type="button">Draft更新</button><button class="btn" id="workforceBack" type="button">戻る</button></div>`;
+  const button=$('workforceSaveAttendanceEdit');
+  button.onclick=()=>workforceAction(async()=>{
+    if(!current()||button.isConnected===false||button.disabled||workforcePendingHuman||!workforceCan('workforce.update'))return;
+    const data=workforceValues(fields);
+    if(!data.check_in_at)throw new Error('出勤日時を入力してください。');
+    const operation={generation,view,controls:new Map()};workforcePendingHuman=operation;
+    button.disabled=true;workforceLockHumanControls();
+    if($('workforceHumanStatus'))$('workforceHumanStatus').textContent='出退勤を更新しています。完了までお待ちください。';
+    let accepted=false;
+    try{
+      await workforceAPI('/workforce/attendance/'+row.attendance_id,workforceJSON('PATCH',{expected_version:row.version,check_in_at:workforceLocalTime(data.check_in_at),check_out_at:data.check_out_at?workforceLocalTime(data.check_out_at):null}));
+      accepted=true;
+      const refresh=workforceAttendance();operation.view=workforceState.viewGeneration;await refresh;
+    }catch(e){
+      if(accepted&&!e.cancelled&&workforcePendingHuman===operation&&generation===workforceState.generation&&operation.view===workforceState.viewGeneration)throw new Error('出退勤の更新は完了しましたが、最新表示を取得できません。上のメニューから再読込してください。');
+      throw e;
+    }finally{
+      if(workforcePendingHuman===operation){
+        workforcePendingHuman=null;
+        for(const [control,state] of operation.controls)if(control.isConnected!==false&&generation===workforceState.generation&&state.view===workforceState.viewGeneration)control.disabled=state.disabled||!workforceHumanAllowed(control);
+        if(current()&&button.isConnected!==false)button.disabled=!workforceCan('workforce.update');
+        if($('workforceHumanStatus'))$('workforceHumanStatus').textContent='';
+      }
+    }
+  });
+  workforceBind('workforceBack',()=>{if(current())return workforceAttendance();});
 }
 async function workforceAttendanceForm(){
   const view=++workforceState.viewGeneration;
