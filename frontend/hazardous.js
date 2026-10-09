@@ -152,6 +152,10 @@ async function hazardousDetail(id) {
   const active = row.status === 'active';
   $('hazardousContent').innerHTML = `<h2>${esc(row.name)}</h2><p>${esc(row.building_name??'登録対象物')} / ${esc(row.category_label)} / ${esc(hazardousLabels[row.status])} / 版 ${esc(row.version)}</p><p>設置場所: ${esc(row.location_detail??'未登録')}</p><p>${esc(row.notes??'')}</p><div class="toolbar">${hazardousButton('hazardousReload','再読込')}${active?hazardousButton('hazardousEdit','施設・数量を訂正','hazardous.update')+hazardousButton('hazardousRecordNew','許可・届出・変更を記録','hazardous.create')+hazardousButton('hazardousRetire','廃止を記録','hazardous.update'):''}</div><h3>品名・数量・容量</h3><p class="muted">入力単位を保持します。単位換算・合算・法令区分の推定は行いません。</p>` + hazardousTable(['品名','入力された区分','数量','容量'],(row.materials??[]).map(m=>[esc(m.name),esc(m.category_label),esc(m.quantity)+' '+esc(m.quantity_unit),m.capacity===null||m.capacity===undefined?'未登録':esc(m.capacity)+' '+esc(m.capacity_unit)]))+
     '<h3>許可・届出・変更の証拠記録</h3>' + ((row.evidence_records??[]).length ? hazardousTable(['種類・名称','記録日','設定した期限','証拠確認','操作'],row.evidence_records.map(r=>[esc(hazardousLabels[r.kind])+' / '+esc(r.title),esc(r.recorded_on),esc(r.due_on??'未設定'),esc(hazardousRecordStatus(r)),`<button class="btn" type="button" data-hazardous-record="${esc(r.record_id)}">原本・確認・訂正</button>`])) : '<p>記録なし</p>') + hazardousHistory(row.history??[]);
+  if(hazardousEvaluationReadable()) {
+    $('hazardousContent').innerHTML += '<h3>承認済Ruleによる必要事項の候補</h3><p>選んだ法令セットと評価日のRuleだけを比較します。法令全体の網羅性・正式適合・違反・許可は確定しません。</p>'+hazardousButton('hazardousEvaluationList','評価候補・確認履歴');
+    hazardousBind('hazardousEvaluationList',()=>hazardousEvaluations(id),ticket);
+  }
   hazardousBind('hazardousReload',()=>hazardousDetail(id),ticket);
   hazardousBind('hazardousEdit',()=>hazardousInstallationForm(row),ticket);
   hazardousBind('hazardousRecordNew',()=>hazardousRecordForm(row),ticket);
@@ -162,6 +166,59 @@ async function hazardousDetail(id) {
 }
 function hazardousRecordStatus(row) {
   return row.status === 'confirmed' ? (row.confirmation_current ? '現行の事実・原本をHuman確認済' : '過去の確認（現行の事実・原本は未確認）') : hazardousLabels[row.status]??row.status;
+}
+
+function hazardousEvaluationReadable() {
+  return ['legal_rule.read','legal_source.read','document.read'].every(hazardousCan);
+}
+async function hazardousEvaluations(id) {
+  const ticket=hazardousBegin(()=>hazardousEvaluations(id));
+  const installation=await hazardousAPI(hazardousPath(id),{},ticket);
+  const rows=await hazardousAPI(hazardousPath(id)+'/evaluations',{},ticket);
+  hazardousShell(ticket);
+  $('hazardousContent').innerHTML='<h2>'+esc(installation.name)+' / 評価候補と確認履歴</h2><p>正式な適合・違反・許可の記録は作成しません。Human確認は候補と根拠を確認した記録です。</p><div class="toolbar">'+hazardousButton('hazardousEvaluationBack','台帳へ戻る')+(installation.status==='active'&&hazardousCan('legal_rule.evaluate')?hazardousButton('hazardousEvaluationNew','評価候補を作る','hazardous.create'):'')+'</div>'+hazardousTable(['評価日','Human確認','適用Rule','現在性','操作'],rows.map(row=>[esc(row.evaluation_date),row.status==='reviewed'?'Human確認済':'未確認の候補',row.coverage_status==='unavailable'?'要否未判定':esc(row.rules_snapshot.length)+'件を比較（網羅性未確認）',row.is_stale?'元の事実・Ruleが更新済':'元の事実・Ruleと一致',`<button class="btn" type="button" data-hazardous-evaluation="${esc(row.evaluation_id)}">候補と根拠を確認</button>`]));
+  hazardousBind('hazardousEvaluationBack',()=>hazardousDetail(id),ticket);
+  hazardousBind('hazardousEvaluationNew',()=>hazardousEvaluationForm(installation),ticket);
+  document.querySelectorAll('[data-hazardous-evaluation]').forEach(button=>{
+    button.onclick=()=>hazardousAction(()=>hazardousEvaluationDetail(button.dataset.hazardousEvaluation),ticket);
+  });
+}
+async function hazardousEvaluationForm(installation) {
+  const ticket=hazardousBegin(()=>hazardousEvaluationForm(installation));
+  const profiles=await hazardousAPI('/legal-sources/profiles',{},ticket,'legal_source.read');
+  const choices=[['','法令セットを選んでください'],...profiles.filter(row=>row.active).map(row=>[row.legal_profile_id,row.name])];
+  hazardousForm('必要事項の候補を作る', '<p>登録済の名称・区分・数量・単位を承認済Ruleと比較します。AIによる法令区分の推定、単位換算、異種合算は行いません。選択したRuleの比較結果であり、正式判定ではありません。</p>'+hazardousField('profile','適用する法令セット','','select',true,choices)+hazardousField('evaluation_date','評価日',new Date().toISOString().slice(0,10),'date',true),ticket,async()=>{
+    const row=await hazardousAPI(hazardousPath(installation.installation_id)+'/evaluations',hazardousJSON('POST',{
+      expected_installation_version:installation.version,legal_profile_id:hazardousValue('profile'),evaluation_date:hazardousValue('evaluation_date')
+    }),ticket,'hazardous.create');
+    await hazardousAfterSave(()=>hazardousEvaluationDetail(row.evaluation_id));
+  },()=>hazardousEvaluations(installation.installation_id),'評価候補を作る');
+}
+async function hazardousEvaluationDetail(id) {
+  const ticket=hazardousBegin(()=>hazardousEvaluationDetail(id));
+  const row=await hazardousAPI('/hazardous/evaluations/'+encodeURIComponent(id),{},ticket);
+  hazardousShell(ticket);
+  const states={matched:'条件に該当する候補',not_matched:'このRuleの条件に該当しない',unresolved:'未解決・Human確認が必要'};
+  const evidence=new Map(row.rules_snapshot.map(item=>[item.rule_version_id,item]));
+  $('hazardousContent').innerHTML='<h2>'+esc(row.input_snapshot.installation.name)+' / 必要事項の候補</h2><p>'+esc(row.input_snapshot.profile.name)+' / 評価日 '+esc(row.evaluation_date)+' / '+(row.status==='reviewed'?'Human確認済':'未確認の候補')+'</p><p><b>正式な適合・違反・許可の判定ではありません。法令全体の網羅性は未確認です。</b></p>'+(row.is_stale?'<p class="dangerText">元の事実・適用Ruleが更新されています。新しい候補を作り直してください。</p>':'')+(row.coverage_status==='unavailable'?'<p>適用できる承認済Ruleまたは登録品目がありません。要否は未判定です。</p>':'')+'<div class="toolbar">'+hazardousButton('hazardousEvaluationBack','評価履歴へ戻る')+hazardousButton('hazardousEvaluationReload','再読込')+(row.status==='candidate'&&!row.is_stale?hazardousButton('hazardousEvaluationReview','候補と根拠をHuman確認','hazardous.review'):'')+'</div>'+hazardousTable(['品目','Rule','比較結果','Ruleに記載された必要事項'],row.results.map(result=>[esc(result.material_name),esc(evidence.get(result.rule_version_id)?.rule.rule.name??'承認済Rule'),esc(states[result.state]??'未解決'),esc(result.outcome.requirement)]))+'<h3>比較の根拠</h3>'+row.rules_snapshot.map(item=>'<details class="card"><summary>'+esc(item.rule.rule.name)+' / '+esc(item.source.title)+'</summary><p>適用期間 '+esc(item.rule.effective_from)+' ～ '+esc(item.rule.effective_to??'終了日未設定')+'</p><p>原本 '+esc(item.source.original.filename)+' / 照合hash '+esc(item.source.sha256)+'</p><p>一次資料URL: '+esc(item.source.source_url)+'</p>'+item.citations.map(citation=>'<h4>'+esc(citation.display_label??citation.provision_key)+'</h4><pre style="white-space:pre-wrap">'+esc(citation.cited_text)+'</pre>').join('')+'</details>').join('')+(row.status==='reviewed'?'<p>確認日時 '+esc(row.reviewed_at)+' / 確認理由 '+esc(row.reason)+'</p>':'');
+  const fields={quantity:'数量',capacity:'容量',material_name:'品名',material_category_label:'品目の区分',installation_category_label:'施設の区分'};
+  const operators={eq:'等しい',ne:'等しくない',gte:'以上',lte:'以下',gt:'超える',lt:'未満',in:'いずれかに一致'};
+  const reasons={missing_or_incompatible_unit:'単位が未記載または一致しません',missing_or_invalid_exact_quantity:'数量・容量を確認してください',missing_or_invalid_explicit_label:'名称・区分を確認してください'};
+  const value=(v,unit)=>esc(Array.isArray(v)?v.join('、'):v??'未記載')+(unit?' '+esc(unit):'');
+  $('hazardousContent').innerHTML+='<h3>条件ごとの比較</h3>'+row.results.map(result=>'<h4>'+esc(result.material_name)+' / '+esc(evidence.get(result.rule_version_id)?.rule.rule.name??'承認済Rule')+'</h4>'+hazardousTable(['組合せ','確認項目','登録値','比較条件','Ruleの値','結果'],['all','any'].flatMap(group=>(result[group]??[]).map(clause=>[group==='all'?'すべて満たす':'いずれかを満たす',esc(fields[clause.field]??clause.field),value(clause.actual,clause.actual_unit),esc(operators[clause.op]??clause.op),value(clause.expected,clause.expected_unit),esc(states[clause.state]??'未解決')+(clause.reason?' / '+esc(reasons[clause.reason]??'入力・単位を確認してください'):'')])))).join('');
+  hazardousBind('hazardousEvaluationBack',()=>hazardousEvaluations(row.installation_id),ticket);
+  hazardousBind('hazardousEvaluationReload',()=>hazardousEvaluationDetail(id),ticket);
+  hazardousBind('hazardousEvaluationReview',()=>hazardousEvaluationReview(row),ticket);
+}
+async function hazardousEvaluationReview(row) {
+  const ticket=hazardousBegin();
+  hazardousForm('候補と根拠のHuman確認','<p>原本・引用・比較結果を確認した記録を残します。正式な適合・違反・許可を確定する操作ではありません。</p>'+hazardousField('evaluation_reason','確認理由','','textarea',true)+hazardousField('evaluation_ack','候補と根拠を自分で確認しました',false,'checkbox',true),ticket,async()=>{
+    if(!$('hazardousField_evaluation_ack').checked)throw new Error('候補と根拠を確認してください。');
+    const confirmed=await hazardousAPI('/hazardous/evaluations/'+encodeURIComponent(row.evaluation_id)+'/review',hazardousJSON('POST',{
+      expected_version:row.version,reason:hazardousValue('evaluation_reason'),acknowledged:true
+    }),ticket,'hazardous.review');
+    await hazardousAfterSave(()=>hazardousEvaluationDetail(confirmed.evaluation_id));
+  },()=>hazardousEvaluationDetail(row.evaluation_id),'Human確認を記録する');
 }
 function hazardousHistory(rows) {
   return '<h3>変更履歴</h3>' + (rows.length ? rows.map(h=>`<details class="card"><summary>${esc(h.action??h.event_type??'変更')} / ${esc(h.changed_at??h.created_at??'')} / ${esc(h.reason??'')}</summary><p>実施者: ${esc(h.actor_name??h.changed_by??h.actor_user_id??h.created_by??'記録参照')}</p><pre style="white-space:pre-wrap;overflow-wrap:anywhere">${esc(JSON.stringify(h,null,2))}</pre></details>`).join('') : '<p>履歴なし</p>');

@@ -1,5 +1,11 @@
 # 危険物Rule authoringと一次根拠の固定 — 検証境界
 
+## 最終受入証拠（PR82・main）
+
+PR82は `fc96af9dc6cd235487c5fe47ebf42d2b0553e887`、tree `d1c1fe35dfbd31d91006ab31db3a6980da93657b` としてmerge済み。exact head `e4a1c1ecbf57b7bfeaede259c4f99e315ff4db32` と同じtree。CI37871180915 SUCCESS: backend1330 passed/97 skipped/484.42s、browser job73 passed/706.14s、parser/JavaScript成功。056実PostgreSQLの旧DB更新・retry・同時Human承認200/409・audit1件・固定根拠UPDATE/DELETE拒否を実行済み。PR artifact11590374084 SHA256 `73810fcf5d437ea42b39786face6c64554c6b787a3d805b4013bd415421ac9c1`。
+
+独立main CI37872231434もSUCCESS: backend1330 passed/97 skipped/498.40s、browser job73 passed/751.64s、parser/JavaScript成功。main artifact11591396065 SHA256 `d70f711b9706dab39de46447a807e748a6e106246070334738450a0fbc49fc86`。browser jobは既存Node/APIを含み、73本の別々のChromium journeyとは扱わない。skipもnative成功と数えない。以下のpending記述は過去の開発checkpointであり、この最終受入を取り消すものではない。章16/17はPartialで、専用installation評価workflow・実本番Rule承認は別の未完条件。
+
 先行mainはPR81後のbe5185e53a5f126d6524bee1291d83a7e41fde92、tree3f56f3155343325c2d845fa5647ad23a66ad6618。独立main CI37868495428はbackend1245passed/97skipped、browser job73passed、parser/JavaScript成功。これは本Sliceのnative成功証拠ではない。
 
 ## 実装した契約
