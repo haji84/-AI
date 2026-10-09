@@ -8,7 +8,7 @@ from ..db import get_db
 from ..models import User
 from ..settings import settings
 from ..statistics_schemas import StatisticsQuery, ConfirmStatistics, ReplaceStatistics, MetricKey
-from ..statistics_sources import DEFINITIONS, QUERY_VERSION, required_permissions
+from ..statistics_sources import DEFINITIONS, QUERY_VERSION, required_permissions, workforce_available
 from ..statistics_models import StatisticsReport, StatisticsEvidence, StatisticsHistory
 from .. import statistics_service as service
 from .. import statistics_reports as reports
@@ -29,7 +29,7 @@ def metrics(response:Response, db:Session=Depends(get_db), user:User=Depends(cur
     with service.final_session(identity,{'statistics.read'}) as final:
         permissions=permission_codes(final,identity.user_id)
         return {'query_version':QUERY_VERSION,'business_timezone':settings.statistics_business_timezone,'coverage_status':'unknown',
-                'metrics':[{**definition,'available':required_permissions([key]).issubset(permissions)} for key,definition in DEFINITIONS.items()]}
+                'metrics':[{**definition,'available':required_permissions([key]).issubset(permissions) and (definition['source_module'] != 'workforce' or workforce_available(final))} for key,definition in DEFINITIONS.items()]}
 
 
 @router.post('/query')
@@ -51,7 +51,10 @@ def list_reports(response:Response,limit:int=Query(50,ge=1,le=200),offset:int=Qu
     with service.final_session(identity,{'statistics.read'}) as final:
         permissions=permission_codes(final,identity.user_id)
         # A mixed report is either wholly visible or absent, before counting/pagination.
-        rows=[row for row in final.scalars(select(StatisticsReport).order_by(StatisticsReport.created_at,StatisticsReport.report_id)) if reports.report_codes(row).issubset(permissions)]
+        workforce_enabled=workforce_available(final)
+        rows=[row for row in final.scalars(select(StatisticsReport).order_by(StatisticsReport.created_at,StatisticsReport.report_id))
+              if reports.report_codes(row).issubset(permissions)
+              and (workforce_enabled or not any(key.startswith('workforce.') for key in row.metric_keys))]
         data={'items':[reports.public_report(row) for row in rows[offset:offset+limit]],'total':len(rows),'limit':limit,'offset':offset}
         service.audit_statistics(final,identity,'list');final.commit()
         return data

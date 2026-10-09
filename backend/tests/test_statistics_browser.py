@@ -124,8 +124,8 @@ def statistics_browser(tmp_path, request):
             def select_metrics(keys=KEYS):
                 page.locator('#statisticsStart').fill('2026-01-01')
                 page.locator('#statisticsEnd').fill('2026-01-31')
-                for key in KEYS:
-                    box = page.locator(f'[data-statistics-metric="{key}"]')
+                for box in page.locator('[data-statistics-metric]').all():
+                    key = box.get_attribute('data-statistics-metric')
                     if box.is_enabled():
                         box.set_checked(key in keys)
 
@@ -192,6 +192,35 @@ def seed_timestamp_sources(ui):
             'ended_at': f'2026-01-{day}T01:00:00+09:00', 'start_odometer': start,
             'end_odometer': end, 'purpose': 'Synthetic observed statistics trip'})
     return incident, vehicle
+
+
+def test_workforce_catalog_actual_query_confirmation_and_frozen_exports(statistics_browser):
+    from playwright.sync_api import expect
+    ui = statistics_browser
+    page = ui['page']
+    ui['login']()
+    ui['database']("import sys; sys.path.insert(0,'backend/tests')\nfrom test_statistics_workforce import seed_workforce\nfrom app.db import SessionLocal\nfrom app.models import User\nfrom sqlalchemy import select\nwith SessionLocal() as db:\n seed_workforce(db,db.scalar(select(User).where(User.username=='statistics-writer')).user_id)")
+    ui['open']()
+    keys = ['workforce.approved_rosters','workforce.approved_worked_minutes','workforce.approved_overtime_minutes']
+    ui['select'](keys)
+    snapshot = ui['action']('statisticsQuery', '/statistics/query')
+    assert [m['value'] for m in snapshot['metrics']] == ['3','990','100']
+    assert 'PRIVATE' not in json.dumps(snapshot)
+    expect(page.locator('#statisticsSnapshot')).to_contain_text('承認済実勤務時間')
+    expect(page.locator('#statisticsSnapshot')).to_contain_text('網羅性: unknown')
+    saved = ui['action']('statisticsSave', '/statistics/reports', 201)
+    key = saved['report_id']
+    page.locator('#statisticsReviewNote').fill('Synthetic stored work observations reviewed independently')
+    page.locator('#statisticsAcknowledge').check()
+    confirmed = ui['action']('statisticsConfirm', '/statistics/reports/'+key+'/confirm')
+    assert confirmed['state'] == 'confirmed' and confirmed['snapshot'] == saved['snapshot']
+    with page.expect_download() as download:
+        page.locator('#statisticsCSV').click()
+    path = ui['tmp'] / 'workforce-observed.csv'
+    download.value.save_as(path)
+    content = path.read_text(encoding='utf-8-sig')
+    assert '990' in content and 'approved_overtime_minutes' in content and 'PRIVATE' not in content
+    page.screenshot(path=str(ui['artifacts'] / 'statistics-workforce-observed.png'), full_page=True)
 
 
 def test_real_query_recapture_confirmation_history_and_safe_frozen_downloads(statistics_browser):

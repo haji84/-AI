@@ -2,6 +2,12 @@
 
 更新日: 2026-10-09
 
+## 最新の監査差分（main `a3ae2e3` 基準）
+
+正本main `a3ae2e37b2bebba95bd107c8abe5ee6501b51d59`、tree `9c5c3fdd545657f88b2ad715cecd51ba3bc30ee6`。PR84で危険物の原本確認待ち・期限・評価候補を共通Work Queueへ接続済み。exact-head [CI37876067326](https://github.com/haji84/-AI/actions/runs/37876067326) 成功: backend1371 passed/98 skipped/693.04s、browser job74 passed/750.60s、parser/JavaScript成功。独立した [main CI37877280792](https://github.com/haji84/-AI/actions/runs/37877280792) もbackend1371 passed/98 skipped/580.71s、browser job74 passed/758.51s、parser/JavaScript成功。実Chromiumのqueue→評価Human確認→消去、原本記録確認→確認待ち消去・期限保持を確認済み。main artifact11592784603 SHA256 `ff207c9b11066d2b7c8edbe2dd4a2ff20e80a96679c2a8ff70be585cfabc7658`。
+
+分類は **Completed13 / Partial43 / Missing0 / External Gate1**。第16章再監査/D15とPR84統合証拠D16を参照。第36章は全module queue/dashboardの内部残がありPartialのまま。勤務の承認済記録を横断観測統計へ追加する後続Sliceは未mergeで、全体完成・10本E2E・Releaseにcreditを付けない。以下07b8545以前の段落は履歴であり、最新mainと未merge記述へ読み替えない。
+
 ## 最新の監査差分（main `07b8545` 基準）
 
 正本main `07b854552d173b7736323d5d18b3144b6ae9d32a`、tree `477ee5c16f2693e4a698c52c00494f4213a47064`。PR83の危険物評価候補・正確な条件比較・一次原本追跡・独立Human確認を統合済み。exact-head [CI37873610982](https://github.com/haji84/-AI/actions/runs/37873610982) はbackend1353 passed/98 skipped/479.53s、browser job74 passed/567.47s。独立した [main CI37874629139](https://github.com/haji84/-AI/actions/runs/37874629139) もbackend1353 passed/98 skipped/719.85s、browser job74 passed/533.96s、migration parser/JavaScript成功。実PostgreSQL057更新・再実行・同時Human確認200/409・証拠改変拒否、実Chromium候補/原本/Human確認/失権時消去を実行済み。skipは未検証のまま。

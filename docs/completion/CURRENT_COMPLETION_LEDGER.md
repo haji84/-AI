@@ -2,9 +2,9 @@
 
 Status date: 2026-10-09 UTC
 
-Audited implementation base: `07b854552d173b7736323d5d18b3144b6ae9d32a`
+Audited implementation base: `a3ae2e37b2bebba95bd107c8abe5ee6501b51d59`
 
-Verified implementation tree: `477ee5c16f2693e4a698c52c00494f4213a47064`
+Verified implementation tree: `9c5c3fdd545657f88b2ad715cecd51ba3bc30ee6`
 
 Previous reviewed baseline: `c1b684c5c38fc52fe908d2116a21a16ef48dcb34`
 
@@ -29,6 +29,12 @@ Use exactly four primary statuses: **Completed / Partial / Missing / External Ga
 The baseline was independently reconciled to 11/42/3/1 using chapter-specific evidence. This update reviews the merged deltas and preserves that full baseline. Baseline path/line references are pinned to c1b684c; D1–D6 retain their 1b3bf5b source links. D7–D9 retain the PR76-merge snapshot c1b491e; D10 links to the current PR77-merge snapshot 9d6f86b. Test definitions establish coverage present in source; executed results come from the exact-head CI or recorded verification run identified below. This documentation edit itself does not rerun the application suites.
 
 ## Execution evidence and current-base limit
+
+### D16 — PR84 hazardous common Work Queue acceptance
+
+Main `a3ae2e37b2bebba95bd107c8abe5ee6501b51d59`, tree `9c5c3fdd545657f88b2ad715cecd51ba3bc30ee6`, matches PR head `69257631649831f47fc1d408966b6a59e1aea8d5`. [Exact-head CI37876067326](https://github.com/haji84/-AI/actions/runs/37876067326) SUCCESS: backend1371 passed/98 skipped/693.04s, browser job74 passed/750.60s, parser/JavaScript success. [Independent main CI37877280792](https://github.com/haji84/-AI/actions/runs/37877280792) SUCCESS: backend1371 passed/98 skipped/580.71s, browser job74 passed/758.51s, parser/JavaScript success. Main artifact11592784603 SHA256 `ff207c9b11066d2b7c8edbe2dd4a2ff20e80a96679c2a8ff70be585cfabc7658`. Skips remain unverified; browser74 includes existing Node/API cases.
+
+Generic live pointers connect hazardous original review, deadlines, evaluation review/recreation to exact protected source views. Ancestor/violation/original/legal permissions precede counts/page; no material quantities/names or source prose are copied. Obsolete navigation cannot repaint private data or close newer Human views. Actual Chromium verifies source Human action, pointer removal and retained deadline; native PostgreSQL regressions retained. [Verification](HAZARDOUS_WORK_QUEUE_VERIFICATION.md). No new migration or privilege grants. Chapter36 remains Partial; remaining providers, assignment/dashboard and whole integration are internal. Chapter16's D15 promotion is unchanged (13/43/0/1). D15's unmerged-common-queue sentence describes its earlier checkpoint; the separate workforce-statistics delta is still unmerged.
 
 ### D15 — PR83 accepted hazardous candidate workflow and chapter16 re-audit
 

@@ -5,9 +5,11 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 METRIC_KEYS = ('emergency.cases', 'emergency.patient_records', 'operations.incidents',
-               'operations.dispatches', 'operations.approved_dispatches', 'fleet.trips', 'fleet.distance_km')
+               'operations.dispatches', 'operations.approved_dispatches', 'fleet.trips', 'fleet.distance_km',
+               'workforce.approved_rosters', 'workforce.approved_worked_minutes', 'workforce.approved_overtime_minutes')
 MetricKey = Literal['emergency.cases', 'emergency.patient_records', 'operations.incidents',
-                    'operations.dispatches', 'operations.approved_dispatches', 'fleet.trips', 'fleet.distance_km']
+                    'operations.dispatches', 'operations.approved_dispatches', 'fleet.trips', 'fleet.distance_km',
+                    'workforce.approved_rosters', 'workforce.approved_worked_minutes', 'workforce.approved_overtime_minutes']
 
 
 class Strict(BaseModel):
@@ -17,7 +19,7 @@ class Strict(BaseModel):
 class StatisticsQuery(Strict):
     start_date: date
     end_date: date
-    metric_keys: list[MetricKey] = Field(min_length=1, max_length=7)
+    metric_keys: list[MetricKey] = Field(min_length=1, max_length=len(METRIC_KEYS))
 
     @field_validator('start_date', 'end_date', mode='before')
     @classmethod

@@ -8,13 +8,15 @@ import json
 from zoneinfo import ZoneInfo
 from fastapi import HTTPException
 from sqlalchemy import select
-from .models import AuditLog, EmergencyCase, EmergencyPatient, FireInvestigationCase, now_utc
+from .models import AuditLog, EmergencyCase, EmergencyPatient, FireInvestigationCase, FeatureFlag, now_utc
+from .settings import settings
 from .operations_models import Incident, Dispatch, VehicleTrip
+from .workforce_models import WorkforceRosterEntry, WorkforceAttendance, WorkforceTimeEntry
 
 QUERY_VERSION = 'observed-statistics-v1'
 DATE_BASIS_VERSION = 'local-inclusive-date-v1'
-SOURCE_PERMISSIONS = {'emergency': 'emergency.report.read', 'operations': 'incident.aggregate', 'fleet': 'fleet.aggregate'}
-EXPORT_PERMISSIONS = {'emergency': 'emergency.report.export', 'operations': 'incident.export', 'fleet': 'fleet.export'}
+SOURCE_PERMISSIONS = {'emergency': 'emergency.report.read', 'operations': 'incident.aggregate', 'fleet': 'fleet.aggregate', 'workforce': 'workforce.aggregate'}
+EXPORT_PERMISSIONS = {'emergency': 'emergency.report.export', 'operations': 'incident.export', 'fleet': 'fleet.export', 'workforce': 'workforce.export'}
 
 
 def definition(key, label, module, unit, grain, basis, description):
@@ -30,12 +32,25 @@ DEFINITIONS = {row['key']: row for row in [
     definition('operations.approved_dispatches', '承認済出動記録数', 'operations', '記録', 'dispatch', 'parent incident occurrence or linked source occurrence', '選択日付の全親事案に属する承認済出動記録。'),
     definition('fleet.trips', '車両運行記録数', 'fleet', '記録', 'trip', 'operation_vehicle_trips.started_at (timestamp)', '選択日付に開始した運行記録。現在の車両の有効状態にかかわらず含みます。'),
     definition('fleet.distance_km', '車両運行距離', 'fleet', 'km', 'trip', 'operation_vehicle_trips.started_at (timestamp)', '同じ選択運行記録の終了距離計と開始距離計の差をDecimalで合計します。'),
+    definition('workforce.approved_rosters', '承認済勤務表記録数', 'workforce', '記録', 'roster_record', 'workforce_roster_entries.work_date (DATE)', '選択勤務日の承認済勤務表記録。職員実人数や出勤実績とは異なります。過去の職員・組織の現在の有効状態に左右されません。'),
+    definition('workforce.approved_worked_minutes', '承認済実勤務時間', 'workforce', '分', 'attendance_record', 'workforce_attendance.work_date (DATE)', '選択勤務日の承認済出退勤記録に保存された実勤務分を合計します。未算出は除外し、勤務表の予定分から推定しません。給与・手当の確定値ではありません。'),
+    definition('workforce.approved_overtime_minutes', '承認済時間外勤務時間', 'workforce', '分', 'time_entry', 'workforce_time_entries.occurred_on (DATE)', '選択日付の承認済overtime記録の保存分を合計します。代休付与・利用を含めず、勤務表や出退勤から再計算しません。給与・手当の確定値ではありません。'),
 ]}
 
 
 def required_permissions(keys, *, export=False):
     modules = {DEFINITIONS[key]['source_module'] for key in keys}
     return {SOURCE_PERMISSIONS[module] for module in modules} | ({EXPORT_PERMISSIONS[module] for module in modules} if export else set())
+
+
+def workforce_available(db):
+    flag = db.scalar(select(FeatureFlag).where(FeatureFlag.key == 'module.workforce.enabled'))
+    return flag.enabled if flag is not None else not settings.production_mode
+
+
+def require_workforce_available(db):
+    if not workforce_available(db):
+        raise HTTPException(503, 'Workforce statistics source is disabled or unconfigured')
 
 
 def canonical(value):
@@ -89,6 +104,7 @@ class Selection:
         self.dependencies = {}
         self.excluded = {}
         self.limitations = set()
+        self.unavailable = False
 
     def depend(self, row):
         if row is not None:
@@ -105,7 +121,8 @@ class Selection:
         total = sum((Decimal(row['contribution']) for row in self.selected.values()), Decimal('0'))
         value = str(total.quantize(Decimal('0.1'))) if self.key == 'fleet.distance_km' else str(int(total))
         counts = Counter(row['reason'] for row in self.excluded.values())
-        public = {**spec, 'status': 'observed', 'value': value, 'coverage_status': 'unknown',
+        unavailable = self.unavailable and not self.selected
+        public = {**spec, 'status': 'unavailable' if unavailable else 'observed', 'value': None if unavailable else value, 'coverage_status': 'unknown',
                   'exclusions': [{'reason': reason, 'count': count, 'grain': spec['grain'], 'scope': 'department_all_dates'} for reason, count in sorted(counts.items())],
                   'limitations': ['記録された観測値です。対象期間の記録が完全であることは確認していません。', *sorted(self.limitations)]}
         evidence = {'selected': self.selected, 'dependencies': self.dependencies, 'excluded': self.excluded}
@@ -176,6 +193,36 @@ class Selector:
                 if reason: chosen.exclude(patient, reason)
                 elif match: chosen.add(patient)
 
+    def workforce(self, selections):
+        # DATE is the source-owned work date; do not reinterpret UTC timestamps.
+        # Approved stored observations remain valid after employee/org retirement.
+        contracts = {
+            'workforce.approved_rosters': (WorkforceRosterEntry, 'work_date', None),
+            'workforce.approved_worked_minutes': (WorkforceAttendance, 'work_date', 'worked_minutes'),
+            'workforce.approved_overtime_minutes': (WorkforceTimeEntry, 'occurred_on', 'minutes'),
+        }
+        for key, chosen in selections.items():
+            model, date_field, amount_field = contracts[key]
+            statement = select(model).where(model.status == 'approved')
+            if model is WorkforceTimeEntry:
+                statement = statement.where(model.kind == 'overtime')
+            for row in self.db.scalars(statement):
+                reason, match = self.dated(getattr(row, date_field))
+                amount = getattr(row, amount_field) if amount_field else 1
+                if reason:
+                    chosen.exclude(row, reason)
+                elif amount is None:
+                    chosen.exclude(row, 'approved_minutes_missing')
+                    if match:
+                        chosen.unavailable = True
+                        chosen.limitations.add('承認済みでも実勤務分が未算出の記録を除外しています。0分と推定しません。')
+                elif match:
+                    chosen.add(row, amount)
+                    parent = self.db.get(WorkforceAttendance, row.attendance_id) if isinstance(row, WorkforceTimeEntry) and row.attendance_id else None
+                    if parent: chosen.depend(parent)
+                    roster_id = row.roster_entry_id if isinstance(row, WorkforceAttendance) else (parent.roster_entry_id if parent else None)
+                    if roster_id: chosen.depend(self.db.get(WorkforceRosterEntry, roster_id))
+
     def operations(self, selections):
         parents = {}
         for row in self.db.scalars(select(Incident)):
@@ -224,9 +271,11 @@ class Selector:
 
 
 def capture_sources(db, period, keys):
+    if any(key.startswith('workforce.') for key in keys):
+        require_workforce_available(db)
     selector = Selector(db, period)
     selections = {key: Selection(key) for key in keys}
-    for module in ['emergency', 'operations', 'fleet']:
+    for module in ['emergency', 'operations', 'fleet', 'workforce']:
         group = {key: chosen for key, chosen in selections.items() if DEFINITIONS[key]['source_module'] == module}
         if group:
             getattr(selector, module)(group)
