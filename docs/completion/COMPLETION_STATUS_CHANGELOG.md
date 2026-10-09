@@ -4,6 +4,8 @@ Status vocabulary: **Completed / Partial / Missing / External Gate**. This log p
 
 ## Status checkpoints
 
+2026-10-09: PR82 merged as `fc96af9dc6cd235487c5fe47ebf42d2b0553e887` (tree `d1c1fe35dfbd31d91006ab31db3a6980da93657b`). Exact-head CI37871180915 and independent main CI37872231434 succeeded, including native056 PostgreSQL and Chromium workflows. Adds primary-source-bound hazardous Rule authoring and immutable approval evidence. **12 Completed / 44 Partial / 0 Missing / 1 External Gate**, unchanged; dedicated installation evaluation workflow remains unmerged and chapters16/17 remain Partial. See current ledger D14 and the authoring verification record.
+
 | Checkpoint | Completed | Partial | Missing | External Gate | Basis |
 |---|---:|---:|---:|---:|---|
 | Historical matrix, dated 922d292 | 14 | 37 | 5 | 1 | Historical classification only; not current execution evidence |

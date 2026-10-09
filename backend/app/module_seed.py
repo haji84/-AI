@@ -4,7 +4,7 @@ from .models import ModuleDefinition, FeatureFlag
 
 MODULES = {
     "statistics": {"name":"観測統計", "version":"1.0.0"},
-    "hazardous_materials": {"name":"危険物台帳", "version":"1.0.0"},
+    "hazardous_materials": {"name":"危険物台帳", "version":"1.1.0"},
     "work_queue": {"name":"今日の作業", "version":"1.0.0"},
     "inquiries": {"name":"議会・照会", "version":"1.0.0"},
     "violations": {"name":"正式違反・改善措置", "version":"1.0.0"},
@@ -40,7 +40,7 @@ def seed_modules(db: Session) -> dict[str, ModuleDefinition]:
             row.manifest={**(row.manifest or {}),"operational_api":"/work-queue","surface":"/ui/","read_only":True}
         if code == "hazardous_materials":
             row.version=cfg["version"]
-            row.manifest={**(row.manifest or {}),"operational_api":"/hazardous","surface":"/ui/","human_evidence_review":True,"legal_evaluation":False}
+            row.manifest={**(row.manifest or {}),"operational_api":"/hazardous","surface":"/ui/","human_evidence_review":True,"legal_evaluation":True,"legal_evaluation_mode":"candidate_only","formal_legal_decision":False}
         if code == "emergency_reporting":
             row.version = cfg["version"]
             row.manifest = {**(row.manifest or {}), "operational_api": "/emergency", "surface": "/ui/", "aggregate_api": "/emergency/reports/summary"}

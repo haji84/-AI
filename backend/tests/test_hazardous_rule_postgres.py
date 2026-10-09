@@ -29,7 +29,10 @@ def test_hazardous_authoring_upgrade_and_competing_human_approval(tmp_path, monk
     from test_hazardous_rule_authoring import structured_rule
     root = Path(__file__).resolve().parents[2]
     baseline = tmp_path / 'baseline'; baseline.mkdir()
+    authoring_bound = tmp_path / 'authoring-bound'; authoring_bound.mkdir()
     for path in (root / 'db/migrations').glob('*.sql'):
+        if path.name < '057_hazardous_evaluations.sql':
+            shutil.copy2(path, authoring_bound / path.name)
         if path.name < '056_hazardous_rule_authoring.sql':
             shutil.copy2(path, baseline / path.name)
     name = 'fi_hz_rule_' + uuid4().hex[:16]
@@ -50,8 +53,8 @@ def test_hazardous_authoring_upgrade_and_competing_human_approval(tmp_path, monk
             db.add_all([actor, legacy]); db.flush()
             db.add(UserRole(user_id=actor.user_id, role_id=roles['system_admin'].role_id))
             db.commit(); legacy_id = legacy.rule_id
-        assert apply_migrations(target_url, root / 'db/migrations') == ['056_hazardous_rule_authoring.sql']
-        assert apply_migrations(target_url, root / 'db/migrations') == []
+        assert apply_migrations(target_url, authoring_bound) == ['056_hazardous_rule_authoring.sql']
+        assert apply_migrations(target_url, authoring_bound) == []
         with Session(target) as db:
             assert db.get(LegalRule, legacy_id).domain == 'submission_requirement'
         identity = structured_rule(target, with_citation=False)

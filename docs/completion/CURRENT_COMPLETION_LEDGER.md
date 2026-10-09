@@ -2,9 +2,9 @@
 
 Status date: 2026-10-09 UTC
 
-Audited implementation base: `be5185e53a5f126d6524bee1291d83a7e41fde92`
+Audited implementation base: `fc96af9dc6cd235487c5fe47ebf42d2b0553e887`
 
-Verified implementation tree: `3f56f3155343325c2d845fa5647ad23a66ad6618`
+Verified implementation tree: `d1c1fe35dfbd31d91006ab31db3a6980da93657b`
 
 Previous reviewed baseline: `c1b684c5c38fc52fe908d2116a21a16ef48dcb34`
 
@@ -32,7 +32,15 @@ The baseline was independently reconciled to 11/42/3/1 using chapter-specific ev
 
 The previous implementation checkpoint is actual PR80 merge `f7b4058c884454fed58f4cb1a02b931f8992f799`; its tree exactly matches verified PR head `4e52b9fc4ab355d29138f3b2e8aa0caf1f07d3dc`: `6bb7ae78e22daf9a0412a56a697d7d21cc82f45b`. [CI37864361725](https://github.com/haji84/-AI/actions/runs/37864361725) passed: backend1213 passed / 96 skipped / 738.55s, browser job72 passed / 643.17s, migration parser and JavaScript. The independent [main push CI37865572873](https://github.com/haji84/-AI/actions/runs/37865572873) passed: backend1213 passed / 96 skipped / 467.60s; browser job72 passed / 716.09s; migration parser and JavaScript succeeded. At that checkpoint personnel intake was unmerged. Skipped tests, real-data benchmarks and production acceptance receive no completion credit.
 
-PR81 is now merged as the current implementation base `be5185e53a5f126d6524bee1291d83a7e41fde92`, tree `3f56f3155343325c2d845fa5647ad23a66ad6618`, identical to exact PR head d605625. [PR CI37867368670](https://github.com/haji84/-AI/actions/runs/37867368670) passed backend1245/97 skipped/667.62s and browser job73/561.78s. Independent [main CI37868495428](https://github.com/haji84/-AI/actions/runs/37868495428) passed backend1245/97 skipped/608.80s and browser job73/734.45s, migration parser and JavaScript. New native PostgreSQL upgrade/concurrent-application and Chromium Human-notice workflows ran; skip remains unverified. The previous paragraph records PR80, not the current base. Hazardous authoring/evaluation work remains unmerged and receives no chapter completion credit.
+Historical PR81 was merged as implementation base `be5185e53a5f126d6524bee1291d83a7e41fde92`, tree `3f56f3155343325c2d845fa5647ad23a66ad6618`, identical to exact PR head d605625. [PR CI37867368670](https://github.com/haji84/-AI/actions/runs/37867368670) passed backend1245/97 skipped/667.62s and browser job73/561.78s. Independent [main CI37868495428](https://github.com/haji84/-AI/actions/runs/37868495428) passed backend1245/97 skipped/608.80s and browser job73/734.45s, migration parser and JavaScript. New native PostgreSQL upgrade/concurrent-application and Chromium Human-notice workflows ran; skip remains unverified. The previous paragraph records PR80, not the current base. At that checkpoint hazardous authoring/evaluation was unmerged and received no chapter completion credit; D14 records subsequent accepted authoring.
+
+### D14 — Hazardous Rule authoring and immutable primary-source approval, PR82
+
+Current main `fc96af9dc6cd235487c5fe47ebf42d2b0553e887`, tree `d1c1fe35dfbd31d91006ab31db3a6980da93657b`, matches accepted PR head `e4a1c1ecbf57b7bfeaede259c4f99e315ff4db32`. [Exact PR CI37871180915](https://github.com/haji84/-AI/actions/runs/37871180915) passed backend1330/97 skipped/484.42s and browser job73/706.14s. [Independent main CI37872231434](https://github.com/haji84/-AI/actions/runs/37872231434) passed backend1330/97 skipped/498.40s and browser job73/751.64s, parser and JavaScript. Actual PostgreSQL056 upgrade/retry/concurrent Human approval200/409/one audit/immutable update-delete ran. Main artifact11591396065 digest `d70f711b9706dab39de46447a807e748a6e106246070334738450a0fbc49fc86`; skips are not verified acceptance.
+
+The fifth closed hazardous Rule domain preserves legacy semantics. Exact decimal strings require explicit matching units; missing labels/units stay unresolved. Official active source, managed original hash, canonical primary citation and current original rights gate Human approval. Immutable evidence freezes full Rule/source/citations; source-less citation paths, lists/counts and shared audit prose are protected. Citation insertion increments parent version and serializes with approval. No formal policy is seeded. Initial inquiry-browser readiness failure was repaired by waiting for actual current search response and save eligibility, retaining product pending-operation locks.
+
+Evidence: [authoring verification](HAZARDOUS_RULE_AUTHORING_VERIFICATION_20261009.md), [PR82](https://github.com/haji84/-AI/pull/82). **Chapters16/17 remain Partial**. Installation evaluation persistence/profile/date/material comparison/Human candidate review/UI are local unmerged next-Slice work; no chapter, ten-flow, release or production completion credit yet. The earlier PR81 execution paragraph records its accepted historical baseline.
 
 ### D13 — Human personnel-original intake, PR81
 

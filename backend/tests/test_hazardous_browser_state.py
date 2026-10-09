@@ -313,3 +313,14 @@ assert(nodes.get('hazardousMessage').textContent.includes('Synthetic deadlines u
 routes.set('/hazardous/deadlines?',()=>response([{...installation,title:'Recovered current deadline',due_on:'2026-10-10',status:'draft'}]));await nodes.get('hazardousReadRetry').onclick();
 assert(nodes.get('hazardousContent').innerHTML.includes('Recovered current deadline'));const reads=calls.filter(call=>call.path.startsWith('/hazardous/deadlines?'));assert(reads.at(-1).path.includes('due_before=2026-10-11'));assert(!nodes.get('hazardousLoading'));
 ''')
+
+
+def test_evaluation_source_permission_loss_cancels_delayed_body(tmp_path):
+    run(tmp_path, r'''
+authority.permissions.push('legal_rule.read','legal_rule.evaluate');await evaluate('openHazardous()');
+const candidate={evaluation_id:'evaluation-a',installation_id:'installation-a',status:'candidate',version:1,evaluation_date:'2026-10-09',coverage_status:'unavailable',formal_decision:false,is_stale:false,input_snapshot:{installation,profile:{name:'Synthetic profile'}},results:[],rules_snapshot:[]};
+let release;routes.set('/hazardous/evaluations/evaluation-a',()=>new Response(new ReadableStream({start(controller){release=()=>{controller.enqueue(new TextEncoder().encode(JSON.stringify(candidate)));controller.close();};}})));
+const pending=evaluate('hazardousEvaluationDetail("evaluation-a")');await turn();
+authority={...authority,permissions:authority.permissions.filter(p=>p!=='document.read')};
+release();await assert.rejects(pending,e=>e.cancelled);assert.equal(resetCount,1);assert(!nodes.get('hazardousModal'));
+''')
