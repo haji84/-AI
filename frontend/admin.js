@@ -32,6 +32,7 @@ async function refresh(){
   for(const item of adminState.accounts)row(byId('accounts'),[item.username,adminState.staff.find(x=>x.employee_id===item.employee_id)?.display_name,item.active?'有効':'無効',rolesText(item.permanent_role_ids)+' / '+rolesText(item.effective_role_ids),new Date(item.password_changed_at).toLocaleString('ja-JP')+' / '+(item.password_expires_at?new Date(item.password_expires_at).toLocaleString('ja-JP')+(item.password_change_required?'（更新が必要）':''):'設定なし')]);
   options('.staffSelect',adminState.staff,'employee_id',item=>(item.employee_code||'旧職員')+' '+item.display_name);options('.orgSelect',adminState.organizations,'organization_id',item=>item.code+' '+item.name);options('.accountSelect',adminState.accounts,'user_id',item=>item.username);
   roleChoices('assignmentRoles',true);roleChoices('accountRoles');syncAccountRoles();syncStaffEdit();syncOrgEdit();const start=byId('assignmentForm').elements.valid_from;if(!start.value)start.value=context.business_date;
+  await window.PersonnelIntake?.load();
 }
 function syncStaffEdit(){const form=byId('staffEditForm');const record=adminState.staff.find(item=>item.employee_id===form.elements.employee_id.value);if(record){form.elements.active.value=String(record.active);form.elements.display_name.value=record.display_name;}}
 function syncOrgEdit(){const form=byId('orgEditForm');const record=adminState.organizations.find(item=>item.organization_id===form.elements.organization_id.value);if(record){form.elements.active.value=String(record.active);form.elements.name.value=record.name;}}

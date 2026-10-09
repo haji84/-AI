@@ -1,10 +1,10 @@
 # Fire AIOS current completion ledger
 
-Status date: 2026-10-07 UTC
+Status date: 2026-10-09 UTC
 
-Audited implementation base: `9d6f86b1c21e61b1df51eef058bf01b26e5c54e9`
+Audited implementation base: `f7b4058c884454fed58f4cb1a02b931f8992f799`
 
-Verified implementation tree: `c3d4f2afa32bdf44b82c2fe62d183e63d678f7d0`
+Verified implementation tree: `6bb7ae78e22daf9a0412a56a697d7d21cc82f45b`
 
 Previous reviewed baseline: `c1b684c5c38fc52fe908d2116a21a16ef48dcb34`
 
@@ -29,6 +29,10 @@ Use exactly four primary statuses: **Completed / Partial / Missing / External Ga
 The baseline was independently reconciled to 11/42/3/1 using chapter-specific evidence. This update reviews the merged deltas and preserves that full baseline. Baseline path/line references are pinned to c1b684c; D1–D6 retain their 1b3bf5b source links. D7–D9 retain the PR76-merge snapshot c1b491e; D10 links to the current PR77-merge snapshot 9d6f86b. Test definitions establish coverage present in source; executed results come from the exact-head CI or recorded verification run identified below. This documentation edit itself does not rerun the application suites.
 
 ## Execution evidence and current-base limit
+
+The current implementation base is actual PR80 merge `f7b4058c884454fed58f4cb1a02b931f8992f799`; its tree exactly matches verified PR head `4e52b9fc4ab355d29138f3b2e8aa0caf1f07d3dc`: `6bb7ae78e22daf9a0412a56a697d7d21cc82f45b`. [CI37864361725](https://github.com/haji84/-AI/actions/runs/37864361725) passed: backend1213 passed / 96 skipped / 738.55s, browser job72 passed / 643.17s, migration parser and JavaScript. The independent [main push CI37865572873](https://github.com/haji84/-AI/actions/runs/37865572873) passed: backend1213 passed / 96 skipped / 467.60s; browser job72 passed / 716.09s; migration parser and JavaScript succeeded. No unmerged personnel intake, hazardous evaluation checkpoint, skipped test, real-data benchmark or production acceptance receives completion credit.
+
+### Historical PR77 execution checkpoint
 
 The implementation base is `9d6f86b1c21e61b1df51eef058bf01b26e5c54e9`, the actual PR77 merge. Its tree matches the final combined PR77 head `ee7572204432064fe604d2ccbb5b010a41b9a4e2`: `c3d4f2afa32bdf44b82c2fe62d183e63d678f7d0`. That head's [CI37606910763](https://github.com/haji84/-AI/actions/runs/37606910763) passed with backend 1198 passed / 95 skipped and browser job 71 passed (62 Chromium + 9 Node/API), plus migration parser and JavaScript checks. **The final-main [post-merge CI37609190838](https://github.com/haji84/-AI/actions/runs/37609190838) also passed: backend 1198 passed / 95 skipped, browser job 71 passed (62 Chromium + 9 Node/API), migration parser and JavaScript.** This is execution evidence for runtime main 9d6f86b, not a new test run at a later documentation/package commit or production acceptance.
 
@@ -127,9 +131,19 @@ Merged as `9d6f86b1c21e61b1df51eef058bf01b26e5c54e9` ([PR77](https://github.com/
 
 Implementation: [frontend/learning.js](https://github.com/haji84/-AI/blob/9d6f86b1c21e61b1df51eef058bf01b26e5c54e9/frontend/learning.js), [frontend/learning.html](https://github.com/haji84/-AI/blob/9d6f86b1c21e61b1df51eef058bf01b26e5c54e9/frontend/learning.html). Coverage: [test_learning_refresh_state.py](https://github.com/haji84/-AI/blob/9d6f86b1c21e61b1df51eef058bf01b26e5c54e9/backend/tests/test_learning_refresh_state.py), [test_learning_browser.py](https://github.com/haji84/-AI/blob/9d6f86b1c21e61b1df51eef058bf01b26e5c54e9/backend/tests/test_learning_browser.py). The four-file repair preserves API, permission, learning/model and Human-decision semantics. Chapters 37/43/45/48 remain Partial; actual OCR/STT/photo/model adapters are not supplied by this race fix.
 
+### D11 — PR79 fleet authority refresh
+
+[PR79](https://github.com/haji84/-AI/pull/79) merged as `fe65b358dd2ff252344b9677f822f649dca7de31`. Its bounded fleet UI repair synchronously locks old controls while current authority is checked, retaining safe owner/session behavior. No fleet-domain or permission policy is changed. The older main startup failure occurred before Actions test execution and is not a code-test result; PR80's full successful head CI includes this canonical repair. Chapter23 retains its existing core Completed classification; shared platform gaps remain internal.
+
+### D12 — PR80 finance personal work queue
+
+[PR80](https://github.com/haji84/-AI/pull/80) merged as `f7b4058c884454fed58f4cb1a02b931f8992f799`. `work_queue_finance.py` adds read-only draft/reviewed proposal pointers with source ID/version/status and creator/Human-role relationships. Common source closure in `inquiries_service.py` checks dependent/reverse contract, commitment, procurement and protected-original references before counts/pagination. Cards contain no money or original prose. Fixed frontend navigation opens existing finance Human controls and rejects old session/permission ownership.
+
+API, state and actual-browser coverage: `test_work_queue_finance.py`, `test_finance_browser_state.py`, `test_work_queue_browser.py`; evidence is `FINANCE_WORK_QUEUE_VERIFICATION_20261008.md` and the exact-head execution above. Native hazardous session regression was repaired by waiting for detail completion and exercising the real captured-session click; product security assertions and guards remain intact. Chapters27/36 remain Partial: other dashboard/providers, broader finance/source statistics and full ten-chain acceptance are still internal. No new migration or formal approval policy is introduced.
+
 ### X1 — Current boundaries and module-disable policy
 
-Only merged source through `9d6f86b1c21e61b1df51eef058bf01b26e5c54e9` is credited, including PR77. Chapter 23 is Completed under D8; chapters 34 and 36 remain Partial. Later local or unmerged work receives no status credit.
+Only merged source through `f7b4058c884454fed58f4cb1a02b931f8992f799` is credited, including PR79/80. Chapter 23 is Completed under D8; chapters 34 and 36 remain Partial. Later local or unmerged work receives no status credit.
 
 For chapter 46, the c1b684c baseline records observed reads from an operations module whose flag was false. That observation alone does not settle whether historical detail, audit, export or source-reference access should remain available when new work is disabled. The canonical disable/history/dependency policy is explicitly awaiting a decision. Direct creation and other new operations work are still not consistently gated by the existing flags, while work-list filtering, learning, and the hazardous register have scoped controls. Define the intended capabilities first, then implement and verify them consistently without deleting history or disabling tenant/auth/audit/security foundations. This update neither labels every historical read a bug nor credits an unimplemented application-wide policy.
 

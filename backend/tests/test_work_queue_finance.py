@@ -144,6 +144,31 @@ def test_own_reviewed_pointer_does_not_grant_approval_and_approved_is_removed(fi
     assert queue.queue()['total'] == 0
 
 
+def test_finance_child_cannot_expose_protected_personnel_original(finance_queue):
+    queue, proposal = finance_queue
+    queue.add(Permission(code='personnel.read'))
+    original = queue.add(Document(original_filename='PRIVATE synthetic personnel notice',
+        storage_path='unused-synthetic-personnel', sha256='e'*64, mime_type='text/plain',
+        size_bytes=1, document_type='personnel_notice'))
+    commitment = proposal(kind='commitment', document_id=original.document_id,
+        status='approved', reviewed_by=queue.user_id, approved_by=queue.user_id, approved_at=now_utc())
+    child = proposal(kind='payment', commitment_id=commitment.proposal_id)
+    rights = ('finance.read', 'document.read', 'finance.review')
+    queue.permissions(*rights)
+    hidden = queue.queue(limit=1)
+    assert hidden['total'] == 0 and hidden['counts'] == {}
+    assert child.proposal_id not in json.dumps(hidden)
+    queue.permissions(*rights, 'personnel.read')
+    visible = queue.queue(limit=1)
+    assert visible['total'] == 1 and visible['counts'] == {'budget': 1}
+    assert visible['items'][0]['source_id'] == child.proposal_id
+    assert 'personnel.read' in visible['items'][0]['required_permissions']
+    assert 'PRIVATE' not in json.dumps(visible)
+    queue.permissions(*rights)
+    revoked = queue.queue(limit=1)
+    assert revoked['total'] == 0 and revoked['counts'] == {}
+
+
 @pytest.mark.parametrize('edge', ['reverses_id', 'commitment_id', 'invoice_id'])
 def test_finance_indirect_procurement_evidence_cannot_bypass_source_rights(finance_queue, edge):
     queue, proposal = finance_queue
