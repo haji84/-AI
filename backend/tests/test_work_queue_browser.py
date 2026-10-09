@@ -364,6 +364,54 @@ with SessionLocal() as db:
             assert not errors, errors
 
             page.screenshot(path=str(artifacts / 'work-queue-authority-cleared.png'), full_page=True)
+
+            # A finance card is a pointer to the existing Human-gated screen,
+            # never a copied amount/reason or an approval in the Home panel.
+            database('''
+from decimal import Decimal
+from sqlalchemy import select
+from app.db import SessionLocal
+from app.models import User,Role,Permission,RolePermission,Document
+from app.finance_models import FinanceYear,BudgetAccount,FinanceProposal
+with SessionLocal() as db:
+ role=db.scalar(select(Role).where(Role.code=='synthetic_queue_reader'))
+ user=db.scalar(select(User).where(User.username=='queue-ui'))
+ for code in ('finance.read','finance.review','document.read'):
+  permission=db.scalar(select(Permission).where(Permission.code==code))
+  db.add(RolePermission(role_id=role.role_id,permission_id=permission.permission_id))
+ year=FinanceYear(fiscal_year=2026,currency='JPY',decimal_places=0,reason='Synthetic fiscal policy');db.add(year);db.flush()
+ account=BudgetAccount(year_id=year.year_id,code='QUEUE',name='Synthetic private account',level=1);db.add(account)
+ original=Document(original_filename='Synthetic private finance evidence.txt',storage_path='unused-synthetic',sha256='a'*64,mime_type='text/plain',size_bytes=1,created_by=user.user_id);db.add(original);db.flush()
+ db.add(FinanceProposal(proposal_id='66666666-6666-4666-8666-666666666666',kind='initial',account_id=account.account_id,document_id=original.document_id,amount=Decimal('12000.00'),currency='JPY',reason='Synthetic private finance reason',created_by=user.user_id,idempotency_key='synthetic-queue-finance'))
+ db.commit()
+''')
+            finance_id = '66666666-6666-4666-8666-666666666666'
+            financial = login()
+            assert financial['counts']['budget'] == 1
+            expect(panel).not_to_contain_text('12000')
+            expect(panel).not_to_contain_text('Synthetic private finance reason')
+            finance_card = panel.locator('article').filter(has_text='財務根拠確認')
+            with page.expect_response(lambda r: r.url == base + '/finance/proposals/' + finance_id) as detail:
+                finance_card.get_by_role('button', name='元記録を開く').click()
+            assert detail.value.status == 200
+            expect(page.locator('#financeContent')).to_contain_text('Synthetic private finance reason')
+            expect(page.locator('#financeReview')).to_be_visible()
+            expect(page.locator('#financeApprove')).to_have_count(0)
+            expect(page.locator('#financeProposalEdit')).to_have_count(0)
+            expect(panel).to_have_attribute('aria-busy', 'false')
+            page.locator('#financeClose').click()
+            database('''
+from app.db import SessionLocal
+from app.finance_models import FinanceProposal
+with SessionLocal() as db:
+ row=db.get(FinanceProposal,'66666666-6666-4666-8666-666666666666');row.status='cancelled';row.version+=1;db.commit()
+''')
+            refreshed = loaded(lambda: page.locator('#workQueueRefresh').click())
+            assert 'budget' not in refreshed['counts']
+            assert finance_id not in json.dumps(refreshed)
+            expect(panel.locator('article').filter(has_text='財務根拠確認')).to_have_count(0)
+            assert errors == []
+            page.screenshot(path=str(artifacts / 'work-queue-finance-pointer.png'), full_page=True)
             browser.close()
     finally:
         server.terminate()

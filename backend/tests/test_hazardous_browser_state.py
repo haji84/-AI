@@ -124,6 +124,23 @@ await evaluate('openHazardous()');context.ticket=evaluate('hazardousTicket()');e
 ''')
 
 
+def test_cached_list_action_stays_invalid_before_and_after_background_reset(tmp_path):
+    run(tmp_path, r'''
+for(const resetFirst of [false,true]){
+ await evaluate('openHazardous()');
+ const cached=nodes.get('hazardousListNav').onclick;
+ authority={...authority,session_id:resetFirst?'session-c':'session-b'};
+ if(resetFirst)await assert.rejects(window.FireAISession.check(),e=>e.cancelled);
+ const requests=calls.filter(x=>x.path.startsWith('/hazardous/')).length;
+ await cached();
+ assert(!nodes.get('hazardousModal'));
+ assert.equal(evaluate('hazardousState.permissions.length'),0);
+ assert.equal(calls.filter(x=>x.path.startsWith('/hazardous/')).length,requests);
+}
+assert.equal(resetCount,2);
+''')
+
+
 def test_source_queries_reject_out_of_order_results_and_cancelled_navigation(tmp_path):
     run(tmp_path, r'''
 await evaluate('openHazardous()');let release;routes.set('/hazardous/sources/documents?',path=>String(path).includes('q=old')?new Promise(r=>release=r):response([{id:'fresh',label:'Fresh original',sha256:'hash'}]));

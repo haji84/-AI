@@ -13,7 +13,7 @@ from .authz import permission_codes
 from .audit import write_audit
 from .db import Base
 from .models import Document,Employee,EmergencyCase,Facility,ContractCase,LegalSourceDocument,FireInvestigationCase,FormTemplate,now_utc
-from .finance_models import FinanceProposal
+from .finance_models import FinanceProposal,ProcurementEvent
 from .operations_models import Incident,Vehicle
 from .assets_models import OperationalAsset
 from .workforce_models import WorkforceRosterEntry
@@ -140,6 +140,11 @@ def permission_closure(db,nodes):
     for link in links:
      required.update(link.get('required_permissions',[]));pending.append(('source',link['source_type'],link['source_id']))
      pending.extend(('document',d['document_id']) for d in link.get('documents',[]))
+  elif tag=='finance_event':
+   required.update({'finance.read','contract.read'});row=db.get(ProcurementEvent,identity[0])
+   if row is not None:
+    pending.append(('document',row.document_id));pending.append(('source','contract',row.contract_case_id))
+    if row.related_event_id:pending.append(('finance_event',row.related_event_id))
   elif tag=='source':
    kind,key=identity
    if kind not in SOURCES:raise HTTPException(403,'source authorization unavailable')
@@ -149,6 +154,11 @@ def permission_closure(db,nodes):
     else:
      for c in row.__table__.columns:
       if any(f.target_fullname=='documents.document_id' for f in c.foreign_keys) and getattr(row,c.name):pending.append(('document',getattr(row,c.name)))
+     if kind=='finance':
+      if row.contract_case_id:pending.append(('source','contract',row.contract_case_id))
+      for key in (row.commitment_id,row.reverses_id):
+       if key:pending.append(('source','finance',key))
+      if row.invoice_id:pending.append(('finance_event',row.invoice_id))
      if kind=='contract':
       from .models import ContractDocument
       pending.extend(('document',did) for did in db.scalars(select(ContractDocument.document_id).where(ContractDocument.contract_case_id==key)))

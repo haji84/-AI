@@ -4,14 +4,14 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-Module = Literal['operational_assets', 'fleet', 'violations', 'inquiries']
+Module = Literal['operational_assets', 'fleet', 'violations', 'inquiries', 'budget']
 Relationship = Literal['created_by_me', 'borrowed_by_me', 'available_to_my_role', 'shared_deadline']
-SourceType = Literal['asset', 'asset_lot', 'asset_loan', 'vehicle', 'vehicle_service', 'corrective_action', 'inquiry']
+SourceType = Literal['asset', 'asset_lot', 'asset_loan', 'vehicle', 'vehicle_service', 'corrective_action', 'inquiry', 'finance_proposal']
 
 
 class Navigation(BaseModel):
     model_config = ConfigDict(extra='forbid')
-    surface: Literal['asset', 'vehicle', 'violation', 'inquiry']
+    surface: Literal['asset', 'vehicle', 'violation', 'inquiry', 'finance_proposal']
     id: str
 
 
