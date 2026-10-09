@@ -12,7 +12,7 @@ MODULES = {
     "budget": {"name":"予算・財務", "version":"1.0.0"},
     "learning": {"name":"学習・評価・Human昇格", "version":"1.0.0"},
     "operational_assets": {"name": "資機材・在庫", "version": "1.0.0"},
-    "workforce": {"name": "勤務・人員配置", "version": "1.1.0"},
+    "workforce": {"name": "勤務・人員配置", "version": "1.2.0"},
     "operations": {"name": "事案・出動", "version": "1.0.0"},
     "fleet": {"name": "車両運用", "version": "1.0.0"},
     "prevention": {"name": "予防業務", "version": "1.0.0"},
@@ -57,7 +57,9 @@ def seed_modules(db: Session) -> dict[str, ModuleDefinition]:
             row.version = cfg["version"]
             row.manifest = {**(row.manifest or {}), "operational_api": "/workforce", "surface": "/ui/",
                             "statistics_metrics": ["workforce.approved_rosters", "workforce.approved_worked_minutes", "workforce.approved_overtime_minutes"],
-                            "statistics_coverage": "observed_unknown", "formal_salary_decision": False}
+                            "statistics_coverage": "observed_unknown", "formal_salary_decision": False,
+                            "teams_api":"/workforce/teams", "team_membership":"human_dated_assignment_snapshot",
+                            "automatic_crew_assignment":False}
         if code == 'violations':
             row.manifest={**(row.manifest or {}),'operational_api':'/violations','surface':'/ui/','formal_human_gate':True}
         if code == "inquiries":

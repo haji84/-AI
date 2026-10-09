@@ -2,9 +2,9 @@
 
 Status date: 2026-10-09 UTC
 
-Audited implementation base: `70953bab88116318cf9f69342be39361c75da4d8`
+Audited implementation base: `cc9e676d14fe0439abc69b8ab2be9034e450ffbb`
 
-Verified implementation tree: `3a81c1b7b7aac271019f83cdc79b2b72e4dfd228`
+Verified implementation tree: `155ed4e71d40311256b049e77b7adf6042a44803`
 
 Previous reviewed baseline: `c1b684c5c38fc52fe908d2116a21a16ef48dcb34`
 
@@ -29,6 +29,12 @@ Use exactly four primary statuses: **Completed / Partial / Missing / External Ga
 The baseline was independently reconciled to 11/42/3/1 using chapter-specific evidence. This update reviews the merged deltas and preserves that full baseline. Baseline path/line references are pinned to c1b684c; D1–D6 retain their 1b3bf5b source links. D7–D9 retain the PR76-merge snapshot c1b491e; D10 links to the current PR77-merge snapshot 9d6f86b. Test definitions establish coverage present in source; executed results come from the exact-head CI or recorded verification run identified below. This documentation edit itself does not rerun the application suites.
 
 ## Execution evidence and current-base limit
+
+### D20 — PR88 draft checkout/correction and reasoned Human cancellation accepted
+
+Main `cc9e676d14fe0439abc69b8ab2be9034e450ffbb`, tree `155ed4e71d40311256b049e77b7adf6042a44803`, matches exact head `b90a86cb2ea843ed08b3d84d1daf56aa0f241377`. [Exact CI37888019576](https://github.com/haji84/-AI/actions/runs/37888019576) SUCCESS: backend1424 passed/99 skipped/794.23s; browser75 passed/780.79s. [Independent main CI37889200619](https://github.com/haji84/-AI/actions/runs/37889200619) SUCCESS: backend1424 passed/99 skipped/806.95s; browser75 passed/761.35s; migration parser/JS success. Actual Chromium NY-timezone browser stored draft→Japan checkout PATCH/CAS→separate Human review/approval→approved immutable→separate reasoned leave cancellation ran, retaining pending control locks and old-response/logout guards. Main artifact11597408712 SHA256 `b4d962d85ca02244e2a563dcc620a4efa8ebe5cd74f835b4f12da75cbd114769`.
+
+No migration/grant/payroll policy, automatic approval or approved correction. Existing seconds/fraction precision is preserved, navigation during auth cancels before mutation, accepted-write/refresh-failure recovery is distinct. Counts13/43/0/1 unchanged. Chapter25 remains Partial: teams/work results, balances/crew/reconciliation and canonical overtime/allowance chain remain internal. Ten canonical E2Es and release remain open; skips are unexecuted.
 
 ### D19 — PR87 protected workforce common search accepted
 

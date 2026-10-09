@@ -27,6 +27,45 @@ class WorkforceShiftType(Versioned,Base):
     active:Mapped[bool]=mapped_column(Boolean,nullable=False,default=True)
     __table_args__=(CheckConstraint('payable_minutes > 0 AND payable_minutes <= 2880',name='ck_workforce_shift_payable'),)
 
+class WorkforceTeam(Versioned,Base):
+    __tablename__='workforce_teams'
+    team_id:Mapped[str]=mapped_column(Uuid(as_uuid=False),primary_key=True,default=uuid_str)
+    organization_id:Mapped[str]=mapped_column(ForeignKey('organization_units.organization_id'),nullable=False,index=True)
+    code:Mapped[str]=mapped_column(String(100),nullable=False)
+    name:Mapped[str]=mapped_column(String(200),nullable=False)
+    active:Mapped[bool]=mapped_column(Boolean,nullable=False,default=True)
+    reason:Mapped[str]=mapped_column(Text,nullable=False)
+    created_by:Mapped[str]=mapped_column(ForeignKey('app_users.user_id'),nullable=False)
+    __table_args__=(UniqueConstraint('organization_id','code',name='uq_workforce_team_code'),)
+
+class WorkforceTeamMembership(Versioned,Base):
+    __tablename__='workforce_team_memberships'
+    membership_id:Mapped[str]=mapped_column(Uuid(as_uuid=False),primary_key=True,default=uuid_str)
+    team_id:Mapped[str]=mapped_column(ForeignKey('workforce_teams.team_id'),nullable=False,index=True)
+    employee_id:Mapped[str]=mapped_column(ForeignKey('employees.employee_id'),nullable=False,index=True)
+    assignment_id:Mapped[str]=mapped_column(ForeignKey('employee_assignments.assignment_id'),nullable=False)
+    assignment_version:Mapped[int]=mapped_column(BigInteger,nullable=False)
+    assignment_snapshot:Mapped[dict]=mapped_column(JSON,nullable=False)
+    valid_from:Mapped[date]=mapped_column(Date,nullable=False)
+    valid_to:Mapped[date|None]=mapped_column(Date)
+    active:Mapped[bool]=mapped_column(Boolean,nullable=False,default=True)
+    reason:Mapped[str]=mapped_column(Text,nullable=False)
+    created_by:Mapped[str]=mapped_column(ForeignKey('app_users.user_id'),nullable=False)
+    __table_args__=(UniqueConstraint('team_id','employee_id','assignment_id','assignment_version','valid_from',name='uq_workforce_team_membership'),CheckConstraint('valid_to IS NULL OR valid_to >= valid_from',name='ck_workforce_team_membership_dates'))
+
+class WorkforceTeamChange(Base):
+    __tablename__='workforce_team_changes'
+    change_id:Mapped[str]=mapped_column(Uuid(as_uuid=False),primary_key=True,default=uuid_str)
+    team_id:Mapped[str]=mapped_column(ForeignKey('workforce_teams.team_id'),nullable=False,index=True)
+    membership_id:Mapped[str|None]=mapped_column(ForeignKey('workforce_team_memberships.membership_id'))
+    action:Mapped[str]=mapped_column(String(100),nullable=False)
+    actor_id:Mapped[str]=mapped_column(ForeignKey('app_users.user_id'),nullable=False)
+    reason:Mapped[str]=mapped_column(Text,nullable=False)
+    before_data:Mapped[dict|None]=mapped_column(JSON)
+    after_data:Mapped[dict]=mapped_column(JSON,nullable=False)
+    evidence_sha256:Mapped[str]=mapped_column(String(64),nullable=False)
+    created_at:Mapped[datetime]=mapped_column(DateTime(timezone=True),nullable=False,default=now_utc)
+
 class WorkforceEmployeeQualification(Versioned,Base):
     __tablename__='workforce_employee_qualifications'
     qualification_id:Mapped[str]=mapped_column(Uuid(as_uuid=False),primary_key=True,default=uuid_str)
