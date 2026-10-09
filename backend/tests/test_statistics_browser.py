@@ -238,7 +238,15 @@ def test_workforce_catalog_actual_query_confirmation_and_frozen_exports(statisti
     expect(page.locator('#workforceContent')).to_be_empty()
 
     held = []
-    page.evaluate('window.__workforceSourceHeld = false')
+    page.evaluate('''() => {
+        window.__workforceSourceHeld = false;
+        window.__workforceSourceSettled = false;
+        const original = statisticsOpenSource;
+        statisticsOpenSource = async (...args) => {
+            try { return await original(...args); }
+            finally { window.__workforceSourceSettled = true; }
+        };
+    }''')
     def hold(route):
         held.append(route)
         page.evaluate('window.__workforceSourceHeld = true')
@@ -257,6 +265,7 @@ def test_workforce_catalog_actual_query_confirmation_and_frozen_exports(statisti
         assert held, 'actual source request was not held'
         for route in held: route.continue_()
         held.clear()
+        page.wait_for_function('window.__workforceSourceSettled === true')
         expect(page.locator('#workforceRosterDate')).to_be_visible()
         expect(page.locator('#workforceContent')).not_to_contain_text('PRIVATE workforce employee')
     finally:
