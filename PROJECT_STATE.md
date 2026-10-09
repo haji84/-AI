@@ -4,7 +4,7 @@
 
 ## 最新の監査差分（main `f7b4058` 基準）
 
-正本mainは `f7b4058c884454fed58f4cb1a02b931f8992f799`、tree `6bb7ae78e22daf9a0412a56a697d7d21cc82f45b`。PR79の車両権限再照合中の旧操作ロックと、PR80の財務確認・承認待ちから共通Work Queueへの接続を反映済み。PR80 exact-head [CI37864361725](https://github.com/haji84/-AI/actions/runs/37864361725) はbackend1213 passed/96 skipped、browser job72 passed、migration parser/JavaScript成功。独立した [main CI37865572873](https://github.com/haji84/-AI/actions/runs/37865572873) は本checkpoint時点で実行中。skipを成功と数えず、main成功を先取りしない。
+正本mainは `f7b4058c884454fed58f4cb1a02b931f8992f799`、tree `6bb7ae78e22daf9a0412a56a697d7d21cc82f45b`。PR79の車両権限再照合中の旧操作ロックと、PR80の財務確認・承認待ちから共通Work Queueへの接続を反映済み。PR80 exact-head [CI37864361725](https://github.com/haji84/-AI/actions/runs/37864361725) はbackend1213 passed/96 skipped、browser job72 passed、migration parser/JavaScript成功。独立した [main CI37865572873](https://github.com/haji84/-AI/actions/runs/37865572873) も成功（backend1213 passed/96 skipped/467.60s、browser job72 passed/716.09s、parser/JavaScript成功）。skipを成功と数えない。
 
 分類は **Completed12 / Partial44 / Missing0 / External Gate1** を維持する。根拠・残要件は完成台帳D11/D12。人事通知取込と危険物Rule評価の未merge候補はmainの実装creditに含めない。下の9d6f86b基準と過去Phase説明は履歴で、最新の正本や完成判定へ読み替えない。
 

@@ -23,6 +23,8 @@
 
 ## 検証記録
 
+前Slice PR80は正確なheadで全CI Greenを確認してmain `f7b4058c884454fed58f4cb1a02b931f8992f799`へmerge済み。同一treeの独立main CI37865572873もbackend1213/96 skipped、browser job72、parser/JavaScript成功。人事候補はこの実mainを親にした専用branchで公開し、財務機能を再実装しない。本Slice自身のnative PostgreSQL/Chromium CIはこれから実行するため、前SliceのGreenを人事機能の成功証拠に転用しない。
+
 継続開始時に既存API18件を含む人事・Human権限49passed/18nativePGskipを再実行。画面所有権・session変更・権限喪失・二重操作・Humanチェック・409の6件は新controller未実装でRED、その後6passed。追加の処理中focus権限喪失は原文が残るREDを再現し、処理中でも権限照合する修正で7passed。skipは成功と数えない。
 
 新しい実PostgreSQL試験は、旧migration集合で作った既存DBと人事履歴へ055だけを適用し、再実行が空であること、同じ確認済候補への競合適用が200/409一回だけで履歴・監査・候補が整合することを検証する。

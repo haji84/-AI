@@ -30,7 +30,7 @@ The baseline was independently reconciled to 11/42/3/1 using chapter-specific ev
 
 ## Execution evidence and current-base limit
 
-The current implementation base is actual PR80 merge `f7b4058c884454fed58f4cb1a02b931f8992f799`; its tree exactly matches verified PR head `4e52b9fc4ab355d29138f3b2e8aa0caf1f07d3dc`: `6bb7ae78e22daf9a0412a56a697d7d21cc82f45b`. [CI37864361725](https://github.com/haji84/-AI/actions/runs/37864361725) passed: backend1213 passed / 96 skipped / 738.55s, browser job72 passed / 643.17s, migration parser and JavaScript. The independent [main push CI37865572873](https://github.com/haji84/-AI/actions/runs/37865572873) is pending at this checkpoint. No unmerged personnel intake, hazardous evaluation checkpoint, skipped test, real-data benchmark or production acceptance receives completion credit.
+The current implementation base is actual PR80 merge `f7b4058c884454fed58f4cb1a02b931f8992f799`; its tree exactly matches verified PR head `4e52b9fc4ab355d29138f3b2e8aa0caf1f07d3dc`: `6bb7ae78e22daf9a0412a56a697d7d21cc82f45b`. [CI37864361725](https://github.com/haji84/-AI/actions/runs/37864361725) passed: backend1213 passed / 96 skipped / 738.55s, browser job72 passed / 643.17s, migration parser and JavaScript. The independent [main push CI37865572873](https://github.com/haji84/-AI/actions/runs/37865572873) passed: backend1213 passed / 96 skipped / 467.60s; browser job72 passed / 716.09s; migration parser and JavaScript succeeded. No unmerged personnel intake, hazardous evaluation checkpoint, skipped test, real-data benchmark or production acceptance receives completion credit.
 
 ### Historical PR77 execution checkpoint
 
