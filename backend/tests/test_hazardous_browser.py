@@ -1,12 +1,14 @@
 """Real authenticated Chromium journey using synthetic originals and source fixtures only."""
 import json
 import os
+from contextlib import contextmanager
 from pathlib import Path
 import socket
 import subprocess
 import sys
 import time
 import urllib.request
+from urllib.parse import urlsplit
 
 import pytest
 
@@ -70,13 +72,69 @@ def test_hazardous_sources_upload_human_confirmation_revision_deadline_and_histo
                 time.sleep(.1)
         else:
             raise AssertionError('synthetic server did not start')
-        with sync_playwright() as playwright:
+        artifacts = Path(os.environ.get('FIRE_AI_BROWSER_ARTIFACTS', str(tmp_path / 'artifacts')))
+        artifacts.mkdir(parents=True, exist_ok=True)
+        page = None
+        page_errors = []
+        network = []
+        pending_requests = {}
+        stage = 'initial-login'
+        started = time.monotonic()
+
+        def record_network(request, event, status=None):
+            path = urlsplit(request.url).path
+            scope = ('authority-context' if path == '/auth/context' else
+                     'authority-permissions' if path == '/auth/permissions' else
+                     'hazardous' if path.startswith('/hazardous/') else None)
+            if scope is None:
+                return
+            if event == 'request':
+                pending_requests[request] = (scope, time.monotonic())
+            elif event in ('finished', 'failed'):
+                pending_requests.pop(request, None)
+            network.append({'elapsed_ms': round((time.monotonic() - started) * 1000),
+                            'stage': stage, 'scope': scope, 'method': request.method,
+                            'event': event, 'status': status})
+            del network[:-512]
+
+        @contextmanager
+        def failure_diagnostics():
+            try:
+                yield
+            except BaseException:
+                # Diagnostic failure must never replace the original assertion.
+                evidence = {'synthetic_only': True, 'stage': stage,
+                            'network': network,
+                            'pending_requests': [{'scope': scope, 'age_ms': round((time.monotonic() - since) * 1000)}
+                                                 for scope, since in pending_requests.values()],
+                            'page_errors': page_errors, 'diagnostic_errors': []}
+                if page is not None:
+                    try:
+                        evidence['ui'] = page.evaluate("""() => ({
+                            generation:hazardousState.generation,view:hazardousState.viewGeneration,
+                            permissions_count:hazardousState.permissions.length,
+                            session_generation:window.FireAISession.currentGeneration(),
+                            loading:Boolean(document.getElementById('hazardousLoading')),
+                            modal:Boolean(document.getElementById('hazardousModal')),
+                            content:document.getElementById('hazardousContent')?.textContent?.slice(0,2000)??null
+                        })""")
+                        page.screenshot(path=str(artifacts / 'hazardous-native-failure.png'), full_page=True)
+                    except Exception as error:
+                        evidence['diagnostic_errors'].append(type(error).__name__)
+                try:
+                    (artifacts / 'hazardous-native-failure.json').write_text(json.dumps(evidence, ensure_ascii=False))
+                except Exception as error:
+                    print('Synthetic diagnostic write failed:', type(error).__name__)
+                raise
+
+        with sync_playwright() as playwright, failure_diagnostics():
             browser = playwright.chromium.launch()
             page = browser.new_page()
-            page_errors = []
             page.on('pageerror', lambda error: page_errors.append(str(error)))
-            artifacts = Path(os.environ.get('FIRE_AI_BROWSER_ARTIFACTS', str(tmp_path / 'artifacts')))
-            artifacts.mkdir(parents=True, exist_ok=True)
+            page.on('request', lambda request: record_network(request, 'request'))
+            page.on('response', lambda response: record_network(response.request, 'response', response.status))
+            page.on('requestfinished', lambda request: record_network(request, 'finished'))
+            page.on('requestfailed', lambda request: record_network(request, 'failed'))
 
             def pick(kind, label):
                 box = page.locator('#hazardousPicker_' + kind)
@@ -287,11 +345,14 @@ with SessionLocal() as db:
     seed_rbac(db);db.commit()
 '''
             subprocess.run([sys.executable, '-c', restore_source], cwd=root, env=env, check=True, capture_output=True)
+            stage = 'source-right-restored-relogin'
             page.locator('#loginUser').fill('hazardous-browser')
             page.locator('#loginPass').fill('synthetic-hazardous-password')
             page.get_by_role('button', name='ログイン', exact=True).click()
             expect(page.locator('#hazardousBtn')).to_be_visible()
+            stage = 'relogin-register-open'
             page.locator('#hazardousBtn').click()
+            stage = 'relogin-installation-click'
             page.locator('[data-hazardous-installation]').click()
             expect(page.locator('#hazardousContent')).to_contain_text('Synthetic hazardous installation')
             # Same account, new session: the current private view and cached actions must disappear.
@@ -300,6 +361,7 @@ with SessionLocal() as db:
             # invoke it; starting a fresh ownerless navigation then would test
             # a new action instead of the stale one a user had available.
             expect(page.locator('#hazardousContent')).to_contain_text('変更履歴')
+            stage = 'relogin-history-rendered'
             page.evaluate("() => { window.syntheticCachedHazardousList = document.getElementById('hazardousListNav').onclick; }")
             replacement_source_requests = []
             page.on('request', lambda request: replacement_source_requests.append(request.url) if '/hazardous/' in request.url else None)
