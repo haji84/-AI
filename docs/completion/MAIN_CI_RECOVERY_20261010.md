@@ -1,0 +1,48 @@
+# Main CI recovery checkpoint — 2026-10-10
+
+Canonical implementation: `2ba2c11e50fc2f0f84cc086fe5686a09917f36b1`; tree `d181486a45ed4d3d3144f8b242f5c033d982fc58`.
+
+## Integrated change and acceptance boundary
+
+Issue91 / PR92 added anonymous, durable failed-login audit events and reconciled the expanded specification and eight logical lane ownership. PR exact-head CI38052334810 passed: backend1459 passed/101 skipped/289 warnings; browser76 passed. Local full suite1265 passed/295 skipped/287 warnings. Independent review found no blocking finding.
+
+Independent main run38053299552 has a failed browser job114216625329:30 passed/1 failed in384.16s, stopping at the existing violation Human-review workflow. Backend completion must be checked separately. Issue91 is not accepted or closed, and no chapter receives completion credit from this merge yet.
+
+## Failure investigation, Issue96
+
+`test_violation_candidate_measure_response_review_and_completion` receives409 at Human review, with `Rule/evidence/formal-procedure originals required for Human review`. `violation_service.py:source_snapshot()` raises that message solely when at least one persisted rule/evidence/procedure ID array is empty, before file hash, legal citation and effective-date checks. The violation backend, frontend and test are unchanged from847d793; PR head and merged main share the same tree.
+
+The original browser helper verifies available options and clicks the picker, but does not check the resulting readonly ID input or saved candidate arrays. Missing selection, duplicate-toggle and asynchronous UI setup are hypotheses, not established root causes. The original enforcement must remain intact.
+
+Failed artifact11670167625 was downloaded and inspected:76 files, predominantly earlier finance screenshots/logs/JSON and earlier module screenshots. It contains no failed violation DB, create payload or trace. Artifact ZIP SHA256 recorded by CI: `cb9f4f8c18136a1fb8ec65befe4987abaf2bbdc8333095a6ccedac1e44a23475`.
+
+Local Playwright Python installation succeeded, but Chromium CDN downloads returned incomplete/zero-byte ZIPs and browser installation failed. This environment cannot currently supply an actual Chromium reproduction. Diagnostic PR CI must observe the actual input, POST and response values with synthetic fixtures. Never publish cookies, passwords or authorization headers. A green retry alone does not establish the cause or durable repair. Limit repair hypotheses to three, then revisit the design.
+
+## Extracted-source installation and recovery rehearsal
+
+The existing deterministic builder produced566 source files from the canonical commit above. The source bundle was verified before safe extraction. SHA256: `922dcc5721802ae1bca20b30e3dc7cd9e6b2082584b119caf4990b2c0b9a0900`. This is a development candidate with `production_ready=false`, not a final Release or authenticity claim.
+
+In a new directory and a fresh virtual environment without inherited packages, `pip install -e 'backend[test]'` succeeded. The imported `app` path was verified to be the extracted source. A synthetic administrator was bootstrapped into a new SQLite DB, with a random password passed through standard input and omitted from evidence. Uvicorn bound only127.0.0.1, and real HTTP requests verified:
+
+| Operation | Observed result |
+|---|---|
+| Health and DB / UI / teams asset |200 /200 /200|
+| Unknown synthetic login / valid login |401 /200|
+| Facility create / update |201 /200, version2|
+| Stale version update |409|
+| Failed-login audit |One anonymous failed event; submitted credentials absent|
+| Logout / subsequent protected request |200 /401|
+
+After the server stopped, `backup_phase1.py --destination <outside-storage>` made a paired SQLite-test-only backup. `restore_phase1.py <backup> --target-database-url <new-db> --target-storage-root <new-storage> --confirm-restore` restored into separate targets. `verify_restored_database.py` succeeded with one facility; direct verification confirmed the updated name/version2, retained anonymous failed-login audit, and byte-identical synthetic document.
+
+This rehearsal proves only a synthetic SQLite localhost installation and separate-target restore. It does not prove production PostgreSQL migrations, LAN/TLS, external-network outage, completely offline dependencies, HA/fencing, immutable encrypted Owner Vault, new-PC disaster recovery, operational Human acceptance or full57-chapter completion. No GitHub Release was issued.
+
+## Continuation and ownership
+
+1. Complete Issue96 diagnostics and a reproduced root-cause repair; preserve original guards and run exact-head plus independent main CI.
+2. Recheck canonical SHA/tree and acceptance evidence before closing Issue91 or adding its accepted ledger delta.
+3. Stage logical lanes using the V2 ownership contract; maximum available workers is root plus six. Do not claim eight simultaneous workers.
+4. Ready tasks: Issue94 explicit legal online-sync guard, Issue95 protected available-crew source projection, Issue97 common secret scan, Issue98 isolated dependency audit. All remain unimplemented.
+5. Parent Issue93 tracks whole-system completion. Chapter42 remains Partial under expanded42.1; totals12 Completed/44 Partial/0 Missing/1 External Gate. Original four-lane PR90 remains unmerged and must be reconciled after stable main acceptance.
+
+No production data, privileges, migration or site application is authorized by these synthetic diagnostics. Actual operational gates remain open.
