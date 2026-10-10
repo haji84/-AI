@@ -49,9 +49,10 @@ class AuditFailure(Exception):
 class VulnerabilityFound(AuditFailure):
     """The complete inventory contains one or more known vulnerabilities."""
 
-    def __init__(self, count):
+    def __init__(self, findings):
         super().__init__("known vulnerabilities detected")
-        self.count = count
+        self.findings = findings
+        self.count = len(findings)
 
 
 def canonical_name(value):
@@ -75,6 +76,17 @@ def normalize_inventory(inventory):
     return normalized
 
 
+def safe_report_value(value):
+    if not isinstance(value, str) or not value or len(value) > 256 or not value.isascii():
+        raise AuditFailure()
+    return value
+
+
+def format_findings(findings):
+    """Return compact, escaped public advisory metadata for CI diagnosis."""
+    return json.dumps(findings, sort_keys=True, separators=(",", ":"))
+
+
 def evaluate_report(scope, inventory, returncode, payload):
     """Require a one-to-one package/version report and no findings."""
     if not SCOPE_PATTERN.fullmatch(scope) or returncode not in (0, 1):
@@ -92,7 +104,7 @@ def evaluate_report(scope, inventory, returncode, payload):
         raise AuditFailure()
 
     observed = {}
-    vulnerability_count = 0
+    findings = []
     for row in document["dependencies"]:
         if not isinstance(row, dict) or set(row) != {"name", "version", "vulns"}:
             raise AuditFailure()
@@ -102,17 +114,28 @@ def evaluate_report(scope, inventory, returncode, payload):
         if name in observed or not isinstance(version, str) or not isinstance(vulns, list):
             raise AuditFailure()
         for vulnerability in vulns:
-            if not isinstance(vulnerability, dict) or not isinstance(vulnerability.get("id"), str):
+            if not isinstance(vulnerability, dict):
                 raise AuditFailure()
+            advisory_id = safe_report_value(vulnerability.get("id"))
+            fix_versions = vulnerability.get("fix_versions")
+            if not isinstance(fix_versions, list):
+                raise AuditFailure()
+            fixes = sorted(safe_report_value(item) for item in fix_versions)
+            findings.append({
+                "fix_versions": fixes,
+                "id": advisory_id,
+                "name": name,
+                "version": safe_report_value(version),
+            })
         observed[name] = version
-        vulnerability_count += len(vulns)
 
     if observed != expected:
         raise AuditFailure()
-    if vulnerability_count:
+    if findings:
         if returncode != 1:
             raise AuditFailure()
-        raise VulnerabilityFound(vulnerability_count)
+        findings.sort(key=lambda item: (item["name"], item["version"], item["id"]))
+        raise VulnerabilityFound(findings)
     if returncode != 0:
         raise AuditFailure()
 
@@ -258,7 +281,10 @@ def main(argv=None):
             evidence = evaluate_report(scope, inventory, result.returncode, result.stdout)
         write_evidence(args.evidence, evidence)
     except VulnerabilityFound as exc:
-        print(f"Dependency audit blocked; scope={scope}; findings={exc.count}")
+        print(
+            f"Dependency audit blocked; scope={scope}; findings={exc.count}; "
+            f"advisories={format_findings(exc.findings)}"
+        )
         return 1
     except Exception:
         print(f"Dependency audit failed closed; scope={scope}; findings=unknown")

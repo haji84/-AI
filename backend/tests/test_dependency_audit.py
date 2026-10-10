@@ -52,8 +52,22 @@ def test_synthetic_advisory_fails_without_an_ignore_baseline():
         [{"id": "PYSEC-SYNTHETIC-1", "fix_versions": ["1.2.4"]}],
     ))
 
-    with pytest.raises(audit.VulnerabilityFound):
+    with pytest.raises(audit.VulnerabilityFound) as captured:
         audit.evaluate_report("runtime", {"alpha-pkg": "1.2.3"}, 1, payload)
+
+    assert captured.value.count == 1
+    assert captured.value.findings == [
+        {
+            "fix_versions": ["1.2.4"],
+            "id": "PYSEC-SYNTHETIC-1",
+            "name": "alpha-pkg",
+            "version": "1.2.3",
+        }
+    ]
+    assert audit.format_findings(captured.value.findings) == (
+        '[{"fix_versions":["1.2.4"],"id":"PYSEC-SYNTHETIC-1",'
+        '"name":"alpha-pkg","version":"1.2.3"}]'
+    )
 
 
 @pytest.mark.parametrize("returncode,payload", [(2, b""), (0, b"not-json"), (0, b"[]")])
