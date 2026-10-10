@@ -2,7 +2,27 @@
 
 更新日: 2026-10-10
 
-## 最新監査（main `847d793` 基準）
+## 最新監査（main `46865f4` 基準）
+
+正本main `46865f438ab7a7482678c0ed720c15f00f113a65` / tree `ccfe26ae18b34235cae81c6adf1804a38111c8bb`。PR102の秘密検査CLI・hook・専用CIを独立レビュー後に統合済み。exact project CI38064104706はbackend1486passed/101skipped/289warnings/840.88s、browser76passed/794.40s、exact secret CI38064104737は検出0で成功。独立 [main project CI38065202562](https://github.com/haji84/-AI/actions/runs/38065202562) はbackend1486passed/101skipped/289warnings/808.27s、browser76passed/787.34s、parser/JS成功。独立 [main secret CI38065202530](https://github.com/haji84/-AI/actions/runs/38065202530) も検出0で成功。ログを直接確認し、main artifact11674113645のSHA256 `0010e560d4f1cc358c7c59d8a9af82aefd154846521bd28b43e596eb64eb7a60` を取得・照合した。保存前競合の拒否、3種の根拠配列保存とHuman操作の回帰も確認。skipは未検証。
+
+台帳D25はIssue97の限定的なソース検査受入。Push Protection、過去公開ログ/artifact、個人情報漏えい検査は別途残し、第43章Partialを維持する。Issue94は取得前のenabled/online guardを最小修復し、実RED→policy29件/focused57件/全体1299件成功、最新main統合確認206件成功、別担当レビュー後にPR103（head `0a4a9cb863d8d1cd42c93743ba9f7e79d7db38e5`）を公開。exact PR CIと独立main CI受入は未完で、現mainの実装creditに含めない。Issue95のpersonnel/typed-original権限漏れREDも再確認済み、修復未着手。57章は12Completed/44Partial/0Missing/1ExternalGate、第42章Partial。暗号化/鍵分離/HA/fencing/immutable OwnerVault/全損新PC復元、MFA/検知/依存検査、5導入方式/10chain/Release/External Gate/全体完成は未完。原本/Human正式判断と本番/鍵/重要権限Gateを維持。
+
+## 過去の監査（main `adfede71` 基準）
+
+正本main `adfede71a22e23f44faa6c53208a84cabcb433c5` / tree `12358e2f14e554287e03d5a2aa36f5426a1ce4bc`。PR101で実再現した違反画面の選択・保存順序競合を修復し、独立レビュー後に統合済み。exact [PR CI38062677291](https://github.com/haji84/-AI/actions/runs/38062677291) はbackend1464passed/101skipped/289warnings/863.06s、browser76passed/609.53sで成功。独立 [main CI38063812901](https://github.com/haji84/-AI/actions/runs/38063812901) もbackend1464passed/101skipped/289warnings/867.91s、browser76passed/746.16s、parser/JS成功を直接確認。main artifact11674241561 SHA256 `4f456d8f50cb97eae25e903403e2303c31da861b42afa893013c7893852b5f53` を取得・照合し、早すぎる保存拒否と3種類の根拠配列保存、Human操作を確認した。skipは未検証。
+
+台帳D24は再現した競合の受入であり、元38053299552の欠落配列・タイミングの断定ではない。Issue96の履歴調査は明示して残す。57章は12Completed/44Partial/0Missing/1ExternalGate、第42章Partialを維持。PR102の秘密検査は専用CI成功だが通常PR/main受入は別途必要で、Issue94の法令同期修復も現mainの実装creditに含めない。暗号化/鍵分離/HA/fencing/immutable OwnerVault/全損新PC復元、MFA/検知/依存検査、5導入方式/10chain/Release/External Gate/全体完成は未完。原本/Human正式判断と本番/鍵/重要権限のGateを維持する。
+
+## 過去の監査（main `75673ba` 基準）
+
+正本main `75673ba67834255dde3674ff6e5627b5f04ca10f` / tree `19c488b225451f7c7f01d66a7e83024cded9d9fc`。PR92の匿名認証失敗監査とPR99の違反画面診断は統合済み。独立 [main CI38060163414](https://github.com/haji84/-AI/actions/runs/38060163414) を直接取得しSUCCESS、backend1459passed/101skipped/289warnings/812.23s、browser job76passed/788.65s、migration parser/JS成功をログで確認。初回mainCI38053299552の失敗は履歴として保持する。skipは未検証、ブラウザjob数には既存Node/API試験を含む。
+
+台帳D23で受入根拠を記録し、第42章の古いCompletedセルをPartialへ訂正。57行を再集計して12Completed/44Partial/0Missing/1ExternalGate。既存の平文バックアップ/localhost SQLite復元では、暗号化・鍵分離・HA/fencing・immutable OwnerVault・全損新PC復元は完成しない。Issue100の暗号化、97秘密検査、98依存検査、MFA/検知/封じ込めは内部未完。
+
+PR99の成功を元409の原因修復とは扱わない。元artifactに失敗POST/DBがなく欠落配列と実際のタイミングは未確定。実画面コードを用いた別の選択/保存競合は再現済みだが、修復のexact PR/main CI受入は別証拠として必要で、Issue96は継続する。通常の開発は自律実行し、原本/Human正式判断、本番/鍵/重要権限のGateを維持。PR90の旧4レーン案はmain V2で置換されたため未mergeでclose済み。8論理レーンの定義を8同時worker稼働と混同しない。10本chain、5導入方式、Release・External Gate・全体完成は未完。
+
+## 過去の監査（main `847d793` 基準）
 
 main `847d7937958c654fe9eab288f0c51a6db2b7cd47` / tree `b7e10811ebf18827cf007bf0870524543e941a1e`。PR89班・所属履歴は既に統合済み。[main CI37891928869](https://github.com/haji84/-AI/actions/runs/37891928869) を直接再取得しSUCCESS、backend1450passed/100skipped/817.63s、browser76passed/806.38s、parser/JS成功をログで確認した。旧「班未実装」は履歴。未公開work-result checkpointを復旧済みとせずmainの不足から続ける。
 

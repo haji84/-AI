@@ -2,9 +2,9 @@
 
 Status date: 2026-10-10 UTC
 
-Audited implementation base: `847d7937958c654fe9eab288f0c51a6db2b7cd47`
+Audited implementation base: `46865f438ab7a7482678c0ed720c15f00f113a65`
 
-Verified implementation tree: `b7e10811ebf18827cf007bf0870524543e941a1e`
+Verified implementation tree: `ccfe26ae18b34235cae81c6adf1804a38111c8bb`
 
 Previous reviewed baseline: `c1b684c5c38fc52fe908d2116a21a16ef48dcb34`
 
@@ -29,6 +29,32 @@ Use exactly four primary statuses: **Completed / Partial / Missing / External Ga
 The baseline was independently reconciled to 11/42/3/1 using chapter-specific evidence. This update reviews the merged deltas and preserves that full baseline. Baseline path/line references are pinned to c1b684c; D1–D6 retain their 1b3bf5b source links. D7–D9 retain the PR76-merge snapshot c1b491e; D10 links to the current PR77-merge snapshot 9d6f86b. Test definitions establish coverage present in source; executed results come from the exact-head CI or recorded verification run identified below. This documentation edit itself does not rerun the application suites.
 
 ## Execution evidence and current-base limit
+
+### D25 — PR102 bounded secret scan gate accepted
+
+Main `46865f438ab7a7482678c0ed720c15f00f113a65`, tree `ccfe26ae18b34235cae81c6adf1804a38111c8bb`, matches exact PR102 head `b8f4ca93b4a6a43e3381bba2773439c03c536c06`. The pinned, hash-checked Gitleaks8.30.1 CLI scans fetched refs and the working tree, fails closed on missing/tampered scanner, findings, malformed reports, timeout and resource overflow, and keeps raw reports private. A delivered pre-push hook and dedicated CI gate exercise that same CLI. Existing hooks configuration was not silently replaced. No secret baseline, ignore waiver, test skip or protection change was introduced. Independent review found and causally verified a descendant-process cleanup defect; the corrected fixture first failed against the old source, then passed against the minimal cleanup repair. Final independent secret/hook regression22 passed; integrated local regression32 passed. Full local implementation-base regression1287 passed/295 skipped/287 warnings/388.82s; skips remain unverified.
+
+[Exact PR project CI38064104706](https://github.com/haji84/-AI/actions/runs/38064104706) SUCCESS: backend1486 passed/101 skipped/289 warnings/840.88s; browser76 passed/794.40s; parser/JS successful. [Exact PR secret CI38064104737](https://github.com/haji84/-AI/actions/runs/38064104737) SUCCESS with actual findings0. Separate-agent exact-tree review is recorded in PR102 review5479607773.
+
+[Independent main project CI38065202562](https://github.com/haji84/-AI/actions/runs/38065202562) SUCCESS was read directly: backend job114251330960 reports1486 passed/101 skipped/289 warnings/808.27s; browser job114251331131 reports76 passed/787.34s; parser/JS successful. [Independent main secret CI38065202530](https://github.com/haji84/-AI/actions/runs/38065202530) SUCCESS: actual findings0. Main native artifact11674113645 was directly downloaded and SHA256 verified as `0010e560d4f1cc358c7c59d8a9af82aefd154846521bd28b43e596eb64eb7a60`. Its controlled selection order remains early-submit-rejected; all three original arrays are nonempty and match saved responses;13 synthetic Human POSTs succeed with no page/artifact/cleanup errors.
+
+Accept only this bounded source CLI/hook/CI slice of Issue97. Push Protection, prior public logs/artifacts and personal-data leakage coverage remain separate obligations. Chapter43 stays Partial: MFA, rate limiting, detection/containment and dependency gate98 are unfinished. No credentials, actual leakage, grants, production changes or whole-system acceptance are claimed. Lane7 Issue94 repair is published as PR103 (`0a4a9cb863d8d1cd42c93743ba9f7e79d7db38e5`) for exact-head CI and has no current-main implementation credit; Issue95 remains a reproduced privacy RED pending implementation. Totals remain12/44/0/1. Details: [secret verification](SECRET_SCAN_VERIFICATION_20261011.md).
+
+### D24 — PR101 reproduced violation selection/save race accepted
+
+Main `adfede71a22e23f44faa6c53208a84cabcb433c5`, tree `12358e2f14e554287e03d5a2aa36f5426a1ce4bc`, matches repaired exact PR101 head `4d86676bd05df45927e3e0de6304348179974c0f`. Five actual-script synthetic interleavings failed before repair; all10 state tests and41 focused regressions passed afterward. The runtime repair synchronously locks the current form's selection-dependent controls before authority awaits, rejects pending/obsolete submits, and checks ownership before picker replay. Original backend/Human/RBAC/hash/effective-date guards are unchanged. Independent read-only reviews found no blocking findings. A first native test cleanup failure was repaired once without changing runtime guards or skipping tests.
+
+[Exact PR CI38062677291](https://github.com/haji84/-AI/actions/runs/38062677291) SUCCESS: backend1464 passed/101 skipped/289 warnings/863.06s; browser76 passed/609.53s. [Independent main CI38063812901](https://github.com/haji84/-AI/actions/runs/38063812901) SUCCESS: backend1464 passed/101 skipped/289 warnings/867.91s; browser76 passed/746.16s; migration parser and JavaScript syntax successful. Main artifact11674241561 was directly downloaded and hash verified: `4f456d8f50cb97eae25e903403e2303c31da861b42afa893013c7893852b5f53`. Controlled native authority response ordering proves early submit rejected, followed by all three matching nonempty saved reference arrays and the Human workflow, with no page/artifact/cleanup errors. Skips remain unverified.
+
+Accept the causally reproduced selection/save repair. The original38053299552 artifact still cannot establish its exact lost array or timing; Issue96's historical investigative remainder stays explicit. Counts remain12/44/0/1; no chapter, Release, production or External Gate promotion. At this D24 checkpoint PR102 and Lane7 Issue94 were separately staged; later D25 accepts only the bounded secret gate. Chapter42 retains internal encryption/key-separation/HA/Vault/new-PC recovery requirements. Details: [main recovery evidence](MAIN_CI_RECOVERY_20261010.md).
+
+### D23 — PR92 failed-login audit and PR99 diagnostics accepted at observed main
+
+Main `75673ba67834255dde3674ff6e5627b5f04ca10f`, tree `19c488b225451f7c7f01d66a7e83024cded9d9fc`. PR92 added durable anonymous failed-login audit; its exact-head CI38052334810 succeeded but first independent mainCI38053299552 failed the existing violation browser workflow. PR99 added selection-state/saved-array checks and synthetic diagnostics; exact head `f50a3719b489234ca4fcfb184b0b5ca80f326af4` had CI38054248007 SUCCESS, backend1459 passed/101 skipped and browser job76 passed. PR99 runtime tree matches this main. Finally [independent main CI38060163414](https://github.com/haji84/-AI/actions/runs/38060163414) directly completed SUCCESS: backend1459 passed/101 skipped/289 warnings/812.23s, browser job76 passed/788.65s, migration parser and JavaScript syntax success. Skips remain unverified; browser-job count includes its existing Node/API tests.
+
+Accept only those bounded audit/diagnostic deltas. The original failed-main artifact did not contain the failed payload, so its exact missing-array/timing mechanism remains unproven. Issue96 stays investigative; the subsequently reproduced selection/save product race requires its own RED→repair→exact PR and independent main CI evidence. No chapter promotion, Human authority, release or production acceptance follows from diagnostic green. MFA/rate limiting/detection/containment and secret/dependency gates remain internal chapter43 obligations.
+
+Corrected the chapter42 table's stale Completed cell to D22 Partial, matching the already authoritative header/groups and specification42.1. The57 chapter rows now independently recount12 Completed/44 Partial/0 Missing/1 External Gate. Historical baselines/matrices remain unchanged. PR90's old four-lane proposal is closed as superseded without merge; the main V2 eight-logical-lane contract governs actual staged work. Security97/98 and recovery100 remain unfinished; no eight simultaneous workers are claimed.
 
 ### D22 — Expanded user-authorized requirements, implementation credit withheld
 
@@ -225,7 +251,7 @@ Central-server coordination, dynamic workers/offline requeue and an OwnerRecover
 
 Each baseline link retains the chapter's present implementation, exact source/test references, internal requirement, external gate, and exit evidence. Apply the listed current delta to it; later main changes do not silently rewrite the dated baseline.
 
-| # | Specification chapter | Status at 9d6f86b | Baseline evidence | Current-base delta / remaining gap |
+| # | Specification chapter | Current audited status | Baseline evidence | Current-base delta / remaining gap |
 |---:|---|---|---|---|
 | 1 | Product Vision | Partial | [Chapter 1](COMPLETION_BASELINE_20261007.md#chapter-1) | D1/D2: connected work-list and intake journeys added; broader system DoD remains open. |
 | 2 | Canonical Architecture | Completed | [Chapter 2](COMPLETION_BASELINE_20261007.md#chapter-2) | Baseline finding retained; no chapter-status change from these merges. |
@@ -268,7 +294,7 @@ Each baseline link retains the chapter's present implementation, exact source/te
 | 39 | AI Decision Levels | Partial | [Chapter 39](COMPLETION_BASELINE_20261007.md#chapter-39) | Baseline finding retained; no chapter-status change from these merges. |
 | 40 | AI Failure Mode | Completed | [Chapter 40](COMPLETION_BASELINE_20261007.md#chapter-40) | Baseline finding retained; no chapter-status change from these merges. |
 | 41 | Import Framework | Partial | [Chapter 41](COMPLETION_BASELINE_20261007.md#chapter-41) | D2: intake transition safety improved; D8 assignment exchange and shared typed import framework remain incomplete. |
-| 42 | Backup and Restore | Completed | [Chapter 42](COMPLETION_BASELINE_20261007.md#chapter-42) | Baseline finding retained; no chapter-status change from these merges. |
+| 42 | Backup and Restore | Partial | [Chapter 42](COMPLETION_BASELINE_20261007.md#chapter-42) | D22: expanded42.1 requires encrypted/key-separated backup, HA/fencing, immutable tenant Owner Vault and new-host disaster evidence. Existing plaintext paired restore is insufficient; Issue100 is the bounded encryption task. |
 | 43 | Security | Partial | [Chapter 43](COMPLETION_BASELINE_20261007.md#chapter-43) | D1/D2/D3/D5–D10: scoped source/session protections integrated, including statistics aggregate/detail separation; broader security/hosting review remains. |
 | 44 | External Integration and Network Policy | Partial | [Chapter 44](COMPLETION_BASELINE_20261007.md#chapter-44) | Baseline finding retained; no chapter-status change from these merges. |
 | 45 | User Experience | Partial | [Chapter 45](COMPLETION_BASELINE_20261007.md#chapter-45) | D1–D10: source journeys, workforce pending controls, vehicle assignment, observed statistics and learning refresh improved; whole-shell usability remains Partial. |
