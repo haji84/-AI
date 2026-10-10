@@ -1,0 +1,9 @@
+#!/bin/sh
+# Public-source development gate; no input values are written to the terminal.
+set -eu
+if [ -z "${FIRE_AI_GITLEAKS_BIN:-}" ]; then
+  printf '%s\n' 'Secret scan failed closed: pinned scanner is required.' >&2
+  exit 2
+fi
+repo_root=$(git rev-parse --show-toplevel)
+exec python3 "$repo_root/scripts/security_scan.py" --repository "$repo_root" --gitleaks "$FIRE_AI_GITLEAKS_BIN"
