@@ -16,10 +16,11 @@ from ..workforce_schemas import (
     LeaveCreate,AttendanceCreate,AttendancePatch,TimeEntryCreate,HumanAction,ImportConfirm,
 )
 from .. import workforce_service as svc
-from .workforce_teams import router as teams_router
+from .workforce_teams import router as teams_router, PrivateTeamRoute
 
 router=APIRouter(prefix='/workforce',tags=['workforce'])
 router.include_router(teams_router)
+crew_router=APIRouter(route_class=PrivateTeamRoute)
 def no_store(response:Response):response.headers['Cache-Control']='no-store'
 
 @router.get('/source-records/{kind}/{key}',dependencies=[Depends(no_store)])
@@ -191,9 +192,12 @@ def comp_balance(employee_id:str,as_of:date,db:Session=Depends(get_db),user:User
 def warnings(on_date:date,organization_id:str|None=None,db:Session=Depends(get_db),user:User=Depends(require_permission('workforce.read'))):
     return svc.staffing_warnings(db,on_date,organization_id)
 
-@router.get('/available-crew',dependencies=[Depends(no_store)])
+@crew_router.get('/available-crew')
 def available_crew(on_date:date,organization_id:str|None=None,shift_type_id:str|None=None,db:Session=Depends(get_db),user:User=Depends(require_permission('workforce.read'))):
-    return svc.available_crew(db,on_date,organization_id,shift_type_id)
+    from ..workforce_crew import available_crew as protected_crew
+    return protected_crew(db,user,on_date,organization_id,shift_type_id)
+
+router.include_router(crew_router)
 
 @router.get('/statistics',dependencies=[Depends(no_store)])
 def statistics(year:int=Query(...,ge=2000,le=2200),month:int|None=Query(None,ge=1,le=12),db:Session=Depends(get_db),user:User=Depends(require_permission('workforce.aggregate'))):
