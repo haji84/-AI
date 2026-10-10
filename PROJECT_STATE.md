@@ -1,8 +1,16 @@
 # PROJECT_STATE
 
-更新日: 2026-10-09
+更新日: 2026-10-10
 
-## 最新の監査差分（main `cc9e676` 基準）
+## 最新監査（main `847d793` 基準）
+
+main `847d7937958c654fe9eab288f0c51a6db2b7cd47` / tree `b7e10811ebf18827cf007bf0870524543e941a1e`。PR89班・所属履歴は既に統合済み。[main CI37891928869](https://github.com/haji84/-AI/actions/runs/37891928869) を直接再取得しSUCCESS、backend1450passed/100skipped/817.63s、browser76passed/806.38s、parser/JS成功をログで確認した。旧「班未実装」は履歴。未公開work-result checkpointを復旧済みとせずmainの不足から続ける。
+
+2026-10-10引継追加要件を仕様§42.1/43.1/55.1へ整合。HA/fencing/OwnerVault/鍵分離/変更不能backup/災害復旧は内部未完のため章42をPartialへ変更し、12Completed/44Partial/0Missing/1ExternalGate。旧13/43は旧範囲の履歴。MFA/試行制限/攻撃検知/機密検査等も未完。Issue91は失敗認証監査の実装中で、PR/CI/main受入前には完成creditを付けない。8論理レーン/共有所有者はv2契約参照。実同時worker数とレーン数は別。10本E2E・Release・External Gate・全体完成は未完。
+
+main保護off・rulesets空・Releases空を取得。PR90の4レーン案は未merge。保護ルールを変更せず、exactPR全CI→レビュー→最新main照合→merge→独立mainCI→台帳証拠を守る。
+
+## 過去の監査差分（main `cc9e676` 基準）
 
 正本main `cc9e676d14fe0439abc69b8ab2be9034e450ffbb`、tree `155ed4e71d40311256b049e77b7adf6042a44803`。PR88で既存Draft勤怠の退勤・秒/小数秒を保持する訂正と、理由付きHuman取消を同一画面へ接続。exact [CI37888019576](https://github.com/haji84/-AI/actions/runs/37888019576) 成功: backend1424 passed/99 skipped/794.23s、browser75 passed/780.79s。独立 [main CI37889200619](https://github.com/haji84/-AI/actions/runs/37889200619) 成功: backend1424 passed/99 skipped/806.95s、browser75 passed/761.35s、parser/JS成功。main artifact11597408712 SHA256 `b4d962d85ca02244e2a563dcc620a4efa8ebe5cd74f835b4f12da75cbd114769`。D20、13Completed/43Partial/0Missing/1ExternalGate。班・業務実績・残高/隊員UX・出動/時間外/手当接続・全module接続・10本E2E・Releaseは内部未完。承認済み記録の不変性と本番/正式判断のHuman Gateを維持。
 
