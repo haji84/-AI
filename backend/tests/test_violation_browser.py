@@ -27,17 +27,19 @@ def test_violation_candidate_measure_response_review_and_completion(tmp_path):
    browser=p.chromium.launch();page=browser.new_page();errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
    diagnostics['page_errors']=errors
    def capture_response(response):
-    if response.request.method not in ('POST','PATCH') or not response.url.startswith(base+'/violations'):
-     return
-    record={'path':response.url[len(base):], 'method':response.request.method, 'status':response.status}
-    if record['path']=='/violations' and record['method']=='POST':
-     keys=('building_id','finding_id','rule_version_ids','evidence_document_ids','procedure_document_ids')
-     try:
-      sent=response.request.post_data_json or {};received=response.json()
-      record['request']={key:sent.get(key) for key in keys}
-      record['response']={key:received.get(key) for key in ('case_id','status',*keys)}
-     except Exception as error:record['capture_error']=type(error).__name__
-    diagnostics['network'].append(record)
+    try:
+     if response.request.method not in ('POST','PATCH') or not response.url.startswith(base+'/violations'):
+      return
+     record={'path':response.url[len(base):], 'method':response.request.method, 'status':response.status}
+     if record['path']=='/violations' and record['method']=='POST':
+      keys=('building_id','finding_id','rule_version_ids','evidence_document_ids','procedure_document_ids')
+      try:
+       sent=response.request.post_data_json or {};received=response.json()
+       record['request']={key:sent.get(key) for key in keys}
+       record['response']={key:received.get(key) for key in ('case_id','status',*keys)}
+      except Exception as error:record['capture_error']=type(error).__name__
+     diagnostics['network'].append(record)
+    except Exception as error:diagnostics['artifact_errors'].append({'artifact':'response_callback','error':type(error).__name__})
    page.on('response',capture_response)
    try:
     page.goto(base+'/ui/');page.locator('#loginUser').fill('violation');page.locator('#loginPass').fill('synthetic-password');page.get_by_role('button',name='ログイン',exact=True).click();expect(page.locator('#violationBtn')).to_be_visible();page.locator('#violationBtn').click();page.locator('#violationNew').click()
@@ -80,9 +82,19 @@ def test_violation_candidate_measure_response_review_and_completion(tmp_path):
     try:browser.close()
     except Exception as error:diagnostics['artifact_errors'].append({'artifact':'browser_close','error':type(error).__name__})
  finally:
+  def diagnostic_error(name,error):
+   kind=type(error).__name__
+   diagnostics['artifact_errors'].append({'artifact':name,'error':kind})
+   print(f'violation diagnostic {name}: {kind}',file=sys.stderr)
   try:
    server.terminate();server.wait(timeout=10)
-  finally:
-   logs.close()
-   (artifact/'violation-diagnostic-server.log').write_text((tmp_path/'server.log').read_text())
-   (artifact/'violation-diagnostic.json').write_text(json.dumps(diagnostics,ensure_ascii=False,indent=2))
+  except Exception as error:
+   diagnostic_error('server_cleanup',error)
+   try:server.kill();server.wait(timeout=5)
+   except Exception as error:diagnostic_error('server_kill',error)
+  try:logs.close()
+  except Exception as error:diagnostic_error('log_close',error)
+  try:(artifact/'violation-diagnostic-server.log').write_text((tmp_path/'server.log').read_text())
+  except Exception as error:diagnostic_error('server_log_write',error)
+  try:(artifact/'violation-diagnostic.json').write_text(json.dumps(diagnostics,ensure_ascii=False,indent=2))
+  except Exception as error:diagnostic_error('json_write',error)
