@@ -1,6 +1,14 @@
 """Execute actual violation JavaScript against focused DOM/session reproductions."""
 from pathlib import Path
 import subprocess
+import pytest
+
+
+@pytest.mark.parametrize('scenario',['pending-save','view-switch','replacement','revoked','double-click'])
+def test_picker_authority_preserves_form_selection_order(scenario):
+    root=Path(__file__).resolve().parents[2]
+    result=subprocess.run(['node',str(Path(__file__).with_name('violation_selection_harness.js')),str(root),scenario],capture_output=True,text=True,timeout=10)
+    assert result.returncode==0,result.stderr
 
 
 def run(tmp_path,scenario):
@@ -9,7 +17,7 @@ const vm=require('vm'),fs=require('fs');
 class Node{constructor(){this.innerHTML='';this.textContent='';this.value='';this.checked=false;this.hidden=false;this.dataset={};this.onclick=null;this.classList={add:()=>{this.hidden=true},remove:()=>{this.hidden=false},toggle:(_c,b)=>{this.hidden=b}};}remove(){this.innerHTML='';this.hidden=true;}}
 const nodes=new Map(),node=id=>{if(!nodes.has(id))nodes.set(id,new Node());return nodes.get(id)};
 let calls=[],buttons=[],failure=null,pending=null,authorized=true,rights=['violation.read'];
-const context={console,Date,URLSearchParams,JSON,Promise,$:node,esc:x=>String(x??''),prompt:()=> 'Synthetic Human reason',document:{getElementById:node,querySelectorAll:s=>s.startsWith('[data-violation-human')?buttons.filter(b=>!s.includes('^=')||b.dataset.violationHuman.startsWith(s.split('"')[1])):[],createElement:()=>new Node(),body:{append(){}}},api:async(path,opt)=>{calls.push({path,opt});if(failure)throw failure;if(path==='/auth/me')return {user_id:'SYNTHETIC'};if(path==='/auth/permissions')return {permissions:authorized?rights:[]};if(path==='/slow')return new Promise(resolve=>pending=resolve);if(path.startsWith('/violation/warnings'))return [{status:'stale_rule',required:1,available:null,shortage:null,reason:'source changed'}];return []}};
+const context={window:{},console,Date,URLSearchParams,JSON,Promise,$:node,esc:x=>String(x??''),prompt:()=> 'Synthetic Human reason',document:{getElementById:node,querySelectorAll:s=>s.startsWith('[data-violation-human')?buttons.filter(b=>!s.includes('^=')||b.dataset.violationHuman.startsWith(s.split('"')[1])):[],createElement:()=>new Node(),body:{append(){}}},api:async(path,opt)=>{calls.push({path,opt});if(failure)throw failure;if(path==='/auth/me')return {user_id:'SYNTHETIC'};if(path==='/auth/permissions')return {permissions:authorized?rights:[]};if(path==='/slow')return new Promise(resolve=>pending=resolve);if(path.startsWith('/violation/warnings'))return [{status:'stale_rule',required:1,available:null,shortage:null,reason:'source changed'}];return []}};
 vm.createContext(context);vm.runInContext(fs.readFileSync(process.argv[2],'utf8'),context);
 const turn=()=>new Promise(resolve=>setImmediate(resolve));
 (async()=>{SCENARIO})().catch(e=>{console.error(e.stack);process.exitCode=1});
