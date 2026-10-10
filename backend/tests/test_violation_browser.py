@@ -51,6 +51,8 @@ def test_violation_candidate_measure_response_review_and_completion(tmp_path):
       held=[]
       def hold(route):held.append(route)
       page.route('**/auth/context',hold)
+      order={'field':field,'stage':'selection-held','cleanup_errors':[]}
+      diagnostics['selection_order']=order
       try:
        with page.expect_request(lambda r:r.url.endswith('/auth/context')):
         box.get_by_role('button',name='選択',exact=True).click()
@@ -67,9 +69,23 @@ def test_violation_candidate_measure_response_review_and_completion(tmp_path):
        held.pop().continue_()
        page.wait_for_function('window.syntheticSubmitReplayed===1')
        assert not any(r['path']=='/violations' and r['method']=='POST' for r in diagnostics['network'])
+       order['stage']='early-submit-rejected'
       finally:
-       page.unroute('**/auth/context',hold)
-       for route in held:route.continue_()
+       # Drain each held route exactly once before removing interception.
+       # Cleanup must never replace the primary ordering assertion failure.
+       primary=sys.exc_info()[0] is not None
+       cleanup_error=None
+       while held:
+        route=held.pop(0)
+        try:route.continue_()
+        except Exception as error:
+         order['cleanup_errors'].append(type(error).__name__)
+         if cleanup_error is None:cleanup_error=error
+       try:page.unroute('**/auth/context',hold)
+       except Exception as error:
+        order['cleanup_errors'].append(type(error).__name__)
+        if cleanup_error is None:cleanup_error=error
+       if cleanup_error is not None and not primary:raise cleanup_error
      else:box.get_by_role('button',name='選択',exact=True).click()
      actual=page.locator('#violationField_'+field).input_value()
      diagnostics['selected_fields'].append({'field':field,'chosen_ids':selected,'actual':actual})
