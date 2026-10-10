@@ -1,10 +1,10 @@
 # Fire AIOS current completion ledger
 
-Status date: 2026-10-09 UTC
+Status date: 2026-10-10 UTC
 
-Audited implementation base: `cc9e676d14fe0439abc69b8ab2be9034e450ffbb`
+Audited implementation base: `847d7937958c654fe9eab288f0c51a6db2b7cd47`
 
-Verified implementation tree: `155ed4e71d40311256b049e77b7adf6042a44803`
+Verified implementation tree: `b7e10811ebf18827cf007bf0870524543e941a1e`
 
 Previous reviewed baseline: `c1b684c5c38fc52fe908d2116a21a16ef48dcb34`
 
@@ -12,12 +12,12 @@ Canonical requirements: [Master Specification v2.0](../SPECIFICATION.md), chapte
 
 This is the current status index for the stated implementation base. It preserves the complete [c1b684c evidence baseline](COMPLETION_BASELINE_20261007.md) and its [reviewed classification/status changelog](COMPLETION_STATUS_CHANGELOG.md). The historical [MASTER_FEATURE_MATRIX](MASTER_FEATURE_MATRIX.md) is retained unchanged as dated evidence. Do not use its old totals as this base's status.
 
-**Completed 13 / Partial 43 / Missing 0 / External Gate 1 = 57.** Since the independently validated c1b684c baseline, chapters 36, 16 and 34 changed Missing → Partial, chapter 23 changed Partial → Completed, and accepted PR83 plus the chapter-specific re-audit makes chapter16 Completed (D15). Chapter34 still has substantial internal requirements. Shared-platform extensions remain open under their own chapters. Chapter counts are not a completion percentage, production approval, or a substitute for the Definition of Done.
+**Completed 12 / Partial 44 / Missing 0 / External Gate 1 = 57.** The 2026-10-10 user-authorized §42.1/43.1/55.1 additions expand the recovery requirements; chapter42 is now Partial. The earlier13/43 tally is historical and cannot credit unimplemented HA/Vault.  Since the independently validated c1b684c baseline, chapters 36, 16 and 34 changed Missing → Partial, chapter 23 changed Partial → Completed, and accepted PR83 plus the chapter-specific re-audit makes chapter16 Completed (D15). Chapter34 still has substantial internal requirements. Shared-platform extensions remain open under their own chapters. Chapter counts are not a completion percentage, production approval, or a substitute for the Definition of Done.
 
 | Primary status | Chapters | Count |
 |---|---|---:|
-| Completed | 2, 8, 11, 16, 22–24, 40, 42, 47, 55, 56, 57 | 13 |
-| Partial | 1, 3–7, 9–10, 12–15, 17–21, 25–39, 41, 43–46, 48, 50–54 | 43 |
+| Completed | 2, 8, 11, 16, 22–24, 40, 47, 55, 56, 57 | 12 |
+| Partial | 1, 3–7, 9–10, 12–15, 17–21, 25–39, 41–46, 48, 50–54 | 44 |
 | Missing | None | 0 |
 | External Gate | 49 | 1 |
 | Total | Chapters 1–57, exactly once | 57 |
@@ -29,6 +29,18 @@ Use exactly four primary statuses: **Completed / Partial / Missing / External Ga
 The baseline was independently reconciled to 11/42/3/1 using chapter-specific evidence. This update reviews the merged deltas and preserves that full baseline. Baseline path/line references are pinned to c1b684c; D1–D6 retain their 1b3bf5b source links. D7–D9 retain the PR76-merge snapshot c1b491e; D10 links to the current PR77-merge snapshot 9d6f86b. Test definitions establish coverage present in source; executed results come from the exact-head CI or recorded verification run identified below. This documentation edit itself does not rerun the application suites.
 
 ## Execution evidence and current-base limit
+
+### D22 — Expanded user-authorized requirements, implementation credit withheld
+
+The 2026-10-10 completion handoff adds Site HA + Owner Disaster Recovery, key/data separation, immutable offsite recovery, MFA, attack detection/containment and security gates. Canonical §42.1/43.1/55.1 now records these requirements. Existing paired tenant dump/maintenance acceptance remains valid evidence but does not satisfy the expanded chapter42, now **Partial**. Plaintext dump/storage files, no internal HA/fencing/Vault and no new-host disaster rehearsal were found. No external encryption infrastructure is assumed. Counts12/44/0/1; no other chapter promotion.
+
+Issue91 failed-login audit is a bounded delta under chapter43. At documentation authoring it is locally implemented/tested but not accepted main. Exact PR CI, merge and independent main CI must be added before credit; no inferred test result. Rate limiting, flood contention/retention, MFA and attack detection remain internal. The current login uses a global account administration lock; audit writes under attack need separate hardening.
+
+The 8 logical lanes are defined in [v2 operating contract](PARALLEL_COMPLETION_OPERATIONS_V2.md). Three read-only audit agents inspected all lane groups; only Issue91 starts implementation. Other lanes wait for first accepted mainCI. GitHub branch main reported unprotected, rulesets empty, Releases empty at audit; no protection is silently changed. All PR CI gates remain enforced operationally.
+
+### D21 — PR89 canonical Human teams and protected membership accepted
+
+Main `847d7937958c654fe9eab288f0c51a6db2b7cd47`, tree `b7e10811ebf18827cf007bf0870524543e941a1e`. [Independent main CI37891928869](https://github.com/haji84/-AI/actions/runs/37891928869) directly re-read SUCCESS; backend job113694554337 logs1450 passed/100 skipped/289 warnings/817.63s; browser job113694554144 logs76 passed/806.38s; migration parser/JS success. Actual source contains migration058, team/member/history services and UI. PR89's earlier pending-main statements are superseded by the directly verified result. Chapter25 remains Partial: work results, protected crew interface, dispatch/overtime/allowance chain and balance/reconciliation remain internal. Skips are unexecuted; this is not ten-chain/Release/site acceptance.
 
 ### D20 — PR88 draft checkout/correction and reasoned Human cancellation accepted
 

@@ -96,3 +96,11 @@ Previously Completed chapter 56 was also checked: its ordered precedence and obs
 No system/production-completion claim is made. Current main remains authoritative; preserve unrecovered checkpoint originals and assess collisions before bounded new requirements. Neither the c1b684c baseline nor this delta proves checkpoint code recovered or lost. Current-base exclusions supersede historical unmerged-work wording. No migration number is allocated here and no existing migration is modified.
 
 Chapter 49 remains External Gate for real-reference baseline execution and Human thresholds. Missing generation/model adapters remain visible as internal work under chapters 19/29–32/37. Actual host/LAN/TLS/original-form/organization decisions stay separate from implemented foundations. The original classification review did not rerun a full suite; the exact CI/recorded results in the baseline and later verification records must not be represented as a fresh execution at a different commit.
+
+
+## 2026-10-10: expanded recovery scope and PR89 evidence reconciliation
+
+- Base847d793/treeb7e10811, PR89 independent mainCI37891928869 directly verified success.
+- User-authorized §42.1 Site HA + Owner DR expands chapter42; prior paired-backup evidence remains historical, new internal HA/Vault/encryption/immutable/recovery gaps make Completed→Partial.
+- Effective classification upon this specification change merging:12 Completed/44 Partial/0 Missing/1 External Gate=57.
+- Issue91 failed-login audit delta awaits its own exact/mainCI acceptance. No system/Release/E2E completion claim.

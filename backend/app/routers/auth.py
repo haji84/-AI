@@ -19,6 +19,10 @@ def login(payload: LoginRequest, response: Response, db: Session = Depends(get_d
     account_change_lock(db)
     user = db.scalar(select(User).where(User.username == payload.username))
     if not user or not user.active or not employee_available(db, user) or not verify_password(user.password_hash, payload.password):
+        # A rejected credential does not identify an authenticated actor. Persist
+        # evidence before HTTPException, without recording attacker-controlled input.
+        write_audit(db, user_id=None, action="auth.login_failed", entity_type="user", success=False)
+        db.commit()
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid credentials")
     expired=password_expired(user.password_expires_at)
     if expired:response.headers['X-FireAI-Password-Renewal']='required'
