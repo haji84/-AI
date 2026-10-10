@@ -120,6 +120,8 @@ def sync_source(source_id: str, *, allow_bootstrap: bool = False) -> dict:
         source = db.get(LegalSource, source_id)
         if not source:
             raise RuntimeError("legal source not found")
+        if not source.enabled or source.update_mode != "online":
+            raise RuntimeError("enabled online legal source required")
         run = LegalSyncRun(legal_source_id=source.legal_source_id, status="running")
         db.add(run)
         source.last_checked_at = now
