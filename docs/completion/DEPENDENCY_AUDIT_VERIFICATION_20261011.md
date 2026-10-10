@@ -38,8 +38,9 @@ There is no vulnerability ignore baseline, auto-fix, dry-run, editable skip,
 shell failure suppression, or workflow `continue-on-error`.  Success writes a
 deterministic evidence JSON containing the scope, exact sorted inventory,
 inventory SHA-256, auditor version, and service name.  Each scope is uploaded
-as a separate Actions artifact.  Scanner diagnostics are not copied into the
-repository.
+as a separate Actions artifact.  On a vulnerability RED, CI prints only
+escaped package names, versions, advisory identifiers, and published fix
+versions; descriptions and arbitrary scanner text are excluded.
 
 This detects published Python-package advisories.  In accordance with the
 auditor's own security model, it does not establish that resolving or
@@ -72,7 +73,7 @@ Focused GREEN after the repair:
 ```text
 PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=backend python -m pytest \
   backend/tests/test_dependency_audit.py -q
-14 passed in 0.06s
+15 passed in 0.04s
 ```
 
 A local real browser-superset environment resolved 51 third-party packages
@@ -90,6 +91,34 @@ three failures and thirteen setup errors all confined to the existing secret
 scanner tests requiring `FIRE_AI_GITLEAKS_BIN`.  No unrelated product failure
 was observed, but this is not a replacement for configured CI, PostgreSQL, or
 Chromium evidence.
+
+## Exact-PR RED and remediation
+
+PR head `9ff56081b1e9a8ffa4c8a3b3e823f8194f88a34e` (tree
+`8edff5d6e85340db019de74740ae336296297968`) reached the public advisory
+service in dependency workflow run `38080702298`.  All three jobs failed
+closed.  The distinct public findings, retained in Issue #111, were:
+
+- `cryptography 48.0.1`: `PYSEC-2026-3552`, `PYSEC-2026-3553`, and
+  `PYSEC-2026-3554`; the highest required fix version is `50.0.0`;
+- `pytest 8.4.2`: `PYSEC-2026-1845`, fixed in `9.0.3`;
+- `setuptools 79.0.1`: `PYSEC-2026-3447`, fixed in `83.0.0`.
+
+The upstream report repeated identical advisory rows, producing displayed
+counts of eight for runtime and ten for test/browser.  The gate still blocked.
+A regression now collapses only identical advisory facts while failing closed
+if the same package/version/advisory identifier reports conflicting fix
+versions.  No finding is waived.
+
+The minimal remediation raises the declared `cryptography` range to
+`>=50,<51`, the test-only `pytest` range to `>=9.0.3,<10`, and upgrades the
+target environment's bootstrap `setuptools` before inventory capture.  A fresh
+local environment resolved `cryptography 50.0.2`, `pytest 9.1.1`, and
+`setuptools 84.0.0`.  With the repository's pinned Gitleaks binary configured,
+the complete backend regression in that upgraded environment passed:
+`1375 passed, 303 skipped, 327 warnings, 31 subtests passed` in 409.59 seconds.
+The skips are the existing environment-gated PostgreSQL/browser/external
+groups; exact-head CI remains required before acceptance.
 
 ## Acceptance still required
 

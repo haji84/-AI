@@ -104,7 +104,7 @@ def evaluate_report(scope, inventory, returncode, payload):
         raise AuditFailure()
 
     observed = {}
-    findings = []
+    findings_by_advisory = {}
     for row in document["dependencies"]:
         if not isinstance(row, dict) or set(row) != {"name", "version", "vulns"}:
             raise AuditFailure()
@@ -121,16 +121,22 @@ def evaluate_report(scope, inventory, returncode, payload):
             if not isinstance(fix_versions, list):
                 raise AuditFailure()
             fixes = sorted(safe_report_value(item) for item in fix_versions)
-            findings.append({
+            finding = {
                 "fix_versions": fixes,
                 "id": advisory_id,
                 "name": name,
                 "version": safe_report_value(version),
-            })
+            }
+            advisory_key = (name, finding["version"], advisory_id)
+            previous = findings_by_advisory.get(advisory_key)
+            if previous is not None and previous != finding:
+                raise AuditFailure()
+            findings_by_advisory[advisory_key] = finding
         observed[name] = version
 
     if observed != expected:
         raise AuditFailure()
+    findings = list(findings_by_advisory.values())
     if findings:
         if returncode != 1:
             raise AuditFailure()

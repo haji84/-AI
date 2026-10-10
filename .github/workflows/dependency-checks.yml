@@ -34,7 +34,7 @@ jobs:
           auditor="${RUNNER_TEMP}/fire-ai-dependency-auditor"
           python -m venv "$target"
           python -m venv "$auditor"
-          "$target/bin/python" -m pip install --disable-pip-version-check --no-input --upgrade pip
+          "$target/bin/python" -m pip install --disable-pip-version-check --no-input --upgrade pip setuptools
           case '${{ matrix.scope }}' in
             runtime)
               "$target/bin/python" -m pip install --disable-pip-version-check --no-input -e backend

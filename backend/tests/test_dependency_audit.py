@@ -49,7 +49,10 @@ def test_synthetic_advisory_fails_without_an_ignore_baseline():
     audit = module()
     payload = report(dependency(
         "alpha-pkg", "1.2.3",
-        [{"id": "PYSEC-SYNTHETIC-1", "fix_versions": ["1.2.4"]}],
+        [
+            {"id": "PYSEC-SYNTHETIC-1", "fix_versions": ["1.2.4"]},
+            {"id": "PYSEC-SYNTHETIC-1", "fix_versions": ["1.2.4"]},
+        ],
     ))
 
     with pytest.raises(audit.VulnerabilityFound) as captured:
@@ -68,6 +71,22 @@ def test_synthetic_advisory_fails_without_an_ignore_baseline():
         '[{"fix_versions":["1.2.4"],"id":"PYSEC-SYNTHETIC-1",'
         '"name":"alpha-pkg","version":"1.2.3"}]'
     )
+
+
+def test_conflicting_duplicate_advisory_fails_closed():
+    audit = module()
+    payload = report(dependency(
+        "alpha-pkg", "1.2.3",
+        [
+            {"id": "PYSEC-SYNTHETIC-1", "fix_versions": ["1.2.4"]},
+            {"id": "PYSEC-SYNTHETIC-1", "fix_versions": ["1.2.5"]},
+        ],
+    ))
+
+    with pytest.raises(audit.AuditFailure) as captured:
+        audit.evaluate_report("runtime", {"alpha-pkg": "1.2.3"}, 1, payload)
+
+    assert not isinstance(captured.value, audit.VulnerabilityFound)
 
 
 @pytest.mark.parametrize("returncode,payload", [(2, b""), (0, b"not-json"), (0, b"[]")])
@@ -158,10 +177,12 @@ def test_target_python_path_preserves_virtual_environment_symlink(tmp_path):
 
 def test_dependency_workflow_has_three_scopes_and_read_only_checkout():
     workflow = (ROOT / ".github/workflows/dependency-checks.yml").read_text()
+    project = (ROOT / "backend/pyproject.toml").read_text()
 
     assert "permissions:\n  contents: read" in workflow
     assert "persist-credentials: false" in workflow
     assert "pip-audit==2.10.1" in workflow
+    assert "--upgrade pip setuptools" in workflow
     assert workflow.count("scope:") == 3
     for scope in ("runtime", "backend-test", "browser"):
         assert f"scope: {scope}" in workflow
@@ -169,3 +190,5 @@ def test_dependency_workflow_has_three_scopes_and_read_only_checkout():
         assert forbidden not in workflow
     assert "-m pip uninstall --yes fire-ai-local-backend" in workflow
     assert "scripts/audit_dependencies.py" in workflow
+    assert '"cryptography>=50,<51"' in project
+    assert 'test = ["pytest>=9.0.3,<10"' in project
