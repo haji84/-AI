@@ -49,7 +49,10 @@ def test_violation_candidate_measure_response_review_and_completion(tmp_path):
      selected=box.locator('select').select_option(label=label)
      if delay_authority:
       held=[]
-      def hold(route):held.append(route)
+      page.evaluate("() => { window.syntheticAuthorityHeldCount=0; }")
+      def hold(route):
+       held.append(route)
+       page.evaluate("count => { window.syntheticAuthorityHeldCount=count; }",len(held))
       page.route('**/auth/context',hold)
       order={'field':field,'stage':'selection-held','cleanup_errors':[]}
       diagnostics['selection_order']=order
@@ -64,6 +67,9 @@ def test_violation_candidate_measure_response_review_and_completion(tmp_path):
        }""")
        with page.expect_request(lambda r:r.url.endswith('/auth/context')):
         page.locator('#violationForm').evaluate("form=>form.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}))")
+       # Request notification can precede the Python interception callback.
+       # Wait for both actual held routes before choosing response order.
+       page.wait_for_function('window.syntheticAuthorityHeldCount>=2')
        assert len(held)>=2
        # Pass through the real server authority response for submit first.
        held.pop().continue_()

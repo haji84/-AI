@@ -492,15 +492,29 @@ def test_finance_upload_control_requires_both_document_permissions(finance_first
  expect(page.locator('#financePick_document_id_file')).to_have_count(0)
 
 
-def test_finance_permission_loss_before_upload_is_authoritative(finance_first_use):
+@pytest.mark.parametrize('observe_replacement_first',[False,True])
+def test_finance_permission_loss_before_upload_is_authoritative(finance_first_use,observe_replacement_first):
  from playwright.sync_api import expect
  page,base,_=finance_first_use
  new_first_use_contract(page);select_synthetic_original(page)
+ expect(page.locator('#financePick_document_id_upload')).to_be_enabled()
+ # Keep the actual rendered action: a background guard may remove this button
+ # before a later locator click, which is already the required safe behavior.
+ upload_requests=[]
+ page.on('request',lambda request:upload_requests.append(request.url) if request.url==base+'/documents/upload' and request.method=='POST' else None)
+ page.evaluate("() => { window.syntheticCachedFinanceUpload = document.getElementById('financePick_document_id_upload').onclick; }")
+ assert upload_requests==[], 'capturing the rendered action must not execute it'
  # The backend remains the authority when permissions have changed since rendering.
  assert page.request.post(base+'/auth/logout').ok
  assert page.request.post(base+'/auth/login',data={'username':'reviewer','password':'synthetic-ui-password'}).ok
- page.locator('#financePick_document_id_upload').click()
+ if observe_replacement_first:
+  page.evaluate("async () => { try { await window.FireAISession.check(); } catch(error) { if(!error.cancelled) throw error; } }")
+  expect(page.locator('#financeModal')).to_have_count(0)
+ page.evaluate("async () => { await window.syntheticCachedFinanceUpload(); }")
  expect(page.locator('#financeModal')).to_have_count(0)
+ assert page.evaluate('financeState.identity') is None
+ assert page.evaluate('financeState.permissions.length')==0
+ assert upload_requests==[], 'stale rendered upload must not issue a POST'
  assert page.request.get(base+'/finance/documents').json()==[]
 
 
