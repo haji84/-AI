@@ -56,3 +56,51 @@ An independently examined synthetic interleaving of the actual `shared-session.j
 The committed Node regression uses actual product event capture, picker, form and ID parsing, with only synthetic DOM/server-authority dependencies. Five tests failed before runtime changes: incomplete save, stale-view paint, replacement-form paint, revoked old-form submit, and duplicate pending selection. The minimal fix reuses the shared preflight hook to lock only the current selection-dependent form controls while its authority probe is pending. The form independently rejects Enter/programmatic submits while selection is pending or ownership is obsolete. Picker replay checks view/form ownership. Original required-array/hash/effective-date/RBAC/Human guards remain unchanged; no migration or grant is added.
 
 After the fix, all10 violation state tests pass. Focused violation/correction/shared-session regression:41 passed/1 skipped/30 warnings. The real Chromium workflow now holds actual authority HTTP requests, permits the submit response first, verifies no premature candidate POST, then releases selection and checks saved arrays plus the full Human workflow. It does not fabricate server authority or use a time-based sleep. Local native Chromium remains unavailable; exact PR CI and independent merged-main CI for this repair must still execute before acceptance. Full local suite evidence and independent review will be attached to the PR/checkpoint; chapter totals and Release readiness do not change from these local results.
+
+## PR101 integrated and independently accepted repair
+
+The preceding pending statements describe their earlier checkpoints. PR101
+merged at exact repaired head `4d86676bd05df45927e3e0de6304348179974c0f` after
+independent review and [CI38062677291](https://github.com/haji84/-AI/actions/runs/38062677291)
+SUCCESS: backend1464 passed/101 skipped/289 warnings/863.06s; browser76
+passed/609.53s. The initial native fixture cleanup failure was repaired once
+by draining held routes before interception removal, preserving primary errors.
+No original/Human/authority guard was changed or test skipped. Local full
+runtime-tree regression completed1270 passed/295 skipped/287 warnings/388.29s;
+local skips receive no native credit.
+
+Main `adfede71a22e23f44faa6c53208a84cabcb433c5`, tree
+`12358e2f14e554287e03d5a2aa36f5426a1ce4bc`, matches the PR head's tree.
+[Independent main CI38063812901](https://github.com/haji84/-AI/actions/runs/38063812901)
+SUCCESS was read directly: backend1464 passed/101 skipped/289 warnings/867.91s;
+browser76 passed/746.16s; migration parser and JavaScript syntax successful.
+Main artifact11674241561 was directly downloaded and SHA256 verified as
+`4f456d8f50cb97eae25e903403e2303c31da861b42afa893013c7893852b5f53`.
+The controlled authority ordering records `early-submit-rejected`, then
+three nonempty matching request/saved-response original ID arrays and13
+synthetic Human workflow POSTs, with empty page/artifact/cleanup errors.
+
+Accept only this demonstrated selection/save race repair and the previously
+accepted bounded failed-login/diagnostic deltas. The original failed-main
+payload remains unavailable, so its exact lost array/timing is not asserted.
+Issue96's historical investigation remains explicit. Chapter totals stay
+12Completed/44Partial/0Missing/1ExternalGate; no Release, production or
+full-system completion follows. PR90 is closed as superseded without merge;
+main V2 governs staged eight logical lanes. Security97/98 and legal94 are
+separate pending slices, with shared CI/ledger integration owned by root.
+
+## Subsequent PR102 main regression checkpoint
+
+Main `46865f438ab7a7482678c0ed720c15f00f113a65`, tree
+`ccfe26ae18b34235cae81c6adf1804a38111c8bb`, adds only the bounded secret
+CLI/hook/CI slice. Independent project CI38065202562 SUCCESS:
+backend1486 passed/101 skipped/289 warnings/808.27s; browser76 passed/787.34s;
+parser/JS successful. Dedicated main secret CI38065202530 reports findings0.
+Downloaded native artifact11674113645 SHA256
+`0010e560d4f1cc358c7c59d8a9af82aefd154846521bd28b43e596eb64eb7a60`
+retains controlled early-submit rejection, three matching nonempty saved
+original arrays,13 successful synthetic Human POSTs and empty page/artifact/
+cleanup errors. D25 records the separate security acceptance and limitations.
+PR103 legal enabled/online policy repair awaits its exact-head and independent
+main evidence; Issue95 privacy RED remains unfixed. Chapter totals stay12/44/0/1,
+with chapter42/43 Partial. Historical failed-main attribution remains unproven.
