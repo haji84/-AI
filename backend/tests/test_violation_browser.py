@@ -43,11 +43,34 @@ def test_violation_candidate_measure_response_review_and_completion(tmp_path):
    page.on('response',capture_response)
    try:
     page.goto(base+'/ui/');page.locator('#loginUser').fill('violation');page.locator('#loginPass').fill('synthetic-password');page.get_by_role('button',name='ログイン',exact=True).click();expect(page.locator('#violationBtn')).to_be_visible();page.locator('#violationBtn').click();page.locator('#violationNew').click()
-    def pick(field,label):
+    def pick(field,label,delay_authority=False):
      box=page.locator('#violationField_'+field).locator('..').locator('div').first
      expect(box.locator('select option').filter(has_text=label)).to_have_count(1)
      selected=box.locator('select').select_option(label=label)
-     box.get_by_role('button',name='選択',exact=True).click()
+     if delay_authority:
+      held=[]
+      def hold(route):held.append(route)
+      page.route('**/auth/context',hold)
+      try:
+       with page.expect_request(lambda r:r.url.endswith('/auth/context')):
+        box.get_by_role('button',name='選択',exact=True).click()
+       expect(page.locator('#violationForm button[type=submit]')).to_be_disabled()
+       assert page.locator('#violationField_'+field).input_value()==''
+       page.evaluate("""() => {
+        window.syntheticSubmitReplayed=0;
+        document.getElementById('violationForm').addEventListener('submit',()=>window.syntheticSubmitReplayed++);
+       }""")
+       with page.expect_request(lambda r:r.url.endswith('/auth/context')):
+        page.locator('#violationForm').evaluate("form=>form.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}))")
+       assert len(held)>=2
+       # Pass through the real server authority response for submit first.
+       held.pop().continue_()
+       page.wait_for_function('window.syntheticSubmitReplayed===1')
+       assert not any(r['path']=='/violations' and r['method']=='POST' for r in diagnostics['network'])
+      finally:
+       page.unroute('**/auth/context',hold)
+       for route in held:route.continue_()
+     else:box.get_by_role('button',name='選択',exact=True).click()
      actual=page.locator('#violationField_'+field).input_value()
      diagnostics['selected_fields'].append({'field':field,'chosen_ids':selected,'actual':actual})
      expect(page.locator('#violationField_'+field),f'{field}: selected ID must remain in the readonly field').to_have_value(selected[0])
@@ -58,7 +81,7 @@ def test_violation_candidate_measure_response_review_and_completion(tmp_path):
      return response.value.json()
     def human(button,path):
      page.locator('#'+button).click();page.locator('#violationField_reason').fill('Synthetic Human originals and procedure checked');page.locator('#violationField_human_acknowledged').select_option('true');return save(path)
-    pick('building_id','Synthetic facility');pick('finding_id','Synthetic observation, not a formal violation');page.locator('#violationField_possible_issue').fill('Synthetic browser possible issue');pick('rule_version_ids','SYN-1 / Synthetic fixture rule / v1');pick('evidence_document_ids','synthetic-proof.txt');pick('procedure_document_ids','synthetic-procedure.txt');case=save('/violations',201);case_path='/violations/'+case['case_id'];assert case['status']=='candidate'
+    pick('building_id','Synthetic facility');pick('finding_id','Synthetic observation, not a formal violation');page.locator('#violationField_possible_issue').fill('Synthetic browser possible issue');pick('rule_version_ids','SYN-1 / Synthetic fixture rule / v1');pick('evidence_document_ids','synthetic-proof.txt');pick('procedure_document_ids','synthetic-procedure.txt',delay_authority=True);case=save('/violations',201);case_path='/violations/'+case['case_id'];assert case['status']=='candidate'
     for field in ('rule_version_ids','evidence_document_ids','procedure_document_ids'):
      assert case.get(field),f'created candidate missing {field}: {diagnostics["network"]}'
     human('violationReview',case_path+'/review');case=human('violationConfirm',case_path+'/confirm');assert case['status']=='confirmed'

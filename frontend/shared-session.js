@@ -74,7 +74,7 @@
     if(target.tagName==='A'&&!privatePath(target.href))return;
     event.preventDefault();event.stopImmediatePropagation();
     const ticket=generation;
-    const releases=[window.financeSessionPreflight,window.statisticsSessionPreflight].filter(hook=>typeof hook==='function').map(hook=>hook(target,event.type));
+    const releases=[window.financeSessionPreflight,window.statisticsSessionPreflight,window.violationSessionPreflight].filter(hook=>typeof hook==='function').map(hook=>hook(target,event.type));
     const releasePreflight=()=>{for(const release of releases)if(typeof release==='function')release();};
     try{
       await observe(ticket);
