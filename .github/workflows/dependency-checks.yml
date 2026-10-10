@@ -1,0 +1,63 @@
+name: dependency-checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  resolved-python-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - scope: runtime
+          - scope: backend-test
+          - scope: browser
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.11'
+      - name: Resolve and audit ${{ matrix.scope }} dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          target="${RUNNER_TEMP}/fire-ai-target-${{ matrix.scope }}"
+          auditor="${RUNNER_TEMP}/fire-ai-dependency-auditor"
+          python -m venv "$target"
+          python -m venv "$auditor"
+          "$target/bin/python" -m pip install --disable-pip-version-check --no-input --upgrade pip
+          case '${{ matrix.scope }}' in
+            runtime)
+              "$target/bin/python" -m pip install --disable-pip-version-check --no-input -e backend
+              ;;
+            backend-test)
+              "$target/bin/python" -m pip install --disable-pip-version-check --no-input -e 'backend[test]'
+              ;;
+            browser)
+              "$target/bin/python" -m pip install --disable-pip-version-check --no-input -e 'backend[test]' 'playwright>=1.55,<2'
+              ;;
+            *)
+              exit 2
+              ;;
+          esac
+          "$target/bin/python" -m pip uninstall --yes fire-ai-local-backend
+          "$auditor/bin/python" -m pip install --disable-pip-version-check --no-input 'pip-audit==2.10.1'
+          python scripts/audit_dependencies.py \
+            --target-python "$target/bin/python" \
+            --auditor "$auditor/bin/pip-audit" \
+            --scope '${{ matrix.scope }}' \
+            --evidence "${RUNNER_TEMP}/dependency-audit-${{ matrix.scope }}.json"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: resolved-dependency-audit-${{ matrix.scope }}
+          path: ${{ runner.temp }}/dependency-audit-${{ matrix.scope }}.json
+          if-no-files-found: error
