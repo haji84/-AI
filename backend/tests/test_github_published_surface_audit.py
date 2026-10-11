@@ -7,6 +7,7 @@ import io
 import json
 import lzma
 from pathlib import Path
+import re
 import secrets
 import stat
 import tarfile
@@ -133,6 +134,33 @@ class FixtureApi:
 
 def encoded(value):
     return "application/json", json.dumps(value).encode()
+
+
+def discover_workflow_names(directory):
+    names = set()
+    candidates = set(directory.glob("*.yml")) | set(directory.glob("*.yaml"))
+    for candidate in sorted(candidates):
+        match = re.search(
+            r"(?m)^name:\s*([A-Za-z0-9][A-Za-z0-9._ -]*)\s*$",
+            candidate.read_text(),
+        )
+        assert match, f"{candidate.name} must use a simple top-level workflow name"
+        names.add(match.group(1).strip())
+    return names
+
+
+def test_workflow_name_discovery_covers_both_yaml_extensions(tmp_path):
+    (tmp_path / "one.yml").write_text("name: one\n")
+    (tmp_path / "two.yaml").write_text("name: two\n")
+
+    assert discover_workflow_names(tmp_path) == {"one", "two"}
+
+
+def test_workflow_name_discovery_rejects_ambiguous_inline_comments(tmp_path):
+    (tmp_path / "ambiguous.yaml").write_text("name: ambiguous # not part of name\n")
+
+    with pytest.raises(AssertionError, match="simple top-level workflow name"):
+        discover_workflow_names(tmp_path)
 
 
 def test_safe_zip_extraction_rejects_escape_symlink_and_nested_archive(tmp_path):
@@ -326,9 +354,20 @@ def test_dispatch_id_lists_accept_only_exact_positive_decimal_ids():
 def test_security_workflow_has_manual_private_published_surface_gate():
     workflow = SCRIPT.parents[1] / ".github/workflows/security-checks.yml"
     content = workflow.read_text()
+    expected_workflows = discover_workflow_names(workflow.parent) - {"security-checks"}
+
+    watched_block = re.search(
+        r"workflow_run:\s*\n\s+workflows:\s*\[(.*?)\]\s*\n",
+        content,
+        re.DOTALL,
+    )
+    assert watched_block, "workflow_run must declare an explicit workflow allowlist"
+    watched_workflows = set(re.findall(r'"([^"]+)"', watched_block.group(1)))
+
     assert "workflow_dispatch:" in content
     assert "workflow_run:" in content
-    assert 'workflows: ["project-checks"]' in content
+    assert watched_workflows == expected_workflows
+    assert "security-checks" not in watched_workflows
     assert "types: [completed]" in content
     assert "published-surface-audit:" in content
     assert "actions: read" in content
