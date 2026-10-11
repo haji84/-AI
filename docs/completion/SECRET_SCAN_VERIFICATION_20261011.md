@@ -141,3 +141,71 @@ The integrated scanner, hook and violation state regressions passed
 refs and the integrated working tree returned zero findings. Dedicated secret
 CI, native PR CI and independent main CI remain pending; no remote acceptance
 or chapter completion is inferred from these local checks.
+
+## Exact published-surface audit extension
+
+Issue 97 follow-up adds a manually dispatched, least-privilege audit for exact
+operator-selected pull request numbers and completed Actions run IDs. The CLI
+collects pull request metadata, issue comments, review comments and reviews,
+plus run metadata, job logs and every non-expired artifact reported for each
+selected run. Collection must be exact: unavailable or mismatched selections,
+incomplete pagination, expired artifacts and malformed responses fail closed.
+No repository-wide unbounded enumeration or retry loop is present.
+
+Remote bytes and raw Gitleaks reports remain under a private `/tmp` directory
+and are deleted on completion. The terminal receives only generic status,
+counts and failure state. Downloads are individually bounded to 256 MiB and 60
+seconds. ZIP extraction rejects traversal, symlinks/special files, duplicate
+paths, and recognized nested ZIP (including leading-stub/SFX), GZip, 7z, XZ,
+BZip2, RAR and POSIX TAR payloads, plus more than 20,000 files, entries above 64
+MiB and total expanded data above 512 MiB. Authentication is removed on cross-origin
+redirects before GitHub-hosted logs or artifacts reach their signed download
+origin. The existing pinned scanner is reused through a directory-only entry
+point; its binary/hash/version, private output, deadline, report consistency and
+no-suppression controls are unchanged.
+
+The audit job grants only `actions: read`, `contents: read`, `issues: read` and
+`pull-requests: read`. It runs automatically after each completed
+`project-checks` workflow and audits that exact run plus its first associated
+pull request when GitHub supplies one. `workflow_dispatch` also permits exact
+comma-separated decimal IDs for bounded historical verification. IDs are passed
+through environment values and validated by the Python CLI. No collected
+content or scanner report is uploaded as an artifact. An empty manual selection
+fails closed. This evidence job is additive; PR/main source scanning remains
+mandatory and GitHub Push Protection is not represented as enabled.
+
+RED was observed for the missing collector, the missing directory-only scanner
+entry point, unsafe cross-origin bearer forwarding, absent dispatch wiring and
+duplicate archive overwrite. Local GREEN on base tree
+`b4491057791fd29364563c065d6e61e849eab404` is **30 passed in 11.40s** across
+the existing scanner, actual pre-push hook and new published-surface tests,
+using verified Gitleaks 8.30.1. A subsequent actual scan of fetched refs plus
+the working tree returned `findings=0`. Exact PR CI, independent review, manual
+published-surface execution and independent main CI remain required before this
+extension is accepted. Historical GitHub surfaces outside explicitly selected
+IDs, GitHub Push Protection and operational PII handling remain Issue 97 scope;
+this evidence does not complete specification chapter 43.
+
+Before independent review corrections, the same worktree completed the full backend suite with explicit
+`PYTHONPATH` and the verified scanner binary: **1385 passed, 304 skipped, 327
+warnings, 31 subtests passed in 380.78 seconds**. The skips do not establish
+PostgreSQL, Chromium, remote published-surface or external-gate acceptance;
+those remain CI/evidence requirements.
+
+Independent review then reproduced two fail-open cases: a manually selected
+queued/in-progress run could be accepted after partial download, and archive
+content hidden behind a renamed compression suffix could evade the nested
+archive guard. A follow-up review also reproduced a leading-stub/SFX ZIP bypass.
+New RED fixtures cover missing/queued/in-progress status, renamed XZ, BZip2,
+RAR and raw TAR, and renamed leading-stub ZIP payloads. Collection now requires
+the remote run status to equal `completed`; archive detection uses both common
+magic values and `zipfile.is_zipfile`. Further RED fixtures showed malformed
+comment/review rows and boolean counts/IDs were accepted, and that a socket
+inactivity timeout did not bound a trickle download. Row schemas, counts and IDs
+now use strict types; HTTPS downgrade is rejected; and a Linux `ITIMER_REAL`
+deadline encloses connection, redirects, headers and body. The repaired focused
+scanner, pre-push and published-surface set passes, and the actual source scan
+still reports zero findings. The post-correction full backend rerun completed
+with explicit `PYTHONPATH`: **1391 passed, 304 skipped, 327 warnings, 31
+subtests passed in 379.78 seconds**. As above, skipped local PostgreSQL/browser
+cases remain exact CI requirements rather than inferred acceptance.
