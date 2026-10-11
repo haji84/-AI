@@ -110,6 +110,7 @@ User=root
 WorkingDirectory={code}
 EnvironmentFile=/etc/fire-ai/backup-{slug}.env
 ExecStart={instance}/venv/bin/python {code}/scripts/scheduled_department_backup.py --slug {slug} --release-id {release_id}
+ReadOnlyPaths=/etc/fire-ai/keys/{slug}-backup-recipient.pem
 UMask=0077
 TimeoutStartSec=infinity
 """
@@ -139,14 +140,14 @@ Review DNS `{host}`, TLS certificate, port `{port}`, capacity and PostgreSQL acc
 3. Build dedicated venv from common release backend. Load migration env, run `scripts/migrate_database.py`, then `scripts/initialize_tenant.py --name '<department name>'`.
 4. Apply `01-grants-{slug}.sql` as owner. Load runtime env and bootstrap the human administrator interactively. Install service/nginx and approved TLS certificate.
 5. Verify matching DB/root UUID, another department DB CONNECT denial, identity mutation/audit alteration denial, other OS account storage/backup denial, health, RBAC, Human Gate and two-PC conflict.
-6. Install the generated department backup service/timer only after registering every writer in `FIRE_AI_BACKUP_WRITER_UNITS` (JSON list of own `fire-ai-{slug}-*.service`/`.timer` units). The root orchestrator stops timers/writers/app, runs the bound backup under PostgreSQL maintenance exclusion, then restores previous activity. It never deletes backups. Verify free space and test failure alerts. For manual backup STOP this service AND all CLI/sync writers, load `backup-{slug}.env`, run `scripts/backup_phase1.py --destination {backup} --release-id {release_id} --confirm-writers-stopped`.
-7. For recovery STOP all writers, retain current DB+storage backup, load migration env and run `scripts/restore_phase1.py <backup-folder> --target-database-env FIRE_AI_DATABASE_URL --target-storage-root {storage} --confirm-restore --confirm-writers-stopped --expected-release-id {release_id}`.
+6. Human review and enrollment must place this department's X25519 public recipient at `/etc/fire-ai/keys/{slug}-backup-recipient.pem`, separate from data/backups; never place the private key on this host as part of generation. Install the generated department backup service/timer only after registering every writer in `FIRE_AI_BACKUP_WRITER_UNITS` (JSON list of own `fire-ai-{slug}-*.service`/`.timer` units). Required encryption fails closed if the recipient is unavailable. The root orchestrator stops timers/writers/app, runs the bound backup under PostgreSQL maintenance exclusion, then restores previous activity. It never deletes backups. Verify free space and test failure alerts.
+7. Recovery private-key custody, revocation and emergency access require Human approval. For an approved recovery STOP all writers, retain current DB+storage backup, set `FIRE_AI_BACKUP_PRIVATE_KEY` only in the protected recovery environment, load migration env and run `scripts/restore_phase1.py <backup-folder> --target-database-env FIRE_AI_DATABASE_URL --target-storage-root {storage} --confirm-restore --confirm-writers-stopped --expected-release-id {release_id} --decryption-private-key-env FIRE_AI_BACKUP_PRIVATE_KEY`.
 8. Reapply `01-grants-{slug}.sql` as target owner; restored table/schema ACLs must fit target roles. Validate restored code release against manifest, migration list, counts, original hashes, audit and login before restart. DB and filesystem are not one transaction; failure keeps service stopped.
 9. Update one department at a time: clone rehearsal, stopped-writer backup, migration as owner, reapply grants, build its new venv, switch its service WorkingDirectory/release, acceptance, restart. Never switch all services by replacing shared code.
 10. Same-department relocation preserves UUID and paired DB/storage. New department generates new UUID and separate resources. Never overwrite another department identity.
 '''
     return {slug + '.env': runtime, 'migration-' + slug + '.env': migration,
-            'backup-' + slug + '.env': runtime + 'FIRE_AI_BACKUP_DESTINATION=' + backup + '\nFIRE_AI_BACKUP_WRITER_UNITS=\'[]\'\n',
+            'backup-' + slug + '.env': runtime + 'FIRE_AI_BACKUP_DESTINATION=' + backup + '\nFIRE_AI_BACKUP_WRITER_UNITS=\'[]\'\nFIRE_AI_BACKUP_ENCRYPTION_REQUIRED=true\nFIRE_AI_BACKUP_RECIPIENT_PUBLIC_KEY=/etc/fire-ai/keys/' + slug + '-backup-recipient.pem\n',
             'fire-ai-' + slug + '-backup.service': backup_service,
             'fire-ai-' + slug + '-backup.timer': backup_timer,
             '00-create-' + slug + '.sql': cluster, '01-grants-' + slug + '.sql': grants,

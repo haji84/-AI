@@ -4,6 +4,8 @@ import os
 import re
 from uuid import UUID
 
+from app.termination import controlled_termination
+
 
 def run_scheduled_backup(*,slug,tenant_id,lock_path,writer_units,control,backup):
     UUID(tenant_id)
@@ -49,20 +51,7 @@ def systemd_control(action,unit,*,runner=None):
     return True
 
 
-from contextlib import contextmanager
 import signal
-
-
-@contextmanager
-def controlled_termination():
-    previous=signal.getsignal(signal.SIGTERM)
-    def terminate(signum,frame):
-        # Allow finally to finish even when another stop request arrives.
-        signal.signal(signal.SIGTERM,signal.SIG_IGN)
-        raise SystemExit(128+signum)
-    signal.signal(signal.SIGTERM,terminate)
-    try:yield
-    finally:signal.signal(signal.SIGTERM,previous)
 
 
 def run_backup_child(command):

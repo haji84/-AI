@@ -32,6 +32,9 @@ def test_department_configuration_has_separate_paths_users_db_and_lifecycle():
     assert '/etc/fire-ai/backup-alpha.env' in first['fire-ai-alpha-backup.service']
     assert 'User=root' in first['fire-ai-alpha-backup.service']
     assert 'FIRE_AI_BACKUP_WRITER_UNITS=' in first['backup-alpha.env']
+    assert 'FIRE_AI_BACKUP_ENCRYPTION_REQUIRED=true' in first['backup-alpha.env']
+    assert 'FIRE_AI_BACKUP_RECIPIENT_PUBLIC_KEY=/etc/fire-ai/keys/alpha-backup-recipient.pem' in first['backup-alpha.env']
+    assert 'ReadOnlyPaths=/etc/fire-ai/keys/alpha-backup-recipient.pem' in first['fire-ai-alpha-backup.service']
 
 
 @pytest.mark.parametrize('field,value', [('slug','alpha; DROP DATABASE'),('slug','../beta'),

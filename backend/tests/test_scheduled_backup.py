@@ -1,5 +1,46 @@
 from uuid import uuid4
+import importlib.util
+from pathlib import Path
 import pytest
+
+
+def scheduled_script():
+    path = Path(__file__).resolve().parents[2] / 'scripts' / 'scheduled_department_backup.py'
+    spec = importlib.util.spec_from_file_location('scheduled_department_backup_encrypted_test', path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_scheduled_backup_required_encryption_passes_only_protected_env_name(monkeypatch, tmp_path):
+    scheduled = scheduled_script()
+    public_key = tmp_path / 'recipient.public.pem'
+    public_key.write_text('synthetic public material')
+    monkeypatch.setenv('FIRE_AI_BACKUP_ENCRYPTION_REQUIRED', 'true')
+    monkeypatch.setenv('FIRE_AI_BACKUP_RECIPIENT_PUBLIC_KEY', str(public_key))
+
+    command = scheduled.backup_command(tmp_path / 'destination', 'release-1')
+
+    assert command[-2:] == ['--recipient-public-key-env', 'FIRE_AI_BACKUP_RECIPIENT_PUBLIC_KEY']
+    assert str(public_key) not in command
+
+
+def test_scheduled_backup_required_encryption_refuses_missing_recipient(monkeypatch, tmp_path):
+    scheduled = scheduled_script()
+    monkeypatch.setenv('FIRE_AI_BACKUP_ENCRYPTION_REQUIRED', 'true')
+    monkeypatch.delenv('FIRE_AI_BACKUP_RECIPIENT_PUBLIC_KEY', raising=False)
+
+    with pytest.raises(SystemExit, match='recipient'):
+        scheduled.backup_command(tmp_path / 'destination', 'release-1')
+
+
+def test_scheduled_backup_refuses_unavailable_recipient_before_service_control(monkeypatch, tmp_path):
+    scheduled = scheduled_script()
+    monkeypatch.setenv('FIRE_AI_BACKUP_ENCRYPTION_REQUIRED', 'true')
+    monkeypatch.setenv('FIRE_AI_BACKUP_RECIPIENT_PUBLIC_KEY', str(tmp_path / 'missing.pem'))
+
+    with pytest.raises(SystemExit, match='recipient'):
+        scheduled.backup_command(tmp_path / 'destination', 'release-1')
 
 
 def test_backup_stops_only_own_active_units_and_restores_on_failure(tmp_path):
