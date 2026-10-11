@@ -48,6 +48,7 @@ REQUIRED_FILES = frozenset({
     "backend/app/main.py", "backend/app/db.py",
     "backend/app/migrations.py", "db/schema_phase0_draft.sql", "frontend/index.html",
     "scripts/migrate_database.py", "scripts/build_offline_wheelhouse.py",
+    "scripts/build_release_set.py",
     "docs/SPECIFICATION.md",
     "docs/phase1/LAN_DEPLOYMENT.md", "docs/architecture/TENANT_OPERATIONS.md",
     "deploy/systemd/fire-ai.service", "deploy/nginx/fire-ai.conf",

@@ -22,6 +22,8 @@
 - [ ] 第54章の10本のcross-module E2Eが成功している
 - [ ] 重大なMissing/Partial、Duplicate/Conflict/Orphanedが解消されている
 - [ ] 同一commitからの再生成一致とarchive verifyが成功する
+- [ ] sourceと対象別wheelhouseが単一release-set manifestに固定され、fresh offline installを完了する
+- [ ] 独立した2世代の検証後、改変されていない保持世代へのatomic rollback rehearsalが成功する
 - [ ] マニュアル、更新/rollback、既知の制約、最終テスト報告が揃っている
 
 未実装・未実施をExternal Gateへ振り替えないこと。現在の残作業は [CURRENT_COMPLETION_LEDGER](../completion/CURRENT_COMPLETION_LEDGER.md) の固定base・全57章・merge差分と実コードを照合します。分類変更は [STATUS_CHANGELOG](../completion/COMPLETION_STATUS_CHANGELOG.md)、c1b684cの全章Evidenceは [BASELINE](../completion/COMPLETION_BASELINE_20261007.md) に記録します。旧MASTER_FEATURE_MATRIXと過去の検証報告は履歴であり、現在の完成度や最新manifestの実行結果へ読み替えません。
@@ -38,8 +40,9 @@
 
 ## この配布機構の制約
 
-- ソース配布のみ。インストール、サービス登録、merge、deploy、DB変更は実行しません。
-- source tarへ依存wheelは同梱しません。別artifactのLinux CPython 3.11 / x86_64 / glibc 2.34 wheelhouseはhash-lock/offline importまでを対象とし、他OS/CPU、OS依存、PostgreSQL、モデル、正式原本、実データを含みません。
+- release-set consumerはprivate stagingへの合成offline installと世代pointer rollbackだけを行います。サービス登録、deploy、DB/原本変更、backup復元は実行しません。
+- source tar単体へ依存wheelは同梱しません。統合artifactのLinux CPython 3.11 / x86_64 / glibc 2.34 wheelhouseはhash-lock/offline importまでを対象とし、他OS/CPU、OS依存、PostgreSQL、モデル、正式原本、実データを含みません。
+- rollback前に保持source・wheelhouse・manifestを再検証しますが、venv全ファイルのhash inventory、署名、schema/data rollback、service切替、crash後の運用復旧を証明しません。
 - ハッシュinventoryは破損検知用です。署名・認証された更新機構ではありません。
 - dirty/untrackedファイルは成果物に反映されません。必ずcommitしたソースで生成します。
 - CIのskipは成功した機能検証として数えません。CI成功でも実LAN・本番受入を代替しません。

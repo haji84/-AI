@@ -14,12 +14,35 @@ python scripts/build_release_bundle.py verify /path/to/fire-ai-release.tar.gz
 
 archiveだけを受け取った場合は、まずOSのSHA-256計算ツールでファイル全体を検証し、配布元から別経路で受け取ったハッシュと一致することを確認してください。必要な検証器は同じ公開commitから取得します。verify成功後に新規ディレクトリへ展開します。既存の本番コード、DB、storageへ上書き展開しません。
 
-Python依存wheelはsource tarには同梱されません。Linux CPython 3.11 / x86_64 /
-glibc 2.34以上では、同じcommitから生成・検証した別artifactの
-`runtime-wheelhouse-cp311-manylinux-2-34-x86-64`を利用できます。閉域へ搬入する前に
-`README.md`のwheelhouse生成・検証手順を実行し、source tarとwheelhouseを同じReleaseの
-一組として記録してください。他OS/CPU、Python/PostgreSQL本体、Tesseract等のOS tool、
-Local AI modelは対象外です。取得先や搬入方法は組織の承認手順に従ってください。
+Python依存wheelはsource tar単体には同梱されません。Linux CPython 3.11 / x86_64 /
+glibc 2.34以上では、同じcommitのsource tarとwheelhouseを統合した
+`release-set-cp311-manylinux-2-34-x86-64` artifactを利用できます。閉域へ搬入する前に
+`README.md`のrelease-set生成・検証手順を実行し、manifest SHA-256、commit、tree、targetを
+同じReleaseの記録へ残してください。他OS/CPU、Python/PostgreSQL本体、Tesseract等の
+OS tool、Local AI modelは対象外です。取得先や搬入方法は組織の承認手順に従ってください。
+
+次のコマンドは空の専用ディレクトリで行う合成データの導入・rollback演習です。本番の
+service、DB、storage、backupへ向けて実行しません。`install`は指定Pythonがmanifest targetと
+一致することを確認し、release setをprivate stagingへ複製・再検証してから依存を導入します。
+
+```bash
+python scripts/build_release_set.py verify /media/approved/fire-ai-release-set \
+  --expected-commit APPROVED_FULL_COMMIT_SHA
+python scripts/build_release_set.py install /media/approved/fire-ai-release-set \
+  --managed-root /tmp/fire-ai-managed-rehearsal \
+  --python "$(command -v python3.11)" \
+  --expected-commit APPROVED_FULL_COMMIT_SHA
+# 新候補を同じ手順で検証・導入した後だけ、保持済み前世代へ戻す演習を行う。
+python scripts/build_release_set.py rollback \
+  --managed-root /tmp/fire-ai-managed-rehearsal
+```
+
+release-set rehearsalのrollback対象はsource・venv・保持wheelhouseだけです。schema変更後の
+PostgreSQL、原本storage、監査、backupを戻しません。本番更新は第4節の一組backup・隔離復元と
+Human承認を必須とし、このコマンドを代用しません。
+コマンドが成功しても `state_durability_confirmed: false` の場合、世代pointerは切替済みで
+directory fsyncだけが未確認です。同じinstall/rollbackを反射的に再実行せず、`state.json`、
+active/previous両世代、host/storage障害を技術担当者が確認します。
 
 閉域Linux hostでは展開済みsourceのルートで次を実行します。`PIP_NO_INDEX`と
 `--no-index`を両方指定し、lock外の取得を許しません。
@@ -135,7 +158,7 @@ python -m unittest discover -s backend/tests -p test_release_bundle.py -v
 python -m pytest backend/tests -q
 ```
 
-後者のPostgreSQL/Chromiumテストは必要サービス・明示設定がなければskipします。全チェックの成功は固定commitのCIで照合し、実機受入は `RELEASE_READINESS.md` に記録します。wheelhouseのSQLite import smokeは依存がnetwork無しで読めることだけを確認し、PostgreSQL、閉域LAN、HA、Owner DRの代用にしません。
+後者のPostgreSQL/Chromiumテストは必要サービス・明示設定がなければskipします。全チェックの成功は固定commitのCIで照合し、実機受入は `RELEASE_READINESS.md` に記録します。release-setのSQLite import smokeと世代rollbackは依存がnetwork無しで読めることと、合成世代のatomic pointer切替だけを確認し、PostgreSQL、閉域LAN、DB/原本rollback、HA、Owner DRの代用にしません。
 
 配布機構の初回検証基準はmain `707ccdd48b2cadacf77a90726377107ec5573fee` で、`PACKAGING_TEST_REPORT.md` はその時点の検証記録です。PR #63・#64を統合したmain `1dfb5cf233eb648f445a8201bca57394e9d2c24a` 以降は、財務画面から共通Documentへ原本を新規登録する機能も含みます。実際の収録内容はmanifest commitを正本として扱い、その固定commitのCIと展開後の起動を確認します。組織へ渡す前の初回操作・実機受入は別途記録してください。
 

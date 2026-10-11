@@ -12,7 +12,7 @@ permissions:
 jobs:
   offline-runtime-wheelhouse:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -30,13 +30,17 @@ jobs:
           --python-version 3.11
           --abi cp311
           --platform manylinux_2_34_x86_64
-      - name: Reverify offline bundle without package index
+      - name: Build unified source and wheel release set
         env:
           PIP_NO_INDEX: '1'
           PIP_DISABLE_PIP_VERSION_CHECK: '1'
         run: |
           set -euo pipefail
           wheelhouse="${RUNNER_TEMP}/fire-ai-runtime-wheelhouse"
+          source_bundle="${RUNNER_TEMP}/fire-ai-source.tar.gz"
+          release_set="${RUNNER_TEMP}/fire-ai-release-set"
+          managed_root="${RUNNER_TEMP}/fire-ai-managed-rehearsal"
+          commit="$(git rev-parse HEAD)"
           python scripts/build_offline_wheelhouse.py verify \
             --project backend/pyproject.toml \
             --lock backend/requirements-release.lock \
@@ -45,30 +49,27 @@ jobs:
             --python-version 3.11 \
             --abi cp311 \
             --platform manylinux_2_34_x86_64
-          python -m venv "${RUNNER_TEMP}/fire-ai-offline-venv"
-          "${RUNNER_TEMP}/fire-ai-offline-venv/bin/python" -m pip install \
-            --no-index --find-links "$wheelhouse" --require-hashes \
-            --requirement backend/requirements-release.lock
-          FIRE_AI_PRODUCTION_MODE=false \
-          FIRE_AI_COOKIE_SECURE=false \
-          FIRE_AI_DATABASE_URL="sqlite+pysqlite:///${RUNNER_TEMP}/fire-ai-offline-smoke.db" \
-          FIRE_AI_STORAGE_ROOT="${RUNNER_TEMP}/fire-ai-offline-storage" \
-          PYTHONPATH=backend \
-            "${RUNNER_TEMP}/fire-ai-offline-venv/bin/python" - <<'PY'
-          from app.main import app
-
-          paths = {
-              path for route in app.routes
-              if (path := getattr(route, "path", None))
-          }
-          assert app.title
-          assert "/health" in paths
-          print(f"offline app import ok: {app.title}; routes={len(paths)}")
-          PY
+          python scripts/build_release_bundle.py build \
+            --repo . --ref "$commit" --release-id "fire-ai-${commit}" \
+            --output "$source_bundle"
+          python scripts/build_release_set.py build \
+            --source-bundle "$source_bundle" --wheelhouse "$wheelhouse" \
+            --output "$release_set" --implementation cp --python-version 3.11 \
+            --abi cp311 --platform manylinux_2_34_x86_64
+          python scripts/build_release_set.py verify "$release_set" \
+            --expected-commit "$commit"
+          # The consumer itself enforces PIP_NO_INDEX, --no-index and --require-hashes.
+          python scripts/build_release_set.py install "$release_set" \
+            --managed-root "$managed_root" --python "$(command -v python)" \
+            --expected-commit "$commit"
+          python scripts/build_release_set.py install "$release_set" \
+            --managed-root "$managed_root" --python "$(command -v python)" \
+            --expected-commit "$commit"
+          python scripts/build_release_set.py rollback --managed-root "$managed_root"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: runtime-wheelhouse-cp311-manylinux-2-34-x86-64
-          path: ${{ runner.temp }}/fire-ai-runtime-wheelhouse
+          name: release-set-cp311-manylinux-2-34-x86-64
+          path: ${{ runner.temp }}/fire-ai-release-set
           if-no-files-found: error
           include-hidden-files: false
           compression-level: 0

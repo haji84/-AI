@@ -39,6 +39,7 @@ SOURCES = {
     "frontend/index.html": b"<!doctype html><title>Synthetic</title>\n",
     "scripts/migrate_database.py": b"print('synthetic')\n",
     "scripts/build_offline_wheelhouse.py": b"print('synthetic wheel verifier')\n",
+    "scripts/build_release_set.py": b"print('synthetic release-set consumer')\n",
 }
 
 
@@ -55,7 +56,7 @@ class ReleaseBundleTests(unittest.TestCase):
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(data)
         for script in (".githooks/pre-push", "scripts/migrate_database.py",
-                       "scripts/build_offline_wheelhouse.py"):
+                       "scripts/build_offline_wheelhouse.py", "scripts/build_release_set.py"):
             (self.repo / script).chmod(0o755)
         self.commit()
         self.commit_sha = self.git("rev-parse", "HEAD").strip()
@@ -194,7 +195,8 @@ class ReleaseBundleTests(unittest.TestCase):
         for path in ("frontend/index.html", "db/migrations/001_initial.sql",
                      ".githooks/pre-push",
                      "backend/requirements-release.lock",
-                     "scripts/build_offline_wheelhouse.py"):
+                     "scripts/build_offline_wheelhouse.py",
+                     "scripts/build_release_set.py"):
             with self.subTest(path=path):
                 self.git("rm", path)
                 self.git("commit", "-qm", "missing required fixture")
