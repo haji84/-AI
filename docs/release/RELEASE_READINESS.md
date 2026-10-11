@@ -39,7 +39,7 @@
 ## この配布機構の制約
 
 - ソース配布のみ。インストール、サービス登録、merge、deploy、DB変更は実行しません。
-- 依存パッケージのwheelやOS依存、モデル、正式原本、実データは同梱しません。
+- source tarへ依存wheelは同梱しません。別artifactのLinux CPython 3.11 / x86_64 / glibc 2.34 wheelhouseはhash-lock/offline importまでを対象とし、他OS/CPU、OS依存、PostgreSQL、モデル、正式原本、実データを含みません。
 - ハッシュinventoryは破損検知用です。署名・認証された更新機構ではありません。
 - dirty/untrackedファイルは成果物に反映されません。必ずcommitしたソースで生成します。
 - CIのskipは成功した機能検証として数えません。CI成功でも実LAN・本番受入を代替しません。

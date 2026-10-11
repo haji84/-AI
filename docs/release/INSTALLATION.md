@@ -14,7 +14,33 @@ python scripts/build_release_bundle.py verify /path/to/fire-ai-release.tar.gz
 
 archiveだけを受け取った場合は、まずOSのSHA-256計算ツールでファイル全体を検証し、配布元から別経路で受け取ったハッシュと一致することを確認してください。必要な検証器は同じ公開commitから取得します。verify成功後に新規ディレクトリへ展開します。既存の本番コード、DB、storageへ上書き展開しません。
 
-Python依存パッケージとOSツールは同梱されません。依存取得先や閉域への搬入方法は組織の承認手順に従ってください。
+Python依存wheelはsource tarには同梱されません。Linux CPython 3.11 / x86_64 /
+glibc 2.34以上では、同じcommitから生成・検証した別artifactの
+`runtime-wheelhouse-cp311-manylinux-2-34-x86-64`を利用できます。閉域へ搬入する前に
+`README.md`のwheelhouse生成・検証手順を実行し、source tarとwheelhouseを同じReleaseの
+一組として記録してください。他OS/CPU、Python/PostgreSQL本体、Tesseract等のOS tool、
+Local AI modelは対象外です。取得先や搬入方法は組織の承認手順に従ってください。
+
+閉域Linux hostでは展開済みsourceのルートで次を実行します。`PIP_NO_INDEX`と
+`--no-index`を両方指定し、lock外の取得を許しません。
+
+```bash
+python scripts/build_offline_wheelhouse.py verify \
+  --project backend/pyproject.toml \
+  --lock backend/requirements-release.lock \
+  --wheelhouse /media/approved/fire-ai-runtime-wheelhouse \
+  --implementation cp --python-version 3.11 --abi cp311 \
+  --platform manylinux_2_34_x86_64
+
+python3.11 -m venv .venv
+PIP_NO_INDEX=1 .venv/bin/python -m pip install \
+  --no-index --find-links /media/approved/fire-ai-runtime-wheelhouse \
+  --require-hashes --requirement backend/requirements-release.lock
+```
+
+通常serviceは`backend/`をWorkingDirectoryとして`app.main`を読むため、アプリsourceを
+wheelへ変換して実行する必要はありません。上記は依存のオフライン導入だけであり、
+本部DB、storage、TLS、service、backup、権限の設定・受入を完了しません。
 
 ## 2. ローカル合成データ確認（Linux/macOSの例）
 
@@ -109,7 +135,7 @@ python -m unittest discover -s backend/tests -p test_release_bundle.py -v
 python -m pytest backend/tests -q
 ```
 
-後者のPostgreSQL/Chromiumテストは必要サービス・明示設定がなければskipします。全チェックの成功は固定commitのCIで照合し、実機受入は `RELEASE_READINESS.md` に記録します。
+後者のPostgreSQL/Chromiumテストは必要サービス・明示設定がなければskipします。全チェックの成功は固定commitのCIで照合し、実機受入は `RELEASE_READINESS.md` に記録します。wheelhouseのSQLite import smokeは依存がnetwork無しで読めることだけを確認し、PostgreSQL、閉域LAN、HA、Owner DRの代用にしません。
 
 配布機構の初回検証基準はmain `707ccdd48b2cadacf77a90726377107ec5573fee` で、`PACKAGING_TEST_REPORT.md` はその時点の検証記録です。PR #63・#64を統合したmain `1dfb5cf233eb648f445a8201bca57394e9d2c24a` 以降は、財務画面から共通Documentへ原本を新規登録する機能も含みます。実際の収録内容はmanifest commitを正本として扱い、その固定commitのCIと展開後の起動を確認します。組織へ渡す前の初回操作・実機受入は別途記録してください。
 

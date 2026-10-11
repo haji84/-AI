@@ -2,6 +2,11 @@
 
 このパッケージは固定した Git commit のソース配布物です。インストーラー、依存ライブラリ同梱版、本番導入済みシステムではありません。AIOS 全体の完成判定は `docs/SPECIFICATION.md` 第52–54章に従い、未実装機能や未検証項目を残したまま完成扱いにしません。
 
+Linux CPython 3.11向けのPython実行依存は、source tarとは別の
+`runtime-wheelhouse-cp311-manylinux-2-34-x86-64` Actions artifactとして生成できます。
+これはglibc 2.34以上のx86_64 Linux専用で、他OS/CPU、Python本体、PostgreSQL、
+Tesseract等のOS tool、Local AI modelを含みません。
+
 ## 内容
 
 - 共通アプリ、Web画面、append-only migration、設定生成器、テスト、運用文書
@@ -34,3 +39,33 @@ python scripts/build_release_bundle.py verify /tmp/fire-ai-20261006-rc1.tar.gz
 4. `RELEASE_READINESS.md` の内部・外部Gateを記録する。
 
 tar.gz だけではオフライン導入できません。Python、PostgreSQL、対応OS、必要なPython wheel、OCR/Local AIの外部実行環境等は別途準備・承認が必要です。現時点で全5 Deployment Profileの導入完了を保証するものではありません。
+
+## Linux runtime wheelhouse
+
+Internet接続された信頼済みbuilderで次を実行します。lockはruntime依存だけを
+完全固定し、取得はhash必須・wheel限定です。
+
+```bash
+python scripts/build_offline_wheelhouse.py build \
+  --project backend/pyproject.toml \
+  --lock backend/requirements-release.lock \
+  --wheelhouse /tmp/fire-ai-runtime-wheelhouse \
+  --implementation cp --python-version 3.11 --abi cp311 \
+  --platform manylinux_2_34_x86_64
+```
+
+搬入後は同じcommitの検証器、`pyproject.toml`、lockを使って再検証します。
+manifestはproject/lockのSHA-256、対象platform、全wheelのName/Version/size/hashを
+固定します。余分・欠落・改変・sdist・重複distributionは拒否されます。
+
+```bash
+python scripts/build_offline_wheelhouse.py verify \
+  --project backend/pyproject.toml \
+  --lock backend/requirements-release.lock \
+  --wheelhouse /media/approved/fire-ai-runtime-wheelhouse \
+  --implementation cp --python-version 3.11 --abi cp311 \
+  --platform manylinux_2_34_x86_64
+```
+
+wheelhouseとsource tarは同じReleaseの一組として外部記録したhashとCIへ結び付けます。
+この検証は発行者署名、OS package検査、本番適用承認の代用ではありません。
