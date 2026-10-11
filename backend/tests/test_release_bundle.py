@@ -18,11 +18,13 @@ import unittest
 SCRIPT = Path(__file__).resolve().parents[2] / "scripts" / "build_release_bundle.py"
 SOURCES = {
     ".gitignore": b".env\n",
+    ".githooks/pre-push": b"#!/bin/sh\nexit 0\n",
     "AGENTS.md": b"Synthetic project constraints.\n",
     "README.md": b"Synthetic release source.\n",
     "PROJECT_STATE.md": b"Release candidate; external gates pending.\n",
     "backend/.env.example": b"DATABASE_URL=postgresql://example.invalid/test\n",
     "backend/pyproject.toml": b"[project]\nname = 'synthetic'\n",
+    "backend/requirements-release.lock": b"synthetic==1.0 \\\n    --hash=sha256:0000000000000000000000000000000000000000000000000000000000000000\n",
     "backend/app/main.py": b"# synthetic app\n",
     "backend/app/db.py": b"# synthetic database access\n",
     "backend/app/migrations.py": b"# synthetic migration runner\n",
@@ -36,6 +38,7 @@ SOURCES = {
     "deploy/windows/start-fire-ai.cmd": b"@echo synthetic\n",
     "frontend/index.html": b"<!doctype html><title>Synthetic</title>\n",
     "scripts/migrate_database.py": b"print('synthetic')\n",
+    "scripts/build_offline_wheelhouse.py": b"print('synthetic wheel verifier')\n",
 }
 
 
@@ -51,7 +54,9 @@ class ReleaseBundleTests(unittest.TestCase):
             path = self.repo / name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(data)
-        (self.repo / "scripts/migrate_database.py").chmod(0o755)
+        for script in (".githooks/pre-push", "scripts/migrate_database.py",
+                       "scripts/build_offline_wheelhouse.py"):
+            (self.repo / script).chmod(0o755)
         self.commit()
         self.commit_sha = self.git("rev-parse", "HEAD").strip()
         self.tree_sha = self.git("rev-parse", "HEAD^{tree}").strip()
@@ -123,7 +128,8 @@ class ReleaseBundleTests(unittest.TestCase):
             entry = manifest["files"][name]
             self.assertEqual(entry["sha256"], hashlib.sha256(data).hexdigest())
             self.assertEqual(entry["size"], len(data))
-            self.assertEqual(entry["mode"], "100755" if name.startswith("scripts/") else "100644")
+            executable = name.startswith("scripts/") or name == ".githooks/pre-push"
+            self.assertEqual(entry["mode"], "100755" if executable else "100644")
         result = self.cli("verify", self.output, "--expected-commit", self.commit_sha)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("not authenticity", result.stdout)
@@ -185,7 +191,10 @@ class ReleaseBundleTests(unittest.TestCase):
         self.assertIn("backend/app/binary.py", result.stderr)
 
     def test_rejects_missing_required_source_and_migrations(self):
-        for path in ("frontend/index.html", "db/migrations/001_initial.sql"):
+        for path in ("frontend/index.html", "db/migrations/001_initial.sql",
+                     ".githooks/pre-push",
+                     "backend/requirements-release.lock",
+                     "scripts/build_offline_wheelhouse.py"):
             with self.subTest(path=path):
                 self.git("rm", path)
                 self.git("commit", "-qm", "missing required fixture")

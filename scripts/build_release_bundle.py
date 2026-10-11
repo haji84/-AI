@@ -32,7 +32,7 @@ import zlib
 MANIFEST_NAME = "RELEASE_MANIFEST.json"
 ROOT_FILES = frozenset({".gitignore", "AGENTS.md", "README.md", "PROJECT_STATE.md",
                         "INTEGRATION_HANDOFF.md"})
-SOURCE_DIRS = frozenset({".github", "backend", "benchmarks", "config", "db",
+SOURCE_DIRS = frozenset({".github", ".githooks", "backend", "benchmarks", "config", "db",
                          "deploy", "docs", "frontend", "scripts"})
 TEXT_SUFFIXES = frozenset({".py", ".md", ".sql", ".toml", ".json", ".yml", ".yaml",
                            ".js", ".html", ".css", ".txt", ".csv", ".sh", ".cmd",
@@ -42,10 +42,13 @@ FORBIDDEN_PARTS = frozenset({".git", ".ssh", ".aws", ".venv", "venv", "__pycache
                             "data", "uploads", "original", "originals", "secrets",
                             "credentials", "private", "logs", "dist", "build"})
 REQUIRED_FILES = frozenset({
-    "AGENTS.md", "README.md", "PROJECT_STATE.md", "backend/.env.example",
-    "backend/pyproject.toml", "backend/app/main.py", "backend/app/db.py",
+    ".githooks/pre-push", "AGENTS.md", "README.md", "PROJECT_STATE.md",
+    "backend/.env.example",
+    "backend/pyproject.toml", "backend/requirements-release.lock",
+    "backend/app/main.py", "backend/app/db.py",
     "backend/app/migrations.py", "db/schema_phase0_draft.sql", "frontend/index.html",
-    "scripts/migrate_database.py", "docs/SPECIFICATION.md",
+    "scripts/migrate_database.py", "scripts/build_offline_wheelhouse.py",
+    "docs/SPECIFICATION.md",
     "docs/phase1/LAN_DEPLOYMENT.md", "docs/architecture/TENANT_OPERATIONS.md",
     "deploy/systemd/fire-ai.service", "deploy/nginx/fire-ai.conf",
     "deploy/windows/start-fire-ai.cmd",
@@ -87,6 +90,8 @@ def validate_path(name: str) -> None:
                                                "backup", "private", "id_rsa", "id_ed25519"}
                     for part in lower_parts), f"unsafe operational/credential path: {name}")
     require(name == MANIFEST_NAME or name in ROOT_FILES or basename == ".env.example"
+            or name == ".githooks/pre-push"
+            or name == "backend/requirements-release.lock"
             or PurePosixPath(name).suffix.lower() in TEXT_SUFFIXES,
             f"non-source or binary extension: {name}")
 
