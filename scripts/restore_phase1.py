@@ -14,11 +14,17 @@ import subprocess
 import tarfile
 import tempfile
 from pathlib import Path
+from uuid import UUID
 
 from sqlalchemy.engine import make_url
 from app.settings import settings
 from app.backup_contract import postgres_args as connection_args, verify_restore_department, record_admin_audit
+from app.encrypted_backup import EncryptedBackupError, decrypt_encrypted_backup
+from app.termination import controlled_termination
 from app.tenant import TenantBoundaryError
+
+
+APPLICATION_ROOT = Path(__file__).resolve().parents[1]
 
 
 def sha256(path: Path) -> str:
@@ -63,28 +69,7 @@ def restore_sqlite(source: Path, database_url: str) -> None:
         src.close()
 
 
-def main() -> None:
-    p = argparse.ArgumentParser(description="Restore into an explicitly supplied target. Never overwrites the current DB implicitly.")
-    p.add_argument("backup", type=Path)
-    target = p.add_mutually_exclusive_group(required=True)
-    target.add_argument("--target-database-url")
-    target.add_argument("--target-database-env", help="Name of protected environment variable containing the explicit recovery DSN")
-    p.add_argument("--target-storage-root", type=Path, required=True)
-    p.add_argument("--confirm-restore", action="store_true")
-    p.add_argument("--confirm-writers-stopped", action="store_true")
-    p.add_argument("--target-tenant-id")
-    p.add_argument("--expected-release-id")
-    args = p.parse_args()
-    if args.target_database_env:
-        if not re.fullmatch(r'[A-Z][A-Z0-9_]*', args.target_database_env):
-            raise SystemExit("invalid recovery environment variable name")
-        args.target_database_url = os.environ.get(args.target_database_env)
-        if not args.target_database_url or not args.target_database_url.startswith(("postgresql", "sqlite")):
-            raise SystemExit("explicit recovery database environment variable unavailable")
-    if not args.confirm_restore:
-        raise SystemExit("restore requires --confirm-restore")
-
-    folder = args.backup.resolve()
+def _restore_folder(args, folder: Path) -> None:
     manifest = verify_manifest(folder)
     db_file = folder / manifest["database_file"]
     tenant_id = settings.tenant_id or args.target_tenant_id
@@ -175,6 +160,94 @@ def main() -> None:
                                {'release_id': manifest['release_id'], 'database_sha256': manifest['database_sha256'],
                                 'storage_sha256': manifest['storage_sha256'], 'backup_created_at': manifest.get('created_at')})
         print(json.dumps({"restored": True, "database_kind": manifest["database_kind"]}, ensure_ascii=False))
+
+
+def _main() -> None:
+    p = argparse.ArgumentParser(description="Restore into an explicitly supplied target. Never overwrites the current DB implicitly.")
+    p.add_argument("backup", type=Path)
+    target = p.add_mutually_exclusive_group(required=True)
+    target.add_argument("--target-database-url")
+    target.add_argument("--target-database-env", help="Name of protected environment variable containing the explicit recovery DSN")
+    p.add_argument("--target-storage-root", type=Path, required=True)
+    p.add_argument("--confirm-restore", action="store_true")
+    p.add_argument("--confirm-writers-stopped", action="store_true")
+    p.add_argument("--target-tenant-id")
+    p.add_argument("--expected-release-id")
+    p.add_argument(
+        "--decryption-private-key-env",
+        help="Protected environment variable containing the X25519 private key path",
+    )
+    args = p.parse_args()
+    if args.target_database_env:
+        if not re.fullmatch(r'[A-Z][A-Z0-9_]*', args.target_database_env):
+            raise SystemExit("invalid recovery environment variable name")
+        args.target_database_url = os.environ.get(args.target_database_env)
+        if not args.target_database_url or not args.target_database_url.startswith(("postgresql", "sqlite")):
+            raise SystemExit("explicit recovery database environment variable unavailable")
+    if not args.confirm_restore:
+        raise SystemExit("restore requires --confirm-restore")
+
+    folder = args.backup.resolve()
+    envelope_path = folder / "envelope.json"
+    ciphertext_path = folder / "backup.enc"
+    envelope_present = envelope_path.exists() or envelope_path.is_symlink()
+    ciphertext_present = ciphertext_path.exists() or ciphertext_path.is_symlink()
+    encrypted_folder_name = False
+    prefix = "fire-ai-backup-"
+    if folder.name.startswith(prefix):
+        try:
+            identity = folder.name[len(prefix) :]
+            encrypted_folder_name = str(UUID(identity)) == identity
+        except ValueError:
+            pass
+    if envelope_present != ciphertext_present or (encrypted_folder_name and not envelope_present):
+        raise SystemExit("incomplete encrypted backup envelope; plaintext fallback refused")
+    encrypted = envelope_present and ciphertext_present
+    if not encrypted:
+        if args.decryption_private_key_env:
+            raise SystemExit("encrypted backup envelope unavailable; plaintext fallback refused")
+        _restore_folder(args, folder)
+        return
+    if not args.decryption_private_key_env or not re.fullmatch(
+        r"[A-Z][A-Z0-9_]*", args.decryption_private_key_env
+    ):
+        raise SystemExit("encrypted backup requires a valid private key environment variable")
+    private_key = os.environ.get(args.decryption_private_key_env)
+    if not private_key:
+        raise SystemExit("encrypted backup private key is unavailable")
+    tenant_id = settings.tenant_id or args.target_tenant_id
+    if not tenant_id:
+        raise SystemExit("encrypted backup requires an explicit target tenant UUID")
+    try:
+        revoked = json.loads(os.environ.get("FIRE_AI_BACKUP_REVOKED_KEY_IDS", "[]"))
+    except (ValueError, TypeError):
+        raise SystemExit("encrypted backup revoked-key configuration is invalid") from None
+    if not isinstance(revoked, list) or not all(isinstance(value, str) for value in revoked):
+        raise SystemExit("encrypted backup revoked-key configuration is invalid")
+    try:
+        forbidden_key_roots = [folder.parent, args.target_storage_root.resolve(), APPLICATION_ROOT]
+        if args.target_database_url.startswith("sqlite"):
+            target_database = Path(make_url(args.target_database_url).database or "").resolve()
+            forbidden_key_roots.append(target_database.parent)
+        with tempfile.TemporaryDirectory(prefix=".fire-ai-decryption-staging-") as staging:
+            staging_parent = Path(staging)
+            staging_parent.chmod(0o700)
+            with decrypt_encrypted_backup(
+                folder,
+                Path(private_key),
+                expected_tenant_id=tenant_id,
+                staging_parent=staging_parent,
+                revoked_key_ids=revoked,
+                forbidden_key_roots=forbidden_key_roots,
+            ) as decrypted:
+                _restore_folder(args, decrypted)
+    except EncryptedBackupError:
+        raise SystemExit("encrypted backup validation failed") from None
+
+
+def main() -> None:
+    with controlled_termination():
+        _main()
 
 
 if __name__ == "__main__":

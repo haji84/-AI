@@ -12,6 +12,24 @@ from app.settings import settings
 from app.tenant_deployment import render_department
 
 
+def backup_command(destination: Path, release_id: str) -> list[str]:
+    required_value = os.environ.get('FIRE_AI_BACKUP_ENCRYPTION_REQUIRED', 'false').lower()
+    if required_value not in {'true', 'false'}:
+        raise SystemExit('backup encryption requirement must be true or false')
+    recipient = os.environ.get('FIRE_AI_BACKUP_RECIPIENT_PUBLIC_KEY')
+    if required_value == 'true' and not recipient:
+        raise SystemExit('required encrypted backup recipient is unavailable')
+    if recipient:
+        recipient_path = Path(recipient)
+        if recipient_path.is_symlink() or not recipient_path.is_file():
+            raise SystemExit('encrypted backup recipient must be an available regular file')
+    command = [sys.executable, str(Path(__file__).with_name('backup_phase1.py')),
+        '--destination', str(destination), '--release-id', release_id, '--confirm-writers-stopped']
+    if recipient:
+        command += ['--recipient-public-key-env', 'FIRE_AI_BACKUP_RECIPIENT_PUBLIC_KEY']
+    return command
+
+
 def main():
     p=argparse.ArgumentParser()
     p.add_argument('--slug',required=True)
@@ -30,9 +48,9 @@ def main():
     binding(settings.database_url,storage,settings.tenant_id)
     writers=json.loads(os.environ.get('FIRE_AI_BACKUP_WRITER_UNITS','[]'))
     if not isinstance(writers,list) or any(not isinstance(unit,str) for unit in writers):raise SystemExit('writer units must be a JSON string list')
+    command = backup_command(destination, args.release_id)
     def backup():
-        run_backup_child([sys.executable,str(Path(__file__).with_name('backup_phase1.py')),
-            '--destination',str(destination),'--release-id',args.release_id,'--confirm-writers-stopped'])
+        run_backup_child(command)
     with controlled_termination():
         run_scheduled_backup(slug=args.slug,tenant_id=settings.tenant_id,lock_path=destination/'.scheduled-backup.lock',
             writer_units=writers,control=systemd_control,backup=backup)
