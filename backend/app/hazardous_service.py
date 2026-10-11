@@ -21,10 +21,13 @@ from .violation_models import ViolationCase
 
 RECORD_FIELDS = ('kind', 'title', 'reference_no', 'recorded_on', 'due_on', 'notes', 'document_ids',
                  'legal_source_version_ids', 'inspection_ids', 'violation_case_ids')
+PERMISSION_SNAPSHOT_KEY = object()
 
 
 def need(db, user, *codes):
-    if not set(codes) <= permission_codes(db, user.user_id):
+    snapshot = db.info.get(PERMISSION_SNAPSHOT_KEY)
+    permissions = snapshot[1] if snapshot and snapshot[0] == user.user_id else permission_codes(db, user.user_id)
+    if not set(codes) <= permissions:
         raise HTTPException(403, 'source/transition permission unavailable')
 
 
@@ -329,13 +332,21 @@ def list_installations(db, user, q='', building_id=None, status=None, limit=100,
 
 
 def detail(db, user, identity):
-    row = installation(db, user, identity)
-    data = installation_dict(db, row)
-    records = db.scalars(select(HazardousRecord).where(HazardousRecord.installation_id == identity).order_by(HazardousRecord.created_at, HazardousRecord.record_id))
-    data['evidence_records'] = [record_dict(db, user, row, record) for record in records if record_is_visible(db, user, record)]
-    events = db.scalars(select(HazardousHistory).where(HazardousHistory.installation_id == identity).order_by(HazardousHistory.created_at, HazardousHistory.history_id))
-    data['history'] = [serial(event) for event in events if can_see(db, user, serial(event)) and (not event.record_id or record_is_visible(db, user, get(db, HazardousRecord, event.record_id)))]
-    return data
+    previous = db.info.get(PERMISSION_SNAPSHOT_KEY)
+    db.info[PERMISSION_SNAPSHOT_KEY] = (user.user_id, permission_codes(db, user.user_id))
+    try:
+        row = installation(db, user, identity)
+        data = installation_dict(db, row)
+        records = db.scalars(select(HazardousRecord).where(HazardousRecord.installation_id == identity).order_by(HazardousRecord.created_at, HazardousRecord.record_id))
+        data['evidence_records'] = [record_dict(db, user, row, record) for record in records if record_is_visible(db, user, record)]
+        events = db.scalars(select(HazardousHistory).where(HazardousHistory.installation_id == identity).order_by(HazardousHistory.created_at, HazardousHistory.history_id))
+        data['history'] = [serial(event) for event in events if can_see(db, user, serial(event)) and (not event.record_id or record_is_visible(db, user, get(db, HazardousRecord, event.record_id)))]
+        return data
+    finally:
+        if previous is None:
+            db.info.pop(PERMISSION_SNAPSHOT_KEY, None)
+        else:
+            db.info[PERMISSION_SNAPSHOT_KEY] = previous
 
 
 def create_installation(db, user, payload):

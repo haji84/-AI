@@ -104,6 +104,32 @@ def test_exact_materials_original_confirmation_and_append_only_revision(hazardou
     assert len(final['history']) >= 5
 
 
+def test_detail_reuses_one_permission_snapshot_across_guarded_history(hazardous_env, monkeypatch):
+    """A detail read must not re-query unchanged authority for every nested source."""
+    from app import hazardous_service
+
+    client, _, refs = hazardous_env
+    installation = install(client, refs)
+    original = action(client, installation, record(client, installation, refs), 'confirm')
+    revision = action(client, installation, original, 'revisions', 201)
+    action(client, installation, revision, 'confirm')
+
+    calls = 0
+    permission_codes = hazardous_service.permission_codes
+
+    def counted(db, user_id):
+        nonlocal calls
+        calls += 1
+        return permission_codes(db, user_id)
+
+    monkeypatch.setattr(hazardous_service, 'permission_codes', counted)
+    shown = detail(client, installation)
+
+    assert len(shown['evidence_records']) == 2
+    assert shown['history']
+    assert calls == 1
+
+
 @pytest.mark.parametrize('quantity', ['NaN', 'Infinity', '-1', '0.0000001', '9999999999999999999', '1e3', 1.2, True])
 def test_rejects_nonexact_or_overprecision_quantities(hazardous_env, quantity):
     client, _, refs = hazardous_env
