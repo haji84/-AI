@@ -2,8 +2,8 @@
 
 このパッケージは固定した Git commit のソース配布物です。インストーラー、依存ライブラリ同梱版、本番導入済みシステムではありません。AIOS 全体の完成判定は `docs/SPECIFICATION.md` 第52–54章に従い、未実装機能や未検証項目を残したまま完成扱いにしません。
 
-Linux CPython 3.11向けのPython実行依存は、source tarとは別の
-`runtime-wheelhouse-cp311-manylinux-2-34-x86-64` Actions artifactとして生成できます。
+Linux CPython 3.11向けには、source tarとPython実行依存を1つのhash manifestへ結合した
+`release-set-cp311-manylinux-2-34-x86-64` Actions artifactを生成できます。
 これはglibc 2.34以上のx86_64 Linux専用で、他OS/CPU、Python本体、PostgreSQL、
 Tesseract等のOS tool、Local AI modelを含みません。
 
@@ -69,3 +69,31 @@ python scripts/build_offline_wheelhouse.py verify \
 
 wheelhouseとsource tarは同じReleaseの一組として外部記録したhashとCIへ結び付けます。
 この検証は発行者署名、OS package検査、本番適用承認の代用ではありません。
+
+## 統合release setとrollback rehearsal
+
+`build_release_set.py` は、検証済みsource tarとwheelhouseを
+`RELEASE_SET_MANIFEST.json`で同じcommit/tree/target/hash inventoryへ固定します。
+
+```bash
+python scripts/build_release_set.py build \
+  --source-bundle /tmp/fire-ai-source.tar.gz \
+  --wheelhouse /tmp/fire-ai-runtime-wheelhouse \
+  --output /tmp/fire-ai-release-set \
+  --implementation cp --python-version 3.11 --abi cp311 \
+  --platform manylinux_2_34_x86_64
+python scripts/build_release_set.py verify /tmp/fire-ai-release-set \
+  --expected-commit "$(git rev-parse HEAD)"
+```
+
+CIのconsumer rehearsalは、入力をprivate stagingへ複製して再検証してから、fresh venvへ
+`PIP_NO_INDEX=1`、`--no-index`、`--require-hashes`で導入します。成功した世代だけを単一の
+`state.json`でatomicにactive化し、2世代目の導入後に保持済みの前世代source・wheelhouse・
+manifestを再検証してrollbackします。指定Pythonと生成後venvの両方をtarget照合し、
+並行install/rollbackは拒否します。
+結果の `state_durability_confirmed` がfalseならstate renameはcommit済みですが、directory
+fsyncの永続化確認が取れていません。失敗として同じ操作を再実行せず、`state.json`と両世代を
+再検証してから運用判断します。
+
+これは合成設定によるCI演習です。systemd/nginx、PostgreSQL migration、DB/原本rollback、
+鍵・署名、OS package、本番パスへの配置は行わず、正式な更新機構や本番受入を意味しません。
