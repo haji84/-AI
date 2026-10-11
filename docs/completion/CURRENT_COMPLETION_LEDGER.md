@@ -1,10 +1,10 @@
 # Fire AIOS current completion ledger
 
-Status date: 2026-10-10 UTC
+Status date: 2026-10-11 UTC
 
-Audited implementation base: `46865f438ab7a7482678c0ed720c15f00f113a65`
+Audited implementation base: `9894db92a27a11c19854be1d223deb6ccd5a5a19`
 
-Verified implementation tree: `ccfe26ae18b34235cae81c6adf1804a38111c8bb`
+Verified implementation tree: `137b30de1310deabfd0b9eaeb528736f130c88d0`
 
 Previous reviewed baseline: `c1b684c5c38fc52fe908d2116a21a16ef48dcb34`
 
@@ -29,6 +29,18 @@ Use exactly four primary statuses: **Completed / Partial / Missing / External Ga
 The baseline was independently reconciled to 11/42/3/1 using chapter-specific evidence. This update reviews the merged deltas and preserves that full baseline. Baseline path/line references are pinned to c1b684c; D1–D6 retain their 1b3bf5b source links. D7–D9 retain the PR76-merge snapshot c1b491e; D10 links to the current PR77-merge snapshot 9d6f86b. Test definitions establish coverage present in source; executed results come from the exact-head CI or recorded verification run identified below. This documentation edit itself does not rerun the application suites.
 
 ## Execution evidence and current-base limit
+
+### D26 — PR121 tenant-bound encrypted paired backup accepted
+
+Main `9894db92a27a11c19854be1d223deb6ccd5a5a19`, tree `137b30de1310deabfd0b9eaeb528736f130c88d0`, matches exact PR121 head tree. One complete format2 manifest/DB/originals pair is wrapped in an authenticated X25519-HKDF-SHA256/AES-256-GCM envelope whose tenant UUID, key ID, backup UUID, version/algorithm and ciphertext name are bound to AAD. Publication is atomic; restore decrypts only into owner-private temporary staging and then reuses the existing tenant/release/migration/hash/archive/target preflights before mutation. Required encrypted mode refuses missing or partial pairs, tamper, complete-envelope substitution, interruption, wrong/other-tenant/revoked keys, unsafe payloads and public/private key placement under backup, DB, originals, app/release or staging trees. The general backup/restore CLIs retain portable cleanup handling without importing Linux-only scheduled locking.
+
+RED evidence was observed before the minimal repairs for pair substitution, signal cleanup, partial/full pair deletion fallback and unsafe key custody; focused final regression was64 passed/3 skipped. Full local backend regression was1495 passed/305 skipped/327 warnings/46 subtests passed. Separate-agent final exact-tree review reported no actionable finding.
+
+[Exact PR project CI38168425122](https://github.com/haji84/-AI/actions/runs/38168425122) SUCCESS: backend1698 passed/102 skipped/329 warnings/46 subtests passed; browser77 passed; migration parser and JavaScript syntax succeeded. Exact PR [security38168425079](https://github.com/haji84/-AI/actions/runs/38168425079), [dependency38168425090](https://github.com/haji84/-AI/actions/runs/38168425090) and [release38168425139](https://github.com/haji84/-AI/actions/runs/38168425139) also succeeded. The project job supplied `FIRE_AI_TEST_POSTGRES_URL`, so the conditional same-UUID separate-target PostgreSQL encrypted-pair exercise ran rather than taking its missing-service skip.
+
+[Independent main project CI38169501212](https://github.com/haji84/-AI/actions/runs/38169501212) SUCCESS: backend1698 passed/102 skipped/329 warnings/46 subtests passed; browser77 passed; parser/JavaScript succeeded. Independent main [security38169501204](https://github.com/haji84/-AI/actions/runs/38169501204), [dependency38169501223](https://github.com/haji84/-AI/actions/runs/38169501223) and [release38169501207](https://github.com/haji84/-AI/actions/runs/38169501207) all succeeded. Skips remain unverified.
+
+Accept only Issue100's bounded authenticated-encryption/private-staging slice. Chapter42 remains **Partial** and counts remain12/44/0/1: real key enrollment/custody/rotation/revocation/emergency access, immutable Owner Vault, retention/deletion, independently enforced HA fencing, production application and new-PC/site-loss RPO/RTO rehearsal remain Human/External Gates or separate internal work. No real keys, production data, personal data, Vault, HA or whole-release acceptance is claimed. Details: [encrypted paired backup](ENCRYPTED_PAIRED_BACKUP.md).
 
 ### D25 — PR102 bounded secret scan gate accepted
 
@@ -294,7 +306,7 @@ Each baseline link retains the chapter's present implementation, exact source/te
 | 39 | AI Decision Levels | Partial | [Chapter 39](COMPLETION_BASELINE_20261007.md#chapter-39) | Baseline finding retained; no chapter-status change from these merges. |
 | 40 | AI Failure Mode | Completed | [Chapter 40](COMPLETION_BASELINE_20261007.md#chapter-40) | Baseline finding retained; no chapter-status change from these merges. |
 | 41 | Import Framework | Partial | [Chapter 41](COMPLETION_BASELINE_20261007.md#chapter-41) | D2: intake transition safety improved; D8 assignment exchange and shared typed import framework remain incomplete. |
-| 42 | Backup and Restore | Partial | [Chapter 42](COMPLETION_BASELINE_20261007.md#chapter-42) | D22: expanded42.1 requires encrypted/key-separated backup, HA/fencing, immutable tenant Owner Vault and new-host disaster evidence. Existing plaintext paired restore is insufficient; Issue100 is the bounded encryption task. |
+| 42 | Backup and Restore | Partial | [Chapter 42](COMPLETION_BASELINE_20261007.md#chapter-42) | D22/D26: the authenticated encrypted paired envelope and private-staging restore are accepted. Real key custody/rotation/revocation, immutable Owner Vault, HA/fencing and new-host/site-loss evidence remain; chapter42 stays Partial. |
 | 43 | Security | Partial | [Chapter 43](COMPLETION_BASELINE_20261007.md#chapter-43) | D1/D2/D3/D5–D10: scoped source/session protections integrated, including statistics aggregate/detail separation; broader security/hosting review remains. |
 | 44 | External Integration and Network Policy | Partial | [Chapter 44](COMPLETION_BASELINE_20261007.md#chapter-44) | Baseline finding retained; no chapter-status change from these merges. |
 | 45 | User Experience | Partial | [Chapter 45](COMPLETION_BASELINE_20261007.md#chapter-45) | D1–D10: source journeys, workforce pending controls, vehicle assignment, observed statistics and learning refresh improved; whole-shell usability remains Partial. |
