@@ -1,12 +1,14 @@
 """Published-surface audit tests use generated synthetic content only."""
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import bz2
+import errno
 import gzip
 import importlib.util
 import hashlib
 import io
 import json
 import lzma
+import os
 from pathlib import Path
 import re
 import secrets
@@ -634,6 +636,224 @@ def test_file_backed_zip_rejects_truncated_declared_comment(tmp_path):
         audit.extract_zip_file(source, tmp_path / "file")
 
 
+def test_large_nested_zip_is_scanned_in_existing_bounded_batches(
+    tmp_path, monkeypatch
+):
+    audit = module()
+    payloads = {
+        f"part-{index}.bin": secrets.token_bytes(700) for index in range(3)
+    }
+    nested = archive(payloads)
+    assert len(nested) > 1_024
+    source = tmp_path / "outer.zip"
+    source.write_bytes(
+        archive({"large.zip": nested, "manifest.json": b"synthetic manifest"})
+    )
+    monkeypatch.setattr(audit, "MAX_ENTRY_BYTES", 1_024)
+    monkeypatch.setattr(audit, "MAX_EXTRACTED_BYTES", 2_048)
+    monkeypatch.setattr(audit, "MAX_FILES", 2)
+    monkeypatch.setattr(audit, "MAX_STREAMED_AUDIT_BYTES", 16_384)
+    monkeypatch.setattr(audit, "MAX_STREAMED_AUDIT_FILES", 10)
+    observed = {}
+    batch_shapes = []
+
+    def scan_batch(root):
+        files = sorted(path for path in root.rglob("*") if path.is_file())
+        batch_shapes.append((len(files), sum(path.stat().st_size for path in files)))
+        for path in files:
+            observed[path.relative_to(root).as_posix()] = path.read_bytes()
+        return 0
+
+    batches, findings = audit.scan_zip_file_in_bounded_batches(
+        source,
+        tmp_path / "staging",
+        Path("surface"),
+        max_nested_depth=2,
+        scan_batch=scan_batch,
+    )
+
+    assert batches >= 2
+    assert findings == 0
+    assert all(files <= 2 and size <= 2_048 for files, size in batch_shapes)
+    assert observed["surface/manifest.json"] == b"synthetic manifest"
+    for name, payload in payloads.items():
+        assert observed[f"surface/large.zip.expanded/{name}"] == payload
+    assert not (tmp_path / "staging").exists()
+
+
+def test_streamed_zip_total_work_cap_still_fails_closed(tmp_path, monkeypatch):
+    audit = module()
+    nested = archive(
+        {f"part-{index}.bin": secrets.token_bytes(700) for index in range(3)}
+    )
+    source = tmp_path / "outer.zip"
+    source.write_bytes(archive({"large.zip": nested}))
+    monkeypatch.setattr(audit, "MAX_ENTRY_BYTES", 1_024)
+    monkeypatch.setattr(audit, "MAX_EXTRACTED_BYTES", 2_048)
+    monkeypatch.setattr(audit, "MAX_FILES", 2)
+    monkeypatch.setattr(audit, "MAX_STREAMED_AUDIT_BYTES", len(nested) - 1)
+    monkeypatch.setattr(audit, "MAX_STREAMED_AUDIT_FILES", 10)
+    scanned = False
+
+    def unexpected_scan(_root):
+        nonlocal scanned
+        scanned = True
+        return 0
+
+    with pytest.raises(audit.AuditFailure):
+        audit.scan_zip_file_in_bounded_batches(
+            source,
+            tmp_path / "staging",
+            Path("surface"),
+            max_nested_depth=2,
+            scan_batch=unexpected_scan,
+        )
+
+    assert scanned is False
+    assert not (tmp_path / "staging").exists()
+
+
+def test_streamed_zip_scans_nested_container_bytes(tmp_path):
+    audit = module()
+    sentinel = b"container-metadata-only-sentinel"
+    nested_stream = io.BytesIO()
+    with zipfile.ZipFile(nested_stream, "w") as nested_archive:
+        nested_archive.writestr("content.txt", b"expanded content")
+        nested_archive.comment = sentinel
+    source = tmp_path / "outer.zip"
+    source.write_bytes(archive({"nested.zip": nested_stream.getvalue()}))
+    observed_container_metadata = False
+
+    def scan_batch(root):
+        nonlocal observed_container_metadata
+        for path in root.rglob("*"):
+            if path.is_file() and sentinel in path.read_bytes():
+                observed_container_metadata = True
+        return 0
+
+    audit.scan_zip_file_in_bounded_batches(
+        source,
+        tmp_path / "staging",
+        Path("surface"),
+        max_nested_depth=2,
+        scan_batch=scan_batch,
+    )
+
+    assert observed_container_metadata is True
+
+
+def test_private_tree_cleanup_retries_enotempty_once(tmp_path, monkeypatch):
+    audit = module()
+    private = tmp_path / "private"
+    private.mkdir()
+    (private / "evidence.txt").write_text("synthetic evidence")
+    real_rmtree = audit.shutil.rmtree
+    calls = 0
+
+    def transient_enotempty(path):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise OSError(errno.ENOTEMPTY, "synthetic overlay race")
+        return real_rmtree(path)
+
+    monkeypatch.setattr(audit.shutil, "rmtree", transient_enotempty)
+
+    audit.remove_private_tree(private)
+
+    assert calls == 2
+    assert not private.exists()
+
+
+def test_private_tree_cleanup_does_not_confuse_interior_enoent_with_root_absence(
+    tmp_path, monkeypatch
+):
+    audit = module()
+    private = tmp_path / "private"
+    private.mkdir()
+    evidence = private / "evidence.txt"
+    evidence.write_text("synthetic evidence")
+
+    def interior_enoent(_path):
+        raise FileNotFoundError(errno.ENOENT, "synthetic interior race")
+
+    monkeypatch.setattr(audit.shutil, "rmtree", interior_enoent)
+
+    with pytest.raises(audit.AuditFailure):
+        audit.remove_private_tree(private)
+
+    assert private.exists()
+    assert evidence.exists()
+
+
+def test_streamed_zip_container_metadata_is_scanned_by_pinned_gitleaks(tmp_path):
+    audit = module()
+    scanner = security_module()
+    binary_value = os.environ.get("FIRE_AI_GITLEAKS_BIN")
+    assert binary_value, "FIRE_AI_GITLEAKS_BIN must identify the pinned official binary"
+    binary = Path(binary_value)
+    sentinel = fake_token().encode()
+    nested_stream = io.BytesIO()
+    with zipfile.ZipFile(nested_stream, "w") as nested_archive:
+        nested_archive.writestr("content.txt", b"synthetic clean content")
+        nested_archive.comment = sentinel
+    source = tmp_path / "outer.zip"
+    source.write_bytes(archive({"nested.zip": nested_stream.getvalue()}))
+
+    batches, findings = audit.scan_zip_file_in_bounded_batches(
+        source,
+        tmp_path / "staging",
+        Path("surface"),
+        max_nested_depth=2,
+        scan_batch=lambda root: scanner.scan_directory(root, binary),
+    )
+
+    assert batches >= 1
+    assert findings == 1
+
+
+def test_streamed_zip_rejects_later_expansion_namespace_collision(
+    tmp_path, monkeypatch
+):
+    audit = module()
+    nested = archive(
+        {
+            "content-0.bin": secrets.token_bytes(700),
+            "content-1.bin": secrets.token_bytes(700),
+        }
+    )
+    source = tmp_path / "outer.zip"
+    source.write_bytes(
+        archive(
+            {
+                "large.zip": nested,
+                "large.zip.expanded/spoof.txt": b"ambiguous evidence",
+            }
+        )
+    )
+    monkeypatch.setattr(audit, "MAX_ENTRY_BYTES", 1_024)
+    monkeypatch.setattr(audit, "MAX_EXTRACTED_BYTES", 4_096)
+    monkeypatch.setattr(audit, "MAX_STREAMED_AUDIT_BYTES", 16_384)
+    scanned = False
+
+    def unexpected_scan(_root):
+        nonlocal scanned
+        scanned = True
+        return 0
+
+    with pytest.raises(audit.AuditFailure):
+        audit.scan_zip_file_in_bounded_batches(
+            source,
+            tmp_path / "staging",
+            Path("surface"),
+            max_nested_depth=2,
+            scan_batch=unexpected_scan,
+        )
+
+    assert scanned is False
+    assert not (tmp_path / "staging").exists()
+
+
 def test_collects_selected_pr_logs_and_artifacts_privately(tmp_path):
     audit = module()
     token = fake_token()
@@ -705,6 +925,131 @@ def test_collects_artifact_over_in_memory_download_limit_via_private_file(
     assert manifest == {"pull_requests": 0, "workflow_runs": 1, "artifacts": 1}
     assert (root / "workflow-runs/9/artifacts/11/evidence.bin").read_bytes() == b"x" * 4_096
     assert not (root / "workflow-runs/9/artifact-downloads/11.zip").exists()
+
+
+def test_collects_large_nested_artifact_through_bounded_batch_scanner(
+    tmp_path, monkeypatch
+):
+    audit = module()
+    nested = archive(
+        {f"part-{index}.bin": secrets.token_bytes(700) for index in range(3)}
+    )
+    artifact_zip = archive(
+        {"large.zip": nested, "manifest.json": b"synthetic manifest"}
+    )
+    monkeypatch.setattr(audit, "MAX_ENTRY_BYTES", 1_024)
+    monkeypatch.setattr(audit, "MAX_EXTRACTED_BYTES", 2_048)
+    monkeypatch.setattr(audit, "MAX_FILES", 2)
+    monkeypatch.setattr(audit, "MAX_STREAMED_AUDIT_BYTES", 16_384)
+    monkeypatch.setattr(audit, "MAX_STREAMED_AUDIT_FILES", 10)
+    routes = {
+        ("/repos/haji84/-AI/actions/runs/9", ""): encoded(
+            {"id": 9, "status": "completed", "repository": {"full_name": "haji84/-AI"}}
+        ),
+        ("/repos/haji84/-AI/actions/runs/9/logs", ""): (
+            "application/zip",
+            archive({"job.txt": "clean"}),
+        ),
+        ("/repos/haji84/-AI/actions/runs/9/artifacts", "per_page=100&page=1"): encoded(
+            {"total_count": 1, "artifacts": [{"id": 11, "expired": False}]}
+        ),
+        ("/repos/haji84/-AI/actions/artifacts/11/zip", ""): (
+            "application/zip",
+            artifact_zip,
+        ),
+    }
+    observed = set()
+
+    def scan_batch(root):
+        observed.update(
+            path.relative_to(root).as_posix()
+            for path in root.rglob("*")
+            if path.is_file()
+        )
+        return 0
+
+    with FixtureApi(routes) as api:
+        root = tmp_path / "private"
+        manifest = audit.collect_surfaces(
+            api.base_url,
+            "haji84/-AI",
+            [],
+            [9],
+            "synthetic-token",
+            root,
+            scan_batch=scan_batch,
+        )
+
+    assert manifest["pull_requests"] == 0
+    assert manifest["workflow_runs"] == 1
+    assert manifest["artifacts"] == 1
+    assert manifest["streamed_batches"] >= 3
+    assert manifest["streamed_findings"] == 0
+    assert {
+        "workflow-runs/9/artifacts/11/large.zip.expanded/part-0.bin",
+        "workflow-runs/9/artifacts/11/large.zip.expanded/part-1.bin",
+        "workflow-runs/9/artifacts/11/large.zip.expanded/part-2.bin",
+        "workflow-runs/9/artifacts/11/manifest.json",
+    }.issubset(observed)
+    assert any("/.container-parts/" in path for path in observed)
+    assert not (root / "workflow-runs/9/artifact-streaming/11").exists()
+
+
+def test_collects_highly_compressed_nested_artifact_without_retry(
+    tmp_path, monkeypatch
+):
+    audit = module()
+    nested_stream = io.BytesIO()
+    with zipfile.ZipFile(
+        nested_stream, "w", compression=zipfile.ZIP_DEFLATED
+    ) as nested_archive:
+        for index in range(4):
+            nested_archive.writestr(f"expanded-{index}.txt", b"x" * 900)
+    nested = nested_stream.getvalue()
+    assert len(nested) < 1_024
+    artifact_zip = archive({"compact.zip": nested})
+    monkeypatch.setattr(audit, "MAX_ENTRY_BYTES", 1_024)
+    monkeypatch.setattr(audit, "MAX_EXTRACTED_BYTES", 2_048)
+    monkeypatch.setattr(audit, "MAX_STREAMED_AUDIT_BYTES", 16_384)
+    monkeypatch.setattr(audit, "MAX_STREAMED_AUDIT_FILES", 10)
+    routes = {
+        ("/repos/haji84/-AI/actions/runs/9", ""): encoded(
+            {"id": 9, "status": "completed", "repository": {"full_name": "haji84/-AI"}}
+        ),
+        ("/repos/haji84/-AI/actions/runs/9/logs", ""): (
+            "application/zip",
+            archive({"job.txt": "clean"}),
+        ),
+        ("/repos/haji84/-AI/actions/runs/9/artifacts", "per_page=100&page=1"): encoded(
+            {"total_count": 1, "artifacts": [{"id": 11, "expired": False}]}
+        ),
+        ("/repos/haji84/-AI/actions/artifacts/11/zip", ""): (
+            "application/zip",
+            artifact_zip,
+        ),
+    }
+    observed_expanded = set()
+
+    def scan_batch(root):
+        observed_expanded.update(
+            path.name
+            for path in root.rglob("expanded-*.txt")
+            if path.is_file() and path.read_bytes() == b"x" * 900
+        )
+        return 0
+
+    with FixtureApi(routes) as api:
+        audit.collect_surfaces(
+            api.base_url,
+            "haji84/-AI",
+            [],
+            [9],
+            "synthetic-token",
+            tmp_path / "private",
+            scan_batch=scan_batch,
+        )
+
+    assert observed_expanded == {f"expanded-{index}.txt" for index in range(4)}
 
 
 def test_expired_or_unavailable_requested_surface_fails_closed(tmp_path):
@@ -1403,3 +1748,52 @@ def test_cli_errors_never_echo_token_repository_or_private_payload(monkeypatch, 
     output = capsys.readouterr().out
     assert sentinel not in output
     assert output.strip() == "Published-surface secret audit failed closed; findings=unknown"
+
+
+def test_cli_aggregates_streamed_and_collected_findings(monkeypatch, capsys):
+    audit = module()
+    scanner_calls = []
+
+    class Scanner:
+        def scan_directory(self, root, binary, *, accepted_findings):
+            scanner_calls.append((root, binary, accepted_findings))
+            return 3 if root == Path("synthetic-batch") else 2
+
+    def collect(
+        _api_url,
+        _repository,
+        _pull_requests,
+        _workflow_runs,
+        _token,
+        _root,
+        *,
+        scan_batch,
+    ):
+        assert scan_batch(Path("synthetic-batch")) == 3
+        return {
+            "pull_requests": 0,
+            "workflow_runs": 1,
+            "artifacts": 1,
+            "streamed_batches": 1,
+            "streamed_findings": 3,
+        }
+
+    monkeypatch.setenv("FIRE_AI_GITHUB_AUDIT_TOKEN", "synthetic-token")
+    monkeypatch.setattr(audit, "scanner_module", lambda: Scanner())
+    monkeypatch.setattr(audit, "collect_surfaces", collect)
+
+    assert audit.main(
+        [
+            "--repository",
+            "haji84/-AI",
+            "--workflow-run",
+            "9",
+            "--gitleaks",
+            "/synthetic/gitleaks",
+        ]
+    ) == 1
+    output = capsys.readouterr().out.strip()
+    assert "streamed_batches=1" in output
+    assert "streamed_findings" not in output
+    assert output.endswith("findings=5")
+    assert len(scanner_calls) == 2
