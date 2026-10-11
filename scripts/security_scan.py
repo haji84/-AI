@@ -98,11 +98,9 @@ def safe_environment():
             "GIT_PAGER": "cat", "GIT_NO_REPLACE_OBJECTS": "1"}
 
 
-def scan(repository, binary):
-    repository = repository.resolve(strict=True)
+def _scan_targets(targets, binary):
+    targets = [(mode, target.resolve(strict=True)) for mode, target in targets]
     binary = binary.resolve(strict=True)
-    if not repository.is_dir() or not (repository / ".git").exists():
-        raise ScanFailure()
     with binary.open("rb") as stream:
         digest = hashlib.file_digest(stream, "sha256").hexdigest()
     if digest != BINARY_SHA256:
@@ -110,7 +108,7 @@ def scan(repository, binary):
     # Hard-code /tmp rather than honoring an untrusted TMPDIR inside the repo.
     with tempfile.TemporaryDirectory(prefix="fire-aios-secret-gate-", dir="/tmp") as location:
         private = Path(location)
-        if private.is_relative_to(repository):
+        if any(private.is_relative_to(target) for _, target in targets):
             raise ScanFailure()
         config = private / "trusted.toml"
         ignore = private / "empty.ignore"
@@ -121,10 +119,10 @@ def scan(repository, binary):
         if code != 0 or output.decode("ascii").strip() != VERSION:
             raise ScanFailure()
         total = 0
-        for mode in ("git", "dir"):
+        for mode, target in targets:
             report = private / "report.json"
             report.unlink(missing_ok=True)
-            command = [str(binary), mode, str(repository), "--config", str(config),
+            command = [str(binary), mode, str(target), "--config", str(config),
                        "--gitleaks-ignore-path", str(ignore), "--ignore-gitleaks-allow",
                        "--redact=100", "--no-banner", "--no-color",
                        "--report-format", "json", "--report-path", str(report),
@@ -143,6 +141,21 @@ def scan(repository, binary):
                 raise ScanFailure()
             total += len(findings)
         return total
+
+
+def scan(repository, binary):
+    repository = repository.resolve(strict=True)
+    if not repository.is_dir() or not (repository / ".git").exists():
+        raise ScanFailure()
+    return _scan_targets((("git", repository), ("dir", repository)), binary)
+
+
+def scan_directory(directory, binary):
+    """Scan one already-private directory without requiring it to be a Git repo."""
+    directory = directory.resolve(strict=True)
+    if not directory.is_dir():
+        raise ScanFailure()
+    return _scan_targets((("dir", directory),), binary)
 
 
 class SafeParser(argparse.ArgumentParser):
