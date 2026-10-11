@@ -20,6 +20,54 @@ on:
     types: [completed]
   workflow_dispatch:
     inputs:
+      historical:
+        description: Discover the complete historical inventory and audit the next bounded batch
+        required: false
+        default: false
+        type: boolean
+      history_after_pull_request:
+        description: Last successfully audited historical pull request number, or 0
+        required: false
+        default: '0'
+        type: string
+      history_after_workflow_run:
+        description: Last successfully audited historical workflow run ID, or 0
+        required: false
+        default: '0'
+        type: string
+      history_pull_request_limit:
+        description: Historical pull requests to audit in this batch (1-100)
+        required: false
+        default: '10'
+        type: string
+      history_workflow_run_limit:
+        description: Historical workflow runs to audit in this batch (1-100)
+        required: false
+        default: '1'
+        type: string
+      history_cursor_sha256:
+        description: Exact cursor-prefix SHA-256 emitted by the preceding historical batch
+        required: false
+        type: string
+      history_through_pull_request:
+        description: Fixed PR snapshot ceiling emitted by the first historical batch, or 0
+        required: false
+        default: '0'
+        type: string
+      history_through_workflow_run:
+        description: Fixed run snapshot ceiling emitted by the first historical batch, or 0
+        required: false
+        default: '0'
+        type: string
+      history_snapshot_initialized:
+        description: Continue the exact snapshot emitted by the first historical batch
+        required: false
+        default: false
+        type: boolean
+      history_snapshot_sha256:
+        description: Exact membership SHA-256 emitted by the first historical batch
+        required: false
+        type: string
       pull_requests:
         description: Exact comma-separated pull request numbers to audit
         required: false
@@ -70,11 +118,40 @@ jobs:
       - name: Privately audit exact published GitHub surfaces
         env:
           FIRE_AI_GITHUB_AUDIT_TOKEN: ${{ github.token }}
+          FIRE_AI_HISTORY_MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.historical || false }}
+          FIRE_AI_HISTORY_AFTER_PULL_REQUEST: ${{ inputs.history_after_pull_request || '0' }}
+          FIRE_AI_HISTORY_AFTER_WORKFLOW_RUN: ${{ inputs.history_after_workflow_run || '0' }}
+          FIRE_AI_HISTORY_PULL_REQUEST_LIMIT: ${{ inputs.history_pull_request_limit || '10' }}
+          FIRE_AI_HISTORY_WORKFLOW_RUN_LIMIT: ${{ inputs.history_workflow_run_limit || '1' }}
+          FIRE_AI_HISTORY_CURSOR_SHA256: ${{ inputs.history_cursor_sha256 || '' }}
+          FIRE_AI_HISTORY_THROUGH_PULL_REQUEST: ${{ inputs.history_through_pull_request || '0' }}
+          FIRE_AI_HISTORY_THROUGH_WORKFLOW_RUN: ${{ inputs.history_through_workflow_run || '0' }}
+          FIRE_AI_HISTORY_SNAPSHOT_INITIALIZED: ${{ inputs.history_snapshot_initialized || false }}
+          FIRE_AI_HISTORY_SNAPSHOT_SHA256: ${{ inputs.history_snapshot_sha256 || '' }}
           FIRE_AI_PULL_REQUEST_IDS: ${{ github.event_name == 'workflow_dispatch' && inputs.pull_requests || github.event.workflow_run.pull_requests[0].number || '' }}
           FIRE_AI_WORKFLOW_RUN_IDS: ${{ github.event_name == 'workflow_dispatch' && inputs.workflow_runs || github.event.workflow_run.id }}
-        run: >-
-          python scripts/audit_github_published_surfaces.py
-          --repository "${{ github.repository }}"
-          --pull-requests "$FIRE_AI_PULL_REQUEST_IDS"
-          --workflow-runs "$FIRE_AI_WORKFLOW_RUN_IDS"
-          --gitleaks "$FIRE_AI_GITLEAKS_BIN"
+        shell: bash
+        run: |
+          args=(
+            --repository "${{ github.repository }}"
+            --gitleaks "$FIRE_AI_GITLEAKS_BIN"
+            --pull-requests "$FIRE_AI_PULL_REQUEST_IDS"
+            --workflow-runs "$FIRE_AI_WORKFLOW_RUN_IDS"
+          )
+          if [[ "$FIRE_AI_HISTORY_MODE" == "true" ]]; then
+            args+=(
+              --historical
+              --history-after-pull-request "$FIRE_AI_HISTORY_AFTER_PULL_REQUEST"
+              --history-after-workflow-run "$FIRE_AI_HISTORY_AFTER_WORKFLOW_RUN"
+              --history-pull-request-limit "$FIRE_AI_HISTORY_PULL_REQUEST_LIMIT"
+              --history-workflow-run-limit "$FIRE_AI_HISTORY_WORKFLOW_RUN_LIMIT"
+              --history-cursor-sha256 "$FIRE_AI_HISTORY_CURSOR_SHA256"
+              --history-through-pull-request "$FIRE_AI_HISTORY_THROUGH_PULL_REQUEST"
+              --history-through-workflow-run "$FIRE_AI_HISTORY_THROUGH_WORKFLOW_RUN"
+              --history-snapshot-sha256 "$FIRE_AI_HISTORY_SNAPSHOT_SHA256"
+            )
+            if [[ "$FIRE_AI_HISTORY_SNAPSHOT_INITIALIZED" == "true" ]]; then
+              args+=(--history-snapshot-initialized)
+            fi
+          fi
+          python scripts/audit_github_published_surfaces.py "${args[@]}"

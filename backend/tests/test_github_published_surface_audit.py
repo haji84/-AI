@@ -158,6 +158,8 @@ class FixtureApi:
                     self.send_response(404)
                     self.end_headers()
                     return
+                if callable(response):
+                    response = response()
                 if len(response) == 3:
                     status, location, body = response
                     content_type = "application/octet-stream"
@@ -674,6 +676,571 @@ def test_dispatch_id_lists_accept_only_exact_positive_decimal_ids():
             audit.parse_id_list(value, [])
 
 
+def test_historical_inventory_is_complete_stable_and_repository_bound():
+    audit = module()
+    pull_requests = [
+        {"number": number, "base": {"repo": {"full_name": "haji84/-AI"}}}
+        for number in range(1, 102)
+    ]
+    workflow_runs = [
+        {
+            "id": run_id,
+            "status": "completed",
+            "repository": {"full_name": "haji84/-AI"},
+        }
+        for run_id in range(200, 99, -1)
+    ] + [
+        {
+            "id": 99,
+            "status": "in_progress",
+            "repository": {"full_name": "haji84/-AI"},
+        }
+    ]
+    routes = {
+        (
+            "/repos/haji84/-AI/pulls",
+            "state=all&sort=created&direction=asc&per_page=100&page=1",
+        ): encoded(pull_requests[:100]),
+        (
+            "/repos/haji84/-AI/pulls",
+            "state=all&sort=created&direction=asc&per_page=100&page=2",
+        ): encoded(pull_requests[100:]),
+        (
+            "/repos/haji84/-AI/actions/runs",
+            "per_page=100&page=1",
+        ): encoded({"total_count": 102, "workflow_runs": workflow_runs[:100]}),
+        (
+            "/repos/haji84/-AI/actions/runs",
+            "per_page=100&page=2",
+        ): encoded({"total_count": 102, "workflow_runs": workflow_runs[100:]}),
+    }
+
+    with FixtureApi(routes) as api:
+        inventory = audit.discover_historical_inventory(
+            api.base_url, "haji84/-AI", "synthetic-token"
+        )
+
+    assert inventory["pull_requests"] == list(range(1, 102))
+    assert inventory["workflow_runs"] == list(range(99, 201))
+    assert inventory["completed_workflow_runs"] == list(range(100, 201))
+    assert inventory["pull_request_count"] == 101
+    assert inventory["workflow_run_count"] == 102
+    assert inventory["completed_workflow_run_count"] == 101
+    assert re.fullmatch(r"[0-9a-f]{64}", inventory["inventory_sha256"])
+    assert len(api.requests) == 8  # every discovered page is re-read for stability
+    assert all(auth == "Bearer synthetic-token" for _, _, auth in api.requests)
+
+
+def test_historical_pull_request_inventory_rechecks_every_page():
+    audit = module()
+    repository = "haji84/-AI"
+    first_page = [
+        {"number": number, "base": {"repo": {"full_name": repository}}}
+        for number in range(1, 101)
+    ]
+    page_two_versions = iter(
+        [
+            [{"number": 101, "base": {"repo": {"full_name": repository}}}],
+            [
+                {"number": 101, "base": {"repo": {"full_name": repository}}},
+                {"number": 102, "base": {"repo": {"full_name": repository}}},
+            ],
+        ]
+    )
+    routes = {
+        (
+            "/repos/haji84/-AI/pulls",
+            "state=all&sort=created&direction=asc&per_page=100&page=1",
+        ): encoded(first_page),
+        (
+            "/repos/haji84/-AI/pulls",
+            "state=all&sort=created&direction=asc&per_page=100&page=2",
+        ): lambda: encoded(next(page_two_versions)),
+    }
+
+    with FixtureApi(routes) as api:
+        with pytest.raises(audit.AuditFailure):
+            audit._historical_pull_requests(
+                api.base_url,
+                repository,
+                "synthetic-token",
+                time.monotonic() + 10,
+            )
+
+
+def test_historical_workflow_inventory_rechecks_later_page_status():
+    audit = module()
+    repository = "haji84/-AI"
+    first_page = [
+        {
+            "id": run_id,
+            "status": "completed",
+            "repository": {"full_name": repository},
+        }
+        for run_id in range(201, 101, -1)
+    ]
+    page_two_versions = iter(
+        [
+            [
+                {
+                    "id": 101,
+                    "status": "in_progress",
+                    "repository": {"full_name": repository},
+                }
+            ],
+            [
+                {
+                    "id": 101,
+                    "status": "completed",
+                    "repository": {"full_name": repository},
+                }
+            ],
+        ]
+    )
+    routes = {
+        ("/repos/haji84/-AI/actions/runs", "per_page=100&page=1"): encoded(
+            {"total_count": 101, "workflow_runs": first_page}
+        ),
+        ("/repos/haji84/-AI/actions/runs", "per_page=100&page=2"): lambda: encoded(
+            {"total_count": 101, "workflow_runs": next(page_two_versions)}
+        ),
+    }
+
+    with FixtureApi(routes) as api:
+        with pytest.raises(audit.AuditFailure):
+            audit._historical_workflow_runs(
+                api.base_url,
+                repository,
+                "synthetic-token",
+                time.monotonic() + 10,
+            )
+
+
+@pytest.mark.parametrize(
+    ("pull_requests", "workflow_total", "workflow_runs"),
+    [
+        ([{"number": True, "base": {"repo": {"full_name": "haji84/-AI"}}}], 0, []),
+        (
+            [
+                {"number": 7, "base": {"repo": {"full_name": "haji84/-AI"}}},
+                {"number": 7, "base": {"repo": {"full_name": "haji84/-AI"}}},
+            ],
+            0,
+            [],
+        ),
+        (
+            [{"number": 7, "base": {"repo": {"full_name": "other/repo"}}}],
+            0,
+            [],
+        ),
+        (
+            [],
+            True,
+            [],
+        ),
+        (
+            [],
+            1,
+            [
+                {
+                    "id": 9,
+                    "status": 7,
+                    "repository": {"full_name": "haji84/-AI"},
+                }
+            ],
+        ),
+        (
+            [],
+            1,
+            [
+                {
+                    "id": 9,
+                    "status": "completed",
+                    "repository": {"full_name": "other/repo"},
+                }
+            ],
+        ),
+    ],
+)
+def test_historical_inventory_rejects_ambiguous_or_cross_repository_rows(
+    pull_requests, workflow_total, workflow_runs
+):
+    audit = module()
+    routes = {
+        (
+            "/repos/haji84/-AI/pulls",
+            "state=all&sort=created&direction=asc&per_page=100&page=1",
+        ): encoded(pull_requests),
+        (
+            "/repos/haji84/-AI/actions/runs",
+            "per_page=100&page=1",
+        ): encoded(
+            {"total_count": workflow_total, "workflow_runs": workflow_runs}
+        ),
+    }
+
+    with FixtureApi(routes) as api:
+        with pytest.raises(audit.AuditFailure):
+            audit.discover_historical_inventory(
+                api.base_url, "haji84/-AI", "synthetic-token"
+            )
+
+
+def test_historical_batch_is_bounded_restartable_and_rejects_bad_cursors():
+    audit = module()
+    inventory = {
+        "repository": "haji84/-AI",
+        "pull_requests": [2, 7, 12],
+        "workflow_runs": [9, 11, 15],
+        "completed_workflow_runs": [9, 11, 15],
+        "pull_request_count": 3,
+        "workflow_run_count": 3,
+        "completed_workflow_run_count": 3,
+        "inventory_sha256": "a" * 64,
+    }
+
+    snapshot_sha256 = audit.historical_snapshot_sha256(
+        inventory, through_pull_request=12, through_workflow_run=15
+    )
+    cursor_sha256 = audit.historical_cursor_sha256(
+        inventory,
+        after_pull_request=2,
+        after_workflow_run=9,
+        through_pull_request=12,
+        through_workflow_run=15,
+        snapshot_initialized=True,
+    )
+    batch = audit.select_historical_batch(
+        inventory,
+        after_pull_request=2,
+        after_workflow_run=9,
+        pull_request_limit=1,
+        workflow_run_limit=1,
+        expected_cursor_sha256=cursor_sha256,
+        through_pull_request=12,
+        through_workflow_run=15,
+        snapshot_initialized=True,
+        expected_snapshot_sha256=snapshot_sha256,
+    )
+
+    assert batch == {
+        "pull_requests": [7],
+        "workflow_runs": [11],
+        "next_pull_request": 7,
+        "next_workflow_run": 11,
+        "remaining_pull_requests": 1,
+        "remaining_workflow_runs": 1,
+        "blocked_workflow_run": None,
+        "snapshot_pull_request": 12,
+        "snapshot_workflow_run": 15,
+        "snapshot_initialized": True,
+        "snapshot_sha256": snapshot_sha256,
+        "next_cursor_sha256": audit.historical_cursor_sha256(
+            inventory,
+            after_pull_request=7,
+            after_workflow_run=11,
+            through_pull_request=12,
+            through_workflow_run=15,
+            snapshot_initialized=True,
+        ),
+    }
+    for bad in (-1, True, 1.5):
+        with pytest.raises(audit.AuditFailure):
+            audit.select_historical_batch(
+                inventory,
+                after_pull_request=bad,
+                after_workflow_run=0,
+                pull_request_limit=1,
+                workflow_run_limit=1,
+                expected_cursor_sha256="",
+            )
+    with pytest.raises(audit.AuditFailure):
+        audit.select_historical_batch(
+            inventory,
+            after_pull_request=3,
+            after_workflow_run=0,
+            pull_request_limit=1,
+            workflow_run_limit=1,
+            expected_cursor_sha256="",
+        )
+
+
+def test_historical_cursor_is_bound_to_the_audited_inventory_prefix():
+    audit = module()
+    inventory = {
+        "repository": "haji84/-AI",
+        "pull_requests": [2, 7, 12],
+        "workflow_runs": [100, 200, 300],
+        "completed_workflow_runs": [100, 300],
+    }
+    snapshot_sha256 = audit.historical_snapshot_sha256(
+        inventory, through_pull_request=12, through_workflow_run=300
+    )
+    cursor_sha256 = audit.historical_cursor_sha256(
+        inventory,
+        after_pull_request=7,
+        after_workflow_run=300,
+        through_pull_request=12,
+        through_workflow_run=300,
+        snapshot_initialized=True,
+    )
+
+    changed = dict(inventory, completed_workflow_runs=[100, 200, 300])
+    with pytest.raises(audit.AuditFailure):
+        audit.select_historical_batch(
+            changed,
+            after_pull_request=7,
+            after_workflow_run=300,
+            pull_request_limit=1,
+            workflow_run_limit=1,
+            expected_cursor_sha256=cursor_sha256,
+            through_pull_request=12,
+            through_workflow_run=300,
+            snapshot_initialized=True,
+            expected_snapshot_sha256=snapshot_sha256,
+        )
+
+
+def test_first_historical_batch_cannot_start_after_zero():
+    audit = module()
+    inventory = {
+        "repository": "haji84/-AI",
+        "pull_requests": [1, 2],
+        "workflow_runs": [10, 20],
+        "completed_workflow_runs": [10, 20],
+    }
+    with pytest.raises(audit.AuditFailure):
+        audit.select_historical_batch(
+            inventory,
+            after_pull_request=1,
+            after_workflow_run=10,
+            pull_request_limit=1,
+            workflow_run_limit=1,
+            expected_cursor_sha256=audit.historical_cursor_sha256(
+                inventory, after_pull_request=1, after_workflow_run=10
+            ),
+        )
+
+
+def test_historical_snapshot_has_a_finite_end_when_new_surfaces_arrive():
+    audit = module()
+    inventory = {
+        "repository": "haji84/-AI",
+        "pull_requests": [1, 2],
+        "workflow_runs": [10, 20],
+        "completed_workflow_runs": [10, 20],
+    }
+    first = audit.select_historical_batch(
+        inventory,
+        after_pull_request=0,
+        after_workflow_run=0,
+        through_pull_request=0,
+        through_workflow_run=0,
+        pull_request_limit=100,
+        workflow_run_limit=100,
+        expected_cursor_sha256="",
+    )
+    assert first["snapshot_pull_request"] == 2
+    assert first["snapshot_workflow_run"] == 20
+
+    expanded = {
+        **inventory,
+        "pull_requests": [1, 2, 3],
+        "workflow_runs": [10, 20, 30],
+        "completed_workflow_runs": [10, 20, 30],
+    }
+    finished = audit.select_historical_batch(
+        expanded,
+        after_pull_request=first["next_pull_request"],
+        after_workflow_run=first["next_workflow_run"],
+        through_pull_request=first["snapshot_pull_request"],
+        through_workflow_run=first["snapshot_workflow_run"],
+        snapshot_initialized=True,
+        expected_snapshot_sha256=first["snapshot_sha256"],
+        pull_request_limit=100,
+        workflow_run_limit=100,
+        expected_cursor_sha256=first["next_cursor_sha256"],
+    )
+    assert finished["pull_requests"] == []
+    assert finished["workflow_runs"] == []
+    assert finished["remaining_pull_requests"] == 0
+    assert finished["remaining_workflow_runs"] == 0
+
+
+def test_historical_snapshot_rejects_deleted_unprocessed_run():
+    audit = module()
+    inventory = {
+        "repository": "haji84/-AI",
+        "pull_requests": [],
+        "workflow_runs": [100, 200, 300],
+        "completed_workflow_runs": [100, 200, 300],
+    }
+    first = audit.select_historical_batch(
+        inventory,
+        after_pull_request=0,
+        after_workflow_run=0,
+        pull_request_limit=1,
+        workflow_run_limit=1,
+    )
+    deleted = {
+        **inventory,
+        "workflow_runs": [100, 300],
+        "completed_workflow_runs": [100, 300],
+    }
+
+    with pytest.raises(audit.AuditFailure):
+        audit.select_historical_batch(
+            deleted,
+            after_pull_request=first["next_pull_request"],
+            after_workflow_run=first["next_workflow_run"],
+            through_pull_request=first["snapshot_pull_request"],
+            through_workflow_run=first["snapshot_workflow_run"],
+            snapshot_initialized=True,
+            expected_snapshot_sha256=first["snapshot_sha256"],
+            pull_request_limit=1,
+            workflow_run_limit=1,
+            expected_cursor_sha256=first["next_cursor_sha256"],
+        )
+
+
+def test_historical_snapshot_preserves_an_initially_empty_category():
+    audit = module()
+    inventory = {
+        "repository": "haji84/-AI",
+        "pull_requests": [],
+        "workflow_runs": [10],
+        "completed_workflow_runs": [],
+    }
+    first = audit.select_historical_batch(
+        inventory,
+        after_pull_request=0,
+        after_workflow_run=0,
+        pull_request_limit=1,
+        workflow_run_limit=1,
+    )
+    assert first["snapshot_pull_request"] == 0
+
+    expanded = {**inventory, "pull_requests": [1]}
+    continued = audit.select_historical_batch(
+        expanded,
+        after_pull_request=0,
+        after_workflow_run=0,
+        through_pull_request=0,
+        through_workflow_run=10,
+        snapshot_initialized=True,
+        expected_snapshot_sha256=first["snapshot_sha256"],
+        pull_request_limit=1,
+        workflow_run_limit=1,
+        expected_cursor_sha256=first["next_cursor_sha256"],
+    )
+    assert continued["snapshot_pull_request"] == 0
+    assert continued["pull_requests"] == []
+
+
+def test_historical_batch_never_crosses_an_incomplete_workflow_run():
+    audit = module()
+    inventory = {
+        "repository": "haji84/-AI",
+        "pull_requests": [],
+        "workflow_runs": [100, 200, 300],
+        "completed_workflow_runs": [100, 300],
+    }
+
+    batch = audit.select_historical_batch(
+        inventory,
+        after_pull_request=0,
+        after_workflow_run=100,
+        pull_request_limit=1,
+        workflow_run_limit=2,
+        expected_cursor_sha256=audit.historical_cursor_sha256(
+            inventory,
+            after_pull_request=0,
+            after_workflow_run=100,
+            through_pull_request=0,
+            through_workflow_run=300,
+            snapshot_initialized=True,
+        ),
+        through_pull_request=0,
+        through_workflow_run=300,
+        snapshot_initialized=True,
+        expected_snapshot_sha256=audit.historical_snapshot_sha256(
+            inventory, through_pull_request=0, through_workflow_run=300
+        ),
+    )
+
+    assert batch["workflow_runs"] == []
+    assert batch["next_workflow_run"] == 100
+    assert batch["blocked_workflow_run"] == 200
+    assert batch["remaining_workflow_runs"] == 1
+
+
+def test_historical_inventory_applies_a_global_surface_count_bound(monkeypatch):
+    audit = module()
+    monkeypatch.setattr(audit, "MAX_HISTORY_SURFACES", 2)
+    pull_requests = [
+        {"number": number, "base": {"repo": {"full_name": "haji84/-AI"}}}
+        for number in range(1, 4)
+    ]
+    routes = {
+        (
+            "/repos/haji84/-AI/pulls",
+            "state=all&sort=created&direction=asc&per_page=100&page=1",
+        ): encoded(pull_requests),
+        (
+            "/repos/haji84/-AI/actions/runs",
+            "per_page=100&page=1",
+        ): encoded({"total_count": 0, "workflow_runs": []}),
+    }
+
+    with FixtureApi(routes) as api:
+        with pytest.raises(audit.AuditFailure):
+            audit.discover_historical_inventory(
+                api.base_url, "haji84/-AI", "synthetic-token"
+            )
+
+
+def test_historical_inventory_has_one_bounded_discovery_deadline(monkeypatch):
+    audit = module()
+    monkeypatch.setattr(audit, "MAX_HISTORY_DISCOVERY_SECONDS", 0)
+
+    with pytest.raises(audit.AuditFailure):
+        audit.discover_historical_inventory(
+            "https://api.github.invalid", "haji84/-AI", "synthetic-token"
+        )
+
+
+def test_history_request_cannot_outlive_the_shared_discovery_deadline(monkeypatch):
+    audit = module()
+
+    class SlowResponse:
+        headers = {}
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def read(self, _size):
+            time.sleep(0.2)
+            return b""
+
+    class SlowOpener:
+        def open(self, _request, timeout):
+            assert 0 < timeout < audit.DOWNLOAD_TIMEOUT_SECONDS
+            return SlowResponse()
+
+    monkeypatch.setattr(audit, "build_opener", lambda *_handlers: SlowOpener())
+    started = time.monotonic()
+    with pytest.raises(audit.AuditFailure):
+        audit.request_bytes(
+            "https://api.github.invalid/synthetic",
+            "synthetic-token",
+            deadline=time.monotonic() + 0.03,
+        )
+    assert time.monotonic() - started < 0.15
+
+
 def test_security_workflow_has_manual_private_published_surface_gate():
     workflow = SCRIPT.parents[1] / ".github/workflows/security-checks.yml"
     content = workflow.read_text()
@@ -688,6 +1255,16 @@ def test_security_workflow_has_manual_private_published_surface_gate():
     watched_workflows = set(re.findall(r'"([^"]+)"', watched_block.group(1)))
 
     assert "workflow_dispatch:" in content
+    assert "historical:" in content
+    assert "history_after_pull_request:" in content
+    assert "history_after_workflow_run:" in content
+    assert "history_pull_request_limit:" in content
+    assert "history_workflow_run_limit:" in content
+    assert "history_cursor_sha256:" in content
+    assert "history_through_pull_request:" in content
+    assert "history_through_workflow_run:" in content
+    assert "history_snapshot_initialized:" in content
+    assert "history_snapshot_sha256:" in content
     assert "workflow_run:" in content
     assert watched_workflows == expected_workflows
     assert "security-checks" not in watched_workflows
@@ -698,6 +1275,19 @@ def test_security_workflow_has_manual_private_published_surface_gate():
     assert "FIRE_AI_GITHUB_AUDIT_TOKEN: ${{ github.token }}" in content
     assert "scripts/audit_github_published_surfaces.py" in content
     assert "github.event.workflow_run.id" in content
+    assert "--historical" in content
+    assert "--history-after-pull-request" in content
+    assert "--history-after-workflow-run" in content
+    assert "--history-pull-request-limit" in content
+    assert "--history-workflow-run-limit" in content
+    assert "--history-cursor-sha256" in content
+    assert "--history-through-pull-request" in content
+    assert "--history-through-workflow-run" in content
+    assert "--history-snapshot-initialized" in content
+    assert "--history-snapshot-sha256" in content
+    history_branch = content.index('if [[ "$FIRE_AI_HISTORY_MODE" == "true" ]]')
+    assert content.index('--pull-requests "$FIRE_AI_PULL_REQUEST_IDS"') < history_branch
+    assert content.index('--workflow-runs "$FIRE_AI_WORKFLOW_RUN_IDS"') < history_branch
     assert "upload-artifact" not in content
 
 
