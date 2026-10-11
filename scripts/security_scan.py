@@ -27,6 +27,19 @@ class ScanFailure(Exception):
     """Internal details must never be printed by the CLI."""
 
 
+def canonical_finding_path(relative):
+    parts = relative.parts
+    if (
+        len(parts) >= 5
+        and parts[0] == "workflow-runs"
+        and parts[1].isdigit()
+        and parts[2] == "artifacts"
+        and parts[3].isdigit()
+    ):
+        return Path(*parts[4:]).as_posix()
+    return relative.as_posix()
+
+
 def report_bytes(private_dir):
     size = 0
     for path in private_dir.glob("*.json"):
@@ -98,8 +111,48 @@ def safe_environment():
             "GIT_PAGER": "cat", "GIT_NO_REPLACE_OBJECTS": "1"}
 
 
-def _scan_targets(targets, binary):
+def finding_identity(finding, target):
+    try:
+        reported = finding["File"]
+        if not isinstance(reported, str) or not reported:
+            raise ScanFailure()
+        candidate = Path(reported)
+        if not candidate.is_absolute():
+            candidate = target / candidate
+        candidate = candidate.resolve(strict=True)
+        if not candidate.is_file() or not candidate.is_relative_to(target):
+            raise ScanFailure()
+        values = tuple(
+            finding[name]
+            for name in (
+                "RuleID",
+                "StartLine",
+                "EndLine",
+                "StartColumn",
+                "EndColumn",
+            )
+        )
+        if not isinstance(values[0], str) or not values[0]:
+            raise ScanFailure()
+        if any(type(value) is not int or value <= 0 for value in values[1:]):
+            raise ScanFailure()
+        relative = canonical_finding_path(candidate.relative_to(target))
+        with candidate.open("rb") as stream:
+            digest = hashlib.file_digest(stream, "sha256").hexdigest()
+        return (relative, digest, *values)
+    except ScanFailure:
+        raise
+    except Exception as error:
+        raise ScanFailure() from error
+
+
+def _scan_targets(targets, binary, *, accepted_findings=frozenset()):
     targets = [(mode, target.resolve(strict=True)) for mode, target in targets]
+    if not isinstance(accepted_findings, frozenset) or any(
+        not isinstance(identity, tuple) or len(identity) != 7
+        for identity in accepted_findings
+    ):
+        raise ScanFailure()
     binary = binary.resolve(strict=True)
     with binary.open("rb") as stream:
         digest = hashlib.file_digest(stream, "sha256").hexdigest()
@@ -139,7 +192,13 @@ def _scan_targets(targets, binary):
                 raise ScanFailure()
             if (code == 0) != (len(findings) == 0):
                 raise ScanFailure()
-            total += len(findings)
+            if mode == "dir":
+                identities = [finding_identity(row, target) for row in findings]
+                total += sum(
+                    identity not in accepted_findings for identity in identities
+                )
+            else:
+                total += len(findings)
         return total
 
 
@@ -150,12 +209,16 @@ def scan(repository, binary):
     return _scan_targets((("git", repository), ("dir", repository)), binary)
 
 
-def scan_directory(directory, binary):
+def scan_directory(directory, binary, *, accepted_findings=frozenset()):
     """Scan one already-private directory without requiring it to be a Git repo."""
     directory = directory.resolve(strict=True)
     if not directory.is_dir():
         raise ScanFailure()
-    return _scan_targets((("dir", directory),), binary)
+    return _scan_targets(
+        (("dir", directory),),
+        binary,
+        accepted_findings=accepted_findings,
+    )
 
 
 class SafeParser(argparse.ArgumentParser):
