@@ -28,6 +28,7 @@ import io
 
 
 MAX_DOWNLOAD_BYTES = 256 * 1024 * 1024
+MAX_ARTIFACT_DOWNLOAD_BYTES = 512 * 1024 * 1024
 MAX_EXTRACTED_BYTES = 512 * 1024 * 1024
 MAX_FILES = 20_000
 MAX_ENTRY_BYTES = 64 * 1024 * 1024
@@ -193,6 +194,64 @@ def request_bytes(
     except AuditFailure:
         raise
     except Exception as error:
+        raise AuditFailure() from error
+
+
+def download_to_private_file(
+    url,
+    token,
+    destination,
+    *,
+    accept="application/vnd.github+json",
+    max_bytes=None,
+):
+    if max_bytes is None:
+        max_bytes = MAX_ARTIFACT_DOWNLOAD_BYTES
+    if type(max_bytes) is not int or max_bytes <= 0:
+        raise AuditFailure()
+    request = Request(
+        url,
+        headers={
+            "Accept": accept,
+            "Authorization": f"Bearer {token}",
+            "User-Agent": "fire-aios-private-published-surface-audit",
+            "X-GitHub-Api-Version": "2022-11-28",
+        },
+    )
+    destination.parent.mkdir(parents=True, mode=0o700, exist_ok=True)
+    try:
+        with absolute_deadline(DOWNLOAD_TIMEOUT_SECONDS):
+            with build_opener(PrivateRedirectHandler()).open(
+                request, timeout=DOWNLOAD_TIMEOUT_SECONDS
+            ) as response:
+                expected = response.headers.get("Content-Length")
+                if expected and int(expected) > max_bytes:
+                    raise AuditFailure()
+                flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+                if hasattr(os, "O_NOFOLLOW"):
+                    flags |= os.O_NOFOLLOW
+                descriptor = os.open(destination, flags, 0o600)
+                try:
+                    with os.fdopen(descriptor, "wb") as output:
+                        descriptor = None
+                        size = 0
+                        while True:
+                            chunk = response.read(64 * 1024)
+                            if not chunk:
+                                break
+                            size += len(chunk)
+                            if size > max_bytes:
+                                raise AuditFailure()
+                            output.write(chunk)
+                finally:
+                    if descriptor is not None:
+                        os.close(descriptor)
+        return destination
+    except AuditFailure:
+        destination.unlink(missing_ok=True)
+        raise
+    except Exception as error:
+        destination.unlink(missing_ok=True)
         raise AuditFailure() from error
 
 
@@ -551,6 +610,49 @@ def count_central_directory_entries(payload, start, size, max_entries):
     return count
 
 
+def count_central_directory_file_entries(source, start, size, max_entries):
+    if (
+        type(start) is not int
+        or type(size) is not int
+        or start < 0
+        or size < 0
+        or type(max_entries) is not int
+        or max_entries < 0
+    ):
+        raise AuditFailure()
+    offset = start
+    end = start + size
+    count = 0
+    try:
+        source.seek(start)
+        while offset < end:
+            if count >= max_entries or end - offset < zipfile.sizeCentralDir:
+                raise AuditFailure()
+            header = source.read(zipfile.sizeCentralDir)
+            if len(header) != zipfile.sizeCentralDir:
+                raise AuditFailure()
+            central = struct.unpack(zipfile.structCentralDir, header)
+            if central[zipfile._CD_SIGNATURE] != zipfile.stringCentralDir:
+                raise AuditFailure()
+            variable_size = (
+                central[zipfile._CD_FILENAME_LENGTH]
+                + central[zipfile._CD_EXTRA_FIELD_LENGTH]
+                + central[zipfile._CD_COMMENT_LENGTH]
+            )
+            if offset + zipfile.sizeCentralDir + variable_size > end:
+                raise AuditFailure()
+            source.seek(variable_size, os.SEEK_CUR)
+            offset += zipfile.sizeCentralDir + variable_size
+            count += 1
+    except AuditFailure:
+        raise
+    except Exception as error:
+        raise AuditFailure() from error
+    if offset != end:
+        raise AuditFailure()
+    return count
+
+
 def preflight_zip(payload, budget, *, allow_wrapping=False):
     try:
         end_record = zipfile._EndRecData(io.BytesIO(payload))
@@ -620,6 +722,83 @@ def preflight_zip(payload, budget, *, allow_wrapping=False):
     return entries
 
 
+def preflight_zip_file(path, budget):
+    try:
+        metadata = path.lstat()
+        if not stat.S_ISREG(metadata.st_mode):
+            raise AuditFailure()
+        with path.open("rb") as source:
+            end_record = zipfile._EndRecData(source)
+            if end_record is None:
+                raise AuditFailure()
+            entries = end_record[zipfile._ECD_ENTRIES_TOTAL]
+            entries_on_disk = end_record[zipfile._ECD_ENTRIES_THIS_DISK]
+            disk = end_record[zipfile._ECD_DISK_NUMBER]
+            directory_disk = end_record[zipfile._ECD_DISK_START]
+            directory_size = end_record[zipfile._ECD_SIZE]
+            directory_offset = end_record[zipfile._ECD_OFFSET]
+            end_location = end_record[zipfile._ECD_LOCATION]
+            tail_size = min(
+                metadata.st_size,
+                zipfile.ZIP_MAX_COMMENT + zipfile.sizeEndCentDir,
+            )
+            source.seek(metadata.st_size - tail_size)
+            tail = source.read(tail_size)
+            relative_standard_end = tail.rfind(zipfile.stringEndArchive)
+            if (
+                relative_standard_end < 0
+                or len(tail) - relative_standard_end < zipfile.sizeEndCentDir
+            ):
+                raise AuditFailure()
+            standard_end_location = (
+                metadata.st_size - tail_size + relative_standard_end
+            )
+            declared_comment_size = int.from_bytes(
+                tail[
+                    relative_standard_end
+                    + zipfile.sizeEndCentDir
+                    - 2 : relative_standard_end
+                    + zipfile.sizeEndCentDir
+                ],
+                "little",
+            )
+            archive_end = (
+                standard_end_location
+                + zipfile.sizeEndCentDir
+                + declared_comment_size
+            )
+            if (
+                type(entries) is not int
+                or entries < 0
+                or entries > MAX_FILES - budget["files"]
+                or entries_on_disk != entries
+                or disk != 0
+                or directory_disk != 0
+                or type(directory_size) is not int
+                or type(directory_offset) is not int
+                or type(end_location) is not int
+                or min(directory_size, directory_offset, end_location) < 0
+                or archive_end != metadata.st_size
+            ):
+                raise AuditFailure()
+            prefix_size = end_location - directory_size - directory_offset
+            if prefix_size != 0:
+                raise AuditFailure()
+            actual_entries = count_central_directory_file_entries(
+                source,
+                end_location - directory_size,
+                directory_size,
+                MAX_FILES - budget["files"],
+            )
+            if actual_entries != entries:
+                raise AuditFailure()
+            return entries
+    except AuditFailure:
+        raise
+    except Exception as error:
+        raise AuditFailure() from error
+
+
 def extract_zip(
     payload,
     destination,
@@ -638,6 +817,25 @@ def extract_zip(
         archive = zipfile.ZipFile(io.BytesIO(payload))
     except Exception as error:
         raise AuditFailure() from error
+    extract_zip_archive(
+        archive,
+        destination,
+        expected_entries,
+        max_nested_depth=max_nested_depth,
+        budget=budget,
+        allow_embedded=allow_embedded,
+    )
+
+
+def extract_zip_archive(
+    archive,
+    destination,
+    expected_entries,
+    *,
+    max_nested_depth,
+    budget,
+    allow_embedded,
+):
     destination.mkdir(parents=True, mode=0o700, exist_ok=False)
     try:
         with archive:
@@ -692,6 +890,30 @@ def extract_zip(
         raise
     except Exception as error:
         raise AuditFailure() from error
+
+
+def extract_zip_file(
+    path,
+    destination,
+    *,
+    max_nested_depth=0,
+    budget=None,
+):
+    if budget is None:
+        budget = {"files": 0, "bytes": 0}
+    expected_entries = preflight_zip_file(path, budget)
+    try:
+        archive = zipfile.ZipFile(path)
+    except Exception as error:
+        raise AuditFailure() from error
+    extract_zip_archive(
+        archive,
+        destination,
+        expected_entries,
+        max_nested_depth=max_nested_depth,
+        budget=budget,
+        allow_embedded=False,
+    )
 
 
 def write_json(path, value):
@@ -1209,15 +1431,21 @@ def collect_surfaces(api_url, repository, pull_requests, workflow_runs, token, r
             artifact_id = artifact.get("id") if isinstance(artifact, dict) else None
             if type(artifact_id) is not int or artifact_id <= 0 or artifact.get("expired") is not False:
                 raise AuditFailure()
-            payload = request_bytes(
-                f"{api_url}{base}/artifacts/{artifact_id}/zip", token,
-                accept="application/vnd.github+json",
-            )
-            extract_zip(
-                payload,
-                location / "artifacts" / str(artifact_id),
-                max_nested_depth=2,
-            )
+            archive_path = location / "artifact-downloads" / f"{artifact_id}.zip"
+            try:
+                download_to_private_file(
+                    f"{api_url}{base}/artifacts/{artifact_id}/zip",
+                    token,
+                    archive_path,
+                    accept="application/vnd.github+json",
+                )
+                extract_zip_file(
+                    archive_path,
+                    location / "artifacts" / str(artifact_id),
+                    max_nested_depth=2,
+                )
+            finally:
+                archive_path.unlink(missing_ok=True)
             manifest["artifacts"] += 1
         manifest["workflow_runs"] += 1
     write_json(root / "manifest.json", manifest)

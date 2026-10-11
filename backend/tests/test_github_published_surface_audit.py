@@ -565,6 +565,75 @@ def test_download_uses_absolute_deadline_not_only_socket_inactivity(monkeypatch)
         audit.request_bytes("https://api.github.com/synthetic", "synthetic-token")
 
 
+def test_private_file_download_is_mode_600_and_capacity_bounded(tmp_path):
+    audit = module()
+    payload = b"x" * 2_048
+    with FixtureApi({("/payload", ""): ("application/octet-stream", payload)}) as api:
+        destination = tmp_path / "private" / "artifact.zip"
+        audit.download_to_private_file(
+            f"{api.base_url}/payload",
+            "synthetic-token",
+            destination,
+            max_bytes=len(payload),
+        )
+        assert destination.read_bytes() == payload
+        assert stat.S_IMODE(destination.stat().st_mode) == 0o600
+
+        rejected = tmp_path / "private" / "too-large.zip"
+        with pytest.raises(audit.AuditFailure):
+            audit.download_to_private_file(
+                f"{api.base_url}/payload",
+                "synthetic-token",
+                rejected,
+                max_bytes=len(payload) - 1,
+            )
+        assert not rejected.exists()
+
+
+def test_file_backed_zip_rejects_prefix_and_unconsumed_suffix(tmp_path):
+    audit = module()
+    for payload in (
+        archive({"hidden.txt": "hidden"}) + archive({"visible.txt": "visible"}),
+        archive({"visible.txt": "visible"}) + b"trailing",
+    ):
+        source = tmp_path / f"{secrets.token_hex(4)}.zip"
+        source.write_bytes(payload)
+        with pytest.raises(audit.AuditFailure):
+            audit.extract_zip_file(source, tmp_path / secrets.token_hex(4))
+
+
+def test_file_backed_zip_accepts_valid_zip64(tmp_path, monkeypatch):
+    audit = module()
+    with monkeypatch.context() as patch:
+        patch.setattr(zipfile, "ZIP64_LIMIT", 0)
+        payload = archive({"evidence.txt": "synthetic"})
+    source = tmp_path / "valid-zip64.zip"
+    source.write_bytes(payload)
+
+    audit.extract_zip(payload, tmp_path / "memory")
+    audit.extract_zip_file(source, tmp_path / "file")
+
+    assert (tmp_path / "file/evidence.txt").read_text() == "synthetic"
+
+
+def test_file_backed_zip_rejects_truncated_declared_comment(tmp_path):
+    audit = module()
+    payload = bytearray(archive({"evidence.txt": "synthetic"}))
+    end = payload.rfind(zipfile.stringEndArchive)
+    assert end >= 0
+    payload[end + zipfile.sizeEndCentDir - 2 : end + zipfile.sizeEndCentDir] = (
+        10
+    ).to_bytes(2, "little")
+    payload.extend(b"x")
+    source = tmp_path / "truncated-comment.zip"
+    source.write_bytes(payload)
+
+    with pytest.raises(audit.AuditFailure):
+        audit.extract_zip(bytes(payload), tmp_path / "memory")
+    with pytest.raises(audit.AuditFailure):
+        audit.extract_zip_file(source, tmp_path / "file")
+
+
 def test_collects_selected_pr_logs_and_artifacts_privately(tmp_path):
     audit = module()
     token = fake_token()
@@ -601,6 +670,41 @@ def test_collects_selected_pr_logs_and_artifacts_privately(tmp_path):
     assert manifest == {"pull_requests": 1, "workflow_runs": 1, "artifacts": 1}
     assert token in "\n".join(readable_private_text(root))
     assert all(auth == "Bearer synthetic-token" for _, _, auth in api.requests)
+
+
+def test_collects_artifact_over_in_memory_download_limit_via_private_file(
+    tmp_path, monkeypatch
+):
+    audit = module()
+    artifact_zip = archive({"evidence.bin": b"x" * 4_096})
+    assert len(artifact_zip) > 1_024
+    monkeypatch.setattr(audit, "MAX_DOWNLOAD_BYTES", 1_024)
+    routes = {
+        ("/repos/haji84/-AI/actions/runs/9", ""): encoded(
+            {"id": 9, "status": "completed", "repository": {"full_name": "haji84/-AI"}}
+        ),
+        ("/repos/haji84/-AI/actions/runs/9/logs", ""): (
+            "application/zip",
+            archive({"job.txt": "clean"}),
+        ),
+        ("/repos/haji84/-AI/actions/runs/9/artifacts", "per_page=100&page=1"): encoded(
+            {"total_count": 1, "artifacts": [{"id": 11, "expired": False}]}
+        ),
+        ("/repos/haji84/-AI/actions/artifacts/11/zip", ""): (
+            "application/zip",
+            artifact_zip,
+        ),
+    }
+
+    with FixtureApi(routes) as api:
+        root = tmp_path / "private"
+        manifest = audit.collect_surfaces(
+            api.base_url, "haji84/-AI", [], [9], "synthetic-token", root
+        )
+
+    assert manifest == {"pull_requests": 0, "workflow_runs": 1, "artifacts": 1}
+    assert (root / "workflow-runs/9/artifacts/11/evidence.bin").read_bytes() == b"x" * 4_096
+    assert not (root / "workflow-runs/9/artifact-downloads/11.zip").exists()
 
 
 def test_expired_or_unavailable_requested_surface_fails_closed(tmp_path):
