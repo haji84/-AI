@@ -56,3 +56,38 @@ journey but stopped at a separate finance stale-upload fixture failure.
 Issue107 and [its causal evidence](FINANCE_REVOKED_UPLOAD_FIXTURE_20261011.md)
 record that correction independently. This observed hazardous GREEN is not
 resolution of the original loading failure.
+
+## Causal RED after dependency-gate integration
+
+Independent main project run38111138927 at commit
+`91ad92a22a84b3e3e3711706da44e314bb612201`, tree
+`4d89032f3afed8a8c1bd9058dcbc33c51d426dd6`, reproduced the same native
+failure in browser job114386775997 without a rerun. Artifact11692190291
+contains the new bounded failure JSON and screenshot. The final click issued
+the guarded list GET in13ms and then the installation-detail GET. That detail
+request returned HTTP200 only after4836ms. The unchanged5s assertion fired
+while the page still showed `読込中…`; diagnostic capture then observed the
+completed request, no pending/page/diagnostic errors, loading false and the
+correct history. This classifies the failure as server detail-read latency,
+not a lost request, rejected authority, stale owner or missing render.
+
+A focused synthetic service RED created two source-backed revisions and
+counted only calls made through the hazardous service's current permission
+resolver during one detail request. The unchanged implementation performed
+485 identical permission-set queries and took5.36s including fixture setup:
+
+```text
+assert calls == 1
+E assert 485 == 1
+```
+
+The amplification comes from correctly traversing every current and
+historical source, but re-querying the same user's unchanged permission set at
+each nested guard. The bounded repair snapshots that set once only while a
+single detail request is assembling its response. All document, legal source,
+inspection, violation, revision-lineage, original-byte/hash and history
+visibility checks still execute. The snapshot is removed in `finally`; other
+requests and all mutation paths continue to resolve current authority in the
+existing way. Separate-request permission-revocation coverage remains part of
+the regression. Native exact-head and independent-main CI are still required
+before this section can claim accepted GREEN or close #105.
