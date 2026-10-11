@@ -1,5 +1,7 @@
 """Only generated synthetic credentials are used; never store token literals."""
 import importlib.util
+import hashlib
+import json
 import os
 from pathlib import Path
 import secrets
@@ -234,3 +236,77 @@ def test_environment_has_no_untrusted_tool_routing(monkeypatch):
     environment = scanner.safe_environment()
     assert "private-fixture" not in environment.values()
     assert environment["GIT_NO_REPLACE_OBJECTS"] == "1"
+
+
+def test_reviewed_finding_acceptance_is_exact_and_default_remains_blocking(
+    tmp_path, binary, monkeypatch
+):
+    scanner = module()
+    target = tmp_path / "published"
+    target.mkdir()
+    candidate = target / "workflow-runs/9/artifacts/11/dependency.py"
+    candidate.parent.mkdir(parents=True)
+    candidate.write_text("private_key: SyntheticPublicType\n")
+    digest = hashlib.sha256(candidate.read_bytes()).hexdigest()
+    finding = {
+        "RuleID": "generic-api-key",
+        "File": str(candidate),
+        "StartLine": 1,
+        "EndLine": 1,
+        "StartColumn": 1,
+        "EndColumn": 32,
+    }
+
+    def fake(command, private, _env, **_kwargs):
+        if command[1] == "version":
+            return 0, scanner.VERSION.encode()
+        (private / "report.json").write_text(json.dumps([finding]))
+        return 1, b""
+
+    monkeypatch.setattr(scanner, "run_private", fake)
+    identity = (
+        "dependency.py",
+        digest,
+        "generic-api-key",
+        1,
+        1,
+        1,
+        32,
+    )
+    assert scanner.scan_directory(target, binary) == 1
+    assert scanner.scan_directory(
+        target, binary, accepted_findings=frozenset({identity})
+    ) == 0
+
+    candidate.write_text("private_key: ChangedPublicType\n")
+    assert scanner.scan_directory(
+        target, binary, accepted_findings=frozenset({identity})
+    ) == 1
+
+
+def test_reviewed_finding_cannot_reference_file_outside_scan_root(
+    tmp_path, binary, monkeypatch
+):
+    scanner = module()
+    target = tmp_path / "published"
+    target.mkdir()
+    outside = tmp_path / "outside.py"
+    outside.write_text("synthetic\n")
+
+    def fake(command, private, _env, **_kwargs):
+        if command[1] == "version":
+            return 0, scanner.VERSION.encode()
+        finding = {
+            "RuleID": "generic-api-key",
+            "File": str(outside),
+            "StartLine": 1,
+            "EndLine": 1,
+            "StartColumn": 1,
+            "EndColumn": 2,
+        }
+        (private / "report.json").write_text(json.dumps([finding]))
+        return 1, b""
+
+    monkeypatch.setattr(scanner, "run_private", fake)
+    with pytest.raises(scanner.ScanFailure):
+        scanner.scan_directory(target, binary, accepted_findings=frozenset())
