@@ -5,7 +5,18 @@ on:
     branches: [main]
   pull_request:
   workflow_run:
-    workflows: ["project-checks"]
+    workflows: [
+      "acquire-egov-national-laws",
+      "acquire-oshima-official-regulations",
+      "acquire-oshima-reiki-fast",
+      "build-core-legal-authoring-worklist",
+      "build-occupancy-classification-worklist",
+      "dependency-checks",
+      "project-checks",
+      "release-checks",
+      "verify-fire-legal-review-queue",
+      "verify-legal-structure-corpora",
+    ]
     types: [completed]
   workflow_dispatch:
     inputs:
