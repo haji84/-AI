@@ -20,6 +20,7 @@ import stat
 import struct
 import tarfile
 import tempfile
+import time
 from urllib.parse import urlencode, urlparse
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 import zipfile
@@ -30,6 +31,8 @@ MAX_DOWNLOAD_BYTES = 256 * 1024 * 1024
 MAX_EXTRACTED_BYTES = 512 * 1024 * 1024
 MAX_FILES = 20_000
 MAX_ENTRY_BYTES = 64 * 1024 * 1024
+MAX_HISTORY_SURFACES = 10_000
+MAX_HISTORY_DISCOVERY_SECONDS = 300
 DOWNLOAD_TIMEOUT_SECONDS = 60
 NESTED_ARCHIVE_SUFFIXES = {".zip", ".tar", ".gz", ".tgz", ".bz2", ".xz", ".7z", ".rar"}
 ZIP_CONTAINER_SUFFIXES = {".zip", ".whl", ".docx", ".xlsx", ".pptx"}
@@ -146,7 +149,13 @@ def scanner_module():
     return loaded
 
 
-def request_bytes(url, token, *, accept="application/vnd.github+json"):
+def request_bytes(
+    url,
+    token,
+    *,
+    accept="application/vnd.github+json",
+    deadline=None,
+):
     request = Request(
         url,
         headers={
@@ -157,9 +166,15 @@ def request_bytes(url, token, *, accept="application/vnd.github+json"):
         },
     )
     try:
-        with absolute_deadline(DOWNLOAD_TIMEOUT_SECONDS):
+        timeout = DOWNLOAD_TIMEOUT_SECONDS
+        if deadline is not None:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise AuditFailure()
+            timeout = min(timeout, remaining)
+        with absolute_deadline(timeout):
             with build_opener(PrivateRedirectHandler()).open(
-                request, timeout=DOWNLOAD_TIMEOUT_SECONDS
+                request, timeout=timeout
             ) as response:
                 expected = response.headers.get("Content-Length")
                 if expected and int(expected) > MAX_DOWNLOAD_BYTES:
@@ -181,9 +196,9 @@ def request_bytes(url, token, *, accept="application/vnd.github+json"):
         raise AuditFailure() from error
 
 
-def json_request(url, token):
+def json_request(url, token, *, deadline=None):
     try:
-        value = json.loads(request_bytes(url, token))
+        value = json.loads(request_bytes(url, token, deadline=deadline))
     except AuditFailure:
         raise
     except Exception as error:
@@ -692,6 +707,457 @@ def parse_id_list(value, repeated):
     return [int(item) for item in value.split(",")] + list(repeated)
 
 
+def _check_history_deadline(deadline):
+    if time.monotonic() >= deadline:
+        raise AuditFailure()
+
+
+def _historical_pull_requests(api_url, repository, token, deadline):
+    numbers = []
+    pages = []
+    base = f"/repos/{repository}/pulls"
+    for page in range(1, 1001):
+        _check_history_deadline(deadline)
+        query = urlencode(
+            {
+                "state": "all",
+                "sort": "created",
+                "direction": "asc",
+                "per_page": 100,
+                "page": page,
+            }
+        )
+        value = json_request(f"{api_url}{base}?{query}", token, deadline=deadline)
+        _check_history_deadline(deadline)
+        if not isinstance(value, list) or any(not isinstance(row, dict) for row in value):
+            raise AuditFailure()
+        pages.append(value)
+        if len(numbers) + len(value) > MAX_HISTORY_SURFACES:
+            raise AuditFailure()
+        for row in value:
+            number = row.get("number")
+            full_name = row.get("base", {}).get("repo", {}).get("full_name")
+            if type(number) is not int or number <= 0 or full_name != repository:
+                raise AuditFailure()
+            numbers.append(number)
+        if len(value) < 100:
+            break
+    else:
+        raise AuditFailure()
+
+    if numbers != sorted(set(numbers)):
+        raise AuditFailure()
+
+    for page, expected_page in enumerate(pages, start=1):
+        query = urlencode(
+            {
+                "state": "all",
+                "sort": "created",
+                "direction": "asc",
+                "per_page": 100,
+                "page": page,
+            }
+        )
+        repeated_page = json_request(
+            f"{api_url}{base}?{query}", token, deadline=deadline
+        )
+        if repeated_page != expected_page:
+            raise AuditFailure()
+    return numbers
+
+
+def _historical_workflow_runs(api_url, repository, token, deadline):
+    all_run_ids = set()
+    completed_run_ids = []
+    expected = None
+    pages = []
+    base = f"/repos/{repository}/actions/runs"
+    for page in range(1, 1001):
+        _check_history_deadline(deadline)
+        query = urlencode({"per_page": 100, "page": page})
+        value = json_request(f"{api_url}{base}?{query}", token, deadline=deadline)
+        _check_history_deadline(deadline)
+        if (
+            not isinstance(value, dict)
+            or type(value.get("total_count")) is not int
+            or value["total_count"] < 0
+            or not isinstance(value.get("workflow_runs"), list)
+            or any(not isinstance(row, dict) for row in value["workflow_runs"])
+        ):
+            raise AuditFailure()
+        if expected is None:
+            expected = value["total_count"]
+            if expected > MAX_HISTORY_SURFACES:
+                raise AuditFailure()
+        elif value["total_count"] != expected:
+            raise AuditFailure()
+        pages.append(value)
+        for row in value["workflow_runs"]:
+            run_id = row.get("id")
+            if (
+                type(run_id) is not int
+                or run_id <= 0
+                or not isinstance(row.get("status"), str)
+                or row.get("repository", {}).get("full_name") != repository
+                or run_id in all_run_ids
+            ):
+                raise AuditFailure()
+            all_run_ids.add(run_id)
+            if row["status"] == "completed":
+                completed_run_ids.append(run_id)
+        if len(value["workflow_runs"]) < 100:
+            break
+    else:
+        raise AuditFailure()
+    if len(all_run_ids) != expected:
+        raise AuditFailure()
+
+    for page, expected_page in enumerate(pages, start=1):
+        query = urlencode({"per_page": 100, "page": page})
+        repeated_page = json_request(
+            f"{api_url}{base}?{query}", token, deadline=deadline
+        )
+        if repeated_page != expected_page:
+            raise AuditFailure()
+    return sorted(all_run_ids), sorted(completed_run_ids)
+
+
+def discover_historical_inventory(api_url, repository, token):
+    if not token or not REPOSITORY.fullmatch(repository):
+        raise AuditFailure()
+    deadline = time.monotonic() + MAX_HISTORY_DISCOVERY_SECONDS
+    pull_requests = _historical_pull_requests(
+        api_url, repository, token, deadline
+    )
+    workflow_runs, completed_workflow_runs = _historical_workflow_runs(
+        api_url, repository, token, deadline
+    )
+    identity = {
+        "version": "fire-aios-published-surface-inventory-v2",
+        "repository": repository,
+        "pull_requests": pull_requests,
+        "workflow_runs": workflow_runs,
+        "completed_workflow_runs": completed_workflow_runs,
+    }
+    digest = hashlib.sha256(
+        json.dumps(identity, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    return {
+        "repository": repository,
+        "pull_requests": pull_requests,
+        "workflow_runs": workflow_runs,
+        "completed_workflow_runs": completed_workflow_runs,
+        "pull_request_count": len(pull_requests),
+        "workflow_run_count": len(workflow_runs),
+        "completed_workflow_run_count": len(completed_workflow_runs),
+        "inventory_sha256": digest,
+    }
+
+
+def _history_snapshot_bounds(
+    inventory,
+    *,
+    through_pull_request,
+    through_workflow_run,
+    snapshot_initialized,
+):
+    pull_requests = inventory.get("pull_requests")
+    workflow_runs = inventory.get("workflow_runs")
+    if (
+        not isinstance(pull_requests, list)
+        or not isinstance(workflow_runs, list)
+        or type(through_pull_request) is not int
+        or through_pull_request < 0
+        or type(through_workflow_run) is not int
+        or through_workflow_run < 0
+        or type(snapshot_initialized) is not bool
+    ):
+        raise AuditFailure()
+    if snapshot_initialized:
+        snapshot_pull_request = through_pull_request
+        snapshot_workflow_run = through_workflow_run
+    else:
+        if through_pull_request or through_workflow_run:
+            raise AuditFailure()
+        snapshot_pull_request = pull_requests[-1] if pull_requests else 0
+        snapshot_workflow_run = workflow_runs[-1] if workflow_runs else 0
+    if (
+        snapshot_pull_request
+        and snapshot_pull_request not in pull_requests
+    ) or (
+        snapshot_workflow_run
+        and snapshot_workflow_run not in workflow_runs
+    ):
+        raise AuditFailure()
+    return snapshot_pull_request, snapshot_workflow_run
+
+
+def historical_snapshot_sha256(
+    inventory, *, through_pull_request, through_workflow_run
+):
+    repository = inventory.get("repository")
+    pull_requests = inventory.get("pull_requests")
+    workflow_runs = inventory.get("workflow_runs")
+    if (
+        not isinstance(repository, str)
+        or not REPOSITORY.fullmatch(repository)
+        or not isinstance(pull_requests, list)
+        or not isinstance(workflow_runs, list)
+    ):
+        raise AuditFailure()
+    snapshot_pull_request, snapshot_workflow_run = _history_snapshot_bounds(
+        inventory,
+        through_pull_request=through_pull_request,
+        through_workflow_run=through_workflow_run,
+        snapshot_initialized=True,
+    )
+    identity = {
+        "version": "fire-aios-published-surface-snapshot-v1",
+        "repository": repository,
+        "through_pull_request": snapshot_pull_request,
+        "through_workflow_run": snapshot_workflow_run,
+        "pull_requests": [
+            value for value in pull_requests if value <= snapshot_pull_request
+        ],
+        "workflow_runs": [
+            value for value in workflow_runs if value <= snapshot_workflow_run
+        ],
+    }
+    return hashlib.sha256(
+        json.dumps(
+            identity,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode()
+    ).hexdigest()
+
+
+def historical_cursor_sha256(
+    inventory,
+    *,
+    after_pull_request,
+    after_workflow_run,
+    through_pull_request=0,
+    through_workflow_run=0,
+    snapshot_initialized=False,
+):
+    repository = inventory.get("repository")
+    pull_requests = inventory.get("pull_requests")
+    workflow_runs = inventory.get("workflow_runs")
+    completed_workflow_runs = inventory.get("completed_workflow_runs")
+    if (
+        not isinstance(repository, str)
+        or not REPOSITORY.fullmatch(repository)
+        or not isinstance(pull_requests, list)
+        or not isinstance(workflow_runs, list)
+        or not isinstance(completed_workflow_runs, list)
+        or type(after_pull_request) is not int
+        or after_pull_request < 0
+        or type(after_workflow_run) is not int
+        or after_workflow_run < 0
+    ):
+        raise AuditFailure()
+    snapshot_pull_request, snapshot_workflow_run = _history_snapshot_bounds(
+        inventory,
+        through_pull_request=through_pull_request,
+        through_workflow_run=through_workflow_run,
+        snapshot_initialized=snapshot_initialized,
+    )
+    if (
+        after_pull_request > snapshot_pull_request
+        or after_workflow_run > snapshot_workflow_run
+    ):
+        raise AuditFailure()
+    completed = set(completed_workflow_runs)
+    identity = {
+        "version": "fire-aios-published-surface-cursor-v1",
+        "repository": repository,
+        "after_pull_request": after_pull_request,
+        "after_workflow_run": after_workflow_run,
+        "through_pull_request": snapshot_pull_request,
+        "through_workflow_run": snapshot_workflow_run,
+        "pull_requests": [
+            value for value in pull_requests if value <= after_pull_request
+        ],
+        "workflow_runs": [
+            [value, value in completed]
+            for value in workflow_runs
+            if value <= after_workflow_run
+        ],
+    }
+    return hashlib.sha256(
+        json.dumps(
+            identity,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode()
+    ).hexdigest()
+
+
+def select_historical_batch(
+    inventory,
+    *,
+    after_pull_request,
+    after_workflow_run,
+    pull_request_limit,
+    workflow_run_limit,
+    expected_cursor_sha256="",
+    through_pull_request=0,
+    through_workflow_run=0,
+    snapshot_initialized=False,
+    expected_snapshot_sha256="",
+):
+    if not snapshot_initialized and (
+        after_pull_request
+        or after_workflow_run
+        or expected_cursor_sha256
+        or expected_snapshot_sha256
+    ):
+        raise AuditFailure()
+    for value in (after_pull_request, after_workflow_run):
+        if type(value) is not int or value < 0:
+            raise AuditFailure()
+    for value in (pull_request_limit, workflow_run_limit):
+        if type(value) is not int or not 1 <= value <= 100:
+            raise AuditFailure()
+    pull_requests = inventory.get("pull_requests")
+    workflow_runs = inventory.get("workflow_runs")
+    completed_workflow_runs = inventory.get("completed_workflow_runs")
+    if (
+        not isinstance(pull_requests, list)
+        or not isinstance(workflow_runs, list)
+        or not isinstance(completed_workflow_runs, list)
+        or pull_requests != sorted(set(pull_requests))
+        or workflow_runs != sorted(set(workflow_runs))
+        or completed_workflow_runs != sorted(set(completed_workflow_runs))
+        or not set(completed_workflow_runs).issubset(workflow_runs)
+        or any(
+            type(value) is not int or value <= 0
+            for value in pull_requests + workflow_runs + completed_workflow_runs
+        )
+        or (after_pull_request and after_pull_request not in pull_requests)
+        or (
+            after_workflow_run
+            and after_workflow_run not in completed_workflow_runs
+        )
+    ):
+        raise AuditFailure()
+    snapshot_pull_request, snapshot_workflow_run = _history_snapshot_bounds(
+        inventory,
+        through_pull_request=through_pull_request,
+        through_workflow_run=through_workflow_run,
+        snapshot_initialized=snapshot_initialized,
+    )
+    snapshot_pull_requests = [
+        value for value in pull_requests if value <= snapshot_pull_request
+    ]
+    snapshot_workflow_runs = [
+        value for value in workflow_runs if value <= snapshot_workflow_run
+    ]
+    snapshot_completed_workflow_runs = [
+        value
+        for value in completed_workflow_runs
+        if value <= snapshot_workflow_run
+    ]
+    if (
+        (after_pull_request and after_pull_request not in snapshot_pull_requests)
+        or (
+            after_workflow_run
+            and after_workflow_run not in snapshot_completed_workflow_runs
+        )
+    ):
+        raise AuditFailure()
+    snapshot_sha256 = historical_snapshot_sha256(
+        inventory,
+        through_pull_request=snapshot_pull_request,
+        through_workflow_run=snapshot_workflow_run,
+    )
+    if snapshot_initialized:
+        if (
+            not re.fullmatch(r"[0-9a-f]{64}", expected_snapshot_sha256)
+            or expected_snapshot_sha256 != snapshot_sha256
+        ):
+            raise AuditFailure()
+    elif expected_snapshot_sha256:
+        raise AuditFailure()
+    actual_cursor_sha256 = historical_cursor_sha256(
+        inventory,
+        after_pull_request=after_pull_request,
+        after_workflow_run=after_workflow_run,
+        through_pull_request=snapshot_pull_request,
+        through_workflow_run=snapshot_workflow_run,
+        snapshot_initialized=True,
+    )
+    if (
+        (snapshot_initialized or after_pull_request or after_workflow_run)
+        and not expected_cursor_sha256
+    ) or (
+        expected_cursor_sha256
+        and (
+            not re.fullmatch(r"[0-9a-f]{64}", expected_cursor_sha256)
+            or expected_cursor_sha256 != actual_cursor_sha256
+        )
+    ):
+        raise AuditFailure()
+    remaining_pull_requests = [
+        value for value in snapshot_pull_requests if value > after_pull_request
+    ]
+    selected_pull_requests = remaining_pull_requests[:pull_request_limit]
+    completed = set(snapshot_completed_workflow_runs)
+    selected_workflow_runs = []
+    for value in (
+        item for item in snapshot_workflow_runs if item > after_workflow_run
+    ):
+        if value not in completed:
+            break
+        selected_workflow_runs.append(value)
+        if len(selected_workflow_runs) == workflow_run_limit:
+            break
+    next_workflow_run = (
+        selected_workflow_runs[-1] if selected_workflow_runs else after_workflow_run
+    )
+    unprocessed_workflow_runs = [
+        value for value in snapshot_workflow_runs if value > next_workflow_run
+    ]
+    blocked_workflow_run = (
+        unprocessed_workflow_runs[0]
+        if unprocessed_workflow_runs and unprocessed_workflow_runs[0] not in completed
+        else None
+    )
+    return {
+        "pull_requests": selected_pull_requests,
+        "workflow_runs": selected_workflow_runs,
+        "next_pull_request": (
+            selected_pull_requests[-1] if selected_pull_requests else after_pull_request
+        ),
+        "next_workflow_run": next_workflow_run,
+        "remaining_pull_requests": len(remaining_pull_requests) - len(selected_pull_requests),
+        "remaining_workflow_runs": sum(
+            value > next_workflow_run
+            for value in snapshot_completed_workflow_runs
+        ),
+        "blocked_workflow_run": blocked_workflow_run,
+        "snapshot_pull_request": snapshot_pull_request,
+        "snapshot_workflow_run": snapshot_workflow_run,
+        "snapshot_initialized": True,
+        "snapshot_sha256": snapshot_sha256,
+        "next_cursor_sha256": historical_cursor_sha256(
+            inventory,
+            after_pull_request=(
+                selected_pull_requests[-1]
+                if selected_pull_requests
+                else after_pull_request
+            ),
+            after_workflow_run=next_workflow_run,
+            through_pull_request=snapshot_pull_request,
+            through_workflow_run=snapshot_workflow_run,
+            snapshot_initialized=True,
+        ),
+    }
+
+
 def collect_surfaces(api_url, repository, pull_requests, workflow_runs, token, root):
     if not token or not REPOSITORY.fullmatch(repository):
         raise AuditFailure()
@@ -765,6 +1231,16 @@ def main(argv=None):
     parser.add_argument("--workflow-run", type=int, action="append", default=[])
     parser.add_argument("--pull-requests", default="")
     parser.add_argument("--workflow-runs", default="")
+    parser.add_argument("--historical", action="store_true")
+    parser.add_argument("--history-after-pull-request", type=int, default=0)
+    parser.add_argument("--history-after-workflow-run", type=int, default=0)
+    parser.add_argument("--history-pull-request-limit", type=int, default=10)
+    parser.add_argument("--history-workflow-run-limit", type=int, default=1)
+    parser.add_argument("--history-cursor-sha256", default="")
+    parser.add_argument("--history-through-pull-request", type=int, default=0)
+    parser.add_argument("--history-through-workflow-run", type=int, default=0)
+    parser.add_argument("--history-snapshot-initialized", action="store_true")
+    parser.add_argument("--history-snapshot-sha256", default="")
     parser.add_argument("--gitleaks", type=Path, required=True)
     parser.add_argument("--api-url", default="https://api.github.com", help=argparse.SUPPRESS)
     try:
@@ -772,19 +1248,76 @@ def main(argv=None):
         token = os.environ.get("FIRE_AI_GITHUB_AUDIT_TOKEN")
         if not token:
             raise AuditFailure()
+        explicit_pull_requests = parse_id_list(
+            args.pull_requests, args.pull_request
+        )
+        explicit_workflow_runs = parse_id_list(
+            args.workflow_runs, args.workflow_run
+        )
+        if args.historical and (explicit_pull_requests or explicit_workflow_runs):
+            raise AuditFailure()
+        if args.historical:
+            inventory = discover_historical_inventory(
+                args.api_url.rstrip("/"), args.repository, token
+            )
+            batch = select_historical_batch(
+                inventory,
+                after_pull_request=args.history_after_pull_request,
+                after_workflow_run=args.history_after_workflow_run,
+                pull_request_limit=args.history_pull_request_limit,
+                workflow_run_limit=args.history_workflow_run_limit,
+                expected_cursor_sha256=args.history_cursor_sha256,
+                through_pull_request=args.history_through_pull_request,
+                through_workflow_run=args.history_through_workflow_run,
+                snapshot_initialized=args.history_snapshot_initialized,
+                expected_snapshot_sha256=args.history_snapshot_sha256,
+            )
+            pull_requests = batch["pull_requests"]
+            workflow_runs = batch["workflow_runs"]
+        else:
+            inventory = None
+            batch = None
+            pull_requests = explicit_pull_requests
+            workflow_runs = explicit_workflow_runs
         with tempfile.TemporaryDirectory(
             prefix="fire-aios-published-surface-", dir="/tmp"
         ) as location:
             private = Path(location) / "collected"
-            manifest = collect_surfaces(
-                args.api_url.rstrip("/"), args.repository,
-                parse_id_list(args.pull_requests, args.pull_request),
-                parse_id_list(args.workflow_runs, args.workflow_run), token, private,
-            )
-            findings = scanner_module().scan_directory(
-                private,
-                args.gitleaks,
-                accepted_findings=REVIEWED_PUBLIC_DEPENDENCY_FINDINGS,
+            if pull_requests or workflow_runs:
+                manifest = collect_surfaces(
+                    args.api_url.rstrip("/"), args.repository,
+                    pull_requests, workflow_runs, token, private,
+                )
+                findings = scanner_module().scan_directory(
+                    private,
+                    args.gitleaks,
+                    accepted_findings=REVIEWED_PUBLIC_DEPENDENCY_FINDINGS,
+                )
+            elif args.historical:
+                manifest = {"pull_requests": 0, "workflow_runs": 0, "artifacts": 0}
+                findings = 0
+            else:
+                raise AuditFailure()
+        if inventory is not None:
+            manifest.update(
+                {
+                    "inventory_pull_requests": inventory["pull_request_count"],
+                    "inventory_workflow_runs": inventory["workflow_run_count"],
+                    "inventory_completed_workflow_runs": inventory[
+                        "completed_workflow_run_count"
+                    ],
+                    "inventory_sha256": inventory["inventory_sha256"],
+                    "next_pull_request": batch["next_pull_request"],
+                    "next_workflow_run": batch["next_workflow_run"],
+                    "remaining_pull_requests": batch["remaining_pull_requests"],
+                    "remaining_workflow_runs": batch["remaining_workflow_runs"],
+                    "blocked_workflow_run": batch["blocked_workflow_run"],
+                    "snapshot_pull_request": batch["snapshot_pull_request"],
+                    "snapshot_workflow_run": batch["snapshot_workflow_run"],
+                    "snapshot_initialized": batch["snapshot_initialized"],
+                    "snapshot_sha256": batch["snapshot_sha256"],
+                    "next_cursor_sha256": batch["next_cursor_sha256"],
+                }
             )
         counts = "; ".join(f"{key}={value}" for key, value in manifest.items())
         print(
