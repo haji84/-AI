@@ -90,11 +90,19 @@ class ReleaseSetTests(unittest.TestCase):
         return result.stdout
 
     @staticmethod
-    def write_test_python(path: Path, *, wrap_created_venv: bool) -> None:
+    def write_test_python(
+        path: Path, *, wrap_created_venv: bool,
+        child_python_version: str = TARGET_PYTHON,
+    ) -> None:
         probe = json.dumps({
             "implementation": "cp", "python_version": TARGET_PYTHON,
             "abi": TARGET_ABI, "platform": "linux", "machine": "x86_64",
             "glibc_version": "2.39",
+        })
+        child_probe = json.dumps({
+            "implementation": "cp", "python_version": child_python_version,
+            "abi": (TARGET_ABI if child_python_version == TARGET_PYTHON else "cp00"),
+            "platform": "linux", "machine": "x86_64", "glibc_version": "2.39",
         })
         child_template = (
             "#!{executable}\nimport json, os, pathlib, sys\n"
@@ -105,6 +113,7 @@ class ReleaseSetTests(unittest.TestCase):
         source = (
             f"#!{sys.executable}\nimport json, os, pathlib, subprocess, sys\n"
             f"PROBE = {probe!r}\n"
+            f"CHILD_PROBE = {child_probe!r}\n"
             "if sys.argv[1:2] == ['-I']:\n"
             "    print(PROBE)\n"
             "elif sys.argv[1:3] == ['-m', 'venv']:\n"
@@ -116,7 +125,7 @@ class ReleaseSetTests(unittest.TestCase):
                 "    real = child.with_name('python-real')\n"
                 "    child.rename(real)\n"
                 f"    child.write_text({child_template!r}.format("
-                f"executable={str(Path(sys.executable))!r}, probe=PROBE))\n"
+                f"executable={str(Path(sys.executable))!r}, probe=CHILD_PROBE))\n"
                 "    child.chmod(0o755)\n"
             )
         source += (
@@ -451,7 +460,9 @@ class ReleaseSetTests(unittest.TestCase):
     def test_install_rejects_launcher_that_creates_wrong_version_venv(self) -> None:
         self.assertEqual(self.build().returncode, 0)
         launcher = self.base / "python-launcher-with-wrong-venv"
-        self.write_test_python(launcher, wrap_created_venv=False)
+        self.write_test_python(
+            launcher, wrap_created_venv=True, child_python_version="0.0"
+        )
         managed_root = self.base / "managed-wrong-venv"
 
         result = self.install_with_python(managed_root, launcher)
