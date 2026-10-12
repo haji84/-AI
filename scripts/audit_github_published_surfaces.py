@@ -84,6 +84,24 @@ REVIEWED_PUBLIC_DEPENDENCY_FINDINGS = frozenset(
         ),
     }
 )
+REVIEWED_WORKFLOW_LOG_RUN_ID = 37493709157
+REVIEWED_WORKFLOW_LOG_IDENTITY_SHA256 = (
+    "d9ac66fe26f8d700ba7a5ac3e3c5ec27b22dc27b4ffb7a0b0c7694c05738efde"
+)
+REVIEWED_WORKFLOW_LOG_PREFIX = re.compile(
+    r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z "
+)
+REVIEWED_IMPORT_PREVIEW_KEY = re.compile(
+    r"key = '(?P<key>[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})', expected_version = 1"
+)
+REVIEWED_IMPORT_PREVIEW_CONTEXT = {
+    -7: "backend/app/routers/workforce.py:182: in confirm_import",
+    -6: "out=svc.confirm_import(db,user,key,payload.expected_version,payload.file_sha256);svc.save(db);return out",
+    1: "file_sha256 = '2c48e04a0c378fdc0def569487a61b24ba75923bfc7a59a38b0841fdcf485fe2'",
+    3: "def confirm_import(db,user,key,expected_version,file_sha256):",
+    4: "preview=get_row(db,WorkforceImportPreview,key,True);check_version(preview,expected_version)",
+    7: "E       TypeError: can't compare offset-naive and offset-aware datetimes",
+}
 REVIEWED_EMBEDDED_ZIP_WRAPPERS = frozenset(
     {
         (
@@ -100,6 +118,139 @@ PRINTABLE_CONTAINER_TRANSLATION = bytes(
 
 class AuditFailure(Exception):
     """Private details must never be printed by the CLI."""
+
+
+def _read_regular_private_file(path):
+    descriptor = None
+    try:
+        flags = os.O_RDONLY
+        if hasattr(os, "O_NOFOLLOW"):
+            flags |= os.O_NOFOLLOW
+        descriptor = os.open(path, flags)
+        details = os.fstat(descriptor)
+        if not stat.S_ISREG(details.st_mode) or details.st_size > MAX_ENTRY_BYTES:
+            raise AuditFailure()
+        with os.fdopen(descriptor, "rb") as stream:
+            descriptor = None
+            data = stream.read(MAX_ENTRY_BYTES + 1)
+        if len(data) > MAX_ENTRY_BYTES or len(data) != details.st_size:
+            raise AuditFailure()
+        return data
+    except AuditFailure:
+        raise
+    except Exception as error:
+        raise AuditFailure() from error
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
+
+
+def reviewed_workflow_log_findings(run_id, source_root):
+    """Derive the one exact scanner identity from its reviewed immutable log."""
+    if type(run_id) is not int:
+        raise AuditFailure()
+    if run_id != REVIEWED_WORKFLOW_LOG_RUN_ID:
+        return frozenset()
+    try:
+        source_root = Path(source_root)
+        if source_root.is_symlink():
+            raise AuditFailure()
+        source_root = source_root.resolve(strict=True)
+        if not source_root.is_dir():
+            raise AuditFailure()
+        logs = source_root / "logs"
+        if not logs.exists():
+            return frozenset()
+        if logs.is_symlink() or not logs.is_dir():
+            raise AuditFailure()
+        matches = []
+        totals = {"files": 0, "bytes": 0}
+
+        def walk_error(error):
+            raise AuditFailure() from error
+
+        for current, directories, filenames in os.walk(
+            logs, topdown=True, followlinks=False, onerror=walk_error
+        ):
+            current = Path(current)
+            for name in directories:
+                details = (current / name).lstat()
+                if not stat.S_ISDIR(details.st_mode):
+                    raise AuditFailure()
+            for name in sorted(filenames):
+                candidate = current / name
+                details = candidate.lstat()
+                if not stat.S_ISREG(details.st_mode):
+                    raise AuditFailure()
+                totals["files"] += 1
+                if totals["files"] > MAX_FILES:
+                    raise AuditFailure()
+                data = _read_regular_private_file(candidate)
+                totals["bytes"] += len(data)
+                if totals["bytes"] > MAX_EXTRACTED_BYTES:
+                    raise AuditFailure()
+                try:
+                    lines = data.decode("utf-8-sig").splitlines()
+                except UnicodeDecodeError:
+                    continue
+                normalized = []
+                for line in lines:
+                    prefix = REVIEWED_WORKFLOW_LOG_PREFIX.match(line)
+                    normalized.append(
+                        line[prefix.end():].strip() if prefix is not None else None
+                    )
+                for index, line in enumerate(normalized):
+                    if line is None:
+                        continue
+                    key_match = REVIEWED_IMPORT_PREVIEW_KEY.fullmatch(line)
+                    if key_match is None:
+                        continue
+                    if any(
+                        index + offset < 0
+                        or index + offset >= len(normalized)
+                        or normalized[index + offset] != expected
+                        for offset, expected in REVIEWED_IMPORT_PREVIEW_CONTEXT.items()
+                    ):
+                        continue
+                    finding_text = f"key = '{key_match.group('key')}'"
+                    raw_line = lines[index]
+                    if raw_line.count(finding_text) != 1:
+                        continue
+                    # Pinned Gitleaks 8.30.1 reports the generic-api-key span
+                    # from the second character of ``key`` through the comma.
+                    finding_offset = raw_line.index(finding_text)
+                    start_column = finding_offset + 2
+                    matches.append(
+                        (
+                            candidate,
+                            data,
+                            index + 1,
+                            start_column,
+                            finding_offset + len(finding_text) + 1,
+                        )
+                    )
+        if len(matches) != 1:
+            return frozenset()
+        candidate, data, line_number, start_column, end_column = matches[0]
+        identity = (
+            candidate.relative_to(source_root).as_posix(),
+            hashlib.sha256(data).hexdigest(),
+            "generic-api-key",
+            line_number,
+            line_number,
+            start_column,
+            end_column,
+        )
+        commitment = hashlib.sha256(
+            json.dumps(identity, separators=(",", ":"), ensure_ascii=True).encode()
+        ).hexdigest()
+        if commitment != REVIEWED_WORKFLOW_LOG_IDENTITY_SHA256:
+            return frozenset()
+        return frozenset({identity})
+    except AuditFailure:
+        raise
+    except Exception as error:
+        raise AuditFailure() from error
 
 
 def validated_scan_result(result):
@@ -2009,17 +2160,30 @@ def main(argv=None):
                 finding_sources = manifest.get("finding_sources", "").split("|")
                 finding_sources = [source for source in finding_sources if source]
                 source_roots = [
-                    (f"pull-request:{number}", private / "pull-requests" / str(number))
+                    (
+                        f"pull-request:{number}",
+                        private / "pull-requests" / str(number),
+                        frozenset(),
+                    )
                     for number in pull_requests
                 ] + [
-                    (f"workflow-run:{run_id}", private / "workflow-runs" / str(run_id))
+                    (
+                        f"workflow-run:{run_id}",
+                        private / "workflow-runs" / str(run_id),
+                        reviewed_workflow_log_findings(
+                            run_id, private / "workflow-runs" / str(run_id)
+                        ),
+                    )
                     for run_id in workflow_runs
                 ]
-                for source, source_root in source_roots:
+                for source, source_root, reviewed_findings in source_roots:
                     summary = scanner.scan_directory_summary(
                         source_root,
                         args.gitleaks,
-                        accepted_findings=REVIEWED_PUBLIC_DEPENDENCY_FINDINGS,
+                        accepted_findings=(
+                            REVIEWED_PUBLIC_DEPENDENCY_FINDINGS
+                            | reviewed_findings
+                        ),
                     )
                     source_findings, rule_ids = validated_scan_result(summary)
                     findings += source_findings
