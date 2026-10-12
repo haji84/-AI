@@ -1,7 +1,7 @@
 name: AIOS autonomous backlog bootstrap
 on:
   schedule:
-    - cron: '17 */6 * * *'
+    - cron: '7,22,37,52 * * * *'
   workflow_dispatch:
 
 permissions:
@@ -35,11 +35,20 @@ jobs:
           base=re.search(r'Audited implementation base:\s*`([0-9a-f]{40})`',ledger)
           if not base:
               raise SystemExit('FAIL_CLOSED: no audited baseline in ledger')
-          m=re.search(r'\| Partial \| ([^|]+) \| 44 \|',ledger)
-          if not m:
-              raise SystemExit('FAIL_CLOSED: chapter classification not recognized; requires human review')
+          statuses={}
+          for line in ledger.splitlines():
+              match=re.match(r'^\\|\\s*(\\d{1,2})\\s*\\|[^|]*\\|\\s*(Completed|Partial|Missing|External Gate)\\s*\\|',line)
+              if match:
+                  number=int(match.group(1))
+                  if number in statuses:
+                      raise SystemExit('FAIL_CLOSED: duplicate chapter row')
+                  statuses[number]=match.group(2)
+          if len(statuses)!=57 or set(statuses)!=set(range(1,58)):
+              raise SystemExit('FAIL_CLOSED: canonical 57-row classification unavailable')
           # The initial bootstrap is deliberately limited to two chapter investigations.
           for chapter in (12,21):
+              if statuses[chapter] not in ('Partial','Missing'):
+                  continue
               marker=f'<!-- aios-autonomy-chapter:{chapter} -->'
               existing=subprocess.run(['gh','issue','list','--repo',repo,'--state','all','--limit','1000','--json','body'],
                   capture_output=True,text=True,check=True)
