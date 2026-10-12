@@ -8,7 +8,7 @@ on:
       - 'docs/SPECIFICATION.md'
       - 'docs/completion/CURRENT_COMPLETION_LEDGER.md'
   schedule:
-    - cron: '*/15 * * * *'
+    - cron: '2,17,32,47 * * * *'
 
 permissions:
   contents: read
