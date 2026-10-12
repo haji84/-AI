@@ -1217,6 +1217,45 @@ def test_historical_pull_request_inventory_rechecks_every_page():
             )
 
 
+def test_historical_pull_request_inventory_ignores_non_identity_drift():
+    audit = module()
+    repository = "haji84/-AI"
+    versions = iter(
+        [
+            [
+                {
+                    "number": 1,
+                    "state": "open",
+                    "updated_at": "2026-10-12T00:00:00Z",
+                    "base": {"repo": {"full_name": repository}},
+                }
+            ],
+            [
+                {
+                    "number": 1,
+                    "state": "closed",
+                    "updated_at": "2026-10-12T00:00:01Z",
+                    "base": {"repo": {"full_name": repository}},
+                }
+            ],
+        ]
+    )
+    routes = {
+        (
+            "/repos/haji84/-AI/pulls",
+            "state=all&sort=created&direction=asc&per_page=100&page=1",
+        ): lambda: encoded(next(versions)),
+    }
+
+    with FixtureApi(routes) as api:
+        assert audit._historical_pull_requests(
+            api.base_url,
+            repository,
+            "synthetic-token",
+            time.monotonic() + 10,
+        ) == [1]
+
+
 def test_historical_workflow_inventory_rechecks_later_page_status():
     audit = module()
     repository = "haji84/-AI"
@@ -1263,6 +1302,50 @@ def test_historical_workflow_inventory_rechecks_later_page_status():
                 "synthetic-token",
                 time.monotonic() + 10,
             )
+
+
+def test_historical_workflow_inventory_ignores_non_completed_status_drift():
+    audit = module()
+    repository = "haji84/-AI"
+    versions = iter(
+        [
+            {
+                "total_count": 1,
+                "workflow_runs": [
+                    {
+                        "id": 101,
+                        "status": "queued",
+                        "updated_at": "2026-10-12T00:00:00Z",
+                        "repository": {"full_name": repository},
+                    }
+                ],
+            },
+            {
+                "total_count": 1,
+                "workflow_runs": [
+                    {
+                        "id": 101,
+                        "status": "in_progress",
+                        "updated_at": "2026-10-12T00:00:01Z",
+                        "repository": {"full_name": repository},
+                    }
+                ],
+            },
+        ]
+    )
+    routes = {
+        ("/repos/haji84/-AI/actions/runs", "per_page=100&page=1"): lambda: encoded(
+            next(versions)
+        ),
+    }
+
+    with FixtureApi(routes) as api:
+        assert audit._historical_workflow_runs(
+            api.base_url,
+            repository,
+            "synthetic-token",
+            time.monotonic() + 10,
+        ) == ([101], [])
 
 
 @pytest.mark.parametrize(
