@@ -51,6 +51,64 @@ def fake_token():
     )
 
 
+def reviewed_import_preview_traceback(
+    key=None,
+    *,
+    router_line="backend/app/routers/workforce.py:182: in confirm_import",
+):
+    """Return synthetic text matching the one privately reviewed traceback shape."""
+    if key is None:
+        key = "-".join(("d5071b4a", "b15d", "4fc8", "9f0c", "a46f1f62c7c9"))
+    prefix = "2026-10-06T16:14:57.1234567Z "
+    lines = [
+        router_line,
+        "    out=svc.confirm_import(db,user,key,payload.expected_version,payload.file_sha256);svc.save(db);return out",
+        "",
+        "synthetic traceback field 1",
+        "synthetic traceback field 2",
+        "synthetic traceback field 3",
+        "synthetic traceback field 4",
+        f"key = '{key}', expected_version = 1",
+        "file_sha256 = '2c48e04a0c378fdc0def569487a61b24ba75923bfc7a59a38b0841fdcf485fe2'",
+        "",
+        "def confirm_import(db,user,key,expected_version,file_sha256):",
+        "    preview=get_row(db,WorkforceImportPreview,key,True);check_version(preview,expected_version)",
+        ">   if preview.status != 'validated':",
+        "        raise ValueError('synthetic')",
+        "E       TypeError: can't compare offset-naive and offset-aware datetimes",
+    ]
+    return "\n".join(prefix + line for line in lines) + "\n"
+
+
+def pin_reviewed_identity(audit, monkeypatch, source_root, candidate):
+    """Pin a synthetic fixture without exposing the production log identity."""
+    data = candidate.read_bytes()
+    lines = data.decode().splitlines()
+    index = next(
+        index
+        for index, line in enumerate(lines)
+        if "expected_version = 1" in line
+    )
+    finding_text = "key = '" + lines[index].split("key = '", 1)[1].split("',", 1)[0] + "'"
+    offset = lines[index].index(finding_text)
+    identity = (
+        candidate.relative_to(source_root).as_posix(),
+        hashlib.sha256(data).hexdigest(),
+        "generic-api-key",
+        index + 1,
+        index + 1,
+        offset + 2,
+        offset + len(finding_text) + 1,
+    )
+    commitment = hashlib.sha256(
+        json.dumps(identity, separators=(",", ":"), ensure_ascii=True).encode()
+    ).hexdigest()
+    monkeypatch.setattr(
+        audit, "REVIEWED_WORKFLOW_LOG_IDENTITY_SHA256", commitment
+    )
+    return frozenset({identity})
+
+
 def archive(entries):
     stream = io.BytesIO()
     with zipfile.ZipFile(stream, "w") as bundle:
@@ -517,6 +575,151 @@ def test_existing_private_scanner_can_scan_a_collected_directory(tmp_path, monke
     collected.mkdir()
     (collected / "surface.txt").write_text("synthetic clean content")
     assert scanner.scan_directory(collected, binary) == 0
+
+
+def test_reviewed_workflow_log_finding_derives_one_exact_identity(
+    tmp_path, monkeypatch
+):
+    audit = module()
+    source_root = tmp_path / "workflow-run"
+    candidate = source_root / "logs" / "backend-tests.txt"
+    candidate.parent.mkdir(parents=True)
+    candidate.write_text(reviewed_import_preview_traceback())
+    expected = pin_reviewed_identity(
+        audit, monkeypatch, source_root, candidate
+    )
+
+    identities = audit.reviewed_workflow_log_findings(37493709157, source_root)
+
+    assert identities == expected
+
+
+@pytest.mark.parametrize(
+    ("run_id", "key", "router_line"),
+    [
+        (37493709158, "d5071b4a-b15d-4fc8-9f0c-a46f1f62c7c9", "backend/app/routers/workforce.py:182: in confirm_import"),
+        (37493709157, "d5071b4a-b15d-3fc8-9f0c-a46f1f62c7c9", "backend/app/routers/workforce.py:182: in confirm_import"),
+        (37493709157, "d5071b4a-b15d-4fc8-7f0c-a46f1f62c7c9", "backend/app/routers/workforce.py:182: in confirm_import"),
+        (37493709157, "d5071b4a-b15d-4fc8-9f0c-a46f1f62c7c9", "backend/app/routers/workforce.py:183: in confirm_import"),
+    ],
+    ids=["different-run", "wrong-version", "wrong-variant", "changed-context"],
+)
+def test_reviewed_workflow_log_finding_rejects_inexact_context(
+    tmp_path, monkeypatch, run_id, key, router_line
+):
+    audit = module()
+    source_root = tmp_path / "workflow-run"
+    candidate = source_root / "logs" / "job.txt"
+    candidate.parent.mkdir(parents=True)
+    candidate.write_text(
+        reviewed_import_preview_traceback(key, router_line=router_line)
+    )
+    pin_reviewed_identity(audit, monkeypatch, source_root, candidate)
+
+    assert audit.reviewed_workflow_log_findings(run_id, source_root) == frozenset()
+
+
+def test_reviewed_workflow_log_finding_rejects_duplicate_context(
+    tmp_path, monkeypatch
+):
+    audit = module()
+    source_root = tmp_path / "workflow-run"
+    logs = source_root / "logs"
+    logs.mkdir(parents=True)
+    for name in ("first.txt", "second.txt"):
+        (logs / name).write_text(reviewed_import_preview_traceback())
+    pin_reviewed_identity(audit, monkeypatch, source_root, logs / "first.txt")
+
+    assert (
+        audit.reviewed_workflow_log_findings(37493709157, source_root)
+        == frozenset()
+    )
+
+
+def test_reviewed_workflow_log_finding_rejects_symlinked_log(tmp_path):
+    audit = module()
+    source_root = tmp_path / "workflow-run"
+    logs = source_root / "logs"
+    logs.mkdir(parents=True)
+    outside = tmp_path / "outside.txt"
+    outside.write_text(reviewed_import_preview_traceback())
+    (logs / "job.txt").symlink_to(outside)
+
+    with pytest.raises(audit.AuditFailure):
+        audit.reviewed_workflow_log_findings(37493709157, source_root)
+
+
+def test_reviewed_workflow_log_finding_filters_only_exact_pinned_gitleaks_result(
+    tmp_path, monkeypatch,
+):
+    audit = module()
+    scanner = security_module()
+    binary_value = os.environ.get("FIRE_AI_GITLEAKS_BIN")
+    assert binary_value, "FIRE_AI_GITLEAKS_BIN must identify the pinned official binary"
+    source_root = tmp_path / "workflow-run"
+    candidate = source_root / "logs" / "job.txt"
+    candidate.parent.mkdir(parents=True)
+    candidate.write_text(reviewed_import_preview_traceback())
+    expected = pin_reviewed_identity(
+        audit, monkeypatch, source_root, candidate
+    )
+    identities = audit.reviewed_workflow_log_findings(37493709157, source_root)
+    assert identities == expected
+    observed_identities = []
+    finding_identity = scanner.finding_identity
+
+    def record_identity(finding, target):
+        identity = finding_identity(finding, target)
+        observed_identities.append(identity)
+        return identity
+
+    monkeypatch.setattr(scanner, "finding_identity", record_identity)
+
+    assert scanner.scan_directory_summary(source_root, Path(binary_value)).findings == 1
+    assert frozenset(observed_identities) == identities
+    assert scanner.scan_directory_summary(
+        source_root,
+        Path(binary_value),
+        accepted_findings=identities,
+    ).findings == 0
+
+    unrelated_key = "-".join(("0996a6f0", "c9b0", "4ce7", "aa5a", "2355e7529371"))
+    with candidate.open("a") as stream:
+        stream.write(f"{'key'} = '{unrelated_key}'\n")
+    changed_identities = audit.reviewed_workflow_log_findings(
+        37493709157, source_root
+    )
+    assert changed_identities == frozenset()
+    assert scanner.scan_directory_summary(
+        source_root,
+        Path(binary_value),
+        accepted_findings=changed_identities,
+    ).findings == 2
+
+
+def test_reviewed_workflow_log_finding_rejects_relocated_or_repositioned_log(
+    tmp_path, monkeypatch
+):
+    audit = module()
+    source_root = tmp_path / "workflow-run"
+    candidate = source_root / "logs" / "backend-tests.txt"
+    candidate.parent.mkdir(parents=True)
+    candidate.write_text(reviewed_import_preview_traceback())
+    pin_reviewed_identity(audit, monkeypatch, source_root, candidate)
+
+    relocated = candidate.with_name("relocated.txt")
+    candidate.rename(relocated)
+    assert audit.reviewed_workflow_log_findings(
+        37493709157, source_root
+    ) == frozenset()
+
+    candidate.write_text("2026-10-06T16:14:57.1234567Z extra line\n")
+    with relocated.open() as stream:
+        candidate.write_text(candidate.read_text() + stream.read())
+    relocated.unlink()
+    assert audit.reviewed_workflow_log_findings(
+        37493709157, source_root
+    ) == frozenset()
 
 
 def test_private_scanner_summary_exposes_only_safe_rule_ids(tmp_path):
@@ -2078,3 +2281,63 @@ def test_cli_aggregates_streamed_and_collected_findings(monkeypatch, capsys):
     assert "workflow-run:9/rules:generic-api-key" in output
     assert output.endswith("findings=5")
     assert len(scanner_calls) == 2
+
+
+def test_cli_scopes_reviewed_workflow_log_identity_to_exact_source_scan(
+    tmp_path, monkeypatch, capsys
+):
+    audit = module()
+    calls = []
+    summary = namedtuple("Summary", ("findings", "rule_ids"))
+
+    class Scanner:
+        def scan_directory_summary(self, root, binary, *, accepted_findings):
+            calls.append((root, binary, accepted_findings))
+            return summary(0, ())
+
+    def collect(
+        _api_url,
+        _repository,
+        _pull_requests,
+        workflow_runs,
+        _token,
+        root,
+        *,
+        scan_batch,
+    ):
+        assert workflow_runs == [37493709157]
+        assert scan_batch(Path("synthetic-artifact-batch")).findings == 0
+        source_root = root / "workflow-runs" / "37493709157"
+        candidate = source_root / "logs" / "backend-tests.txt"
+        candidate.parent.mkdir(parents=True)
+        candidate.write_text(reviewed_import_preview_traceback())
+        pin_reviewed_identity(audit, monkeypatch, source_root, candidate)
+        return {
+            "pull_requests": 0,
+            "workflow_runs": 1,
+            "artifacts": 0,
+            "streamed_batches": 0,
+            "streamed_findings": 0,
+        }
+
+    monkeypatch.setenv("FIRE_AI_GITHUB_AUDIT_TOKEN", "synthetic-token")
+    monkeypatch.setattr(audit, "scanner_module", lambda: Scanner())
+    monkeypatch.setattr(audit, "collect_surfaces", collect)
+
+    assert audit.main(
+        [
+            "--repository",
+            "haji84/-AI",
+            "--workflow-run",
+            "37493709157",
+            "--gitleaks",
+            str(tmp_path / "gitleaks"),
+        ]
+    ) == 0
+    assert capsys.readouterr().out.startswith("Published-surface secret audit passed;")
+    assert len(calls) == 2
+    artifact_acceptance = calls[0][2]
+    source_acceptance = calls[1][2]
+    assert artifact_acceptance == audit.REVIEWED_PUBLIC_DEPENDENCY_FINDINGS
+    assert source_acceptance > artifact_acceptance
+    assert len(source_acceptance - artifact_acceptance) == 1
