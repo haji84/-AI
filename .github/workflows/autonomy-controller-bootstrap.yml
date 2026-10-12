@@ -2,8 +2,13 @@ name: autonomy-controller-bootstrap
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/SPECIFICATION.md'
+      - 'docs/completion/CURRENT_COMPLETION_LEDGER.md'
   schedule:
-    - cron: '17 */6 * * *'
+    - cron: '*/15 * * * *'
 
 permissions:
   contents: read
@@ -14,6 +19,7 @@ concurrency:
 
 jobs:
   inventory:
+    if: github.repository == 'haji84/-AI'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
