@@ -34,7 +34,7 @@ def inventory(repo):
     if len(rows) != 57 or {n for n, _ in rows} != set(range(1, 58)):
         raise InventoryError("ledger must classify 57 chapters exactly once")
     # Audit base is a dated evidence anchor, distinct from current checkout SHA.
-    match = re.search(r"Audited implementation base:\s*." + r"([0-9a-f]{40})", ledger_text)
+    match = re.search(r"Audited implementation base:\s*\x60([0-9a-f]{40})\x60", ledger_text)
     if not match:
         raise InventoryError("audited base unavailable")
     sha = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"],
