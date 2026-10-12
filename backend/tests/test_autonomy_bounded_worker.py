@@ -87,6 +87,18 @@ def test_no_change_is_not_completion(env):
     assert not result["merged"]
 
 
+def test_committed_task_manifest_after_baseline_is_valid(env):
+    repo, task, parent = env
+    manifest = repo / "docs/autonomy/tasks/synthetic.json"
+    manifest.parent.mkdir(parents=True)
+    manifest.write_text(__import__("json").dumps(task))
+    git(repo, "add", "docs/autonomy/tasks/synthetic.json")
+    git(repo, "commit", "-qm", "reviewed task contract")
+    assert git(repo, "rev-parse", "HEAD") != task["base_commit"]
+    source = worker.validate_task(repo, task)
+    assert source.name == "inspection.js"
+
+
 def test_invalid_contract_approval_is_rejected(env):
     repo, task, _ = env
     with pytest.raises(worker.GuardError, match="contract"):
