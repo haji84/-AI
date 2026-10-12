@@ -681,6 +681,93 @@ def test_large_nested_zip_is_scanned_in_existing_bounded_batches(
     assert not (tmp_path / "staging").exists()
 
 
+def test_streamed_zip_accepts_only_reviewed_embedded_zip_wrapper(
+    tmp_path, monkeypatch
+):
+    audit = module()
+    embedded = (
+        b"synthetic-prefix\n"
+        + archive({"embedded.txt": "synthetic embedded ZIP"})
+        + b"\nsynthetic-suffix"
+    )
+    monkeypatch.setattr(
+        audit,
+        "REVIEWED_EMBEDDED_ZIP_WRAPPERS",
+        frozenset(
+            {
+                (
+                    "synthetic/lib.so",
+                    hashlib.sha256(embedded).hexdigest(),
+                )
+            }
+        ),
+    )
+    source = tmp_path / "outer.zip"
+    source.write_bytes(
+        archive(
+            {
+                "wheelhouse/synthetic.whl": archive(
+                    {"synthetic/lib.so": embedded}
+                )
+            }
+        )
+    )
+    observed = {}
+
+    def scan_batch(root):
+        for path in root.rglob("*"):
+            if path.is_file():
+                observed[path.relative_to(root).as_posix()] = path.read_bytes()
+        return 0
+
+    batches, findings = audit.scan_zip_file_in_bounded_batches(
+        source,
+        tmp_path / "staging",
+        Path("surface"),
+        max_nested_depth=2,
+        scan_batch=scan_batch,
+    )
+
+    assert batches >= 1
+    assert findings == 0
+    assert observed[
+        "surface/wheelhouse/synthetic.whl.expanded/"
+        "synthetic/lib.so.expanded/embedded.txt"
+    ] == b"synthetic embedded ZIP"
+    assert not (tmp_path / "staging").exists()
+
+    corrupted = bytearray(embedded)
+    end_record = corrupted.rfind(zipfile.stringEndArchive)
+    assert end_record >= 0
+    corrupted[end_record : end_record + len(zipfile.stringEndArchive)] = b"BAD!"
+
+    for index, wrapper in enumerate(
+        (
+            b"unreviewed-prefix\n" + archive({"embedded.txt": "synthetic"}),
+            bytes(corrupted),
+        )
+    ):
+        source.write_bytes(
+            archive(
+                {
+                    "wheelhouse/synthetic.whl": archive(
+                        {"synthetic/lib.so": wrapper}
+                    )
+                }
+            )
+        )
+        rejected_staging = tmp_path / f"rejected-staging-{index}"
+        with pytest.raises(audit.AuditFailure):
+            audit.scan_zip_file_in_bounded_batches(
+                source,
+                rejected_staging,
+                Path("surface"),
+                max_nested_depth=2,
+                scan_batch=scan_batch,
+            )
+        assert not rejected_staging.exists()
+
+
 def test_streamed_zip_total_work_cap_still_fails_closed(tmp_path, monkeypatch):
     audit = module()
     nested = archive(

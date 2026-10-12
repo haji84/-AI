@@ -317,10 +317,18 @@ def nested_archive_kind(path, payload, *, allow_embedded=False):
     name = path.name.lower()
     allowed_zip = path.suffix.lower() in ZIP_CONTAINER_SUFFIXES
     allowed_tar = name.endswith((".tar", ".tar.gz", ".tgz", ".tar.bz2", ".tar.xz"))
-    if zipfile.is_zipfile(io.BytesIO(payload)):
+    is_zip = zipfile.is_zipfile(io.BytesIO(payload))
+    identity = (path.as_posix(), hashlib.sha256(payload).hexdigest())
+    if allow_embedded and any(
+        reviewed_path == identity[0]
+        for reviewed_path, _reviewed_hash in REVIEWED_EMBEDDED_ZIP_WRAPPERS
+    ):
+        if is_zip and identity in REVIEWED_EMBEDDED_ZIP_WRAPPERS:
+            return "embedded_zip"
+        return "unsupported"
+    if is_zip:
         if allowed_zip:
             return "zip"
-        identity = (path.as_posix(), hashlib.sha256(payload).hexdigest())
         if allow_embedded and identity in REVIEWED_EMBEDDED_ZIP_WRAPPERS:
             return "embedded_zip"
         return "unsupported"
@@ -754,7 +762,13 @@ def preflight_zip(payload, budget, *, allow_wrapping=False):
     return entries
 
 
-def preflight_zip_file(path, budget, *, max_files=None):
+def preflight_zip_file(
+    path,
+    budget,
+    *,
+    max_files=None,
+    allow_wrapping=False,
+):
     if max_files is None:
         max_files = MAX_FILES
     try:
@@ -814,11 +828,19 @@ def preflight_zip_file(path, budget, *, max_files=None):
                 or type(directory_offset) is not int
                 or type(end_location) is not int
                 or min(directory_size, directory_offset, end_location) < 0
-                or archive_end != metadata.st_size
+                or archive_end > metadata.st_size
+                or (not allow_wrapping and archive_end != metadata.st_size)
             ):
                 raise AuditFailure()
             prefix_size = end_location - directory_size - directory_offset
-            if prefix_size != 0:
+            if prefix_size < 0 or prefix_size > metadata.st_size:
+                raise AuditFailure()
+            if allow_wrapping:
+                source.seek(0)
+                prefix = source.read(prefix_size)
+                if len(prefix) != prefix_size or has_prior_zip(prefix):
+                    raise AuditFailure()
+            elif prefix_size != 0:
                 raise AuditFailure()
             actual_entries = count_central_directory_file_entries(
                 source,
@@ -1087,11 +1109,19 @@ def scan_zip_file_in_bounded_batches(
         except Exception as error:
             raise AuditFailure() from error
 
-    def scan_archive(archive_path, archive_prefix, depth, *, scan_container):
+    def scan_archive(
+        archive_path,
+        archive_prefix,
+        depth,
+        *,
+        scan_container,
+        allow_wrapping=False,
+    ):
         expected = preflight_zip_file(
             archive_path,
             {"files": total["files"], "bytes": total["bytes"]},
             max_files=MAX_STREAMED_AUDIT_FILES,
+            allow_wrapping=allow_wrapping,
         )
         try:
             archive = zipfile.ZipFile(archive_path)
@@ -1151,7 +1181,11 @@ def scan_zip_file_in_bounded_batches(
                         raise AuditFailure() from error
                     if len(data) != member.file_size:
                         raise AuditFailure()
-                    kind = nested_archive_kind(member_path, data)
+                    kind = nested_archive_kind(
+                        member_path,
+                        data,
+                        allow_embedded=scan_container,
+                    )
                     if kind == "unsupported" or (kind is not None and depth <= 0):
                         raise AuditFailure()
                     if kind is not None:
@@ -1220,6 +1254,7 @@ def scan_zip_file_in_bounded_batches(
                                 relative.with_name(f"{relative.name}.expanded"),
                                 depth - 1,
                                 scan_container=True,
+                                allow_wrapping=kind == "embedded_zip",
                             )
                         finally:
                             archive_target.unlink(missing_ok=True)
