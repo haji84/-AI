@@ -43,6 +43,7 @@ DOWNLOAD_TIMEOUT_SECONDS = 60
 NESTED_ARCHIVE_SUFFIXES = {".zip", ".tar", ".gz", ".tgz", ".bz2", ".xz", ".7z", ".rar"}
 ZIP_CONTAINER_SUFFIXES = {".zip", ".whl", ".docx", ".xlsx", ".pptx"}
 REPOSITORY = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
+SAFE_RULE_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
 REVIEWED_PUBLIC_DEPENDENCY_FINDINGS = frozenset(
     {
         (
@@ -99,6 +100,30 @@ PRINTABLE_CONTAINER_TRANSLATION = bytes(
 
 class AuditFailure(Exception):
     """Private details must never be printed by the CLI."""
+
+
+def validated_scan_result(result):
+    """Validate the count and optional public-safe rule identifiers."""
+    if type(result) is int:
+        if result < 0:
+            raise AuditFailure()
+        return result, ()
+    if not isinstance(result, tuple) or len(result) != 2:
+        raise AuditFailure()
+    findings, rules = result
+    if (
+        type(findings) is not int
+        or findings < 0
+        or not isinstance(rules, tuple)
+        or any(
+            not isinstance(rule, str) or SAFE_RULE_ID.fullmatch(rule) is None
+            for rule in rules
+        )
+        or tuple(sorted(set(rules))) != rules
+        or bool(findings) != bool(rules)
+    ):
+        raise AuditFailure()
+    return findings, rules
 
 
 class SafeParser(argparse.ArgumentParser):
@@ -1805,6 +1830,12 @@ def collect_surfaces(
         raise AuditFailure()
     root.mkdir(parents=True, mode=0o700, exist_ok=False)
     manifest = {"pull_requests": 0, "workflow_runs": 0, "artifacts": 0}
+    finding_sources = []
+
+    def attributed_result(result, rule_ids):
+        findings, rules = validated_scan_result(result)
+        rule_ids.update(rules)
+        return findings
 
     for number in pull_requests:
         base = f"/repos/{repository}"
@@ -1854,6 +1885,13 @@ def collect_surfaces(
                     accept="application/vnd.github+json",
                 )
                 if scan_batch is not None:
+                    artifact_rule_ids = set()
+
+                    def attributed_scan_batch(batch_root):
+                        return attributed_result(
+                            scan_batch(batch_root), artifact_rule_ids
+                        )
+
                     batches, findings = scan_zip_file_in_bounded_batches(
                         archive_path,
                         location / "artifact-streaming" / str(artifact_id),
@@ -1864,7 +1902,7 @@ def collect_surfaces(
                             str(artifact_id),
                         ),
                         max_nested_depth=2,
-                        scan_batch=scan_batch,
+                        scan_batch=attributed_scan_batch,
                     )
                     manifest["streamed_batches"] = (
                         manifest.get("streamed_batches", 0) + batches
@@ -1872,6 +1910,11 @@ def collect_surfaces(
                     manifest["streamed_findings"] = (
                         manifest.get("streamed_findings", 0) + findings
                     )
+                    if findings and artifact_rule_ids:
+                        finding_sources.append(
+                            f"workflow-run:{run_id}/artifact:{artifact_id}/rules:"
+                            + ",".join(sorted(artifact_rule_ids))
+                        )
                 else:
                     extract_zip_file(
                         archive_path,
@@ -1882,6 +1925,8 @@ def collect_surfaces(
                 archive_path.unlink(missing_ok=True)
             manifest["artifacts"] += 1
         manifest["workflow_runs"] += 1
+    if finding_sources:
+        manifest["finding_sources"] = "|".join(sorted(finding_sources))
     write_json(root / "manifest.json", manifest)
     return manifest
 
@@ -1949,7 +1994,7 @@ def main(argv=None):
                 scanner = scanner_module()
 
                 def scan_batch(batch_root):
-                    return scanner.scan_directory(
+                    return scanner.scan_directory_summary(
                         batch_root,
                         args.gitleaks,
                         accepted_findings=REVIEWED_PUBLIC_DEPENDENCY_FINDINGS,
@@ -1961,11 +2006,31 @@ def main(argv=None):
                     scan_batch=scan_batch,
                 )
                 findings = manifest.pop("streamed_findings", 0)
-                findings += scanner.scan_directory(
-                    private,
-                    args.gitleaks,
-                    accepted_findings=REVIEWED_PUBLIC_DEPENDENCY_FINDINGS,
-                )
+                finding_sources = manifest.get("finding_sources", "").split("|")
+                finding_sources = [source for source in finding_sources if source]
+                source_roots = [
+                    (f"pull-request:{number}", private / "pull-requests" / str(number))
+                    for number in pull_requests
+                ] + [
+                    (f"workflow-run:{run_id}", private / "workflow-runs" / str(run_id))
+                    for run_id in workflow_runs
+                ]
+                for source, source_root in source_roots:
+                    summary = scanner.scan_directory_summary(
+                        source_root,
+                        args.gitleaks,
+                        accepted_findings=REVIEWED_PUBLIC_DEPENDENCY_FINDINGS,
+                    )
+                    source_findings, rule_ids = validated_scan_result(summary)
+                    findings += source_findings
+                    if source_findings:
+                        if not rule_ids:
+                            raise AuditFailure()
+                        finding_sources.append(
+                            f"{source}/rules:" + ",".join(rule_ids)
+                        )
+                if finding_sources:
+                    manifest["finding_sources"] = "|".join(sorted(finding_sources))
             elif args.historical:
                 manifest = {"pull_requests": 0, "workflow_runs": 0, "artifacts": 0}
                 findings = 0
