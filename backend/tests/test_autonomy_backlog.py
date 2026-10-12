@@ -80,3 +80,28 @@ def test_untrusted_public_issue_cannot_fake_dedup(repo):
         return SimpleNamespace(stdout="created")
     result = backlog.update_issues(repo, "haji84/-AI", runner=runner)
     assert result == {"created": 2, "existing": 0}
+
+
+def test_owner_pause_marker_suppresses_issue_creation(repo):
+    def runner(args, **kwargs):
+        if args[2] == "list":
+            import json
+            return SimpleNamespace(stdout=json.dumps([{
+                "body": "<!-- aios-autonomy-pause -->",
+                "author": {"login": "haji84"}, "state": "OPEN"}]))
+        raise AssertionError("must not create issues during owner pause")
+    assert backlog.update_issues(repo, "haji84/-AI", runner=runner)["paused"] is True
+
+
+def test_outsider_pause_marker_does_not_stop_controller(repo):
+    created = []
+    def runner(args, **kwargs):
+        if args[2] == "list":
+            import json
+            return SimpleNamespace(stdout=json.dumps([{
+                "body": "<!-- aios-autonomy-pause -->",
+                "author": {"login": "untrusted-user"}, "state": "OPEN"}]))
+        created.append(args)
+        return SimpleNamespace(stdout="created")
+    assert backlog.update_issues(repo, "haji84/-AI", runner=runner)["created"] == 2
+    assert len(created) == 2
