@@ -66,11 +66,17 @@ def update_issues(root, repo, runner=subprocess.run):
     def execute(args):
         return runner(args, text=True, capture_output=True, check=True, timeout=70)
     listed = execute(["gh", "issue", "list", "--repo", repo, "--state", "all",
-                      "--limit", "1000", "--json", "body,author"])
+                      "--limit", "1000", "--json", "body,author,state"])
     rows = json.loads(listed.stdout)
     if not isinstance(rows, list) or len(rows) >= 1000 or any(not isinstance(x, dict) for x in rows):
         raise SafeStop("issue pagination incomplete")
     trusted = {"github-actions[bot]", "haji84"}
+    if any(x.get("state") == "OPEN"
+           and isinstance(x.get("author"), dict)
+           and x["author"].get("login") == "haji84"
+           and "<!-- aios-autonomy-pause -->" in (x.get("body") or "")
+           for x in rows):
+        return {"created": 0, "existing": 0, "paused": True}
     contents = [x.get("body") or "" for x in rows
                 if isinstance(x.get("author"), dict)
                 and x["author"].get("login") in trusted]
