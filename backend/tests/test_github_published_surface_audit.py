@@ -44,6 +44,22 @@ def security_module():
     return loaded
 
 
+def test_reviewed_public_dependency_findings_cover_both_wheelhouse_layouts():
+    audit = module()
+    findings = audit.REVIEWED_PUBLIC_DEPENDENCY_FINDINGS
+    nested = {
+        identity for identity in findings if identity[0].startswith("wheelhouse/")
+    }
+    standalone = findings - nested
+
+    assert len(nested) == 4
+    assert standalone == {
+        (path.removeprefix("wheelhouse/"), *details)
+        for path, *details in nested
+    }
+    assert len(standalone) == 4
+
+
 def fake_token():
     return "gh" + "p_" + "".join(
         secrets.choice("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
