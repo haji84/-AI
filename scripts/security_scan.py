@@ -10,21 +10,31 @@ import json
 import os
 from pathlib import Path
 import resource
+import re
 import selectors
 import signal
 import subprocess
 import tempfile
 import time
+from typing import NamedTuple
 
 VERSION = "8.30.1"
 BINARY_SHA256 = "88f91962aa2f93ac6ab281d553b9e125f5197bbbce38f9f2437f7299c32e5509"
 TIMEOUT_SECONDS = 300
 MAX_CAPTURE_BYTES = 16 * 1024 * 1024
 TRUSTED_CONFIG = "[extend]\nuseDefault = true\n"
+SAFE_RULE_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
 
 
 class ScanFailure(Exception):
     """Internal details must never be printed by the CLI."""
+
+
+class ScanSummary(NamedTuple):
+    """Only fields safe for public diagnostic output."""
+
+    findings: int
+    rule_ids: tuple[str, ...]
 
 
 def canonical_finding_path(relative):
@@ -132,7 +142,7 @@ def finding_identity(finding, target):
                 "EndColumn",
             )
         )
-        if not isinstance(values[0], str) or not values[0]:
+        if not isinstance(values[0], str) or SAFE_RULE_ID.fullmatch(values[0]) is None:
             raise ScanFailure()
         if any(type(value) is not int or value <= 0 for value in values[1:]):
             raise ScanFailure()
@@ -172,6 +182,7 @@ def _scan_targets(targets, binary, *, accepted_findings=frozenset()):
         if code != 0 or output.decode("ascii").strip() != VERSION:
             raise ScanFailure()
         total = 0
+        rule_ids = set()
         for mode, target in targets:
             report = private / "report.json"
             report.unlink(missing_ok=True)
@@ -194,23 +205,38 @@ def _scan_targets(targets, binary, *, accepted_findings=frozenset()):
                 raise ScanFailure()
             if mode == "dir":
                 identities = [finding_identity(row, target) for row in findings]
-                total += sum(
-                    identity not in accepted_findings for identity in identities
-                )
+                unaccepted = [
+                    identity for identity in identities
+                    if identity not in accepted_findings
+                ]
+                total += len(unaccepted)
+                rule_ids.update(identity[2] for identity in unaccepted)
             else:
                 total += len(findings)
-        return total
+        return ScanSummary(total, tuple(sorted(rule_ids)))
 
 
 def scan(repository, binary):
     repository = repository.resolve(strict=True)
     if not repository.is_dir() or not (repository / ".git").exists():
         raise ScanFailure()
-    return _scan_targets((("git", repository), ("dir", repository)), binary)
+    return _scan_targets((("git", repository), ("dir", repository)), binary).findings
 
 
 def scan_directory(directory, binary, *, accepted_findings=frozenset()):
     """Scan one already-private directory without requiring it to be a Git repo."""
+    directory = directory.resolve(strict=True)
+    if not directory.is_dir():
+        raise ScanFailure()
+    return scan_directory_summary(
+        directory,
+        binary,
+        accepted_findings=accepted_findings,
+    ).findings
+
+
+def scan_directory_summary(directory, binary, *, accepted_findings=frozenset()):
+    """Return only a count and validated rule IDs for a private directory."""
     directory = directory.resolve(strict=True)
     if not directory.is_dir():
         raise ScanFailure()

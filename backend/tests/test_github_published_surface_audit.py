@@ -1,6 +1,7 @@
 """Published-surface audit tests use generated synthetic content only."""
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import bz2
+from collections import namedtuple
 import errno
 import gzip
 import importlib.util
@@ -516,6 +517,26 @@ def test_existing_private_scanner_can_scan_a_collected_directory(tmp_path, monke
     collected.mkdir()
     (collected / "surface.txt").write_text("synthetic clean content")
     assert scanner.scan_directory(collected, binary) == 0
+
+
+def test_private_scanner_summary_exposes_only_safe_rule_ids(tmp_path):
+    scanner = security_module()
+    binary_value = os.environ.get("FIRE_AI_GITLEAKS_BIN")
+    assert binary_value, "FIRE_AI_GITLEAKS_BIN must identify the pinned official binary"
+    sentinel = fake_token()
+    private = tmp_path / "private"
+    private.mkdir()
+    (private / "sensitive-name.txt").write_text(f"credential = {sentinel}\n")
+
+    summary = scanner.scan_directory_summary(private, Path(binary_value))
+
+    assert summary.findings == 1
+    assert summary.rule_ids
+    assert all(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", value) for value in summary.rule_ids)
+    public = repr(summary)
+    assert sentinel not in public
+    assert "sensitive-name.txt" not in public
+    assert str(private) not in public
 
 
 def test_cross_origin_download_redirect_does_not_forward_bearer_token():
@@ -1080,6 +1101,49 @@ def test_collects_large_nested_artifact_through_bounded_batch_scanner(
     }.issubset(observed)
     assert any("/.container-parts/" in path for path in observed)
     assert not (root / "workflow-runs/9/artifact-streaming/11").exists()
+
+
+def test_collects_safe_finding_source_without_secret_material(tmp_path):
+    audit = module()
+    sentinel = fake_token()
+    routes = {
+        ("/repos/haji84/-AI/actions/runs/9", ""): encoded(
+            {"id": 9, "status": "completed", "repository": {"full_name": "haji84/-AI"}}
+        ),
+        ("/repos/haji84/-AI/actions/runs/9/logs", ""): (
+            "application/zip",
+            archive({"job.txt": "clean"}),
+        ),
+        ("/repos/haji84/-AI/actions/runs/9/artifacts", "per_page=100&page=1"): encoded(
+            {"total_count": 1, "artifacts": [{"id": 11, "expired": False}]}
+        ),
+        ("/repos/haji84/-AI/actions/artifacts/11/zip", ""): (
+            "application/zip",
+            archive({"evidence.txt": f"credential = {sentinel}"}),
+        ),
+    }
+
+    def scan_batch(root):
+        contents = b"".join(path.read_bytes() for path in root.rglob("*") if path.is_file())
+        if sentinel.encode() in contents:
+            return 1, ("generic-api-key",)
+        return 0, ()
+
+    with FixtureApi(routes) as api:
+        root = tmp_path / "private"
+        manifest = audit.collect_surfaces(
+            api.base_url,
+            "haji84/-AI",
+            [],
+            [9],
+            "synthetic-token",
+            root,
+            scan_batch=scan_batch,
+        )
+
+    assert manifest["streamed_findings"] == 1
+    assert manifest["finding_sources"] == "workflow-run:9/artifact:11/rules:generic-api-key"
+    assert sentinel not in repr(manifest)
 
 
 def test_collects_highly_compressed_nested_artifact_without_retry(
@@ -1920,14 +1984,58 @@ def test_cli_errors_never_echo_token_repository_or_private_payload(monkeypatch, 
     assert output.strip() == "Published-surface secret audit failed closed; findings=unknown"
 
 
+def test_cli_attributes_workflow_log_finding_to_run_without_secret(monkeypatch, capsys):
+    audit = module()
+    binary_value = os.environ.get("FIRE_AI_GITLEAKS_BIN")
+    assert binary_value, "FIRE_AI_GITLEAKS_BIN must identify the pinned official binary"
+    sentinel = fake_token()
+    routes = {
+        ("/repos/haji84/-AI/actions/runs/9", ""): encoded(
+            {"id": 9, "status": "completed", "repository": {"full_name": "haji84/-AI"}}
+        ),
+        ("/repos/haji84/-AI/actions/runs/9/logs", ""): (
+            "application/zip",
+            archive({"job.txt": f"credential = {sentinel}"}),
+        ),
+        ("/repos/haji84/-AI/actions/runs/9/artifacts", "per_page=100&page=1"): encoded(
+            {"total_count": 0, "artifacts": []}
+        ),
+    }
+    monkeypatch.setenv("FIRE_AI_GITHUB_AUDIT_TOKEN", "synthetic-token")
+
+    with FixtureApi(routes) as api:
+        result = audit.main(
+            [
+                "--repository",
+                "haji84/-AI",
+                "--workflow-run",
+                "9",
+                "--gitleaks",
+                binary_value,
+                "--api-url",
+                api.base_url,
+            ]
+        )
+
+    output = capsys.readouterr().out.strip()
+    assert result == 1
+    assert "workflow-run:9/rules:" in output
+    assert "collected-metadata" not in output
+    assert sentinel not in output
+
+
 def test_cli_aggregates_streamed_and_collected_findings(monkeypatch, capsys):
     audit = module()
     scanner_calls = []
+    summary = namedtuple("Summary", ("findings", "rule_ids"))
 
     class Scanner:
-        def scan_directory(self, root, binary, *, accepted_findings):
+        def scan_directory_summary(self, root, binary, *, accepted_findings):
             scanner_calls.append((root, binary, accepted_findings))
-            return 3 if root == Path("synthetic-batch") else 2
+            return summary(
+                3 if root == Path("synthetic-batch") else 2,
+                ("generic-api-key",),
+            )
 
     def collect(
         _api_url,
@@ -1939,13 +2047,14 @@ def test_cli_aggregates_streamed_and_collected_findings(monkeypatch, capsys):
         *,
         scan_batch,
     ):
-        assert scan_batch(Path("synthetic-batch")) == 3
+        assert scan_batch(Path("synthetic-batch")).findings == 3
         return {
             "pull_requests": 0,
             "workflow_runs": 1,
             "artifacts": 1,
             "streamed_batches": 1,
             "streamed_findings": 3,
+            "finding_sources": "workflow-run:9/artifact:11/rules:generic-api-key",
         }
 
     monkeypatch.setenv("FIRE_AI_GITHUB_AUDIT_TOKEN", "synthetic-token")
@@ -1965,5 +2074,7 @@ def test_cli_aggregates_streamed_and_collected_findings(monkeypatch, capsys):
     output = capsys.readouterr().out.strip()
     assert "streamed_batches=1" in output
     assert "streamed_findings" not in output
+    assert "workflow-run:9/artifact:11/rules:generic-api-key" in output
+    assert "workflow-run:9/rules:generic-api-key" in output
     assert output.endswith("findings=5")
     assert len(scanner_calls) == 2
