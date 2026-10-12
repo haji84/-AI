@@ -7,6 +7,7 @@ API payloads and scanner reports remain in private temporary directories.
 import argparse
 import bz2
 from contextlib import contextmanager
+import errno
 import gzip
 import hashlib
 import importlib.util
@@ -15,6 +16,7 @@ import lzma
 import os
 from pathlib import Path, PurePosixPath
 import re
+import shutil
 import signal
 import stat
 import struct
@@ -32,6 +34,9 @@ MAX_ARTIFACT_DOWNLOAD_BYTES = 512 * 1024 * 1024
 MAX_EXTRACTED_BYTES = 512 * 1024 * 1024
 MAX_FILES = 20_000
 MAX_ENTRY_BYTES = 64 * 1024 * 1024
+MAX_STREAMED_AUDIT_BYTES = 4 * 1024 * 1024 * 1024
+MAX_STREAMED_AUDIT_FILES = 50_000
+MAX_CONTAINER_TEXT_CHUNK_BYTES = 8 * 1024 * 1024
 MAX_HISTORY_SURFACES = 10_000
 MAX_HISTORY_DISCOVERY_SECONDS = 300
 DOWNLOAD_TIMEOUT_SECONDS = 60
@@ -85,6 +90,10 @@ REVIEWED_EMBEDDED_ZIP_WRAPPERS = frozenset(
             "64ea1ff04304a3e90d5ae7fb38de4fb8e4057ff776434e747fe5a62d219b1cfa",
         ),
     }
+)
+PRINTABLE_CONTAINER_TRANSLATION = bytes(
+    value if value in (9, 10, 13) or 32 <= value <= 126 else 10
+    for value in range(256)
 )
 
 
@@ -366,6 +375,29 @@ def write_private_file(target, data):
             destination.write(data)
     except Exception as error:
         raise AuditFailure() from error
+
+
+def remove_private_tree(path):
+    for attempt in range(2):
+        try:
+            shutil.rmtree(path)
+            break
+        except FileNotFoundError as error:
+            try:
+                path.lstat()
+            except FileNotFoundError:
+                return
+            except Exception as stat_error:
+                raise AuditFailure() from stat_error
+            raise AuditFailure() from error
+        except OSError as error:
+            if attempt == 0 and error.errno == errno.ENOTEMPTY:
+                continue
+            raise AuditFailure() from error
+        except Exception as error:
+            raise AuditFailure() from error
+    if path.exists():
+        raise AuditFailure()
 
 
 def validate_expansion_namespaces(entries, max_nested_depth):
@@ -722,7 +754,9 @@ def preflight_zip(payload, budget, *, allow_wrapping=False):
     return entries
 
 
-def preflight_zip_file(path, budget):
+def preflight_zip_file(path, budget, *, max_files=None):
+    if max_files is None:
+        max_files = MAX_FILES
     try:
         metadata = path.lstat()
         if not stat.S_ISREG(metadata.st_mode):
@@ -770,7 +804,9 @@ def preflight_zip_file(path, budget):
             if (
                 type(entries) is not int
                 or entries < 0
-                or entries > MAX_FILES - budget["files"]
+                or type(max_files) is not int
+                or max_files <= 0
+                or entries > max_files - budget["files"]
                 or entries_on_disk != entries
                 or disk != 0
                 or directory_disk != 0
@@ -788,7 +824,7 @@ def preflight_zip_file(path, budget):
                 source,
                 end_location - directory_size,
                 directory_size,
-                MAX_FILES - budget["files"],
+                max_files - budget["files"],
             )
             if actual_entries != entries:
                 raise AuditFailure()
@@ -914,6 +950,322 @@ def extract_zip_file(
         budget=budget,
         allow_embedded=False,
     )
+
+
+def _stream_zip_member(archive, member, target, *, max_bytes):
+    target.parent.mkdir(parents=True, mode=0o700, exist_ok=True)
+    descriptor = None
+    try:
+        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+        if hasattr(os, "O_NOFOLLOW"):
+            flags |= os.O_NOFOLLOW
+        descriptor = os.open(target, flags, 0o600)
+        with archive.open(member) as source, os.fdopen(descriptor, "wb") as output:
+            descriptor = None
+            size = 0
+            while True:
+                chunk = source.read(64 * 1024)
+                if not chunk:
+                    break
+                size += len(chunk)
+                if size > max_bytes or size > member.file_size:
+                    raise AuditFailure()
+                output.write(chunk)
+        if size != member.file_size:
+            raise AuditFailure()
+    except AuditFailure:
+        target.unlink(missing_ok=True)
+        raise
+    except Exception as error:
+        target.unlink(missing_ok=True)
+        raise AuditFailure() from error
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
+
+
+def scan_zip_file_in_bounded_batches(
+    path,
+    staging,
+    prefix,
+    *,
+    max_nested_depth,
+    scan_batch,
+):
+    prefix = PurePosixPath(prefix.as_posix())
+    if (
+        not callable(scan_batch)
+        or type(max_nested_depth) is not int
+        or max_nested_depth < 0
+        or prefix.is_absolute()
+        or not prefix.parts
+        or ".." in prefix.parts
+        or staging.exists()
+    ):
+        raise AuditFailure()
+    staging.mkdir(parents=True, mode=0o700, exist_ok=False)
+    total = {"files": 0, "bytes": 0}
+    state = {
+        "batch_index": 0,
+        "batch_files": 0,
+        "batch_bytes": 0,
+        "batches": 0,
+        "findings": 0,
+        "archive_index": 0,
+    }
+    batch_root = None
+
+    def start_batch():
+        nonlocal batch_root
+        batch_root = staging / "batches" / f"{state['batch_index']:06d}"
+        state["batch_index"] += 1
+        batch_root.mkdir(parents=True, mode=0o700, exist_ok=False)
+
+    def flush_batch():
+        nonlocal batch_root
+        if batch_root is None or state["batch_files"] == 0:
+            return
+        result = scan_batch(batch_root)
+        if type(result) is not int or result < 0:
+            raise AuditFailure()
+        state["findings"] += result
+        state["batches"] += 1
+        remove_private_tree(batch_root)
+        batch_root = None
+        state["batch_files"] = 0
+        state["batch_bytes"] = 0
+
+    def charge_total(size):
+        total["files"] += 1
+        total["bytes"] += size
+        if (
+            total["files"] > MAX_STREAMED_AUDIT_FILES
+            or total["bytes"] > MAX_STREAMED_AUDIT_BYTES
+        ):
+            raise AuditFailure()
+
+    def add_batch_file(relative, data):
+        if len(data) > MAX_ENTRY_BYTES:
+            raise AuditFailure()
+        if (
+            state["batch_files"] + 1 > MAX_FILES
+            or state["batch_bytes"] + len(data) > MAX_EXTRACTED_BYTES
+        ):
+            flush_batch()
+        if batch_root is None:
+            start_batch()
+        write_private_file(batch_root.joinpath(*relative.parts), data)
+        state["batch_files"] += 1
+        state["batch_bytes"] += len(data)
+
+    def scan_container_bytes(archive_path, archive_prefix):
+        chunk_size = min(MAX_ENTRY_BYTES, MAX_CONTAINER_TEXT_CHUNK_BYTES)
+        overlap = min(zipfile.ZIP_MAX_COMMENT, chunk_size // 16)
+        if chunk_size <= 0 or overlap < 0:
+            raise AuditFailure()
+        offset = 0
+        index = 0
+        try:
+            with archive_path.open("rb") as source:
+                while True:
+                    source.seek(offset)
+                    data = source.read(chunk_size)
+                    if not data:
+                        return
+                    add_batch_file(
+                        archive_prefix
+                        / ".container-parts"
+                        / f"part-{index:06d}.txt",
+                        data.translate(PRINTABLE_CONTAINER_TRANSLATION),
+                    )
+                    index += 1
+                    if len(data) < chunk_size:
+                        return
+                    offset += len(data) - overlap
+        except AuditFailure:
+            raise
+        except Exception as error:
+            raise AuditFailure() from error
+
+    def scan_archive(archive_path, archive_prefix, depth, *, scan_container):
+        expected = preflight_zip_file(
+            archive_path,
+            {"files": total["files"], "bytes": total["bytes"]},
+            max_files=MAX_STREAMED_AUDIT_FILES,
+        )
+        try:
+            archive = zipfile.ZipFile(archive_path)
+        except Exception as error:
+            raise AuditFailure() from error
+        try:
+            with archive:
+                members = archive.infolist()
+                if len(members) != expected:
+                    raise AuditFailure()
+                paths = set()
+                kinds = {}
+                for member in members:
+                    member_path = PurePosixPath(member.filename)
+                    mode = member.external_attr >> 16
+                    if (
+                        member_path.is_absolute()
+                        or not member_path.parts
+                        or ".." in member_path.parts
+                        or member_path.parts in paths
+                        or type(member.file_size) is not int
+                        or member.file_size < 0
+                    ):
+                        raise AuditFailure()
+                    paths.add(member_path.parts)
+                    file_type = stat.S_IFMT(mode)
+                    if file_type and file_type not in (stat.S_IFREG, stat.S_IFDIR):
+                        raise AuditFailure()
+                    charge_total(0 if member.is_dir() else member.file_size)
+                if any(path[0] == ".container-parts" for path in paths):
+                    raise AuditFailure()
+                for index, member in enumerate(members):
+                    if member.is_dir():
+                        kinds[index] = None
+                        continue
+                    member_path = PurePosixPath(member.filename)
+                    if member.file_size > MAX_ENTRY_BYTES:
+                        if (
+                            depth <= 0
+                            or member.file_size > MAX_ARTIFACT_DOWNLOAD_BYTES
+                            or member_path.suffix.lower() not in ZIP_CONTAINER_SUFFIXES
+                        ):
+                            raise AuditFailure()
+                        expanded = member_path.with_name(
+                            f"{member_path.name}.expanded"
+                        ).parts
+                        if any(
+                            candidate[: len(expanded)] == expanded
+                            for candidate in paths
+                        ):
+                            raise AuditFailure()
+                        kinds[index] = "zip"
+                        continue
+                    try:
+                        data = archive.read(member)
+                    except Exception as error:
+                        raise AuditFailure() from error
+                    if len(data) != member.file_size:
+                        raise AuditFailure()
+                    kind = nested_archive_kind(member_path, data)
+                    if kind == "unsupported" or (kind is not None and depth <= 0):
+                        raise AuditFailure()
+                    if kind is not None:
+                        expanded = member_path.with_name(
+                            f"{member_path.name}.expanded"
+                        ).parts
+                        if any(
+                            candidate[: len(expanded)] == expanded
+                            for candidate in paths
+                        ):
+                            raise AuditFailure()
+                    kinds[index] = kind
+
+                if scan_container:
+                    scan_container_bytes(archive_path, archive_prefix)
+
+                for index, member in enumerate(members):
+                    if member.is_dir():
+                        continue
+                    member_path = PurePosixPath(member.filename)
+                    relative = archive_prefix.joinpath(*member_path.parts)
+                    if member.file_size > MAX_ENTRY_BYTES:
+                        archive_target = (
+                            staging
+                            / "archives"
+                            / f"{state['archive_index']:06d}.zip"
+                        )
+                        state["archive_index"] += 1
+                        try:
+                            _stream_zip_member(
+                                archive,
+                                member,
+                                archive_target,
+                                max_bytes=MAX_ARTIFACT_DOWNLOAD_BYTES,
+                            )
+                            if not zipfile.is_zipfile(archive_target):
+                                raise AuditFailure()
+                            scan_archive(
+                                archive_target,
+                                relative.with_name(f"{relative.name}.expanded"),
+                                depth - 1,
+                                scan_container=True,
+                            )
+                        finally:
+                            archive_target.unlink(missing_ok=True)
+                        continue
+
+                    try:
+                        data = archive.read(member)
+                    except Exception as error:
+                        raise AuditFailure() from error
+                    if len(data) != member.file_size:
+                        raise AuditFailure()
+                    kind = kinds[index]
+                    if kind in {"zip", "embedded_zip"}:
+                        archive_target = (
+                            staging
+                            / "archives"
+                            / f"{state['archive_index']:06d}.zip"
+                        )
+                        state["archive_index"] += 1
+                        try:
+                            write_private_file(archive_target, data)
+                            scan_archive(
+                                archive_target,
+                                relative.with_name(f"{relative.name}.expanded"),
+                                depth - 1,
+                                scan_container=True,
+                            )
+                        finally:
+                            archive_target.unlink(missing_ok=True)
+                        continue
+                    if kind == "tar":
+                        add_batch_file(relative, data)
+                        flush_batch()
+                        tar_root = staging / "tar-batches" / f"{state['batch_index']:06d}"
+                        state["batch_index"] += 1
+                        tar_budget = {"files": 0, "bytes": 0}
+                        extract_tar(
+                            data,
+                            tar_root.joinpath(
+                                *relative.with_name(
+                                    f"{relative.name}.expanded"
+                                ).parts
+                            ),
+                            max_nested_depth=depth - 1,
+                            budget=tar_budget,
+                        )
+                        total["files"] += tar_budget["files"]
+                        total["bytes"] += tar_budget["bytes"]
+                        if (
+                            total["files"] > MAX_STREAMED_AUDIT_FILES
+                            or total["bytes"] > MAX_STREAMED_AUDIT_BYTES
+                        ):
+                            raise AuditFailure()
+                        result = scan_batch(tar_root)
+                        if type(result) is not int or result < 0:
+                            raise AuditFailure()
+                        state["findings"] += result
+                        state["batches"] += 1
+                        remove_private_tree(tar_root)
+                        continue
+                    add_batch_file(relative, data)
+        except AuditFailure:
+            raise
+        except Exception as error:
+            raise AuditFailure() from error
+
+    try:
+        scan_archive(path, prefix, max_nested_depth, scan_container=False)
+        flush_batch()
+        return state["batches"], state["findings"]
+    finally:
+        remove_private_tree(staging)
 
 
 def write_json(path, value):
@@ -1380,7 +1732,16 @@ def select_historical_batch(
     }
 
 
-def collect_surfaces(api_url, repository, pull_requests, workflow_runs, token, root):
+def collect_surfaces(
+    api_url,
+    repository,
+    pull_requests,
+    workflow_runs,
+    token,
+    root,
+    *,
+    scan_batch=None,
+):
     if not token or not REPOSITORY.fullmatch(repository):
         raise AuditFailure()
     pull_requests = sorted(set(pull_requests))
@@ -1439,11 +1800,31 @@ def collect_surfaces(api_url, repository, pull_requests, workflow_runs, token, r
                     archive_path,
                     accept="application/vnd.github+json",
                 )
-                extract_zip_file(
-                    archive_path,
-                    location / "artifacts" / str(artifact_id),
-                    max_nested_depth=2,
-                )
+                if scan_batch is not None:
+                    batches, findings = scan_zip_file_in_bounded_batches(
+                        archive_path,
+                        location / "artifact-streaming" / str(artifact_id),
+                        PurePosixPath(
+                            "workflow-runs",
+                            str(run_id),
+                            "artifacts",
+                            str(artifact_id),
+                        ),
+                        max_nested_depth=2,
+                        scan_batch=scan_batch,
+                    )
+                    manifest["streamed_batches"] = (
+                        manifest.get("streamed_batches", 0) + batches
+                    )
+                    manifest["streamed_findings"] = (
+                        manifest.get("streamed_findings", 0) + findings
+                    )
+                else:
+                    extract_zip_file(
+                        archive_path,
+                        location / "artifacts" / str(artifact_id),
+                        max_nested_depth=2,
+                    )
             finally:
                 archive_path.unlink(missing_ok=True)
             manifest["artifacts"] += 1
@@ -1512,11 +1893,22 @@ def main(argv=None):
         ) as location:
             private = Path(location) / "collected"
             if pull_requests or workflow_runs:
+                scanner = scanner_module()
+
+                def scan_batch(batch_root):
+                    return scanner.scan_directory(
+                        batch_root,
+                        args.gitleaks,
+                        accepted_findings=REVIEWED_PUBLIC_DEPENDENCY_FINDINGS,
+                    )
+
                 manifest = collect_surfaces(
                     args.api_url.rstrip("/"), args.repository,
                     pull_requests, workflow_runs, token, private,
+                    scan_batch=scan_batch,
                 )
-                findings = scanner_module().scan_directory(
+                findings = manifest.pop("streamed_findings", 0)
+                findings += scanner.scan_directory(
                     private,
                     args.gitleaks,
                     accepted_findings=REVIEWED_PUBLIC_DEPENDENCY_FINDINGS,
