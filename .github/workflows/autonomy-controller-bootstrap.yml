@@ -1,0 +1,56 @@
+name: autonomy-controller-bootstrap
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 */6 * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: autonomy-controller-bootstrap
+  cancel-in-progress: false
+
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify canonical inputs and record inventory
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, pathlib, re, subprocess
+          spec=pathlib.Path("docs/SPECIFICATION.md")
+          ledger=pathlib.Path("docs/completion/CURRENT_COMPLETION_LEDGER.md")
+          if not spec.is_file() or not ledger.is_file():
+              raise SystemExit("SAFE_STOP: canonical source missing")
+          text=ledger.read_text(encoding="utf-8")
+          statuses={}
+          for line in text.splitlines():
+              match=re.match(r"^\|\s*(\d{1,2})\s*\|[^|]*\|\s*(Completed|Partial|Missing|External Gate)\s*\|",line)
+              if match:
+                  statuses[int(match.group(1))]=match.group(2)
+          if len(statuses)!=57 or set(statuses)!=set(range(1,58)):
+              raise SystemExit("SAFE_STOP: cannot verify all 57 chapter statuses")
+          sha=subprocess.check_output(["git","rev-parse","HEAD"],text=True).strip()
+          report={"commit":sha,"total":57,
+                  "counts":{v:sum(x==v for x in statuses.values())
+                            for v in ("Completed","Partial","Missing","External Gate")},
+                  "next_candidates":[k for k,v in sorted(statuses.items()) if v in ("Partial","Missing")][:8],
+                  "mode":"read_only","ai_worker_connected":False,"code_changed":False}
+          output=pathlib.Path(os.environ["RUNNER_TEMP"])/"autonomy-inventory.json"
+          output.write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding="utf-8")
+          print(json.dumps(report,ensure_ascii=False))
+          PY
+      - name: Upload read-only evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: autonomy-inventory
+          path: ${{ runner.temp }}/autonomy-inventory.json
+          retention-days: 7
