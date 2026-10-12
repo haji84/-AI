@@ -37,7 +37,7 @@ jobs:
               raise SystemExit('FAIL_CLOSED: no audited baseline in ledger')
           statuses={}
           for line in ledger.splitlines():
-              match=re.match(r'^\\|\\s*(\\d{1,2})\\s*\\|[^|]*\\|\\s*(Completed|Partial|Missing|External Gate)\\s*\\|',line)
+              match=re.match(r'^\|\s*(\d{1,2})\s*\|[^|]*\|\s*(Completed|Partial|Missing|External Gate)\s*\|',line)
               if match:
                   number=int(match.group(1))
                   if number in statuses:
