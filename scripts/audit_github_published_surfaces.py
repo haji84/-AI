@@ -82,6 +82,42 @@ REVIEWED_PUBLIC_DEPENDENCY_FINDINGS = frozenset(
             10,
             75,
         ),
+        (
+            "cryptography-50.0.2-cp311-abi3-manylinux_2_34_x86_64.whl.expanded/cryptography/hazmat/bindings/_rust/openssl/hpke.pyi",
+            "a7f8462e7e981fe11aac91755796d4b14b638a9be2100a5c4793b4b141c92ed7",
+            "generic-api-key",
+            77,
+            77,
+            10,
+            45,
+        ),
+        (
+            "cryptography-50.0.2-cp311-abi3-manylinux_2_34_x86_64.whl.expanded/cryptography/hazmat/bindings/_rust/openssl/hpke.pyi",
+            "a7f8462e7e981fe11aac91755796d4b14b638a9be2100a5c4793b4b141c92ed7",
+            "generic-api-key",
+            101,
+            101,
+            6,
+            41,
+        ),
+        (
+            "sqlalchemy-2.1.4-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.expanded/sqlalchemy/orm/unitofwork.py",
+            "7b0c565b1559c3ad8b9dd24bd0afcbdd515a0027bff66eee6f4c3e8f6bf22235",
+            "generic-api-key",
+            247,
+            247,
+            23,
+            67,
+        ),
+        (
+            "sqlalchemy-2.1.4-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.expanded/sqlalchemy/orm/mapped_collection.py",
+            "2089fde1a3852233fe960ab0a9412484c31e353c2395484aafe7b54007dfbabb",
+            "generic-api-key",
+            321,
+            321,
+            10,
+            75,
+        ),
     }
 )
 REVIEWED_WORKFLOW_LOG_RUN_ID = 37493709157
