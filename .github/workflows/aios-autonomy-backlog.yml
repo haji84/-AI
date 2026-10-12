@@ -1,0 +1,61 @@
+name: AIOS autonomous backlog bootstrap
+on:
+  schedule:
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: aios-autonomy-backlog
+  cancel-in-progress: false
+
+jobs:
+  propose:
+    if: github.repository == 'haji84/-AI'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Create bounded, deduplicated investigation issues
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, os, re, subprocess
+          from pathlib import Path
+          repo=os.environ['GH_REPO']
+          ledger=Path('docs/completion/CURRENT_COMPLETION_LEDGER.md').read_text(encoding='utf-8')
+          base=re.search(r'Audited implementation base:\s*`([0-9a-f]{40})`',ledger)
+          if not base:
+              raise SystemExit('FAIL_CLOSED: no audited baseline in ledger')
+          m=re.search(r'\| Partial \| ([^|]+) \| 44 \|',ledger)
+          if not m:
+              raise SystemExit('FAIL_CLOSED: chapter classification not recognized; requires human review')
+          # The initial bootstrap is deliberately limited to two chapter investigations.
+          for chapter in (12,21):
+              marker=f'<!-- aios-autonomy-chapter:{chapter} -->'
+              existing=subprocess.run(['gh','issue','list','--repo',repo,'--state','all','--limit','1000','--json','body'],
+                  capture_output=True,text=True,check=True)
+              if any(marker in (x.get('body') or '') for x in json.loads(existing.stdout)):
+                  print(f'Chapter {chapter}: issue already exists')
+                  continue
+              body=(f'{marker}\nAutonomous development candidate, not implementation credit.\n\n'
+                    f'Canonical source: docs/SPECIFICATION.md chapter {chapter}; '
+                    f'docs/completion/CURRENT_COMPLETION_LEDGER.md.\n'
+                    f'Audited base: `{base.group(1)}`.\n\n'
+                    'Scope: verify current main, existing tests, ownership and actual missing requirements. '
+                    'Do not infer that a Partial chapter means every feature is missing. '
+                    'No production data, secret material, privilege changes or deployment.\n\n'
+                    'Done when a bounded implementation issue with exact evidence and tests is proposed. '
+                    'This issue is not permission to auto-merge.\n')
+              subprocess.run(['gh','issue','create','--repo',repo,
+                 '--title',f'AIOS autonomy: chapter {chapter} evidence-backed gap review',
+                 '--body',body],check=True)
+          PY
