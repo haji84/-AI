@@ -66,11 +66,14 @@ def update_issues(root, repo, runner=subprocess.run):
     def execute(args):
         return runner(args, text=True, capture_output=True, check=True, timeout=70)
     listed = execute(["gh", "issue", "list", "--repo", repo, "--state", "all",
-                      "--limit", "1000", "--json", "body"])
+                      "--limit", "1000", "--json", "body,author"])
     rows = json.loads(listed.stdout)
     if not isinstance(rows, list) or len(rows) >= 1000 or any(not isinstance(x, dict) for x in rows):
         raise SafeStop("issue pagination incomplete")
-    contents = [x.get("body") or "" for x in rows]
+    trusted = {"github-actions[bot]", "haji84"}
+    contents = [x.get("body") or "" for x in rows
+                if isinstance(x.get("author"), dict)
+                and x["author"].get("login") in trusted]
     created, existing = 0, 0
     for item in planned:
         if any(item["marker"] in body for body in contents):
