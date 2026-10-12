@@ -63,6 +63,11 @@ def _main() -> None:
         help="Protected environment variable containing the X25519 public recipient key path",
     )
     args = p.parse_args()
+    required_value = os.environ.get("FIRE_AI_BACKUP_ENCRYPTION_REQUIRED", "false").lower()
+    if required_value not in {"true", "false"}:
+        raise SystemExit("backup encryption requirement must be true or false")
+    if required_value == "true" and not args.recipient_public_key_env:
+        raise SystemExit("required encrypted backup recipient environment must be specified")
     recipient_public_key = None
     if args.recipient_public_key_env:
         if not re.fullmatch(r"[A-Z][A-Z0-9_]*", args.recipient_public_key_env):
