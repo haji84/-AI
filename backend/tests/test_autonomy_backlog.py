@@ -58,7 +58,7 @@ def test_issue_publish_is_deduplicated(repo):
         observed.append(args)
         if args[2] == "list":
             import json
-            return SimpleNamespace(stdout=json.dumps([{"body": b} for b in bodies]))
+            return SimpleNamespace(stdout=json.dumps([{"body": b, "author": {"login": "github-actions[bot]"}} for b in bodies]))
         raise AssertionError("unexpected duplicate Issue creation")
     second = backlog.update_issues(repo, "haji84/-AI", runner=existing_runner)
     assert second == {"created": 0, "existing": 2}
@@ -67,3 +67,16 @@ def test_issue_publish_is_deduplicated(repo):
 def test_reject_unapproved_repository(repo):
     with pytest.raises(backlog.SafeStop):
         backlog.update_issues(repo, "external/repo")
+
+
+def test_untrusted_public_issue_cannot_fake_dedup(repo):
+    observed = []
+    def runner(args, **kwargs):
+        observed.append(args)
+        if args[2] == "list":
+            import json
+            return SimpleNamespace(stdout=json.dumps([
+                {"body": "<!-- aios-autonomy-chapter:12 -->", "author": {"login": "someone-else"}}]))
+        return SimpleNamespace(stdout="created")
+    result = backlog.update_issues(repo, "haji84/-AI", runner=runner)
+    assert result == {"created": 2, "existing": 0}
