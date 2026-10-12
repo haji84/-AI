@@ -1286,6 +1286,44 @@ def _check_history_deadline(deadline):
         raise AuditFailure()
 
 
+def _pull_request_page_identity(value, repository):
+    if not isinstance(value, list) or any(not isinstance(row, dict) for row in value):
+        raise AuditFailure()
+    identity = []
+    for row in value:
+        number = row.get("number")
+        full_name = row.get("base", {}).get("repo", {}).get("full_name")
+        if type(number) is not int or number <= 0 or full_name != repository:
+            raise AuditFailure()
+        identity.append((number, full_name))
+    return identity
+
+
+def _workflow_run_page_identity(value, repository):
+    if (
+        not isinstance(value, dict)
+        or type(value.get("total_count")) is not int
+        or value["total_count"] < 0
+        or not isinstance(value.get("workflow_runs"), list)
+        or any(not isinstance(row, dict) for row in value["workflow_runs"])
+    ):
+        raise AuditFailure()
+    identity = []
+    for row in value["workflow_runs"]:
+        run_id = row.get("id")
+        status = row.get("status")
+        full_name = row.get("repository", {}).get("full_name")
+        if (
+            type(run_id) is not int
+            or run_id <= 0
+            or not isinstance(status, str)
+            or full_name != repository
+        ):
+            raise AuditFailure()
+        identity.append((run_id, status == "completed", full_name))
+    return value["total_count"], identity
+
+
 def _historical_pull_requests(api_url, repository, token, deadline):
     numbers = []
     pages = []
@@ -1303,17 +1341,11 @@ def _historical_pull_requests(api_url, repository, token, deadline):
         )
         value = json_request(f"{api_url}{base}?{query}", token, deadline=deadline)
         _check_history_deadline(deadline)
-        if not isinstance(value, list) or any(not isinstance(row, dict) for row in value):
-            raise AuditFailure()
-        pages.append(value)
+        page_identity = _pull_request_page_identity(value, repository)
+        pages.append(page_identity)
         if len(numbers) + len(value) > MAX_HISTORY_SURFACES:
             raise AuditFailure()
-        for row in value:
-            number = row.get("number")
-            full_name = row.get("base", {}).get("repo", {}).get("full_name")
-            if type(number) is not int or number <= 0 or full_name != repository:
-                raise AuditFailure()
-            numbers.append(number)
+        numbers.extend(number for number, _full_name in page_identity)
         if len(value) < 100:
             break
     else:
@@ -1335,7 +1367,7 @@ def _historical_pull_requests(api_url, repository, token, deadline):
         repeated_page = json_request(
             f"{api_url}{base}?{query}", token, deadline=deadline
         )
-        if repeated_page != expected_page:
+        if _pull_request_page_identity(repeated_page, repository) != expected_page:
             raise AuditFailure()
     return numbers
 
@@ -1351,33 +1383,19 @@ def _historical_workflow_runs(api_url, repository, token, deadline):
         query = urlencode({"per_page": 100, "page": page})
         value = json_request(f"{api_url}{base}?{query}", token, deadline=deadline)
         _check_history_deadline(deadline)
-        if (
-            not isinstance(value, dict)
-            or type(value.get("total_count")) is not int
-            or value["total_count"] < 0
-            or not isinstance(value.get("workflow_runs"), list)
-            or any(not isinstance(row, dict) for row in value["workflow_runs"])
-        ):
-            raise AuditFailure()
+        total_count, page_identity = _workflow_run_page_identity(value, repository)
         if expected is None:
-            expected = value["total_count"]
+            expected = total_count
             if expected > MAX_HISTORY_SURFACES:
                 raise AuditFailure()
-        elif value["total_count"] != expected:
+        elif total_count != expected:
             raise AuditFailure()
-        pages.append(value)
-        for row in value["workflow_runs"]:
-            run_id = row.get("id")
-            if (
-                type(run_id) is not int
-                or run_id <= 0
-                or not isinstance(row.get("status"), str)
-                or row.get("repository", {}).get("full_name") != repository
-                or run_id in all_run_ids
-            ):
+        pages.append((total_count, page_identity))
+        for run_id, completed, _full_name in page_identity:
+            if run_id in all_run_ids:
                 raise AuditFailure()
             all_run_ids.add(run_id)
-            if row["status"] == "completed":
+            if completed:
                 completed_run_ids.append(run_id)
         if len(value["workflow_runs"]) < 100:
             break
@@ -1391,7 +1409,7 @@ def _historical_workflow_runs(api_url, repository, token, deadline):
         repeated_page = json_request(
             f"{api_url}{base}?{query}", token, deadline=deadline
         )
-        if repeated_page != expected_page:
+        if _workflow_run_page_identity(repeated_page, repository) != expected_page:
             raise AuditFailure()
     return sorted(all_run_ids), sorted(completed_run_ids)
 
