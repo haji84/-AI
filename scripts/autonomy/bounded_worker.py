@@ -53,7 +53,9 @@ def validate_task(root, task):
             or not isinstance(task.get("acceptance"), str)
             or not 30 <= len(task["acceptance"]) <= 1600):
         raise GuardError("invalid task contract")
-    if git(root, "rev-parse", "HEAD") != task["base_commit"]:
+    ancestry = subprocess.run(["git", "-C", str(root), "merge-base", "--is-ancestor",
+                               task["base_commit"], "HEAD"], capture_output=True, timeout=35)
+    if ancestry.returncode != 0:
         raise GuardError("stale source commit")
     source = checked_source(root, task.get("source"))
     if hashlib.sha256(source.read_bytes()).hexdigest() != task["source_sha256"]:
@@ -87,10 +89,11 @@ def generate(repo, task, worktrees, model="qwen2.5-coder:7b", runner=subprocess.
     if parent.is_relative_to(repo):
         raise GuardError("worktree parent is inside repo")
     parent.mkdir(parents=True, exist_ok=True)
-    target = parent / f"aios-{task['chapter']}-{task['base_commit'][:12]}"
+    current = git(repo, "rev-parse", "HEAD")
+    target = parent / f"aios-{task['chapter']}-{current[:12]}"
     if target.exists():
         raise GuardError("worktree already exists")
-    git(repo, "worktree", "add", "--detach", str(target), task["base_commit"])
+    git(repo, "worktree", "add", "--detach", str(target), current)
     generated = checked_source(target, task["source"])
     prompt = (
         "Implement only this specific accepted criterion within the supplied file. "
@@ -123,7 +126,8 @@ def generate(repo, task, worktrees, model="qwen2.5-coder:7b", runner=subprocess.
         raise GuardError("coding agent failed; no publication attempted")
     changed = verify_changes(target, task["source"])
     output = {"mode": "candidate_only", "chapter": task["chapter"],
-              "baseline": task["base_commit"], "source": task["source"],
+              "baseline": task["base_commit"], "checkout_commit": current,
+              "source": task["source"],
               "worktree": str(target), "outcome": "no_change",
               "tests_passed": False, "pr_created": False, "merged": False}
     if changed:
