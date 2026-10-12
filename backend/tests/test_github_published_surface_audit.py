@@ -594,6 +594,25 @@ def test_reviewed_workflow_log_finding_derives_one_exact_identity(
     assert identities == expected
 
 
+def test_reviewed_workflow_log_pin_matches_immutable_run_archive_identity():
+    audit = module()
+    identity = (
+        "logs/1_backend-tests.txt",
+        "76abc8007d32ddd8edcb9cb6d532c83fc8f506bd2cd1a807b478557e2982aa0a",
+        "generic-api-key",
+        613,
+        613,
+        31,
+        74,
+    )
+    commitment = hashlib.sha256(
+        json.dumps(identity, separators=(",", ":"), ensure_ascii=True).encode()
+    ).hexdigest()
+
+    assert commitment == "2a05156736707404cc8236d70a1f1e8497111d49caec42c9fc25d5ff4bb8a1aa"
+    assert audit.REVIEWED_WORKFLOW_LOG_IDENTITY_SHA256 == commitment
+
+
 @pytest.mark.parametrize(
     ("run_id", "key", "router_line"),
     [
