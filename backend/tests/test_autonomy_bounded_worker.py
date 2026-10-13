@@ -79,6 +79,30 @@ def test_blocks_other_files_even_if_agent_exit_zero(env):
         worker.generate(repo, task, parent, runner=fake)
 
 
+def test_blocks_ignored_file_writes(env):
+    repo, task, parent = env
+    (repo / ".gitignore").write_text("private-ignored.txt\n")
+    git(repo, "add", ".gitignore")
+    git(repo, "commit", "-qm", "ignore private files")
+    def fake(argv, cwd, env, capture_output, text, timeout, check):
+        (cwd / "frontend/inspection.js").write_text("export const ready = true;\n")
+        (cwd / "private-ignored.txt").write_text("synthetic contents")
+        return SimpleNamespace(returncode=0)
+    with pytest.raises(worker.GuardError, match="forbidden"):
+        worker.generate(repo, task, parent, runner=fake)
+
+
+def test_aider_history_is_outside_checkout(env):
+    repo, task, parent = env
+    def fake(argv, cwd, env, capture_output, text, timeout, check):
+        for key in ("--chat-history-file", "--input-history-file", "--llm-history-file"):
+            assert key in argv
+            assert not Path(argv[argv.index(key) + 1]).is_relative_to(cwd)
+        assert "--no-detect-urls" in argv
+        return SimpleNamespace(returncode=0)
+    assert worker.generate(repo, task, parent, runner=fake)["outcome"] == "no_change"
+
+
 def test_no_change_is_not_completion(env):
     repo, task, parent = env
     fake = lambda *args, **kwargs: SimpleNamespace(returncode=0)
