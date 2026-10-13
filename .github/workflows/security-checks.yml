@@ -10,6 +10,7 @@ on:
       "acquire-oshima-official-regulations",
       "acquire-oshima-reiki-fast",
       "autonomy-controller-bootstrap",
+      "AIOS autonomous backlog bootstrap",
       "build-core-legal-authoring-worklist",
       "build-occupancy-classification-worklist",
       "dependency-checks",
