@@ -14,6 +14,19 @@
 
 **注意：Windows/ZBook等の個人用PCでAiderを動かす場合、実行プロセス自体はOSへのアクセス権があります。隔離用PC・非特権アカウント・無機密データで検証し、公開GitHubのself-hosted Actions Runnerに常駐接続しないでください。** これは強固なOSサンドボックスではありません。
 
+## ZBook実機プレフライト
+
+最初にZBookで、OllamaとAiderの存在、ローカルモデル、使用するAiderの起動オプション、Git checkoutの状態を**読み取り専用**で検査します。
+
+```powershell
+cd C:\FireAI\AIOS
+py -3.11 scripts/autonomy/zbook_preflight.py --repo .
+```
+
+出力の `ready_for_local_trial: true` は接続条件を満たしたという意味であり、**AI生成・テスト・PR作成・main統合の成功ではありません**。 `inference_completed`、`tests_on_zbook_completed`、`pr_created` はすべてfalseのままです。実際のモデル推論には、Git追跡済みかつ審査済みのタスク契約、隔離したOSアカウント、秘密情報のない作業領域が必要です。
+
+ローカルモデルは `qwen2.5-coder:7b` を想定し、接続先は `http://127.0.0.1:11434` のみ。通常のGitHub Actions Hosted RunnerでZBookの実機状態を証明したことにはできません。
+
 ## 初期導入
 
 1. ZBookにOllamaとAiderをインストールし、モデルをローカルに取得します。
