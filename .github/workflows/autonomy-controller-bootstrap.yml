@@ -1,0 +1,39 @@
+name: autonomy-controller-bootstrap
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/SPECIFICATION.md'
+      - 'docs/completion/CURRENT_COMPLETION_LEDGER.md'
+  schedule:
+    - cron: '2,17,32,47 * * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: autonomy-controller-bootstrap
+  cancel-in-progress: false
+
+jobs:
+  inventory:
+    if: github.repository == 'haji84/-AI'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Verify canonical inputs and record inventory
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/autonomy/inventory.py --repo . --output "$RUNNER_TEMP/autonomy-inventory.json"
+      - name: Upload read-only evidence
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: autonomy-inventory
+          path: ${{ runner.temp }}/autonomy-inventory.json
+          retention-days: 7
