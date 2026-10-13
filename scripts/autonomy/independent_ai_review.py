@@ -240,7 +240,19 @@ def changed_source_lines(patch):
     return lines
 
 
-def evaluate(envelope, *, model=ask_ollama, model_name=MODEL, context_tokens=16384):
+def save_untrusted_candidate(path, candidate):
+    """Preserve model output locally before validation; never a review approval."""
+    data = json.dumps(candidate, ensure_ascii=False, sort_keys=True, indent=2) + "\n"
+    if len(data.encode("utf-8")) > 80_000:
+        raise ReviewStop("untrusted model candidate exceeds local output budget")
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("x", encoding="utf-8") as output:
+        output.write(data)
+
+
+def evaluate(envelope, *, model=ask_ollama, model_name=MODEL, context_tokens=16384,
+             candidate_sink=None):
     if model_name not in REVIEW_MODELS or context_tokens not in REVIEW_CONTEXTS:
         raise ReviewStop("unapproved model or context size")
     if (any(os.environ.get(key) for key in PROTECTED_ENV)
@@ -249,6 +261,15 @@ def evaluate(envelope, *, model=ask_ollama, model_name=MODEL, context_tokens=163
     data = validate_snapshot(envelope)
     raw = (model(data, model_name=model_name, context_tokens=context_tokens)
            if model is ask_ollama else model(data))
+    if candidate_sink is not None:
+        candidate_sink({
+            "schema_version": 1, "kind": "untrusted_local_model_candidate",
+            "repo": REPO, "pr": data["pr"], "head": data["head"],
+            "snapshot_sha256": envelope["sha256"],
+            "model": model_name, "context_tokens": context_tokens,
+            "raw_response": raw, "github_approved": False,
+            "merge_permitted": False,
+        })
     if not isinstance(raw, dict) or raw.get("verdict") not in ("pass", "needs_changes"):
         raise ReviewStop("model verdict invalid")
     summary = raw.get("summary")
@@ -302,16 +323,27 @@ def main(argv=None):
     review_parser.add_argument("--output", type=Path, required=True)
     review_parser.add_argument("--model", choices=REVIEW_MODELS, default=MODEL)
     review_parser.add_argument("--num-ctx", type=int, choices=REVIEW_CONTEXTS, default=16384)
+    review_parser.add_argument("--candidate-output", type=Path,
+                               help="Local UNTRUSTED raw model candidate, never GitHub review")
     args = parser.parse_args(argv)
     try:
+        if args.output.exists():
+            raise ReviewStop("refusing to overwrite existing review evidence")
+        if args.command == "evaluate" and args.candidate_output is not None:
+            if (args.candidate_output.resolve() == args.output.resolve()
+                    or args.candidate_output.exists()):
+                raise ReviewStop("refusing to overwrite candidate or review evidence")
         if args.command == "collect":
             output = collect(args.pr, args.expected_head)
         else:
             source = args.snapshot.resolve(strict=True)
             if not source.is_file() or source.stat().st_size > MAX_INPUT + 1000:
                 raise ReviewStop("snapshot file unavailable")
+            sink = (lambda candidate: save_untrusted_candidate(args.candidate_output, candidate)
+                    ) if args.candidate_output is not None else None
             output = evaluate(json.loads(source.read_text(encoding="utf-8")),
-                              model_name=args.model, context_tokens=args.num_ctx)
+                              model_name=args.model, context_tokens=args.num_ctx,
+                              candidate_sink=sink)
         dest = args.output.resolve()
         if dest.exists():
             raise ReviewStop("refusing to overwrite existing evidence")
@@ -320,7 +352,11 @@ def main(argv=None):
         print(json.dumps({"mode": args.command, "output": str(dest),
                           "github_approved": False}, ensure_ascii=False))
         return 0
-    except (ReviewStop, OSError, subprocess.SubprocessError, ValueError, KeyError,
+    except ReviewStop as exc:
+        # ReviewStop strings are locally authored constants, never model excerpts.
+        print(f"SAFE_STOP: ReviewStop: {exc}", file=sys.stderr)
+        return 2
+    except (OSError, subprocess.SubprocessError, ValueError, KeyError,
             TypeError) as exc:
         print(f"SAFE_STOP: {type(exc).__name__}", file=sys.stderr)
         return 2
