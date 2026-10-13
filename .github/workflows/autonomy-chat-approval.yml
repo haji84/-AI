@@ -1,0 +1,40 @@
+name: autonomy-chat-approval-evidence
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+jobs:
+  approval-receipt:
+    if: >-
+      github.repository == 'haji84/-AI' &&
+      github.event.issue.pull_request &&
+      github.event.comment.user.login == 'haji84' &&
+      github.event.comment.author_association == 'OWNER' &&
+      startsWith(github.event.comment.body, 'AIOS_APPROVE')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Verify exact GitHub owner PR head and expiry
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/autonomy/approval_gate.py --event "$GITHUB_EVENT_PATH" --output "$RUNNER_TEMP/approval-receipt.json"
+      - name: Publish bounded read-only approval receipt
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: autonomy-chat-approval-receipt
+          path: ${{ runner.temp }}/approval-receipt.json
+          if-no-files-found: error
+          retention-days: 7
