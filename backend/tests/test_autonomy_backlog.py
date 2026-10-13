@@ -27,7 +27,7 @@ def repo(tmp_path):
 def test_two_bound_candidates_from_real_statuses(repo):
     result = backlog.proposals(repo)
     assert [x["chapter"] for x in result] == [12, 21]
-    assert all("No production" in x["body"] for x in result)
+    assert all("Do not use production data" in x["body"] for x in result)
 
 
 def test_completed_chapter_is_not_requeued(repo):
@@ -105,3 +105,65 @@ def test_outsider_pause_marker_does_not_stop_controller(repo):
         return SimpleNamespace(stdout="created")
     assert backlog.update_issues(repo, "haji84/-AI", runner=runner)["created"] == 2
     assert len(created) == 2
+
+
+def test_closed_evidence_issue_allows_next_priority_chapter(repo):
+    path = repo / "docs/completion/CURRENT_COMPLETION_LEDGER.md"
+    path.write_text(path.read_text().replace(
+        "| 13 | Chapter | Completed |", "| 13 | Chapter | Partial |"))
+    existing = backlog.proposals(repo)[:2]
+    rows = [
+        {"body": existing[0]["body"], "author": {"login": "haji84"}, "state": "CLOSED"},
+        {"body": existing[1]["body"], "author": {"login": "github-actions[bot]"}, "state": "OPEN"},
+    ]
+    calls = []
+    def runner(args, **kwargs):
+        calls.append(args)
+        if args[2] == "list":
+            import json
+            return SimpleNamespace(stdout=json.dumps(rows))
+        return SimpleNamespace(stdout="created")
+    result = backlog.update_issues(repo, "haji84/-AI", runner=runner)
+    assert result == {"created": 1, "existing": 2}
+    assert len([a for a in calls if a[2] == "create"]) == 1
+    assert "chapter 13" in [a for a in calls if a[2] == "create"][0][-1]
+
+
+def test_two_active_investigations_hold_the_capacity(repo):
+    existing = backlog.proposals(repo)[:2]
+    rows = [
+        {"body": item["body"], "author": {"login": "github-actions[bot]"}, "state": "OPEN"}
+        for item in existing
+    ]
+    def runner(args, **kwargs):
+        if args[2] == "list":
+            import json
+            return SimpleNamespace(stdout=json.dumps(rows))
+        raise AssertionError("capacity must block issue creation")
+    assert backlog.update_issues(repo, "haji84/-AI", runner=runner) == {
+        "created": 0, "existing": 2}
+
+
+def test_changed_gap_can_be_investigated_after_old_issue_closes(repo):
+    before = backlog.proposals(repo)
+    path = repo / "docs/completion/CURRENT_COMPLETION_LEDGER.md"
+    contents = path.read_text().replace(
+        "| 12 | Chapter | Partial | evidence |",
+        "| 12 | Chapter | Partial | evidence | Newly confirmed gap.")
+    path.write_text(contents)
+    after = backlog.proposals(repo)
+    assert after[0]["gap_marker"] != before[0]["gap_marker"]
+    previous = [
+        {"body": before[0]["body"], "author": {"login": "haji84"}, "state": "CLOSED"},
+        {"body": before[1]["body"], "author": {"login": "github-actions[bot]"}, "state": "OPEN"},
+    ]
+    created = []
+    def runner(args, **kwargs):
+        if args[2] == "list":
+            import json
+            return SimpleNamespace(stdout=json.dumps(previous))
+        created.append(args)
+        return SimpleNamespace(stdout="created")
+    assert backlog.update_issues(repo, "haji84/-AI", runner=runner)["created"] == 1
+    assert len(created) == 1
+    assert after[0]["gap_marker"] in created[0][-1]
