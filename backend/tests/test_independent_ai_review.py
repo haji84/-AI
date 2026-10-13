@@ -130,3 +130,44 @@ def test_model_process_rejects_on_disk_gh_cli_auth(tmp_path, monkeypatch):
     monkeypatch.setattr(review, 'evaluator_has_gh_credentials', lambda: True)
     with pytest.raises(review.ReviewStop, match='credentials'):
         review.evaluate(snap, model=lambda _: {'verdict': 'pass'})
+
+def test_github_cli_missing_falls_back_to_public_read(monkeypatch):
+    calls = []
+    def no_gh(*args, **kwargs):
+        raise FileNotFoundError("gh absent")
+    monkeypatch.setattr(review.subprocess, "run", no_gh)
+    monkeypatch.setattr(review, "public_api_get",
+                        lambda path: calls.append(path) or {"public": True})
+    assert review.api_get("repos/haji84/-AI/pulls/133") == {"public": True}
+    assert calls == ["repos/haji84/-AI/pulls/133"]
+    with pytest.raises(review.ReviewStop, match="requires GitHub CLI"):
+        review.api_get("user")
+
+
+def test_public_github_api_is_read_only_no_authorization(monkeypatch):
+    observed = {}
+    class FakeResponse:
+        status = 200
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            return False
+        def read(self, count):
+            observed["read_limit"] = count
+            return b'{"number":133}'
+    def fake_open(req, timeout):
+        observed["url"] = req.full_url
+        observed["headers"] = dict(req.header_items())
+        observed["method"] = req.get_method()
+        observed["timeout"] = timeout
+        return FakeResponse()
+    monkeypatch.setattr(review, "urlopen", fake_open)
+    assert review.public_api_get("repos/haji84/-AI/pulls/133") == {"number": 133}
+    assert observed["method"] == "GET"
+    assert observed["url"] == "https://api.github.com/repos/haji84/-AI/pulls/133"
+    assert observed["read_limit"] == 1_000_001
+    assert not any(key.lower() == "authorization" for key in observed["headers"])
+    with pytest.raises(review.ReviewStop, match="untrusted"):
+        review.public_api_get("repos/other-org/other-repo/pulls/1")
+    with pytest.raises(review.ReviewStop, match="untrusted"):
+        review.public_api_get("repos/haji84/-AI/../secrets")

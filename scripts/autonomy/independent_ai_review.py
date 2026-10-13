@@ -15,7 +15,8 @@ from pathlib import Path
 import re
 import subprocess
 import sys
-from urllib.request import Request, ProxyHandler, build_opener
+from urllib.request import Request, ProxyHandler, build_opener, urlopen
+from urllib.error import HTTPError
 
 REPO = "haji84/-AI"
 REQUIRED_CI = ("project-checks", "security-checks", "dependency-checks", "release-checks")
@@ -38,11 +39,42 @@ def canonical(value):
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
 
 
-def api_get(path):
-    proc = subprocess.run(
-        ["gh", "api", "--method", "GET", path],
-        capture_output=True, text=True, check=True, timeout=40,
+def public_api_get(path):
+    """Unauthenticated GitHub REST read fallback: public repo only, no token."""
+    prefix = f"repos/{REPO}/"
+    if (not isinstance(path, str) or not path.startswith(prefix)
+            or len(path) > 360 or any(ch in path for ch in ("\\", "#", "\r", "\n"))
+            or ".." in path):
+        raise ReviewStop("untrusted public GitHub API path")
+    req = Request(
+        "https://api.github.com/" + path,
+        headers={"Accept": "application/vnd.github+json",
+                 "User-Agent": "Fire-AIOS-Readonly-Reviewer",
+                 "X-GitHub-Api-Version": "2022-11-28"},
+        method="GET",
     )
+    try:
+        with urlopen(req, timeout=30) as response:
+            if response.status != 200:
+                raise ReviewStop("public GitHub API request unsuccessful")
+            body = response.read(1_000_001)
+    except HTTPError as exc:
+        raise ReviewStop(f"public GitHub API HTTP {exc.code}; check network or rate limit") from None
+    if len(body) > 1_000_000:
+        raise ReviewStop("public GitHub API response oversized")
+    return json.loads(body)
+
+
+def api_get(path):
+    try:
+        proc = subprocess.run(
+            ["gh", "api", "--method", "GET", path],
+            capture_output=True, text=True, check=True, timeout=40,
+        )
+    except FileNotFoundError:
+        if path == "user":
+            raise ReviewStop("authenticated review publisher requires GitHub CLI") from None
+        return public_api_get(path)
     if len(proc.stdout) > 1_000_000:
         raise ReviewStop("GitHub API result too large")
     return json.loads(proc.stdout)

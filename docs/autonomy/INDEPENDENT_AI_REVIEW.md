@@ -111,3 +111,21 @@ Synthetic regression: python -m pytest backend/tests/test_zbook_review_preflight
 This probe checks common GH CLI credential locations and environment keys;
 it does not certify OS isolation, operator independence, real model output
 or GitHub approval. All such claims require external execution evidence.
+
+## Collector when GitHub CLI is absent
+
+If the collector operating system does not have the `gh` executable, the
+read-only collector now falls back to **unauthenticated public GitHub REST**
+over HTTPS, restricted to haji84/-AI. It sends no Authorization header,
+does not install software, and does not post anything. This only works
+while the repository is public and GitHub permits anonymous API reads.
+Anonymous API rate limiting or network restrictions cause a safe failure.
+
+The **independent publisher is different**: it still requires a distinct
+authenticated GitHub CLI identity for any COMMENTED review and never
+creates an APPROVED review. The isolated model evaluator must not have
+GitHub tokens or credential stores.
+
+For the ZBook's previous `SAFE_STOP: FileNotFoundError`, collect again
+after obtaining this updated, reviewed PR #141 head. Do not change the
+PR #133 expected-head value without fetching its latest actual head.
