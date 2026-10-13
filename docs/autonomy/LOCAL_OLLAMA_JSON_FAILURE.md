@@ -48,3 +48,37 @@ Do not increase model context/output size blindly on a 4GB GPU.
 Before making changes, compare these diagnostics with the exact-head
 snapshot and original PR/CI. Do not upload raw untrusted output to GitHub.
 Both JSON outputs use no-overwrite semantics. Use a new filename per trial.
+
+## Real ZBook diagnosis and bounded generation remediation (2026-10-13)
+
+ZBook's v6 isolated run (qwen2.5-coder:3b, num_ctx 8192) returned:
+`done=true`, `done_reason=length`, `prompt_eval_count=4098`,
+`eval_count=1800`, `parse_status=invalid_json`,
+`content_bytes=6855`, `parse_error_position=6583`.
+It hit exactly the old `num_predict=1800` output ceiling.
+This does **not** demonstrate that the prompt was complete,
+that a security review succeeded, or that an independent reviewer approved it.
+
+The next bounded trial uses `num_predict=min(2800, num_ctx//3)`:
+for 8192 this is 2730, with the evidence field max reduced to 400
+characters, summary max 500, and at most six distinct findings per
+candidate review. This is a bounded candidate shortlist, not proof
+that all risks were covered. A model `pass` is not GitHub APPROVED.
+Do not expand context or use paid services merely because of this failure.
+Unknown validity, length stop, incomplete output and context-boundary token
+counts still stop without publishing a GitHub review.
+
+Use **new** v7 evidence names on isolated ZBook after checkout of the latest
+reviewed PR #141 commit, and without GitHub/remote-model credentials:
+
+~~~powershell
+py -3.11 scripts/autonomy/independent_ai_review.py evaluate --snapshot C:\AIOS-review\snapshot-133.json --output C:\AIOS-review\review-133-v7.json --candidate-output C:\AIOS-review\candidate-133-v7.json --inference-metadata-output C:\AIOS-review\inference-133-v7.json --model qwen2.5-coder:3b --num-ctx 8192
+~~~
+
+Only if `review-133-v7.json` exists should the independent
+`semantic_review_gate.py` be run against it. No automatic PR approval/merge.
+
+The preceding PR #141 exact-head Project CI failed two synthetic tests:
+the metadata tests passed an empty `{"synthetic":true}` payload that
+did not meet the new anchored model-view contract. Those fixtures are
+replaced with a complete synthetic anchored snapshot (no security bypass).

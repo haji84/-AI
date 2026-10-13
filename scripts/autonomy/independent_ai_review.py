@@ -177,14 +177,14 @@ def validate_snapshot(envelope):
 
 def review_response_schema():
     """Ollama output grammar hint; engine validation still owns acceptance."""
-    bounded = {"type": "string", "minLength": 3, "maxLength": 1200}
+    bounded = {"type": "string", "minLength": 3, "maxLength": 400}
     return {
         "type": "object",
         "properties": {
             "verdict": {"type": "string", "enum": ["pass", "needs_changes"]},
-            "summary": {"type": "string", "minLength": 1, "maxLength": 1600},
+            "summary": {"type": "string", "minLength": 1, "maxLength": 500},
             "findings": {
-                "type": "array", "maxItems": 20,
+                "type": "array", "maxItems": 6,
                 "items": {
                     "type": "object",
                     "properties": {
@@ -263,11 +263,17 @@ def ask_ollama(payload, *, model_name=MODEL, context_tokens=16384,
         "If no appropriate changed-line ID exists, omit the finding. "
         "A matching ID identifies location only, not proof of a vulnerability. "
         "Use only listed paths. "
+        "Return at most six distinct, highest-risk findings. "
+        "Keep summary, evidence and recommendations concise and specific. "
         "If unsure, report needs_changes and state uncertainty."
     )
+    # Bounded higher generation ceiling: the ZBook 3B real run hit 1800
+    # tokens with done_reason=length before JSON could close.
+    generation_limit = min(2800, context_tokens // 3)
     request = {"model": model_name, "stream": False,
                "format": review_response_schema(),
-               "options": {"temperature": 0, "num_ctx": context_tokens, "num_predict": 1800},
+               "options": {"temperature": 0, "num_ctx": context_tokens,
+                           "num_predict": generation_limit},
                "messages": [
                    {"role": "system", "content": instructions},
                    {"role": "user", "content": canonical(line_anchors.model_view(payload)).decode("utf-8")},
@@ -307,6 +313,10 @@ def ask_ollama(payload, *, model_name=MODEL, context_tokens=16384,
             parsed, content, model_name, context_tokens, "valid_json"))
     if parsed.get("done_reason") == "length":
         raise ReviewStop("Ollama output hit generation limit; review not complete")
+    if (isinstance(parsed.get("prompt_eval_count"), int)
+            and isinstance(parsed.get("eval_count"), int)
+            and parsed["prompt_eval_count"] + parsed["eval_count"] >= context_tokens):
+        raise ReviewStop("inference token count reached context boundary; review incomplete")
     return result
 
 

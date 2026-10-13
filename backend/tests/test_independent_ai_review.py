@@ -203,6 +203,9 @@ def test_local_ai_request_uses_selected_compact_model_and_context(monkeypatch):
     assert report["verdict"] == "pass"
     assert captured["request"]["model"] == "qwen2.5-coder:3b"
     assert captured["request"]["options"]["num_ctx"] == 8192
+    assert captured["request"]["options"]["num_predict"] == 2730
+    assert captured["request"]["format"]["properties"]["findings"]["maxItems"] == 6
+    assert captured["request"]["format"]["properties"]["summary"]["maxLength"] == 500
     schema = captured["request"]["format"]
     assert schema["properties"]["verdict"]["enum"] == ["pass", "needs_changes"]
     assert schema["required"] == ["verdict", "summary", "findings"]
@@ -358,7 +361,8 @@ def test_inference_metadata_on_malformed_json_with_no_model_text(monkeypatch, tm
     monkeypatch.setattr(review, "build_opener", lambda handler: Opener())
     target = tmp_path / "metadata.json"
     with pytest.raises(review.ReviewStop, match="invalid JSON"):
-        review.ask_ollama({"synthetic": True}, model_name="qwen2.5-coder:3b",
+        review.ask_ollama(review.collect(133, HEAD, get=fake_get)["snapshot"],
+                          model_name="qwen2.5-coder:3b",
                           context_tokens=8192,
                           diagnostic_sink=lambda x: review.save_inference_metadata(target, x))
     result = json.loads(target.read_text(encoding="utf-8"))
@@ -396,7 +400,8 @@ def test_valid_ollama_json_with_generation_limit_is_rejected(monkeypatch):
     monkeypatch.setattr(review, "build_opener", lambda handler: Opener())
     details = []
     with pytest.raises(review.ReviewStop, match="generation limit"):
-        review.ask_ollama({"synthetic": True}, model_name="qwen2.5-coder:3b",
+        review.ask_ollama(review.collect(133, HEAD, get=fake_get)["snapshot"],
+                          model_name="qwen2.5-coder:3b",
                           context_tokens=8192, diagnostic_sink=details.append)
     assert details[0]["parse_status"] == "valid_json"
     assert details[0]["accepted_review"] is False
@@ -413,3 +418,53 @@ def test_inference_metadata_contains_only_bounded_known_fields():
     assert result["done_reason_class"] == "stop"
     assert result["parse_error_position"] == 17
     assert result["raw_model_text_included"] is False
+
+
+def test_generation_budget_bounded_for_smaller_context(monkeypatch):
+    import json
+    seen = []
+    class Response:
+        status = 200
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            return False
+        def read(self, size):
+            return json.dumps({"done": True, "done_reason": "stop",
+                               "prompt_eval_count": 700, "eval_count": 30,
+                               "message": {"content":
+                                   '{"verdict":"pass","summary":"Synthetic","findings":[]}'}}).encode()
+    class Opener:
+        def open(self, request, timeout):
+            seen.append(json.loads(request.data)["options"])
+            return Response()
+    monkeypatch.setattr(review, "build_opener", lambda handler: Opener())
+    payload = review.collect(133, HEAD, get=fake_get)["snapshot"]
+    assert review.ask_ollama(payload, model_name="qwen2.5-coder:3b",
+                             context_tokens=4096)["verdict"] == "pass"
+    assert seen[0]["num_predict"] == 4096 // 3
+    assert seen[0]["num_ctx"] == 4096
+
+
+def test_context_boundary_still_fails_closed(monkeypatch):
+    import json
+    response = {"done": True, "done_reason": "stop",
+                "prompt_eval_count": 8010, "eval_count": 200,
+                "message": {"content":
+                    '{"verdict":"pass","summary":"Synthetic","findings":[]}'}}
+    class Response:
+        status = 200
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            return False
+        def read(self, size):
+            return json.dumps(response).encode()
+    class Opener:
+        def open(self, req, timeout):
+            return Response()
+    monkeypatch.setattr(review, "build_opener", lambda handler: Opener())
+    payload = review.collect(133, HEAD, get=fake_get)["snapshot"]
+    with pytest.raises(review.ReviewStop, match="context boundary"):
+        review.ask_ollama(payload, model_name="qwen2.5-coder:3b",
+                          context_tokens=8192)
