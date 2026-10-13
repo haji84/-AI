@@ -66,7 +66,8 @@ def validate_task(root, task):
 
 
 def verify_changes(worktree, allowed):
-    result = subprocess.run(["git", "-C", str(worktree), "status", "--porcelain", "-z"],
+    result = subprocess.run(["git", "-C", str(worktree), "status",
+                             "--porcelain", "-z", "--untracked-files=all", "--ignored"],
                             capture_output=True, check=True, timeout=30)
     edited = []
     for entry in result.stdout.split(b"\x00"):
@@ -117,8 +118,12 @@ def generate(repo, task, worktrees, model="qwen2.5-coder:7b", runner=subprocess.
         argv = ["aider", "--model", f"ollama_chat/{model}",
                 "--no-auto-commits", "--no-auto-test", "--no-auto-lint",
                 "--no-suggest-shell-commands", "--no-check-update",
-                "--no-gitignore", "--no-analytics", "--yes",
+                "--no-gitignore", "--no-analytics", "--no-detect-urls",
+                "--map-tokens", "0", "--yes",
                 "--config", str(config), "--env-file", str(dotenv),
+                "--chat-history-file", str(Path(work) / "chat.history.md"),
+                "--input-history-file", str(Path(work) / "input.history"),
+                "--llm-history-file", str(Path(work) / "llm.history"),
                 "--message", prompt, str(generated)]
         result = runner(argv, cwd=target, env=env, capture_output=True,
                         text=True, timeout=1800, check=False)
