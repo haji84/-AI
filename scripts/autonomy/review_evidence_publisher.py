@@ -18,6 +18,7 @@ def build_comment(envelope, report):
     if (not isinstance(report, dict) or report.get("kind") != "local_ai_review_candidate"
             or report.get("repo") != reviewer.REPO or report.get("pr") != data["pr"]
             or report.get("head") != data["head"] or report.get("base") != data["base"]
+            or report.get("model") not in reviewer.REVIEW_MODELS
             or report.get("snapshot_sha256") != envelope["sha256"]
             or report.get("ci") != data["ci"] or report.get("verdict") not in ("pass", "needs_changes")
             or report.get("independent_github_approval") is not False
@@ -35,6 +36,7 @@ def build_comment(envelope, report):
     lines = ["## AI reviewer candidate (COMMENT only, NOT APPROVED)", "",
              "PR #" + str(data["pr"]) + " head " + data["head"],
              "Base " + data["base"], "Snapshot sha256 " + envelope["sha256"],
+             "Model: " + report["model"],
              "Verdict: " + report["verdict"], "Summary: " + summary]
     for finding in findings:
         if (not isinstance(finding, dict) or finding.get("path") not in files

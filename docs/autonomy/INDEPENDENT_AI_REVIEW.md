@@ -147,8 +147,8 @@ ollama pull qwen2.5-coder:3b
 ollama stop qwen2.5-coder:7b
 ~~~
 
-Only in the credential-free evaluator OS account, after an isolated preflight
-for the 3B model, evaluate the already pinned PR #133 snapshot:
+Only in the credential-free evaluator OS account, after the isolated preflight command
+`py -3.11 scripts/autonomy/zbook_review_preflight.py --model qwen2.5-coder:3b`, evaluate the already pinned PR #133 snapshot:
 
 ~~~powershell
 py -3.11 scripts/autonomy/independent_ai_review.py evaluate --snapshot C:\AIOS-review\snapshot-133.json --output C:\AIOS-review\review-133-3b.json --model qwen2.5-coder:3b --num-ctx 8192

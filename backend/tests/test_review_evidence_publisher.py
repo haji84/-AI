@@ -27,6 +27,7 @@ def result(snap):
             "repo": engine.REPO, "pr": data["pr"], "head": data["head"],
             "base": data["base"], "ci": data["ci"],
             "snapshot_sha256": snap["sha256"],
+            "model": engine.MODEL,
             "verdict": "pass", "summary": "Synthetic proposal only",
             "findings": [], "github_comment_posted": False,
             "independent_github_approval": False, "merge_permitted": False}
