@@ -43,3 +43,19 @@ def test_failed_ollama_probe_is_safe_stop(tmp_path):
         raise TimeoutError("synthetic local server offline")
     report = preflight.inspect(environ={}, home=tmp_path, probe_model=fail)
     assert report["ready_for_isolated_inference_trial"] is False
+
+
+def test_unexpected_model_response_is_rejected(monkeypatch):
+    class FakeResponse:
+        status = 200
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            return False
+        def read(self, size):
+            return b'[]'
+    class FakeOpener:
+        def open(self, request, timeout):
+            return FakeResponse()
+    monkeypatch.setattr(preflight, 'build_opener', lambda handler: FakeOpener())
+    assert preflight.model_available() is False

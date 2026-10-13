@@ -25,7 +25,7 @@ def model_available():
     if len(raw) > 1_000_000:
         return False
     value = json.loads(raw)
-    return isinstance(value.get("models"), list) and any(
+    return isinstance(value, dict) and isinstance(value.get("models"), list) and any(
         isinstance(item, dict) and item.get("name") == MODEL
         for item in value["models"])
 
