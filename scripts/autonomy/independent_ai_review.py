@@ -15,7 +15,7 @@ from pathlib import Path
 import re
 import subprocess
 import sys
-from urllib.request import Request, urlopen
+from urllib.request import Request, ProxyHandler, build_opener
 
 REPO = "haji84/-AI"
 REQUIRED_CI = ("project-checks", "security-checks", "dependency-checks", "release-checks")
@@ -156,7 +156,8 @@ def ask_ollama(payload):
                ]}
     req = Request(OLLAMA_URL, data=canonical(request),
                   headers={"Content-Type": "application/json"}, method="POST")
-    with urlopen(req, timeout=600) as response:
+    # Never permit HTTP(S)_PROXY to redirect local model prompts off host.
+    with build_opener(ProxyHandler({})).open(req, timeout=600) as response:
         if response.status != 200:
             raise ReviewStop("local Ollama response not successful")
         raw = response.read(80_001)
