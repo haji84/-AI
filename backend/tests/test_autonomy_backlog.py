@@ -108,10 +108,10 @@ def test_outsider_pause_marker_does_not_stop_controller(repo):
 
 
 def test_closed_evidence_issue_allows_next_priority_chapter(repo):
+    existing = backlog.proposals(repo)[:2]
     path = repo / "docs/completion/CURRENT_COMPLETION_LEDGER.md"
     path.write_text(path.read_text().replace(
         "| 13 | Chapter | Completed |", "| 13 | Chapter | Partial |"))
-    existing = backlog.proposals(repo)[:2]
     rows = [
         {"body": existing[0]["body"], "author": {"login": "haji84"}, "state": "CLOSED"},
         {"body": existing[1]["body"], "author": {"login": "github-actions[bot]"}, "state": "OPEN"},
