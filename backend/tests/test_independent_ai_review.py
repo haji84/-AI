@@ -171,3 +171,48 @@ def test_public_github_api_is_read_only_no_authorization(monkeypatch):
         review.public_api_get("repos/other-org/other-repo/pulls/1")
     with pytest.raises(review.ReviewStop, match="untrusted"):
         review.public_api_get("repos/haji84/-AI/../secrets")
+
+def test_local_ai_request_uses_selected_compact_model_and_context(monkeypatch):
+    import json
+    captured = {}
+    class FakeResponse:
+        status = 200
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            return False
+        def read(self, size):
+            return json.dumps({"done": True, "message": {"content":
+                '{"verdict":"pass","summary":"Synthetic clean review","findings":[]}'}}).encode()
+    class FakeOpener:
+        def open(self, req, timeout):
+            captured["request"] = json.loads(req.data)
+            captured["timeout"] = timeout
+            return FakeResponse()
+    monkeypatch.setattr(review, "build_opener", lambda handler: FakeOpener())
+    report = review.ask_ollama({"synthetic": True},
+                               model_name="qwen2.5-coder:3b", context_tokens=8192)
+    assert report["verdict"] == "pass"
+    assert captured["request"]["model"] == "qwen2.5-coder:3b"
+    assert captured["request"]["options"]["num_ctx"] == 8192
+    assert captured["timeout"] == 600
+
+
+def test_unapproved_model_or_context_fails_closed(monkeypatch):
+    monkeypatch.setattr(review, "evaluator_has_gh_credentials", lambda: False)
+    for key in review.PROTECTED_ENV:
+        monkeypatch.delenv(key, raising=False)
+    snap = review.collect(133, HEAD, get=fake_get)
+    with pytest.raises(review.ReviewStop, match="unapproved"):
+        review.evaluate(snap, model_name="external-api-model", model=lambda x: {})
+    with pytest.raises(review.ReviewStop, match="unapproved"):
+        review.evaluate(snap, model_name="qwen2.5-coder:3b",
+                        context_tokens=123456, model=lambda x: {})
+    out = review.evaluate(snap, model_name="qwen2.5-coder:3b",
+                          context_tokens=8192,
+                          model=lambda data: {
+                              "verdict": "pass", "summary": "No synthetic findings",
+                              "findings": []})
+    assert out["model"] == "qwen2.5-coder:3b"
+    assert out["context_tokens"] == 8192
+    assert out["independent_github_approval"] is False

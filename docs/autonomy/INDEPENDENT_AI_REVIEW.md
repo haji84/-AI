@@ -129,3 +129,35 @@ GitHub tokens or credential stores.
 For the ZBook's previous `SAFE_STOP: FileNotFoundError`, collect again
 after obtaining this updated, reviewed PR #141 head. Do not change the
 PR #133 expected-head value without fetching its latest actual head.
+
+## 4GB VRAM: smaller-model option (2026-10-13)
+
+A ZBook trial showed `qwen2.5-coder:7b` on 100% CPU and 0% NVIDIA GPU
+utilization with a 4GB RTX A2000. Ollama's published 3B model is approximately
+1.9GB on disk, versus 4.7GB for the standard 7B model. Runtime usage
+includes context/KV cache and overhead, so GPU residency is NOT guaranteed.
+
+The reviewer now accepts an explicitly allowlisted 3B model with a smaller
+context while leaving 7B as the default. First stop any still-running
+7B evaluation with Ctrl+C in the original terminal and verify that it has
+stopped. From PowerShell, with Ollama installed, download:
+
+~~~powershell
+ollama pull qwen2.5-coder:3b
+ollama stop qwen2.5-coder:7b
+~~~
+
+Only in the credential-free evaluator OS account, after an isolated preflight
+for the 3B model, evaluate the already pinned PR #133 snapshot:
+
+~~~powershell
+py -3.11 scripts/autonomy/independent_ai_review.py evaluate --snapshot C:\AIOS-review\snapshot-133.json --output C:\AIOS-review\review-133-3b.json --model qwen2.5-coder:3b --num-ctx 8192
+~~~
+
+The runtime emits a start marker before the blocking Ollama request and a
+response marker when an Ollama response has been received; this is NOT
+token-level live progress. Confirm actual GPU placement via `ollama ps`
+and `nvidia-smi`. If `ollama ps` still says 100% CPU, GPU acceleration
+did not occur. If the prompt exceeds 8K context and may have been truncated,
+do NOT accept the review as complete. A compact model is a preliminary
+candidate reviewer, not security approval or evidence of reviewer independence.
