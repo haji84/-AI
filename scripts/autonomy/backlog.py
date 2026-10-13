@@ -14,7 +14,7 @@ AUDIT = re.compile(r"Audited implementation base:\s*\x60([0-9a-f]{40})\x60")
 
 # Canonical precedence from CONTINUATION_ORDER_20261008.md; not a completion estimate.
 PRIORITY = (
-    5, 6, 7, 9, 43, 10, 12, 13, 14, 15, 16, 17, 18, 20,
+    5, 6, 7, 9, 43, 42, 10, 12, 13, 14, 15, 16, 17, 18, 20,
     21, 25, 26, 27, 28, 33, 34, 35, 36, 19, 29, 30, 31,
     32, 37, 38, 39, 3, 4, 41, 44, 45, 46, 50, 51,
     48, 54, 1, 52, 53,
@@ -63,7 +63,10 @@ def proposals(root):
         ).hexdigest()[:16]
         by_chapter[chapter] = (delta, fingerprint)
     out = []
-    for chapter in PRIORITY:
+    # The dated continuation order predates the expanded §42 recovery requirements.
+    # Unknown future Partial chapters are added after known priorities, never lost.
+    full_order = (*PRIORITY, *sorted(set(statuses) - set(PRIORITY)))
+    for chapter in full_order:
         if statuses.get(chapter) not in ("Partial", "Missing"):
             continue
         delta, fingerprint = by_chapter[chapter]
