@@ -82,3 +82,32 @@ rendered candidate for secrets before publication.
 
 This creates GitHub COMMENTED only. True independent GitHub APPROVED requires
 separate governance and a review authority, not the local model output.
+
+## ZBook/isolated reviewer evaluation gate
+
+Use a separate nonprivileged checkout of PR #141. Do not run a candidate
+branch on a privileged or confidential machine. Never connect a public PR
+self-hosted runner to ZBook. Check current PR #133 head before collection.
+
+1. Collector identity (GitHub read-only): run the collect command shown
+   above with a read-only GitHub identity. Transfer its snapshot to an
+   isolated evaluator with integrity verification.
+2. Evaluator OS identity: a separate low-privilege Windows account with
+   no GH CLI credential store and no external provider keys. With Ollama
+   qwen2.5-coder:7b installed, run:
+
+~~~powershell
+py -3.11 scripts/autonomy/zbook_review_preflight.py
+~~~
+
+Only if ready_for_isolated_inference_trial=true, run the evaluate command
+shown earlier. A preflight success is NOT actual model inference.
+3. Independent review publisher: verify the JSON, fresh head and CI as an
+   authenticated reviewer different from the PR author. A COMMENTED event
+   is not an APPROVED event. The author must not impersonate a reviewer.
+
+Synthetic regression: python -m pytest backend/tests/test_zbook_review_preflight.py
+
+This probe checks common GH CLI credential locations and environment keys;
+it does not certify OS isolation, operator independence, real model output
+or GitHub approval. All such claims require external execution evidence.
