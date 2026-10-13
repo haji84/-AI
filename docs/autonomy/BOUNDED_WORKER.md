@@ -27,6 +27,19 @@ py -3.11 scripts/autonomy/zbook_preflight.py --repo .
 
 ローカルモデルは `qwen2.5-coder:7b` を想定し、接続先は `http://127.0.0.1:11434` のみ。通常のGitHub Actions Hosted RunnerでZBookの実機状態を証明したことにはできません。
 
+## ZBookで実際のローカルAI編集を検証する
+
+プレフライトが成功した場合、次の**合成データのみ**のテストを実行します。
+
+```powershell
+cd C:\FireAI\AIOS
+py -3.11 scripts/autonomy/zbook_synthetic_smoke.py
+```
+
+このテストは一時Gitリポジトリの `app.py` をAider + ローカルOllamaに編集させ、変更ファイルを1件に制限し、Python ASTで予想通りの構造か検証します。生成されたPythonコード自体は実行しません。GitHubへの認証、push、PR作成、main統合も行いません。
+
+出力 `aider_ollama_smoke: PASS` は**そのZBook上でAiderとOllamaによる実編集が成功した**ことのみを証明し、消防AIOSの本番仕様充足や事案データ処理精度は証明しません。実機で確認するまではこのテストの成功を主張しません。
+
 ## 初期導入
 
 1. ZBookにOllamaとAiderをインストールし、モデルをローカルに取得します。
