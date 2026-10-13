@@ -4,7 +4,7 @@
 
 ## 補充順序
 
-docs/completion/CONTINUATION_ORDER_20261008.md の P0 → P1 → P2 → P3 → P4 を採用します。個別chapterの最新状態は docs/completion/CURRENT_COMPLETION_LEDGER.md と現在のmainを照合します。
+docs/completion/CONTINUATION_ORDER_20261008.md の P0 → P1 → P2 → P3 → P4 を優先します。後日追加された第42章のHA/復旧の残要件はP0に追加し、さらに将来Partialへ変更された章も候補から脱落させません。個別chapterの最新状態は docs/completion/CURRENT_COMPLETION_LEDGER.md と現在のmainを照合します。
 
 - CompletedとExternal GateのchapterにはIssueを新規作成しない。
 - 一度にOPENの自動調査Issueは最大2件。
