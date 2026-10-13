@@ -203,6 +203,11 @@ def test_local_ai_request_uses_selected_compact_model_and_context(monkeypatch):
     assert report["verdict"] == "pass"
     assert captured["request"]["model"] == "qwen2.5-coder:3b"
     assert captured["request"]["options"]["num_ctx"] == 8192
+    schema = captured["request"]["format"]
+    assert schema["properties"]["verdict"]["enum"] == ["pass", "needs_changes"]
+    assert schema["required"] == ["verdict", "summary", "findings"]
+    assert schema["properties"]["findings"]["items"]["required"] == [
+        "path", "anchor_id", "severity", "evidence", "recommendation"]
     visible = captured["request"]["messages"][1]["content"]
     assert "[F01L0001] +safe = True" in visible
     assert '"annotated_patch"' in visible
@@ -309,3 +314,24 @@ def test_cli_diagnostic_exposes_only_predefined_rejection_reason(tmp_path, monke
         "github_approved": False, "merge_permitted": False,
     })
     assert json.loads(output.read_text())["github_approved"] is False
+
+
+def test_invalid_verdict_cannot_be_normalized_into_approval(monkeypatch):
+    for key in review.PROTECTED_ENV:
+        monkeypatch.delenv(key, raising=False)
+    monkeypatch.setattr(review, "evaluator_has_gh_credentials", lambda: False)
+    snap = review.collect(133, HEAD, get=fake_get)
+    collected = []
+    candidate = {
+        "verdict": "APPROVED", "summary": "Synthetic unsafe recommendation",
+        "findings": [],
+    }
+    with pytest.raises(review.ReviewStop, match="model verdict invalid"):
+        review.evaluate(
+            snap, model=lambda _: candidate,
+            model_name="qwen2.5-coder:3b", context_tokens=8192,
+            candidate_sink=collected.append)
+    assert len(collected) == 1
+    assert collected[0]["github_approved"] is False
+    assert collected[0]["merge_permitted"] is False
+    assert collected[0]["raw_response"] == candidate

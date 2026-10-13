@@ -175,6 +175,41 @@ def validate_snapshot(envelope):
     return data
 
 
+def review_response_schema():
+    """Ollama output grammar hint; engine validation still owns acceptance."""
+    bounded = {"type": "string", "minLength": 3, "maxLength": 1200}
+    return {
+        "type": "object",
+        "properties": {
+            "verdict": {"type": "string", "enum": ["pass", "needs_changes"]},
+            "summary": {"type": "string", "minLength": 1, "maxLength": 1600},
+            "findings": {
+                "type": "array", "maxItems": 20,
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string"},
+                        "anchor_id": {"type": "string"},
+                        "severity": {
+                            "type": "string",
+                            "enum": ["critical", "high", "medium", "low"],
+                        },
+                        "evidence": bounded,
+                        "recommendation": bounded,
+                    },
+                    "required": [
+                        "path", "anchor_id", "severity",
+                        "evidence", "recommendation",
+                    ],
+                    "additionalProperties": False,
+                },
+            },
+        },
+        "required": ["verdict", "summary", "findings"],
+        "additionalProperties": False,
+    }
+
+
 def ask_ollama(payload, *, model_name=MODEL, context_tokens=16384):
     if model_name not in REVIEW_MODELS or context_tokens not in REVIEW_CONTEXTS:
         raise ReviewStop("unapproved model or context size")
@@ -194,7 +229,8 @@ def ask_ollama(payload, *, model_name=MODEL, context_tokens=16384):
         "Use only listed paths. "
         "If unsure, report needs_changes and state uncertainty."
     )
-    request = {"model": model_name, "stream": False, "format": "json",
+    request = {"model": model_name, "stream": False,
+               "format": review_response_schema(),
                "options": {"temperature": 0, "num_ctx": context_tokens, "num_predict": 1800},
                "messages": [
                    {"role": "system", "content": instructions},
