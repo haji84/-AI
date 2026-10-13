@@ -169,9 +169,20 @@ def ask_ollama(payload):
     return json.loads(parsed["message"]["content"])
 
 
+def evaluator_has_gh_credentials(environ=None, home=None):
+    env = os.environ if environ is None else environ
+    root = Path.home() if home is None else Path(home)
+    paths = [root / ".config" / "gh" / "hosts.yml",
+             root / "AppData" / "Roaming" / "GitHub CLI" / "hosts.yml"]
+    if env.get("GH_CONFIG_DIR"):
+        paths.append(Path(env["GH_CONFIG_DIR"]) / "hosts.yml")
+    return any(path.is_file() for path in paths)
+
+
 def evaluate(envelope, *, model=ask_ollama):
-    if any(os.environ.get(key) for key in PROTECTED_ENV):
-        raise ReviewStop("model process must not receive GitHub or remote AI credentials")
+    if (any(os.environ.get(key) for key in PROTECTED_ENV)
+            or evaluator_has_gh_credentials()):
+        raise ReviewStop("model process must not have GitHub or remote AI credentials")
     data = validate_snapshot(envelope)
     raw = model(data)
     if not isinstance(raw, dict) or raw.get("verdict") not in ("pass", "needs_changes"):

@@ -117,3 +117,16 @@ def test_unapproved_path_and_contradictory_pass_rejected(monkeypatch):
         review.evaluate(snap, model=lambda _: {
             "verdict": "pass", "summary": "Contradictory result",
             "findings": [invalid_finding]})
+
+
+def test_model_process_rejects_on_disk_gh_cli_auth(tmp_path, monkeypatch):
+    for key in review.PROTECTED_ENV:
+        monkeypatch.delenv(key, raising=False)
+    local = tmp_path / '.config' / 'gh'
+    local.mkdir(parents=True)
+    (local / 'hosts.yml').write_text('synthetic-auth-placeholder')
+    assert review.evaluator_has_gh_credentials(environ={}, home=tmp_path) is True
+    snap = review.collect(133, HEAD, get=fake_get)
+    monkeypatch.setattr(review, 'evaluator_has_gh_credentials', lambda: True)
+    with pytest.raises(review.ReviewStop, match='credentials'):
+        review.evaluate(snap, model=lambda _: {'verdict': 'pass'})
