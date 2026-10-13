@@ -210,7 +210,43 @@ def review_response_schema():
     }
 
 
-def ask_ollama(payload, *, model_name=MODEL, context_tokens=16384):
+def inference_diagnostic(parsed, content, model_name, context_tokens,
+                         parse_status, error_position=None):
+    """Only Ollama runtime metadata; never source, token, or generated prose."""
+    def count(name):
+        value = parsed.get(name)
+        return value if type(value) is int and 0 <= value <= 2_000_000 else None
+
+    reason = parsed.get("done_reason")
+    return {
+        "schema_version": 1, "kind": "local_inference_metadata_only",
+        "model": model_name, "context_tokens": context_tokens,
+        "done": parsed.get("done") is True,
+        "done_reason_class": reason if reason in ("stop", "length") else "other_or_missing",
+        "prompt_eval_count": count("prompt_eval_count"),
+        "eval_count": count("eval_count"),
+        "content_bytes": len(content.encode("utf-8")),
+        "content_sha256": hashlib.sha256(content.encode("utf-8")).hexdigest(),
+        "parse_status": parse_status, "parse_error_position": error_position,
+        "raw_model_text_included": False,
+        "accepted_review": False, "independent_github_approval": False,
+        "merge_permitted": False,
+    }
+
+
+def save_inference_metadata(path, metadata):
+    """Create local metadata without replacing any existing evidence."""
+    content = json.dumps(metadata, ensure_ascii=False, indent=2) + "\n"
+    if len(content.encode("utf-8")) > 4000:
+        raise ReviewStop("local inference metadata exceeds safe bound")
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("x", encoding="utf-8") as stream:
+        stream.write(content)
+
+
+def ask_ollama(payload, *, model_name=MODEL, context_tokens=16384,
+               diagnostic_sink=None):
     if model_name not in REVIEW_MODELS or context_tokens not in REVIEW_CONTEXTS:
         raise ReviewStop("unapproved model or context size")
     instructions = (
@@ -252,7 +288,26 @@ def ask_ollama(payload, *, model_name=MODEL, context_tokens=16384):
     if parsed.get("done") is not True or not isinstance(parsed.get("message"), dict):
         raise ReviewStop("local inference incomplete")
     print("LOCAL_AI_REVIEW_RESPONSE_RECEIVED", file=sys.stderr, flush=True)
-    return json.loads(parsed["message"]["content"])
+    content = parsed["message"].get("content")
+    if not isinstance(content, str):
+        if diagnostic_sink is not None:
+            diagnostic_sink(inference_diagnostic(
+                parsed, "", model_name, context_tokens, "missing_text"))
+        raise ReviewStop("Ollama message content missing or not text")
+    try:
+        result = json.loads(content)
+    except json.JSONDecodeError as exc:
+        if diagnostic_sink is not None:
+            diagnostic_sink(inference_diagnostic(
+                parsed, content, model_name, context_tokens,
+                "invalid_json", exc.pos))
+        raise ReviewStop("Ollama returned invalid JSON; use local inference metadata") from None
+    if diagnostic_sink is not None:
+        diagnostic_sink(inference_diagnostic(
+            parsed, content, model_name, context_tokens, "valid_json"))
+    if parsed.get("done_reason") == "length":
+        raise ReviewStop("Ollama output hit generation limit; review not complete")
+    return result
 
 
 def evaluator_has_gh_credentials(environ=None, home=None):
@@ -291,14 +346,15 @@ def save_untrusted_candidate(path, candidate):
 
 
 def evaluate(envelope, *, model=ask_ollama, model_name=MODEL, context_tokens=16384,
-             candidate_sink=None):
+             candidate_sink=None, inference_diagnostic_sink=None):
     if model_name not in REVIEW_MODELS or context_tokens not in REVIEW_CONTEXTS:
         raise ReviewStop("unapproved model or context size")
     if (any(os.environ.get(key) for key in PROTECTED_ENV)
             or evaluator_has_gh_credentials()):
         raise ReviewStop("model process must not have GitHub or remote AI credentials")
     data = validate_snapshot(envelope)
-    raw = (model(data, model_name=model_name, context_tokens=context_tokens)
+    raw = (model(data, model_name=model_name, context_tokens=context_tokens,
+                 diagnostic_sink=inference_diagnostic_sink)
            if model is ask_ollama else model(data))
     if candidate_sink is not None:
         candidate_sink({
@@ -371,14 +427,21 @@ def main(argv=None):
     review_parser.add_argument("--num-ctx", type=int, choices=REVIEW_CONTEXTS, default=16384)
     review_parser.add_argument("--candidate-output", type=Path,
                                help="Local UNTRUSTED raw model candidate, never GitHub review")
+    review_parser.add_argument("--inference-metadata-output", type=Path,
+                               help="Only safe Ollama token/termination/JSON metadata")
     args = parser.parse_args(argv)
     try:
         if args.output.exists():
             raise ReviewStop("refusing to overwrite existing review evidence")
-        if args.command == "evaluate" and args.candidate_output is not None:
-            if (args.candidate_output.resolve() == args.output.resolve()
-                    or args.candidate_output.exists()):
-                raise ReviewStop("refusing to overwrite candidate or review evidence")
+        if args.command == "evaluate":
+            output_paths = [args.output.resolve()]
+            for extra in (args.candidate_output, args.inference_metadata_output):
+                if extra is not None:
+                    output_paths.append(extra.resolve())
+                    if extra.exists():
+                        raise ReviewStop("refusing to overwrite local evidence")
+            if len(set(output_paths)) != len(output_paths):
+                raise ReviewStop("local evidence output paths must be distinct")
         if args.command == "collect":
             output = collect(args.pr, args.expected_head)
         else:
@@ -387,9 +450,13 @@ def main(argv=None):
                 raise ReviewStop("snapshot file unavailable")
             sink = (lambda candidate: save_untrusted_candidate(args.candidate_output, candidate)
                     ) if args.candidate_output is not None else None
+            metadata_sink = (
+                lambda detail: save_inference_metadata(args.inference_metadata_output, detail)
+            ) if args.inference_metadata_output is not None else None
             output = evaluate(json.loads(source.read_text(encoding="utf-8")),
                               model_name=args.model, context_tokens=args.num_ctx,
-                              candidate_sink=sink)
+                              candidate_sink=sink,
+                              inference_diagnostic_sink=metadata_sink)
         dest = args.output.resolve()
         if dest.exists():
             raise ReviewStop("refusing to overwrite existing evidence")

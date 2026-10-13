@@ -335,3 +335,81 @@ def test_invalid_verdict_cannot_be_normalized_into_approval(monkeypatch):
     assert collected[0]["github_approved"] is False
     assert collected[0]["merge_permitted"] is False
     assert collected[0]["raw_response"] == candidate
+
+
+def test_inference_metadata_on_malformed_json_with_no_model_text(monkeypatch, tmp_path):
+    import json
+    incomplete = '{"verdict":"needs_changes","findings":['
+    fake_response = {"done": True, "done_reason": "length",
+                     "prompt_eval_count": 8130, "eval_count": 1800,
+                     "message": {"content": incomplete}}
+    class Response:
+        status = 200
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            return False
+        def read(self, size):
+            return json.dumps(fake_response).encode()
+    class Opener:
+        def open(self, req, timeout):
+            assert timeout == 600
+            return Response()
+    monkeypatch.setattr(review, "build_opener", lambda handler: Opener())
+    target = tmp_path / "metadata.json"
+    with pytest.raises(review.ReviewStop, match="invalid JSON"):
+        review.ask_ollama({"synthetic": True}, model_name="qwen2.5-coder:3b",
+                          context_tokens=8192,
+                          diagnostic_sink=lambda x: review.save_inference_metadata(target, x))
+    result = json.loads(target.read_text(encoding="utf-8"))
+    assert result["done_reason_class"] == "length"
+    assert result["prompt_eval_count"] == 8130
+    assert result["eval_count"] == 1800
+    assert result["parse_status"] == "invalid_json"
+    assert result["content_bytes"] == len(incomplete.encode("utf-8"))
+    assert result["parse_error_position"] is not None
+    assert "needs_changes" not in str(result)
+    assert result["raw_model_text_included"] is False
+    assert result["independent_github_approval"] is False
+    assert result["merge_permitted"] is False
+    with pytest.raises(FileExistsError):
+        review.save_inference_metadata(target, result)
+
+
+def test_valid_ollama_json_with_generation_limit_is_rejected(monkeypatch):
+    import json
+    response = {"done": True, "done_reason": "length",
+                "prompt_eval_count": 200, "eval_count": 1800,
+                "message": {"content":
+                    '{"verdict":"pass","summary":"Synthetic only","findings":[]}'}}
+    class Response:
+        status = 200
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            return False
+        def read(self, size):
+            return json.dumps(response).encode()
+    class Opener:
+        def open(self, request, timeout):
+            return Response()
+    monkeypatch.setattr(review, "build_opener", lambda handler: Opener())
+    details = []
+    with pytest.raises(review.ReviewStop, match="generation limit"):
+        review.ask_ollama({"synthetic": True}, model_name="qwen2.5-coder:3b",
+                          context_tokens=8192, diagnostic_sink=details.append)
+    assert details[0]["parse_status"] == "valid_json"
+    assert details[0]["accepted_review"] is False
+
+
+def test_inference_metadata_contains_only_bounded_known_fields():
+    parsed = {"done": True, "done_reason": "stop",
+              "prompt_eval_count": 300, "eval_count": 20,
+              "message": {"content": "SECRET_MARKER_NOT_TO_INCLUDE"}}
+    result = review.inference_diagnostic(
+        parsed, "SECRET_MARKER_NOT_TO_INCLUDE",
+        "qwen2.5-coder:3b", 8192, "invalid_json", 17)
+    assert "SECRET_MARKER_NOT_TO_INCLUDE" not in str(result)
+    assert result["done_reason_class"] == "stop"
+    assert result["parse_error_position"] == 17
+    assert result["raw_model_text_included"] is False
