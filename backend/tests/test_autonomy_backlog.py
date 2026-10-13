@@ -105,3 +105,15 @@ def test_outsider_pause_marker_does_not_stop_controller(repo):
         return SimpleNamespace(stdout="created")
     assert backlog.update_issues(repo, "haji84/-AI", runner=runner)["created"] == 2
     assert len(created) == 2
+
+
+def test_cli_artifact_contains_bounded_summary_only_on_success(repo, tmp_path):
+    import json
+    output = tmp_path / "autonomy-backlog.json"
+    assert backlog.main(["--repo", str(repo), "--output", str(output)]) == 0
+    assert json.loads(output.read_text(encoding="utf-8")) == {
+        "mode": "read_only", "candidates": [12, 21]}
+    rejected = tmp_path / "failed.json"
+    assert backlog.main(["--repo", str(tmp_path / "not-a-repo"),
+                         "--output", str(rejected)]) == 2
+    assert not rejected.exists()

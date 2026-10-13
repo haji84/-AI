@@ -96,13 +96,17 @@ def main(argv=None):
     p = argparse.ArgumentParser(description="15-minute, 57-chapter guarded backlog")
     p.add_argument("--repo", default=".")
     p.add_argument("--publish", action="store_true")
+    p.add_argument("--output", type=Path, help="Write successful summary JSON evidence")
     args = p.parse_args(argv)
     try:
         if args.publish:
             result = update_issues(args.repo, os.environ.get("GH_REPO", ""))
         else:
             result = {"mode": "read_only", "candidates": [x["chapter"] for x in proposals(args.repo)]}
-        print(json.dumps(result, ensure_ascii=False))
+        encoded = json.dumps(result, ensure_ascii=False)
+        if args.output is not None:
+            args.output.write_text(encoded + "\n", encoding="utf-8")
+        print(encoded)
         return 0
     except (SafeStop, OSError, ValueError, subprocess.SubprocessError) as e:
         print(f"SAFE_STOP: {type(e).__name__}", file=sys.stderr)
