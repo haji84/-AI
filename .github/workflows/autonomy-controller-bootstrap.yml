@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
       - name: Verify canonical inputs and record inventory
@@ -32,7 +32,7 @@ jobs:
           set -euo pipefail
           python3 scripts/autonomy/inventory.py --repo . --output "$RUNNER_TEMP/autonomy-inventory.json"
       - name: Upload read-only evidence
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: autonomy-inventory
           path: ${{ runner.temp }}/autonomy-inventory.json
