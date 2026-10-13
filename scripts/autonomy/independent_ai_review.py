@@ -102,10 +102,10 @@ def collect(pr_number, expected_head, *, get=api_get):
     if not specification.startswith("# ") or len(specification) > 45_000:
         raise ReviewStop("canonical specification invalid")
     selected = []
-    for section in re.split(r"(?=^## \\d+\\.\\s+)", specification, flags=re.MULTILINE):
-        if re.match(r"^##\\s+(4|38|42|43|48|53)\\.\\s+", section):
+    for section in re.split(r"(?=^## \d+\.\s+)", specification, flags=re.MULTILINE):
+        if re.match(r"^##\s+(4|38|42|43|48|53)\.\s+", section):
             selected.append(section)
-    excerpt = "\\n".join(selected)
+    excerpt = "\n".join(selected)
     if len(selected) != 6 or len(excerpt) > 30_000:
         raise ReviewStop("required specification sections unavailable")
     snapshot = {

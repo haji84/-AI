@@ -29,9 +29,9 @@ def fake_get(path):
              "status": "completed", "conclusion": "success"}
             for i, n in enumerate(review.REQUIRED_CI)]}
     if "/contents/docs/SPECIFICATION.md?" in path:
-        body = "\\n".join(f"## {n}. Test chapter\\nText" for n in (4, 38, 42, 43, 48, 53))
+        body = "\n".join(f"## {n}. Test chapter\nText" for n in (4, 38, 42, 43, 48, 53))
         return {"encoding": "base64", "content":
-                base64.b64encode(("# Test specification\\n" + body).encode()).decode("ascii")}
+                base64.b64encode(("# Test specification\n" + body).encode()).decode("ascii")}
     if "/contents/AGENTS.md?" in path:
         return {"encoding": "base64", "content":
                 base64.b64encode(b"# AGENTS.md\nRules").decode("ascii")}
