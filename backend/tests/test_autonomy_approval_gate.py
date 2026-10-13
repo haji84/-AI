@@ -86,3 +86,13 @@ def test_invalid_clock_refused():
     event["comment"]["body"] = COMMAND.replace(EXPIRES, "2026-10-13T99:00:00Z")
     with pytest.raises(gate.ApprovalError):
         gate.inspect_event(event, pr, now=NOW)
+
+
+def test_nonapproval_comment_never_schedules_gate():
+    workflow = PATH.parents[2] / ".github/workflows/autonomy-chat-approval.yml"
+    text = workflow.read_text(encoding="utf-8")
+    assert "issue_comment:" in text
+    assert "types: [created]" in text
+    assert "startsWith(github.event.comment.body, 'AIOS_APPROVE')" in text
+    assert "permissions:" in text and "pull-requests: read" in text
+    assert "pull-requests: write" not in text
