@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """Separate COMMENT-only publisher. Requires a distinct reviewer identity."""
 import argparse
+import hashlib
+import hmac
 import json
+import re
 from pathlib import Path
 import subprocess
 import sys
@@ -99,8 +102,19 @@ def main(argv=None):
     parser.add_argument("--semantic-report", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--publish-comment", action="store_true")
+    parser.add_argument("--approved-preview", type=Path,
+                        help="Already-inspected, immutable COMMENT preview (publish only)")
+    parser.add_argument("--expected-preview-sha256",
+                        help="SHA256 printed by prior preview-only invocation (publish only)")
     args = parser.parse_args(argv)
     try:
+        if args.publish_comment:
+            if (args.approved_preview is None
+                    or not isinstance(args.expected_preview_sha256, str)
+                    or not re.fullmatch(r"[0-9a-f]{64}", args.expected_preview_sha256)):
+                raise PublishStop("publishing requires approved preview and expected SHA256")
+        elif args.approved_preview is not None or args.expected_preview_sha256 is not None:
+            raise PublishStop("preview-only mode cannot use publishing approvals")
         s = args.snapshot.resolve(strict=True)
         r = args.result.resolve(strict=True)
         if not s.is_file() or s.stat().st_size > reviewer.MAX_INPUT + 1000:
@@ -114,18 +128,59 @@ def main(argv=None):
             raise PublishStop("missing bounded semantic evidence")
         semantic_report = json.loads(sem_path.read_text(encoding="utf-8"))
         comment = build_comment(envelope, report, semantic_report)
+        preview_bytes = (comment + "\n").encode("utf-8")
+        if len(preview_bytes) > 60_000:
+            raise PublishStop("oversized comment preview")
+        digest = hashlib.sha256(preview_bytes).hexdigest()
         out = args.output.resolve()
-        if out.exists():
-            raise PublishStop("refuse overwrite")
-        if args.publish_comment:
-            check_identity_and_head(envelope)
-            if input("Submit COMMENT as independent operator? Enter YES: ") != "YES":
-                raise PublishStop("publisher did not authorize")
-        out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(comment + "\n", encoding="utf-8")
+        protected = {s, r, sem_path}
+        if out.exists() or out in protected:
+            raise PublishStop("refuse overwrite or protected output")
+        if not args.publish_comment:
+            out.parent.mkdir(parents=True, exist_ok=True)
+            with out.open("xb") as stream:
+                stream.write(preview_bytes)
+            print(json.dumps({"preview": str(out), "preview_sha256": digest,
+                              "comment_review_id": None, "github_approved": False}))
+            return 0
+
+        approved = args.approved_preview.resolve(strict=True)
+        if (approved in protected or out == approved or not approved.is_file()
+                or approved.stat().st_size > 60_000):
+            raise PublishStop("unsafe or oversized approved preview")
+        if not hmac.compare_digest(args.expected_preview_sha256, digest):
+            raise PublishStop("expected SHA256 differs from rendered comment")
+        if approved.read_bytes() != preview_bytes:
+            raise PublishStop("approved preview does not match rendered comment")
+        # Pre-prompt identity and exact-head check never authorizes publication by itself.
+        identity = check_identity_and_head(envelope)
+        print(json.dumps({"candidate_comment_sha256": digest,
+                          "preview": str(approved), "pr": envelope["snapshot"]["pr"],
+                          "head": envelope["snapshot"]["head"],
+                          "publisher": identity, "github_approved": False}))
+        if input("Inspected exact SHA256 preview above? Type YES to post COMMENT only: ") != "YES":
+            raise PublishStop("publisher did not authorize")
+        # The user may spend arbitrarily long inspecting/confirming.
+        # Recheck both current PR and four exact-head CI streams immediately before POST.
+        if check_identity_and_head(envelope) != identity:
+            raise PublishStop("reviewer identity changed")
+        if approved.read_bytes() != preview_bytes:
+            raise PublishStop("approved preview changed after confirmation")
+        if not hmac.compare_digest(
+                hashlib.sha256(preview_bytes).hexdigest(), args.expected_preview_sha256):
+            raise PublishStop("comment digest changed after confirmation")
         review_id = publish_comment(envelope["snapshot"]["pr"],
-                                    envelope["snapshot"]["head"], comment) if args.publish_comment else None
-        print(json.dumps({"preview": str(out), "comment_review_id": review_id,
+                                    envelope["snapshot"]["head"], comment)
+        receipt = {
+            "kind": "comment_only_publication_receipt", "pr": envelope["snapshot"]["pr"],
+            "head": envelope["snapshot"]["head"], "comment_review_id": review_id,
+            "preview_sha256": digest, "github_approved": False, "merge_permitted": False,
+        }
+        out.parent.mkdir(parents=True, exist_ok=True)
+        with out.open("x", encoding="utf-8") as stream:
+            json.dump(receipt, stream, ensure_ascii=False)
+            stream.write("\n")
+        print(json.dumps({"receipt": str(out), "comment_review_id": review_id,
                           "github_approved": False}))
         return 0
     except (PublishStop, semantic_gate.SemanticStop, reviewer.ReviewStop, OSError, ValueError, TypeError,

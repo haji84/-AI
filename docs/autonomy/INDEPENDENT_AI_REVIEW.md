@@ -1,8 +1,10 @@
 # Independent local AI review candidate (Issue #140)
 
 This is a **bounded reviewer candidate**, not an independent GitHub APPROVED
-actor. It does not install a GitHub App, post PR comments, write GitHub
-credentials to an AI prompt, execute PR code, or merge any PR.
+actor. It does not install a GitHub App, write GitHub credentials to
+an AI prompt, execute PR code, or merge any PR. The separate optional
+publisher can submit COMMENT-only reviews under a distinct authorized
+operator after an explicitly approved preview and fresh-head checks.
 
 ## Trust separation
 
@@ -75,10 +77,37 @@ Render a candidate comment without publishing:
 py -3.11 scripts/autonomy/review_evidence_publisher.py --snapshot C:\AIOS-review\snapshot-133.json --result C:\AIOS-review\review-133.json --semantic-report C:\AIOS-review\semantic-133.json --output C:\AIOS-review\comment-133.md
 ~~~
 
-The same command with `--publish-comment` requires a different GitHub login
-with reviewer write permissions, rechecks exact live evidence, and prompts an
-explicit terminal YES. Do not run this with the PR author's login. Check the
-rendered candidate for secrets before publication.
+Before publication the operator must open the preview, inspect every line
+for sensitive content and incorrect findings, and record its SHA-256 digest.
+The preview-only command prints the exact `preview_sha256`. A separate
+publication invocation requires both the already reviewed file and **exact**
+digest, plus a distinct receipt output path (do not reuse the preview path).
+The model never receives GitHub write credentials:
+
+~~~powershell
+py -3.11 scripts/autonomy/review_evidence_publisher.py --snapshot C:\AIOS-review\snapshot-133.json --result C:\AIOS-review\review-133.json --semantic-report C:\AIOS-review\semantic-133.json --publish-comment --approved-preview C:\AIOS-review\comment-133.md --expected-preview-sha256 <sha256-from-preview-only-output> --output C:\AIOS-review\comment-133-receipt.json
+~~~
+
+**Use this only as a separate GitHub operator** whose identity is different
+from the PR author. Without the reviewed preview and digest there is no
+publishing path. The program independently renders the comment again,
+byte-compares it with the approved preview, verifies its digest, validates
+independent identity and the exact current PR head/CI, displays only digest
+and target metadata, then requests explicit `YES`. After consent it
+re-collects the PR/CI, checks that the reviewer identity did not change,
+and re-reads the preview bytes before the COMMENT-only GitHub POST.
+
+The final GitHub POST uses the pinned `commit_id`. A concurrent push
+between the last fresh check and the POST cannot be atomically prevented by
+the GitHub REST comment endpoint; this race is mitigated but not eliminated.
+A stale COMMENT can never be considered an independent GitHub APPROVED.
+The receipt output contains the COMMENTED review id, pinned head and digest.
+A receipt does not grant merge permission.
+
+Never run publish as `haji84` for an author-owned PR. A missing independent
+review operator is a blocking governance gate, not permission for the
+author/model to self-approve or for this assistant to masquerade as another
+GitHub user.
 
 This creates GitHub COMMENTED only. True independent GitHub APPROVED requires
 separate governance and a review authority, not the local model output.
