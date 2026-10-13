@@ -51,7 +51,7 @@ def test_issue_publish_is_deduplicated(repo):
             return SimpleNamespace(stdout="[]")
         return SimpleNamespace(stdout="created")
     first = backlog.update_issues(repo, "haji84/-AI", runner=runner)
-    assert first == {"created": 2, "existing": 0}
+    assert first == {"created": 2, "existing": 0, "paused": False}
     bodies = [a[-1] for a in observed if a[2] == "create"]
     observed.clear()
     def existing_runner(args, **kwargs):
@@ -61,7 +61,7 @@ def test_issue_publish_is_deduplicated(repo):
             return SimpleNamespace(stdout=json.dumps([{"body": b, "author": {"login": "github-actions[bot]"}} for b in bodies]))
         raise AssertionError("unexpected duplicate Issue creation")
     second = backlog.update_issues(repo, "haji84/-AI", runner=existing_runner)
-    assert second == {"created": 0, "existing": 2}
+    assert second == {"created": 0, "existing": 2, "paused": False}
 
 
 def test_reject_unapproved_repository(repo):
@@ -79,7 +79,7 @@ def test_untrusted_public_issue_cannot_fake_dedup(repo):
                 {"body": "<!-- aios-autonomy-chapter:12 -->", "author": {"login": "someone-else"}}]))
         return SimpleNamespace(stdout="created")
     result = backlog.update_issues(repo, "haji84/-AI", runner=runner)
-    assert result == {"created": 2, "existing": 0}
+    assert result == {"created": 2, "existing": 0, "paused": False}
 
 
 def test_owner_pause_marker_suppresses_issue_creation(repo):
@@ -117,3 +117,36 @@ def test_cli_artifact_contains_bounded_summary_only_on_success(repo, tmp_path):
     assert backlog.main(["--repo", str(tmp_path / "not-a-repo"),
                          "--output", str(rejected)]) == 2
     assert not rejected.exists()
+
+
+def test_empty_backlog_still_reports_owner_pause(repo):
+    import json
+    ledger = repo / "docs/completion/CURRENT_COMPLETION_LEDGER.md"
+    ledger.write_text(ledger.read_text().replace(
+        "| 12 | Chapter | Partial |", "| 12 | Chapter | Completed |").replace(
+        "| 21 | Chapter | Partial |", "| 21 | Chapter | Completed |"))
+    calls = []
+    def paused_runner(args, **kwargs):
+        calls.append(args)
+        assert args[2] == "list"
+        return SimpleNamespace(stdout=json.dumps([{
+            "body": "<!-- aios-autonomy-pause -->",
+            "author": {"login": "haji84"}, "state": "OPEN"}]))
+    assert backlog.update_issues(repo, "haji84/-AI", runner=paused_runner) == {
+        "created": 0, "existing": 0, "paused": True}
+    assert len(calls) == 1
+
+
+def test_empty_backlog_reports_not_paused(repo):
+    ledger = repo / "docs/completion/CURRENT_COMPLETION_LEDGER.md"
+    ledger.write_text(ledger.read_text().replace(
+        "| 12 | Chapter | Partial |", "| 12 | Chapter | Completed |").replace(
+        "| 21 | Chapter | Partial |", "| 21 | Chapter | Completed |"))
+    calls = []
+    def runner(args, **kwargs):
+        calls.append(args)
+        assert args[2] == "list"
+        return SimpleNamespace(stdout="[]")
+    assert backlog.update_issues(repo, "haji84/-AI", runner=runner) == {
+        "created": 0, "existing": 0, "paused": False}
+    assert len(calls) == 1

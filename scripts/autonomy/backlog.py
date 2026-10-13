@@ -61,8 +61,6 @@ def update_issues(root, repo, runner=subprocess.run):
     if repo != "haji84/-AI":
         raise SafeStop("unexpected GitHub repository")
     planned = proposals(root)
-    if not planned:
-        return {"created": 0, "existing": 0}
     def execute(args):
         return runner(args, text=True, capture_output=True, check=True, timeout=70)
     listed = execute(["gh", "issue", "list", "--repo", repo, "--state", "all",
@@ -89,7 +87,7 @@ def update_issues(root, repo, runner=subprocess.run):
                  "--title", item["title"], "--body", item["body"]])
         contents.append(item["body"])
         created += 1
-    return {"created": created, "existing": existing}
+    return {"created": created, "existing": existing, "paused": False}
 
 
 def main(argv=None):
