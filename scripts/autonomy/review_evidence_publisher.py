@@ -63,10 +63,13 @@ def check_identity_and_head(envelope, get=reviewer.api_get):
     return identity["login"]
 
 
-def publish_comment(pr, text, runner=subprocess.run):
+def publish_comment(pr, head, text, runner=subprocess.run):
+    if not reviewer.SHA.fullmatch(str(head)):
+        raise PublishStop("invalid reviewed commit identity")
     response = runner(["gh", "api", "--method", "POST",
                        f"repos/{reviewer.REPO}/pulls/{pr}/reviews",
-                       "-f", "event=COMMENT", "-f", "body=" + text],
+                       "-f", "event=COMMENT", "-f", "commit_id=" + head,
+                       "-f", "body=" + text],
                       check=True, capture_output=True, text=True, timeout=45)
     result = json.loads(response.stdout)
     if result.get("state") != "COMMENTED":
@@ -100,7 +103,8 @@ def main(argv=None):
                 raise PublishStop("publisher did not authorize")
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(comment + "\n", encoding="utf-8")
-        review_id = publish_comment(envelope["snapshot"]["pr"], comment) if args.publish_comment else None
+        review_id = publish_comment(envelope["snapshot"]["pr"],
+                                    envelope["snapshot"]["head"], comment) if args.publish_comment else None
         print(json.dumps({"preview": str(out), "comment_review_id": review_id,
                           "github_approved": False}))
         return 0

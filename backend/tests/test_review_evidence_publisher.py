@@ -73,6 +73,7 @@ def test_writer_posts_only_comment():
     def fake(args, **kwargs):
         called.extend(args)
         return SimpleNamespace(stdout='{"id":999,"state":"COMMENTED"}')
-    assert publisher.publish_comment(133, "Synthetic review", runner=fake) == 999
+    assert publisher.publish_comment(133, "a" * 40, "Synthetic review", runner=fake) == 999
     assert "event=COMMENT" in called
+    assert "commit_id=" + "a" * 40 in called
     assert "event=APPROVE" not in called
