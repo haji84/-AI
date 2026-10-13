@@ -126,7 +126,7 @@ def test_closed_evidence_issue_allows_next_priority_chapter(repo):
     result = backlog.update_issues(repo, "haji84/-AI", runner=runner)
     assert result == {"created": 1, "existing": 2}
     assert len([a for a in calls if a[2] == "create"]) == 1
-    assert "chapter 13" in [a for a in calls if a[2] == "create"][0][-1]
+    assert "<!-- aios-autonomy-chapter:13 -->" in [a for a in calls if a[2] == "create"][0][-1]
 
 
 def test_two_active_investigations_hold_the_capacity(repo):
