@@ -167,3 +167,19 @@ def test_changed_gap_can_be_investigated_after_old_issue_closes(repo):
     assert backlog.update_issues(repo, "haji84/-AI", runner=runner)["created"] == 1
     assert len(created) == 1
     assert after[0]["gap_marker"] in created[0][-1]
+
+
+def test_expanded_recovery_chapter_is_not_skipped(repo):
+    path = repo / "docs/completion/CURRENT_COMPLETION_LEDGER.md"
+    path.write_text(path.read_text().replace(
+        "| 42 | Chapter | Completed |", "| 42 | Chapter | Partial |"))
+    proposals = backlog.proposals(repo)
+    assert set(x["chapter"] for x in proposals) == {12, 21, 42}
+    assert proposals[0]["chapter"] == 42
+
+
+def test_unlisted_future_partial_chapter_uses_fallback(repo):
+    path = repo / "docs/completion/CURRENT_COMPLETION_LEDGER.md"
+    path.write_text(path.read_text().replace(
+        "| 47 | Chapter | Completed |", "| 47 | Chapter | Partial |"))
+    assert 47 in {item["chapter"] for item in backlog.proposals(repo)}
