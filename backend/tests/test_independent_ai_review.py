@@ -13,6 +13,7 @@ spec.loader.exec_module(review)
 HEAD = "a" * 40
 BASE = "b" * 40
 PATCH = "@@ -0,0 +1 @@\n+safe = True"
+ANCHOR = "+safe = True"
 
 
 def fake_get(path):
@@ -86,6 +87,7 @@ def test_synthetic_ai_review_never_becomes_approval(monkeypatch):
     outcome = review.evaluate(snap, model=lambda _: {
         "verdict": "needs_changes", "summary": "Synthetic finding",
         "findings": [{"path": "frontend/safe.py", "severity": "medium",
+                      "source_line": ANCHOR,
                       "evidence": "Changed behavior lacks a regression test.",
                       "recommendation": "Add focused regression test."}]})
     assert outcome["verdict"] == "needs_changes"
@@ -106,6 +108,7 @@ def test_unapproved_path_and_contradictory_pass_rejected(monkeypatch):
         monkeypatch.delenv(key, raising=False)
     snap = review.collect(133, HEAD, get=fake_get)
     invalid_finding = {"path": "AGENTS.md", "severity": "high",
+                       "source_line": ANCHOR,
                        "evidence": "Unexpected repository path.",
                        "recommendation": "Do not invent target paths."}
     with pytest.raises(review.ReviewStop, match="path"):
@@ -216,3 +219,28 @@ def test_unapproved_model_or_context_fails_closed(monkeypatch):
     assert out["model"] == "qwen2.5-coder:3b"
     assert out["context_tokens"] == 8192
     assert out["independent_github_approval"] is False
+
+def test_exact_changed_line_grounding_is_mandatory(monkeypatch):
+    for key in review.PROTECTED_ENV:
+        monkeypatch.delenv(key, raising=False)
+    monkeypatch.setattr(review, "evaluator_has_gh_credentials", lambda: False)
+    evidence = review.collect(133, HEAD, get=fake_get)
+    def fake(anchor):
+        return {"verdict": "needs_changes", "summary": "Synthetic observation",
+                "findings": [{"path": "frontend/safe.py", "severity": "high",
+                              "source_line": anchor, "evidence": "Behavior may differ.",
+                              "recommendation": "Inspect exact line."}]}
+    valid = review.evaluate(evidence, model=lambda _: fake(ANCHOR))
+    assert valid["findings"][0]["source_line"] == ANCHOR
+    for anchor in ("+invented = True", "safe = True", "++safe = True"):
+        with pytest.raises(review.ReviewStop, match="exact changed line"):
+            review.evaluate(evidence, model=lambda _: fake(anchor))
+    malformed = fake(ANCHOR)
+    del malformed["findings"][0]["source_line"]
+    with pytest.raises(review.ReviewStop, match="exact changed line"):
+        review.evaluate(evidence, model=lambda _: malformed)
+
+
+def test_diff_line_extraction_ignores_metadata():
+    patch = "@@ -1 +1 @@\n--- a/old.py\n+++ b/new.py\n-old = True\n+new = True"
+    assert review.changed_source_lines(patch) == {"-old = True", "+new = True"}

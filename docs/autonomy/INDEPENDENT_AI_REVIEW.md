@@ -72,7 +72,7 @@ the PR author or the live PR head, CI or patch digest changed.
 Render a candidate comment without publishing:
 
 ~~~powershell
-py -3.11 scripts/autonomy/review_evidence_publisher.py --snapshot C:\AIOS-review\snapshot-133.json --result C:\AIOS-review\review-133.json --output C:\AIOS-review\comment-133.md
+py -3.11 scripts/autonomy/review_evidence_publisher.py --snapshot C:\AIOS-review\snapshot-133.json --result C:\AIOS-review\review-133.json --semantic-report C:\AIOS-review\semantic-133.json --output C:\AIOS-review\comment-133.md
 ~~~
 
 The same command with `--publish-comment` requires a different GitHub login
@@ -161,3 +161,43 @@ and `nvidia-smi`. If `ollama ps` still says 100% CPU, GPU acceleration
 did not occur. If the prompt exceeds 8K context and may have been truncated,
 do NOT accept the review as complete. A compact model is a preliminary
 candidate reviewer, not security approval or evidence of reviewer independence.
+
+## Two separate review gates: exact source vs. interpretation
+
+A real 2026-10-13 ZBook review with qwen2.5-coder:3b on PR #133
+produced eight High findings whose explanations were not supported when
+checked against the actual changes. This is a model-quality failure,
+not proof that the PR is safe or unsafe.
+
+**Stage 1 (location grounding):** Each model finding must contain an exact
+full `source_line` copied from the same file's added or removed diff
+hunk, retaining the leading `+` or `-`. The evaluator refuses output
+with invented/mismatched quotes. This guarantees location grounding only.
+It does not prove that the alleged security flaw exists.
+
+**Stage 2 (interpretation triage):** Run the separate semantic checker
+against the exact snapshot and completed review:
+
+~~~powershell
+py -3.11 scripts/autonomy/semantic_review_gate.py --snapshot C:\AIOS-review\snapshot-133.json --review C:\AIOS-review\review-133-new.json --output C:\AIOS-review\semantic-133-new.json
+~~~
+
+The checker uses deterministic Python AST checks to contradict certain
+demonstrably false claims, such as "use re" when the full new file
+already imports/calls re, or "add check=True and timeout" when they are
+already supplied. All other interpretations remain `unverified`, never
+automatically "correct." It analyzes full newly added Python files
+only for AST checks and avoids claiming to understand partial diff context.
+
+The comment publisher now requires a matching `--semantic-report` file,
+revalidates the source quotes and interpretation report, and rejects any
+known contradicted model claims. Its only allowed GitHub review event
+remains COMMENTED, subject to a separate operator's approval.
+
+The earlier `review-133-3b.json` lacks grounded `source_line` fields.
+It must not be upgraded or silently reinterpreted as a verified review.
+A new inference with the revised prompt is required for those checks.
+
+The semantic stage intentionally retains `context_completeness_proven=false`
+and `independent_operator_verified=false`: local model output plus AST
+heuristics is still insufficient for GitHub APPROVED or main merge.

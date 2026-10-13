@@ -7,13 +7,14 @@ import subprocess
 import sys
 
 import independent_ai_review as reviewer
+import semantic_review_gate as semantic_gate
 
 
 class PublishStop(ValueError):
     pass
 
 
-def build_comment(envelope, report):
+def build_comment(envelope, report, semantic_report):
     data = reviewer.validate_snapshot(envelope)
     if (not isinstance(report, dict) or report.get("kind") != "local_ai_review_candidate"
             or report.get("repo") != reviewer.REPO or report.get("pr") != data["pr"]
@@ -30,7 +31,14 @@ def build_comment(envelope, report):
         raise PublishStop("invalid summary")
     if not isinstance(findings, list) or len(findings) > 20:
         raise PublishStop("invalid findings")
-    files = {x["path"] for x in data["files"]}
+    expected_semantic = semantic_gate.triage(envelope, report)
+    if semantic_report != expected_semantic:
+        raise PublishStop("semantic gate missing, mismatched or altered")
+    assessments = expected_semantic["assessments"]
+    if any(x["interpretation_status"] == "contradicted" for x in assessments):
+        raise PublishStop("contradicted model claims cannot be published as review")
+    files = {x["path"]: reviewer.changed_source_lines(x["patch"])
+             for x in data["files"]}
     if report["verdict"] == "pass" and findings:
         raise PublishStop("PASS contradicts findings")
     lines = ["## AI reviewer candidate (COMMENT only, NOT APPROVED)", "",
@@ -41,11 +49,14 @@ def build_comment(envelope, report):
     for finding in findings:
         if (not isinstance(finding, dict) or finding.get("path") not in files
                 or finding.get("severity") not in ("critical", "high", "medium", "low")
+                or finding.get("source_line") not in files[finding["path"]]
                 or any(not isinstance(finding.get(k), str)
                        or not 3 <= len(finding[k]) <= 1200
                        for k in ("evidence", "recommendation"))):
             raise PublishStop("finding invalid")
         lines.extend(["", "Finding: " + finding["path"] + " [" + finding["severity"] + "]",
+                      "Grounded changed line: " + finding["source_line"],
+                      "Semantic interpretation: UNVERIFIED (independent review required)",
                       "Evidence: " + finding["evidence"],
                       "Recommendation: " + finding["recommendation"]])
     lines.extend(["", "Four CI run IDs: " + json.dumps(data["ci"], sort_keys=True),
@@ -83,6 +94,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument("--snapshot", type=Path, required=True)
     parser.add_argument("--result", type=Path, required=True)
+    parser.add_argument("--semantic-report", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--publish-comment", action="store_true")
     args = parser.parse_args(argv)
@@ -95,7 +107,11 @@ def main(argv=None):
             raise PublishStop("missing review")
         envelope = json.loads(s.read_text(encoding="utf-8"))
         report = json.loads(r.read_text(encoding="utf-8"))
-        comment = build_comment(envelope, report)
+        sem_path = args.semantic_report.resolve(strict=True)
+        if not sem_path.is_file() or sem_path.stat().st_size > 80_000:
+            raise PublishStop("missing bounded semantic evidence")
+        semantic_report = json.loads(sem_path.read_text(encoding="utf-8"))
+        comment = build_comment(envelope, report, semantic_report)
         out = args.output.resolve()
         if out.exists():
             raise PublishStop("refuse overwrite")
@@ -110,7 +126,7 @@ def main(argv=None):
         print(json.dumps({"preview": str(out), "comment_review_id": review_id,
                           "github_approved": False}))
         return 0
-    except (PublishStop, reviewer.ReviewStop, OSError, ValueError, TypeError,
+    except (PublishStop, semantic_gate.SemanticStop, reviewer.ReviewStop, OSError, ValueError, TypeError,
             KeyError, subprocess.SubprocessError):
         print("SAFE_STOP: no review publication or approval accepted", file=sys.stderr)
         return 2

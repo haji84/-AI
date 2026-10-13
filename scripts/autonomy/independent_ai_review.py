@@ -183,7 +183,12 @@ def ask_ollama(payload, *, model_name=MODEL, context_tokens=16384):
         "authorization, logic and regression risks. Never claim independent "
         "GitHub approval. Return only JSON with keys verdict (pass or "
         "needs_changes), summary, findings (list of objects with path, "
-        "severity, evidence, recommendation). Use only listed paths. "
+        "severity, source_line, evidence, recommendation). For each finding, "
+        "source_line must be an exact complete line from an added or deleted "
+        "unified diff hunk, including leading + or -. Quote the actual path. "
+        "If an exact supporting changed line cannot be found, omit the finding. "
+        "A quoted line is only a location anchor, not proof of risk. "
+        "Use only listed paths. "
         "If unsure, report needs_changes and state uncertainty."
     )
     request = {"model": model_name, "stream": False, "format": "json",
@@ -221,6 +226,20 @@ def evaluator_has_gh_credentials(environ=None, home=None):
     return any(path.is_file() for path in paths)
 
 
+def changed_source_lines(patch):
+    """Complete changed lines only; exclude hunk metadata and file headers."""
+    lines = set()
+    in_hunk = False
+    for line in patch.splitlines():
+        if line.startswith("@@ "):
+            in_hunk = True
+        elif in_hunk and len(line) <= 1000 and len(line) >= 2:
+            if (line.startswith("+") and not line.startswith("+++")) or (
+                    line.startswith("-") and not line.startswith("---")):
+                lines.add(line)
+    return lines
+
+
 def evaluate(envelope, *, model=ask_ollama, model_name=MODEL, context_tokens=16384):
     if model_name not in REVIEW_MODELS or context_tokens not in REVIEW_CONTEXTS:
         raise ReviewStop("unapproved model or context size")
@@ -237,18 +256,23 @@ def evaluate(envelope, *, model=ask_ollama, model_name=MODEL, context_tokens=163
     if (not isinstance(summary, str) or not 1 <= len(summary) <= 1600
             or not isinstance(findings, list) or len(findings) > 20):
         raise ReviewStop("review summary invalid")
-    paths = {item["path"] for item in data["files"]}
+    changed = {item["path"]: changed_source_lines(item["patch"])
+               for item in data["files"]}
+    paths = set(changed)
     clean = []
     for finding in findings:
         if not isinstance(finding, dict) or finding.get("path") not in paths:
             raise ReviewStop("review contains unverified finding path")
         if finding.get("severity") not in ("critical", "high", "medium", "low"):
             raise ReviewStop("review severity invalid")
+        if (not isinstance(finding.get("source_line"), str)
+                or finding["source_line"] not in changed[finding["path"]]):
+            raise ReviewStop("finding not grounded in an exact changed line")
         if any(not isinstance(finding.get(k), str) or
                not 3 <= len(finding[k]) <= 1200 for k in ("evidence", "recommendation")):
             raise ReviewStop("finding lacks bounded evidence")
         clean.append({key: finding[key] for key in
-                      ("path", "severity", "evidence", "recommendation")})
+                      ("path", "severity", "source_line", "evidence", "recommendation")})
     if raw["verdict"] == "pass" and clean:
         raise ReviewStop("contradictory PASS with findings")
     return {

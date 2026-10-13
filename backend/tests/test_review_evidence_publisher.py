@@ -9,6 +9,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts/autonomy"))
 import independent_ai_review as engine  # noqa: E402
 import review_evidence_publisher as publisher  # noqa: E402
+import semantic_review_gate as semantic_gate  # noqa: E402
 
 
 def fixture_bundle():
@@ -35,7 +36,8 @@ def result(snap):
 
 def test_comment_candidate_is_not_approved():
     snap = fixture_bundle()
-    comment = publisher.build_comment(snap, result(snap))
+    candidate = result(snap)
+    comment = publisher.build_comment(snap, candidate, semantic_gate.triage(snap, candidate))
     assert "NOT APPROVED" in comment
     assert "Four CI run IDs" in comment
 
@@ -59,14 +61,14 @@ def test_forged_permissions_and_invalid_paths_rejected():
     unsafe = result(snap)
     unsafe["merge_permitted"] = True
     with pytest.raises(publisher.PublishStop, match="bind"):
-        publisher.build_comment(snap, unsafe)
+        publisher.build_comment(snap, unsafe, None)
     unsafe = result(snap)
     unsafe["verdict"] = "needs_changes"
     unsafe["findings"] = [{"path": "outside.py", "severity": "high",
                            "evidence": "Dangerous code was introduced.",
                            "recommendation": "Reject this change."}]
-    with pytest.raises(publisher.PublishStop, match="finding"):
-        publisher.build_comment(snap, unsafe)
+    with pytest.raises(semantic_gate.SemanticStop, match="ungrounded"):
+        semantic_gate.triage(snap, unsafe)
 
 
 def test_writer_posts_only_comment():
@@ -78,3 +80,27 @@ def test_writer_posts_only_comment():
     assert "event=COMMENT" in called
     assert "commit_id=" + "a" * 40 in called
     assert "event=APPROVE" not in called
+
+def test_publisher_never_trusts_model_semantics_alone():
+    snap = fixture_bundle()
+    candidate = result(snap)
+    semantic = semantic_gate.triage(snap, candidate)
+    assert "NOT APPROVED" in publisher.build_comment(snap, candidate, semantic)
+    with pytest.raises(publisher.PublishStop, match="semantic"):
+        publisher.build_comment(snap, candidate, None)
+    forged = dict(semantic, merge_permitted=True)
+    with pytest.raises(publisher.PublishStop, match="semantic"):
+        publisher.build_comment(snap, candidate, forged)
+
+
+def test_publisher_rejects_fabricated_source_line():
+    snap = fixture_bundle()
+    candidate = result(snap)
+    candidate["verdict"] = "needs_changes"
+    candidate["findings"] = [{
+        "path": "frontend/app.js", "severity": "high", "source_line": "+invented = True",
+        "evidence": "Potential issue in updated behavior.",
+        "recommendation": "Audit the code line."
+    }]
+    with pytest.raises(semantic_gate.SemanticStop, match="ungrounded"):
+        semantic_gate.triage(snap, candidate)
