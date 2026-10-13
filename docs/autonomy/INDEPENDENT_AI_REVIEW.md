@@ -60,3 +60,25 @@ these wholesale to GitHub without checking their content.
 - Even after that, there must be a separate policy-controlled path to submit
   an authenticated GitHub review. No `APPROVED`, `main` merge,
   auto-approval or unattended development completion is claimed here.
+
+
+## GitHub comment publisher under a different identity
+
+The AI reviewer does not get credentials. A **separate authenticated operator**
+may turn the local JSON review into an auditable GitHub review with state
+COMMENTED, not APPROVED. This path fails closed if the publisher login matches
+the PR author or the live PR head, CI or patch digest changed.
+
+Render a candidate comment without publishing:
+
+~~~powershell
+py -3.11 scripts/autonomy/review_evidence_publisher.py --snapshot C:\AIOS-review\snapshot-133.json --result C:\AIOS-review\review-133.json --output C:\AIOS-review\comment-133.md
+~~~
+
+The same command with `--publish-comment` requires a different GitHub login
+with reviewer write permissions, rechecks exact live evidence, and prompts an
+explicit terminal YES. Do not run this with the PR author's login. Check the
+rendered candidate for secrets before publication.
+
+This creates GitHub COMMENTED only. True independent GitHub APPROVED requires
+separate governance and a review authority, not the local model output.
