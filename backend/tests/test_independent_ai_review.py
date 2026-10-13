@@ -2,11 +2,13 @@
 import base64
 import hashlib
 import importlib.util
+import sys
 from pathlib import Path
 
 import pytest
 
 PATH = Path(__file__).resolve().parents[2] / "scripts/autonomy/independent_ai_review.py"
+sys.path.insert(0, str(PATH.parent))
 spec = importlib.util.spec_from_file_location("aios_independent_review", PATH)
 review = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(review)
@@ -14,6 +16,7 @@ HEAD = "a" * 40
 BASE = "b" * 40
 PATCH = "@@ -0,0 +1 @@\n+safe = True"
 ANCHOR = "+safe = True"
+ANCHOR_ID = "F01L0001"
 
 
 def fake_get(path):
@@ -87,10 +90,12 @@ def test_synthetic_ai_review_never_becomes_approval(monkeypatch):
     outcome = review.evaluate(snap, model=lambda _: {
         "verdict": "needs_changes", "summary": "Synthetic finding",
         "findings": [{"path": "frontend/safe.py", "severity": "medium",
-                      "source_line": ANCHOR,
+                      "anchor_id": ANCHOR_ID,
                       "evidence": "Changed behavior lacks a regression test.",
                       "recommendation": "Add focused regression test."}]})
     assert outcome["verdict"] == "needs_changes"
+    assert outcome["findings"][0]["source_line"] == ANCHOR
+    assert outcome["findings"][0]["anchor_id"] == ANCHOR_ID
     assert outcome["independent_github_approval"] is False
     assert outcome["merge_permitted"] is False
     assert outcome["github_comment_posted"] is False
@@ -108,7 +113,7 @@ def test_unapproved_path_and_contradictory_pass_rejected(monkeypatch):
         monkeypatch.delenv(key, raising=False)
     snap = review.collect(133, HEAD, get=fake_get)
     invalid_finding = {"path": "AGENTS.md", "severity": "high",
-                       "source_line": ANCHOR,
+                       "anchor_id": ANCHOR_ID,
                        "evidence": "Unexpected repository path.",
                        "recommendation": "Do not invent target paths."}
     with pytest.raises(review.ReviewStop, match="path"):
@@ -193,11 +198,14 @@ def test_local_ai_request_uses_selected_compact_model_and_context(monkeypatch):
             captured["timeout"] = timeout
             return FakeResponse()
     monkeypatch.setattr(review, "build_opener", lambda handler: FakeOpener())
-    report = review.ask_ollama({"synthetic": True},
+    report = review.ask_ollama(review.collect(133, HEAD, get=fake_get)["snapshot"],
                                model_name="qwen2.5-coder:3b", context_tokens=8192)
     assert report["verdict"] == "pass"
     assert captured["request"]["model"] == "qwen2.5-coder:3b"
     assert captured["request"]["options"]["num_ctx"] == 8192
+    visible = captured["request"]["messages"][1]["content"]
+    assert "[F01L0001] +safe = True" in visible
+    assert '"annotated_patch"' in visible
     assert captured["timeout"] == 600
 
 
@@ -228,16 +236,16 @@ def test_exact_changed_line_grounding_is_mandatory(monkeypatch):
     def fake(anchor):
         return {"verdict": "needs_changes", "summary": "Synthetic observation",
                 "findings": [{"path": "frontend/safe.py", "severity": "high",
-                              "source_line": anchor, "evidence": "Behavior may differ.",
+                              "anchor_id": anchor, "evidence": "Behavior may differ.",
                               "recommendation": "Inspect exact line."}]}
-    valid = review.evaluate(evidence, model=lambda _: fake(ANCHOR))
+    valid = review.evaluate(evidence, model=lambda _: fake(ANCHOR_ID))
     assert valid["findings"][0]["source_line"] == ANCHOR
-    for anchor in ("+invented = True", "safe = True", "++safe = True"):
-        with pytest.raises(review.ReviewStop, match="exact changed line"):
+    for anchor in ("F01L9999", "F02L0001", "+safe = True"):
+        with pytest.raises(review.ReviewStop, match="valid changed-line anchor ID"):
             review.evaluate(evidence, model=lambda _: fake(anchor))
-    malformed = fake(ANCHOR)
-    del malformed["findings"][0]["source_line"]
-    with pytest.raises(review.ReviewStop, match="exact changed line"):
+    malformed = fake(ANCHOR_ID)
+    del malformed["findings"][0]["anchor_id"]
+    with pytest.raises(review.ReviewStop, match="valid changed-line anchor ID"):
         review.evaluate(evidence, model=lambda _: malformed)
 
 
@@ -254,12 +262,12 @@ def test_invalid_model_finding_is_preserved_locally_before_safe_stop(tmp_path, m
     raw = {
         "verdict": "needs_changes", "summary": "Synthetic suspect review",
         "findings": [{"path": "frontend/safe.py", "severity": "high",
-                      "source_line": "+fabricated = True",
+                      "anchor_id": "F01L9999",
                       "evidence": "Unverified claim about line.",
                       "recommendation": "Change code without source proof."}],
     }
     path = tmp_path / "candidate.json"
-    with pytest.raises(review.ReviewStop, match="exact changed line"):
+    with pytest.raises(review.ReviewStop, match="valid changed-line anchor ID"):
         review.evaluate(
             snap, model=lambda _: raw,
             model_name="qwen2.5-coder:3b", context_tokens=8192,
@@ -285,13 +293,13 @@ def test_cli_diagnostic_exposes_only_predefined_rejection_reason(tmp_path, monke
     def model_response(data, **kwargs):
         return {"verdict": "needs_changes", "summary": "Synthetic issue",
                 "findings": [{"path": "frontend/safe.py", "severity": "high",
-                              "source_line": "+invalid = True",
+                              "anchor_id": "F01L9999",
                               "evidence": "Possible altered behavior.",
                               "recommendation": "Inspect actual code."}]}
     monkeypatch.setattr(review, "ask_ollama", model_response)
     # evaluate supports an injected test-model; CLI use a separate synthetic
     # invocation of the same guarded validation and raises the same reason.
-    with pytest.raises(review.ReviewStop, match="exact changed line"):
+    with pytest.raises(review.ReviewStop, match="valid changed-line anchor ID"):
         review.evaluate(snap, model=model_response,
                         model_name="qwen2.5-coder:3b", context_tokens=8192)
     output = tmp_path / "test-candidate.json"

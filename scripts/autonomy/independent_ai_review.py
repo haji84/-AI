@@ -18,6 +18,8 @@ import sys
 from urllib.request import Request, ProxyHandler, build_opener, urlopen
 from urllib.error import HTTPError
 
+import review_line_anchors as line_anchors
+
 REPO = "haji84/-AI"
 REQUIRED_CI = ("project-checks", "security-checks", "dependency-checks", "release-checks")
 MODEL = "qwen2.5-coder:7b"
@@ -183,11 +185,12 @@ def ask_ollama(payload, *, model_name=MODEL, context_tokens=16384):
         "authorization, logic and regression risks. Never claim independent "
         "GitHub approval. Return only JSON with keys verdict (pass or "
         "needs_changes), summary, findings (list of objects with path, "
-        "severity, source_line, evidence, recommendation). For each finding, "
-        "source_line must be an exact complete line from an added or deleted "
-        "unified diff hunk, including leading + or -. Quote the actual path. "
-        "If an exact supporting changed line cannot be found, omit the finding. "
-        "A quoted line is only a location anchor, not proof of risk. "
+        "severity, anchor_id, evidence, recommendation). For each finding, "
+        "choose one EXACT anchor_id printed as [FxxLxxxx] next to a changed "
+        "line in the annotated_patch of the SAME file. Do not reproduce or "
+        "invent source_line text. Never guess an anchor ID. "
+        "If no appropriate changed-line ID exists, omit the finding. "
+        "A matching ID identifies location only, not proof of a vulnerability. "
         "Use only listed paths. "
         "If unsure, report needs_changes and state uncertainty."
     )
@@ -195,7 +198,7 @@ def ask_ollama(payload, *, model_name=MODEL, context_tokens=16384):
                "options": {"temperature": 0, "num_ctx": context_tokens, "num_predict": 1800},
                "messages": [
                    {"role": "system", "content": instructions},
-                   {"role": "user", "content": canonical(payload).decode("utf-8")},
+                   {"role": "user", "content": canonical(line_anchors.model_view(payload)).decode("utf-8")},
                ]}
     req = Request(OLLAMA_URL, data=canonical(request),
                   headers={"Content-Type": "application/json"}, method="POST")
@@ -277,23 +280,30 @@ def evaluate(envelope, *, model=ask_ollama, model_name=MODEL, context_tokens=163
     if (not isinstance(summary, str) or not 1 <= len(summary) <= 1600
             or not isinstance(findings, list) or len(findings) > 20):
         raise ReviewStop("review summary invalid")
-    changed = {item["path"]: changed_source_lines(item["patch"])
-               for item in data["files"]}
-    paths = set(changed)
+    anchors, _annotated = line_anchors.build_line_catalog(data["files"])
+    paths = set(anchors)
     clean = []
     for finding in findings:
         if not isinstance(finding, dict) or finding.get("path") not in paths:
             raise ReviewStop("review contains unverified finding path")
         if finding.get("severity") not in ("critical", "high", "medium", "low"):
             raise ReviewStop("review severity invalid")
-        if (not isinstance(finding.get("source_line"), str)
-                or finding["source_line"] not in changed[finding["path"]]):
-            raise ReviewStop("finding not grounded in an exact changed line")
+        try:
+            source_line = line_anchors.resolve_anchor(
+                anchors, finding["path"], finding.get("anchor_id"))
+        except line_anchors.AnchorStop:
+            raise ReviewStop("finding not grounded in a valid changed-line anchor ID") from None
+        # A generated source_line is never authoritative; derive it from the
+        # pinned immutable diff instead of trusting model-generated prose.
         if any(not isinstance(finding.get(k), str) or
                not 3 <= len(finding[k]) <= 1200 for k in ("evidence", "recommendation")):
             raise ReviewStop("finding lacks bounded evidence")
-        clean.append({key: finding[key] for key in
-                      ("path", "severity", "source_line", "evidence", "recommendation")})
+        clean.append({
+            "path": finding["path"], "severity": finding["severity"],
+            "anchor_id": finding["anchor_id"], "source_line": source_line,
+            "evidence": finding["evidence"],
+            "recommendation": finding["recommendation"],
+        })
     if raw["verdict"] == "pass" and clean:
         raise ReviewStop("contradictory PASS with findings")
     return {

@@ -13,6 +13,7 @@ import re
 import sys
 
 import independent_ai_review as engine
+import review_line_anchors as line_anchors
 
 
 class SemanticStop(ValueError):
@@ -104,6 +105,7 @@ def triage(envelope, report):
     if not isinstance(findings, list) or len(findings) > 20:
         raise SemanticStop("invalid model findings")
     patches = {f["path"]: f["patch"] for f in data["files"]}
+    anchored, _view = line_anchors.build_line_catalog(data["files"])
     assessments = []
     for n, finding in enumerate(findings):
         if not isinstance(finding, dict):
@@ -112,11 +114,19 @@ def triage(envelope, report):
         if (path not in patches or not isinstance(line, str)
                 or line not in engine.changed_source_lines(patches[path])):
             raise SemanticStop("ungrounded source line; semantic triage rejected")
+        try:
+            expected = line_anchors.resolve_anchor(
+                anchored, path, finding.get("anchor_id"))
+        except line_anchors.AnchorStop:
+            raise SemanticStop("ungrounded source anchor ID; semantic triage rejected") from None
+        if expected != line:
+            raise SemanticStop("anchor ID does not match source line")
         if any(not isinstance(finding.get(k), str) for k in ("evidence", "recommendation")):
             raise SemanticStop("finding text is missing")
         contradictions = ast_contradictions(finding, patches[path]) if path.endswith(".py") else []
         assessments.append({
-            "finding_index": n, "path": path, "source_line": line,
+            "finding_index": n, "path": path, "anchor_id": finding["anchor_id"],
+            "source_line": line,
             "source_quote_verified": True,
             "interpretation_status": "contradicted" if contradictions else "unverified",
             "reasons": contradictions if contradictions else [

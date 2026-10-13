@@ -33,7 +33,8 @@ def fixture():
         "snapshot_sha256": snap["sha256"],
         "independent_github_approval": False, "merge_permitted": False,
         "findings": [{
-            "path": "scripts/example.py", "source_line": '+ROW = re.compile(r"^item")',
+            "path": "scripts/example.py", "anchor_id": "F01L0003",
+            "source_line": '+ROW = re.compile(r"^item")',
             "severity": "high", "evidence": "Parser is using unsafe regular expressions.",
             "recommendation": "Use the re module to parse the ledger instead."
         }]
@@ -56,6 +57,7 @@ def test_subprocess_claim_already_bounded():
     snap, report = fixture()
     f = report["findings"][0]
     f["source_line"] = '+    subprocess.run(["gh", "api"], check=True, timeout=70)'
+    f["anchor_id"] = "F01L0007"
     f["recommendation"] = "Use subprocess.run with check=True and timeout."
     f["evidence"] = "The worker is missing subprocess safety options."
     result = gate.triage(snap, report)
@@ -66,6 +68,7 @@ def test_main_direct_call_claim_is_contradicted():
     snap, report = fixture()
     f = report["findings"][0]
     f["source_line"] = "+def main():"
+    f["anchor_id"] = "F01L0004"
     f["evidence"] = "main function uses subprocess.run and it is unsafe."
     f["recommendation"] = "Change subprocess.run inside main."
     output = gate.triage(snap, report)
@@ -103,3 +106,13 @@ def test_snapshot_and_review_mismatch_rejected():
 def test_partial_patch_cannot_supply_semantic_proof():
     patch = "@@ -7,1 +7,1 @@\n-old = 1\n+new = 2"
     assert gate.complete_new_python_source(patch) is None
+
+def test_anchored_line_and_id_must_agree():
+    snap, report = fixture()
+    report["findings"][0]["anchor_id"] = "F01L0004"
+    with pytest.raises(gate.SemanticStop, match="does not match"):
+        gate.triage(snap, report)
+    snap, report = fixture()
+    del report["findings"][0]["anchor_id"]
+    with pytest.raises(gate.SemanticStop, match="anchor ID"):
+        gate.triage(snap, report)

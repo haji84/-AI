@@ -14,6 +14,7 @@ from pathlib import Path
 import sys
 
 import independent_ai_review as engine
+import review_line_anchors as line_anchors
 
 
 class DiagnosticStop(ValueError):
@@ -41,6 +42,7 @@ def diagnose(envelope, candidate):
     if len(findings) > 20:
         raise DiagnosticStop("unbounded candidate findings")
     known = {f["path"]: engine.changed_source_lines(f["patch"]) for f in data["files"]}
+    anchor_map, _model_view = line_anchors.build_line_catalog(data["files"])
     records = []
     for index, finding in enumerate(findings, 1):
         status = "invalid_record"
@@ -50,7 +52,15 @@ def diagnose(envelope, candidate):
             quote = finding.get("source_line")
             if isinstance(name, str) and name in known:
                 path = name
-                if not isinstance(quote, str) or not quote:
+                anchor_id = finding.get("anchor_id")
+                if isinstance(anchor_id, str) and anchor_id:
+                    if anchor_id in anchor_map[name]:
+                        status = "valid_anchor_id"
+                    elif any(anchor_id in ids for label, ids in anchor_map.items() if label != name):
+                        status = "anchor_id_from_other_file"
+                    else:
+                        status = "unrecognized_anchor_id"
+                elif not isinstance(quote, str) or not quote:
                     status = "missing_source_line"
                 elif quote in known[name]:
                     status = "exact_match"

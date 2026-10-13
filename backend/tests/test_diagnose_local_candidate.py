@@ -84,3 +84,19 @@ def test_non_list_findings_denied():
     c["raw_response"]["findings"] = "not a list"
     with pytest.raises(diagnostic.DiagnosticStop, match="structured"):
         diagnostic.diagnose(snap, c)
+
+def test_new_anchor_id_diagnosis_without_copied_model_code():
+    snap, c = fixture()
+    c["raw_response"]["findings"] = [
+        {"path": "one.py", "anchor_id": "F01L0001", "evidence": "Do not publish me."},
+        {"path": "one.py", "anchor_id": "F02L0001", "evidence": "Do not publish me."},
+        {"path": "two.py", "anchor_id": "F02L9999", "evidence": "Do not publish me."},
+    ]
+    result = diagnostic.diagnose(snap, c)
+    assert result["counts"] == {
+        "valid_anchor_id": 1,
+        "anchor_id_from_other_file": 1,
+        "unrecognized_anchor_id": 1,
+    }
+    assert "Do not publish me" not in str(result)
+    assert result["accepted_review"] is False
