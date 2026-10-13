@@ -28,6 +28,10 @@ def fake_get(path):
             {"name": n, "head_sha": HEAD, "event": "pull_request", "id": i + 100,
              "status": "completed", "conclusion": "success"}
             for i, n in enumerate(review.REQUIRED_CI)]}
+    if "/contents/docs/SPECIFICATION.md?" in path:
+        body = "\\n".join(f"## {n}. Test chapter\\nText" for n in (4, 38, 42, 43, 48, 53))
+        return {"encoding": "base64", "content":
+                base64.b64encode(("# Test specification\\n" + body).encode()).decode("ascii")}
     if "/contents/AGENTS.md?" in path:
         return {"encoding": "base64", "content":
                 base64.b64encode(b"# AGENTS.md\nRules").decode("ascii")}
@@ -40,6 +44,7 @@ def test_collect_pins_exact_head_and_all_ci():
     assert data["ci"]["project-checks"] == 100
     assert data["head"] == HEAD and data["base"] == BASE
     assert data["files"][0]["path"] == "frontend/safe.py"
+    assert "## 43." in data["specification_excerpt"]
 
 
 def test_stale_head_rejected():

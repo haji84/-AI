@@ -95,11 +95,24 @@ def collect(pr_number, expected_head, *, get=api_get):
     policy = base64.b64decode(rule_response.get("content", ""), validate=False).decode("utf-8")
     if not policy.startswith("# AGENTS.md") or len(policy) > 10_000:
         raise ReviewStop("canonical policy invalid")
+    spec_response = get(f"repos/{REPO}/contents/docs/SPECIFICATION.md?ref={base_sha}")
+    if spec_response.get("encoding") != "base64":
+        raise ReviewStop("canonical specification missing")
+    specification = base64.b64decode(spec_response.get("content", "")).decode("utf-8")
+    if not specification.startswith("# ") or len(specification) > 45_000:
+        raise ReviewStop("canonical specification invalid")
+    selected = []
+    for section in re.split(r"(?=^## \\d+\\.\\s+)", specification, flags=re.MULTILINE):
+        if re.match(r"^##\\s+(4|38|42|43|48|53)\\.\\s+", section):
+            selected.append(section)
+    excerpt = "\\n".join(selected)
+    if len(selected) != 6 or len(excerpt) > 30_000:
+        raise ReviewStop("required specification sections unavailable")
     snapshot = {
         "schema_version": 1, "repo": REPO, "pr": pr_number,
         "author": info.get("user", {}).get("login"),
         "head": head, "base": base_sha,
-        "rules": policy, "ci": ci, "files": reviewed,
+        "rules": policy, "specification_excerpt": excerpt, "ci": ci, "files": reviewed,
     }
     if len(canonical(snapshot)) > MAX_INPUT:
         raise ReviewStop("snapshot exceeds local review budget")
@@ -114,6 +127,8 @@ def validate_snapshot(envelope):
             or data.get("repo") != REPO or not SHA.fullmatch(str(data.get("head", "")))
             or not SHA.fullmatch(str(data.get("base", "")))
             or set(data.get("ci", {})) != set(REQUIRED_CI)
+            or not isinstance(data.get("specification_excerpt"), str)
+            or not data["specification_excerpt"].startswith("## 4.")
             or not isinstance(data.get("files"), list) or not data["files"]
             or hashlib.sha256(canonical(data)).hexdigest() != envelope["sha256"]):
         raise ReviewStop("untrusted or tampered snapshot")
