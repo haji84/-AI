@@ -37,6 +37,8 @@ def build_comment(envelope, report, semantic_report):
     assessments = expected_semantic["assessments"]
     if any(x["interpretation_status"] == "contradicted" for x in assessments):
         raise PublishStop("contradicted model claims cannot be published as review")
+    if any(x["interpretation_status"] == "insufficient_specificity" for x in assessments):
+        raise PublishStop("generic code-only findings cannot be published as actionable review")
     files = {x["path"]: reviewer.changed_source_lines(x["patch"])
              for x in data["files"]}
     if report["verdict"] == "pass" and findings:

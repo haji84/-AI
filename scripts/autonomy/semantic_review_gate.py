@@ -89,6 +89,31 @@ def ast_contradictions(finding, patch):
     return remarks
 
 
+def generic_unsubstantiated_advice(finding):
+    """Quarantine code-only evidence paired with non-actionable advice.
+
+    This is a conservative *quality* signal, not proof a claim is false.
+    Concrete failure conditions and security claims are never auto-cleared.
+    """
+    source_line = finding.get("source_line")
+    evidence = finding.get("evidence")
+    recommendation = finding.get("recommendation")
+    if not all(isinstance(x, str) for x in (source_line, evidence, recommendation)):
+        return False
+    if not source_line.startswith(("+", "-")):
+        return False
+    quoted = " ".join(source_line[1:].split())
+    observed = " ".join(evidence.split())
+    if not quoted or observed != quoted:
+        return False
+    advice = " ".join(recommendation.lower().split())
+    if not (advice.startswith("ensure that ")
+            or advice.startswith("validate the output of ")
+            or advice.startswith("ensure the ")):
+        return False
+    return bool(re.search(r"\b(expected|properly|appropriately|proper|formatted)\b", advice))
+
+
 def triage(envelope, report):
     data = engine.validate_snapshot(envelope)
     if not isinstance(report, dict) or any((
@@ -124,13 +149,23 @@ def triage(envelope, report):
         if any(not isinstance(finding.get(k), str) for k in ("evidence", "recommendation")):
             raise SemanticStop("finding text is missing")
         contradictions = ast_contradictions(finding, patches[path]) if path.endswith(".py") else []
+        quality_flag = generic_unsubstantiated_advice(finding)
+        status = ("contradicted" if contradictions
+                  else "insufficient_specificity" if quality_flag
+                  else "unverified")
+        reasons = (
+            contradictions if contradictions else
+            ["Only a code line was quoted, followed by generic advice without a "
+             "specific failure condition, expected behavior, or test evidence."]
+            if quality_flag else
+            ["Exact quote alone cannot establish the security claim; needs independent assessment."]
+        )
         assessments.append({
             "finding_index": n, "path": path, "anchor_id": finding["anchor_id"],
             "source_line": line,
             "source_quote_verified": True,
-            "interpretation_status": "contradicted" if contradictions else "unverified",
-            "reasons": contradictions if contradictions else [
-                "Exact quote alone cannot establish the security claim; needs independent assessment."],
+            "interpretation_status": status,
+            "reasons": reasons,
         })
     return {
         "schema_version": 1, "kind": "independent_semantic_triage_candidate",

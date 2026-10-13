@@ -116,3 +116,45 @@ def test_anchored_line_and_id_must_agree():
     del report["findings"][0]["anchor_id"]
     with pytest.raises(gate.SemanticStop, match="anchor ID"):
         gate.triage(snap, report)
+
+def test_code_only_evidence_with_generic_advice_is_not_actionable():
+    snap, report = fixture()
+    finding = report["findings"][0]
+    finding["evidence"] = 'ROW = re.compile(r"^item")'
+    finding["recommendation"] = (
+        "Ensure that the output is expected and properly formatted.")
+    assessment = gate.triage(snap, report)["assessments"][0]
+    assert assessment["source_quote_verified"] is True
+    assert assessment["interpretation_status"] == "insufficient_specificity"
+    assert "Only a code line was quoted" in assessment["reasons"][0]
+
+
+def test_specific_claim_is_not_automatically_dismissed():
+    snap, report = fixture()
+    finding = report["findings"][0]
+    finding["evidence"] = "Unexpected input exposes a distinct privilege boundary."
+    finding["recommendation"] = "Ensure that the authorization policy is properly checked."
+    assessment = gate.triage(snap, report)["assessments"][0]
+    assert assessment["interpretation_status"] == "unverified"
+
+
+def test_exact_hardcoded_credential_claim_is_not_silently_dismissed():
+    snap, report = fixture()
+    finding = report["findings"][0]
+    finding["evidence"] = 'ROW = re.compile(r"^item")'
+    finding["recommendation"] = "Remove hardcoded credentials and rotate exposed values."
+    assessment = gate.triage(snap, report)["assessments"][0]
+    assert assessment["interpretation_status"] == "unverified"
+
+
+def test_generic_finding_is_a_quality_flag_not_a_github_approval():
+    snap, report = fixture()
+    finding = report["findings"][0]
+    finding["evidence"] = 'ROW = re.compile(r"^item")'
+    finding["recommendation"] = (
+        "Validate the output of the ROW function to ensure it is expected and properly formatted.")
+    result = gate.triage(snap, report)
+    assert result["assessments"][0]["interpretation_status"] == "insufficient_specificity"
+    assert result["semantic_approval_granted"] is False
+    assert result["independent_github_approval"] is False
+    assert result["merge_permitted"] is False

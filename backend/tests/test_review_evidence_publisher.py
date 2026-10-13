@@ -104,3 +104,22 @@ def test_publisher_rejects_fabricated_source_line():
     }]
     with pytest.raises(semantic_gate.SemanticStop, match="ungrounded"):
         semantic_gate.triage(snap, candidate)
+
+def test_code_only_generic_advice_cannot_be_published_as_actionable():
+    snap = fixture_bundle()
+    snap["snapshot"]["files"][0]["patch"] = "@@ -0,0 +1 @@\n+const ok = true;"
+    snap["sha256"] = hashlib.sha256(engine.canonical(snap["snapshot"])).hexdigest()
+    candidate = result(snap)
+    candidate["verdict"] = "needs_changes"
+    candidate["findings"] = [{
+        "path": "frontend/app.js",
+        "anchor_id": "F01L0001",
+        "source_line": "+const ok = true;",
+        "severity": "high",
+        "evidence": "const ok = true;",
+        "recommendation": "Ensure that this code is expected and properly validated.",
+    }]
+    semantic = semantic_gate.triage(snap, candidate)
+    assert semantic["assessments"][0]["interpretation_status"] == "insufficient_specificity"
+    with pytest.raises(publisher.PublishStop, match="generic code-only"):
+        publisher.build_comment(snap, candidate, semantic)
