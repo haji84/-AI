@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Stage 2: independent deterministic semantic triage of anchored model findings.
+"""Stage 2: separate deterministic semantic triage of anchored model findings.
 
 Stage 1 verifies locations. Stage 2 checks specific refutable claims against
 source AST and labels everything else unverified. Neither is a GitHub APPROVED.
@@ -56,7 +56,8 @@ def ast_contradictions(finding, patch):
         and isinstance(n.func.value, ast.Name) and n.func.value.id == "re"
         for n in ast.walk(tree)
     )
-    if "use the re module" in text and re_imported and re_calls:
+    if ("use the re module" in text and re_imported and re_calls
+            and "re." in finding["source_line"]):
         remarks.append("Already imports and calls Python re; recommendation is contradicted.")
     run_calls = [
         n for n in ast.walk(tree)
@@ -64,13 +65,14 @@ def ast_contradictions(finding, patch):
         and isinstance(n.func.value, ast.Name) and n.func.value.id == "subprocess"
         and n.func.attr == "run"
     ]
-    has_bounded_run = any(
+    has_bounded_run = bool(run_calls) and all(
         {"check", "timeout"}.issubset({k.arg for k in call.keywords})
         and any(k.arg == "check" and isinstance(k.value, ast.Constant)
                 and k.value.value is True for k in call.keywords)
         for call in run_calls
     )
-    if "check=true" in text and "timeout" in text and has_bounded_run:
+    if ("check=true" in text and "timeout" in text and has_bounded_run
+            and "subprocess.run" in finding["source_line"]):
         remarks.append("Source already invokes subprocess.run with check=True and timeout.")
     main_defs = [n for n in tree.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
                  and n.name == "main"]
@@ -80,7 +82,8 @@ def ast_contradictions(finding, patch):
         and n.func.attr == "run"
         for fn in main_defs for n in ast.walk(fn)
     )
-    if "main" in text and "subprocess.run" in text and main_defs and not direct_main_run:
+    if ("main" in text and "subprocess.run" in text and main_defs
+            and not direct_main_run and "main" in finding["source_line"]):
         remarks.append("main does not directly invoke subprocess.run.")
     return remarks
 
