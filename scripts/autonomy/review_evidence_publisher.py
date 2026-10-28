@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import hmac
 import json
+import os
 import re
 from pathlib import Path
 import subprocess
@@ -90,8 +91,9 @@ def publish_comment(pr, head, text, runner=subprocess.run):
                        "-f", "body=" + text],
                       check=True, capture_output=True, text=True, timeout=45)
     result = json.loads(response.stdout)
-    if result.get("state") != "COMMENTED":
-        raise PublishStop("unexpected GitHub review state")
+    if (not isinstance(result, dict) or result.get("state") != "COMMENTED"
+            or type(result.get("id")) is not int or result["id"] < 1):
+        raise PublishStop("unverified GitHub review response")
     return result["id"]
 
 
@@ -107,6 +109,9 @@ def main(argv=None):
     parser.add_argument("--expected-preview-sha256",
                         help="SHA256 printed by prior preview-only invocation (publish only)")
     args = parser.parse_args(argv)
+    post_attempted = False
+    review_id = None
+    receipt_saved = False
     try:
         if args.publish_comment:
             if (args.approved_preview is None
@@ -169,23 +174,51 @@ def main(argv=None):
         if not hmac.compare_digest(
                 hashlib.sha256(preview_bytes).hexdigest(), args.expected_preview_sha256):
             raise PublishStop("comment digest changed after confirmation")
-        review_id = publish_comment(envelope["snapshot"]["pr"],
-                                    envelope["snapshot"]["head"], comment)
         receipt = {
             "kind": "comment_only_publication_receipt", "pr": envelope["snapshot"]["pr"],
-            "head": envelope["snapshot"]["head"], "comment_review_id": review_id,
+            "head": envelope["snapshot"]["head"], "comment_review_id": None,
             "preview_sha256": digest, "github_approved": False, "merge_permitted": False,
+            "publication_status": "pending_or_unknown",
         }
+        # Claim and persist the receipt before any remote side effect. An existing
+        # claim blocks another invocation even if the response or final write fails.
         out.parent.mkdir(parents=True, exist_ok=True)
-        with out.open("x", encoding="utf-8") as stream:
+        with out.open("x+", encoding="utf-8") as stream:
             json.dump(receipt, stream, ensure_ascii=False)
             stream.write("\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+            post_attempted = True
+            review_id = publish_comment(envelope["snapshot"]["pr"],
+                                        envelope["snapshot"]["head"], comment)
+            receipt["comment_review_id"] = review_id
+            receipt["publication_status"] = "published"
+            stream.seek(0)
+            json.dump(receipt, stream, ensure_ascii=False)
+            stream.write("\n")
+            stream.truncate()
+            stream.flush()
+            os.fsync(stream.fileno())
+            receipt_saved = True
         print(json.dumps({"receipt": str(out), "comment_review_id": review_id,
                           "github_approved": False}))
         return 0
     except (PublishStop, semantic_gate.SemanticStop, reviewer.ReviewStop, OSError, ValueError, TypeError,
             KeyError, subprocess.SubprocessError):
-        print("SAFE_STOP: no review publication or approval accepted", file=sys.stderr)
+        if post_attempted:
+            # A timed-out POST may already have been accepted. Never report it as
+            # an unattempted publication, remove its claim, or automatically retry.
+            print(json.dumps({
+                "publication_status": ("published" if receipt_saved else
+                                       "published_receipt_unavailable" if review_id is not None
+                                       else "unknown"),
+                "pr": envelope["snapshot"]["pr"], "head": envelope["snapshot"]["head"],
+                "comment_review_id": review_id, "receipt": str(out),
+                "preview_sha256": digest, "automatic_retry_permitted": False,
+                "github_approved": False, "merge_permitted": False,
+            }), file=sys.stderr)
+            return 3
+        print("SAFE_STOP: no GitHub publication attempted by this invocation", file=sys.stderr)
         return 2
 
 

@@ -104,6 +104,32 @@ A stale COMMENT can never be considered an independent GitHub APPROVED.
 The receipt output contains the COMMENTED review id, pinned head and digest.
 A receipt does not grant merge permission.
 
+### Publication receipt and interrupted attempts
+
+After consent and the fresh-head/preview checks, the publisher exclusively
+creates and flushes the receipt with `publication_status=pending_or_unknown`
+**before** attempting the GitHub POST. An unusable receipt path prevents
+the POST. Another invocation using that same output path cannot post again.
+After GitHub confirms COMMENTED, the receipt is updated to `published`
+with the returned review ID. A pending or incomplete receipt is not proof
+that a comment was posted.
+
+Exit code 2 means this invocation did not attempt a POST. Exit code 3 means
+publication was attempted and needs reconciliation: `unknown` covers a
+timeout or unusable response; `published_receipt_unavailable` includes the
+confirmed review ID when the final receipt could not be saved. A completed
+receipt with a later output failure reports `published`. No failure grants
+GitHub APPROVED or merge authority.
+
+Keep the receipt, even if incomplete. Do not delete it, select a new output
+path, or automatically rerun publication to recover from an uncertain
+result. The authorized operator must first inspect the actual GitHub review
+for the pinned PR/head and exact preview and reconcile its ID locally.
+The reservation protects overlapping/retried invocations using the same
+receipt path; it is not a cross-machine idempotency key or an exactly-once
+GitHub guarantee. Removing the receipt, using another path, or losing local
+filesystem state bypasses that local protection.
+
 Never run publish as `haji84` for an author-owned PR. A missing independent
 review operator is a blocking governance gate, not permission for the
 author/model to self-approve or for this assistant to masquerade as another
