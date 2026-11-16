@@ -31,6 +31,22 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
+      # GitHub-hosted runner may ship pg_dump/pg_restore 17+ while the
+      # service under test is PostgreSQL 16. PG17 dumps include
+      # SET transaction_timeout, which PG16 rejects with --exit-on-error.
+      # Select the client matching the *test server*, not runner defaults.
+      - name: Pin PostgreSQL 16 client for backup/restore tests
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y postgresql-client-16
+          test -x /usr/lib/postgresql/16/bin/pg_dump
+          test -x /usr/lib/postgresql/16/bin/pg_restore
+          echo "/usr/lib/postgresql/16/bin" >> "$GITHUB_PATH"
+          /usr/lib/postgresql/16/bin/pg_dump --version
+          /usr/lib/postgresql/16/bin/pg_restore --version
+          PGPASSWORD=ci-only-disposable /usr/lib/postgresql/16/bin/psql \
+            -h localhost -p 5432 -U fire_ai_test -d fire_ai_test -tAc \
+            "SELECT current_setting('server_version_num')::int / 10000" | grep -qx '16'
       - name: Install
         run: python -m pip install -e "backend[test]"
       - uses: ./.github/actions/setup-secret-scanner
