@@ -31,6 +31,33 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
+      # Keep the actual CI test server on PostgreSQL 16. The host runner's
+      # client may be PG17+ (which emits SET transaction_timeout on dumps).
+      # Use matching PG16 clients from the postgres:16 container image
+      # already pulled for the service, without assuming apt availability.
+      - name: Pin PostgreSQL 16 backup client tools
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pg16-client"
+          for tool in pg_dump pg_restore; do
+            cat > "$RUNNER_TEMP/pg16-client/$tool" <<'EOF'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          exec docker run --rm --network host \
+            --user "$(id -u):$(id -g)" \
+            --mount type=bind,source=/tmp,target=/tmp \
+            -e PGPASSWORD -e PGSSLMODE -e PGSSLROOTCERT \
+            --entrypoint "$(basename "$0")" postgres:16 "$@"
+          EOF
+            chmod +x "$RUNNER_TEMP/pg16-client/$tool"
+          done
+          echo "$RUNNER_TEMP/pg16-client" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/pg16-client/pg_dump" --version
+          "$RUNNER_TEMP/pg16-client/pg_restore" --version
+          PGPASSWORD=ci-only-disposable docker run --rm --network host \
+            -e PGPASSWORD --entrypoint psql postgres:16 \
+            -h localhost -p 5432 -U fire_ai_test -d fire_ai_test -tAc \
+            "SELECT current_setting('server_version_num')::int / 10000" | grep -qx '16'
       - name: Install
         run: python -m pip install -e "backend[test]"
       - uses: ./.github/actions/setup-secret-scanner
