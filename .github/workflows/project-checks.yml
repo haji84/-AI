@@ -31,20 +31,31 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
-      # GitHub-hosted runner may ship pg_dump/pg_restore 17+ while the
-      # service under test is PostgreSQL 16. PG17 dumps include
-      # SET transaction_timeout, which PG16 rejects with --exit-on-error.
-      # Select the client matching the *test server*, not runner defaults.
-      - name: Pin PostgreSQL 16 client for backup/restore tests
+      # Keep the actual CI test server on PostgreSQL 16. The host runner's
+      # client may be PG17+ (which emits SET transaction_timeout on dumps).
+      # Use matching PG16 clients from the postgres:16 container image
+      # already pulled for the service, without assuming apt availability.
+      - name: Pin PostgreSQL 16 backup client tools
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y postgresql-client-16
-          test -x /usr/lib/postgresql/16/bin/pg_dump
-          test -x /usr/lib/postgresql/16/bin/pg_restore
-          echo "/usr/lib/postgresql/16/bin" >> "$GITHUB_PATH"
-          /usr/lib/postgresql/16/bin/pg_dump --version
-          /usr/lib/postgresql/16/bin/pg_restore --version
-          PGPASSWORD=ci-only-disposable /usr/lib/postgresql/16/bin/psql \
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pg16-client"
+          for tool in pg_dump pg_restore; do
+            cat > "$RUNNER_TEMP/pg16-client/$tool" <<'EOF'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          exec docker run --rm --network host \
+            --user "$(id -u):$(id -g)" \
+            --mount type=bind,source=/tmp,target=/tmp \
+            -e PGPASSWORD -e PGSSLMODE -e PGSSLROOTCERT \
+            --entrypoint "$(basename "$0")" postgres:16 "$@"
+          EOF
+            chmod +x "$RUNNER_TEMP/pg16-client/$tool"
+          done
+          echo "$RUNNER_TEMP/pg16-client" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/pg16-client/pg_dump" --version
+          "$RUNNER_TEMP/pg16-client/pg_restore" --version
+          PGPASSWORD=ci-only-disposable docker run --rm --network host \
+            -e PGPASSWORD --entrypoint psql postgres:16 \
             -h localhost -p 5432 -U fire_ai_test -d fire_ai_test -tAc \
             "SELECT current_setting('server_version_num')::int / 10000" | grep -qx '16'
       - name: Install
