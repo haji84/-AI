@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     tenant_id: str | None = None
     trusted_hosts: list[str] = []
     statistics_business_timezone: str = "Asia/Tokyo"
+    # Enable only after the headquarters approves its internal measurement environment.
+    # This switch is not evidence of privacy, OCR accuracy or production readiness.
+    emergency_acceptance_internal_enabled: bool = False
 
     @field_validator("statistics_business_timezone")
     @classmethod

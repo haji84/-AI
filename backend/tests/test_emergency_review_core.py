@@ -22,6 +22,11 @@ def finding(values, rule):
     return next(x for x in evaluate_confirmed_fields(values) if x.rule_id == rule)
 
 
+@pytest.mark.parametrize('value', [False, 123, 1.5])
+def test_invalid_place_category_type_stays_untested(value):
+    assert finding(sample(place_minor=confirmed(value)), 'ER-PLACE-MINOR').status == 'NOT_TESTED'
+
+
 def test_nontransport_blank_urgency_is_not_flagged():
     a = sample(transported=confirmed(False), urgency=confirmed(None), transfer_transport=confirmed(True))
     assert finding(a, "ER-NONTRANSPORT-URGENCY").status == "NO_ISSUE_DETECTED"

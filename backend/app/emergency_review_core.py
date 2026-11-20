@@ -161,7 +161,8 @@ def evaluate_confirmed_fields(values: Mapping[str, Observation]) -> tuple[CheckF
         ("ER-PLACE-FLOOR", "occurrence_floor", "発生階層は住宅の場合のみ入力し、住宅以外は空欄とする。"),
     ):
         has_field, data = _read(values, field)
-        if not have_place or place not in {"住宅", "公衆出入場所", "仕事場", "道路", "その他"} or not has_field:
+        if (not have_place or place not in {"住宅", "公衆出入場所", "仕事場", "道路", "その他"}
+                or not has_field or (data is not None and not isinstance(data, str))):
             status = "NOT_TESTED"
         elif place == "住宅":
             # National p10: residence must use minor category. Floor may be
