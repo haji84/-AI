@@ -16,6 +16,8 @@
 
 手動取得は全 writer 停止と既存確認に加え、承認済み本部 recipient path を protected environment に置き、次を実行する。
 
+直接 CLI も `FIRE_AI_BACKUP_ENCRYPTION_REQUIRED` の `true` / `false` を検証する。`true` の場合に recipient の環境変数名を省略した呼出し、不正な設定値、指定した環境変数の欠落は、DB binding・保守排他・監査・dump・原本 archive・出力先作成より前に拒否する。必須設定を直接実行で回避して平文へ戻すことはできない。設定が未指定または `false` の既存開発 fixture の平文経路は保持する。
+
 ```sh
 PYTHONPATH=backend python scripts/backup_phase1.py \
   --destination /var/backups/fire-ai/<slug> \

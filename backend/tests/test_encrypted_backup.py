@@ -441,6 +441,37 @@ def test_required_encryption_never_falls_back_when_recipient_env_is_missing(tmp_
     assert not (tmp_path / "backups").exists()
 
 
+@pytest.mark.parametrize("requirement", ["true", "invalid"])
+def test_direct_backup_policy_refuses_plaintext_before_database_changes(tmp_path, monkeypatch, requirement):
+    cfg = department(tmp_path / "source")
+    database = Path(cfg.database_url.split("///", 1)[1])
+    before = database.read_bytes()
+    destination = tmp_path / "backups"
+    backup = script("backup_phase1")
+    monkeypatch.setattr(backup, "settings", cfg)
+    monkeypatch.setenv("FIRE_AI_BACKUP_ENCRYPTION_REQUIRED", requirement)
+    monkeypatch.setattr(sys, "argv", ["backup", "--destination", str(destination),
+                                      "--confirm-writers-stopped", "--release-id", "synthetic-release"])
+
+    with pytest.raises(SystemExit, match="encrypt"):
+        backup.main()
+
+    assert not destination.exists()
+    assert database.read_bytes() == before
+
+
+def test_direct_required_encryption_accepts_complete_encrypted_pair(tmp_path, monkeypatch):
+    source = department(tmp_path / "source")
+    target = department(tmp_path / "target", source.tenant_id)
+    public_key, private_key = write_keys(tmp_path)
+    monkeypatch.setenv("FIRE_AI_BACKUP_ENCRYPTION_REQUIRED", "true")
+
+    folder = encrypted_cli_backup(monkeypatch, tmp_path, source, public_key)
+    assert sorted(path.name for path in folder.iterdir()) == ["backup.enc", "envelope.json"]
+    encrypted_cli_restore(monkeypatch, folder, target, private_key)
+    assert (Path(target.storage_root) / "evidence.pdf").read_bytes() == b"synthetic encrypted original"
+
+
 @pytest.mark.parametrize("location", ["originals", "database", "application"])
 def test_backup_cli_rejects_public_recipient_in_forbidden_tree(tmp_path, monkeypatch, location):
     cfg = department(tmp_path / "source")
