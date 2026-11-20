@@ -33,16 +33,26 @@ with SessionLocal() as db:
     page.goto(base+'/ui/');page.locator('#loginUser').fill('shared-ui');page.locator('#loginPass').fill('synthetic-shared-password');page.get_by_role('button',name='ログイン',exact=True).click();expect(page.locator('#facilityList')).to_contain_text('Synthetic cached private facility')
    def delay():
     pending=[]
+    # selectFacility renders detail before its normal list refresh finishes.
+    # Hold only the explicit probe, never that concurrent background refresh.
+    probe_url=base+'/facilities?offset=0&limit=50&session_probe=delayed'
     def hold(route):pending.append(route)
-    page.route('**/facilities?*',hold)
-    page.evaluate("window.delayedOutcome=null;void fetch('/facilities?offset=0&limit=50').then(r=>r.json()).then(x=>window.delayedOutcome={data:x}).catch(e=>window.delayedOutcome={cancelled:!!e.cancelled})")
+    page.route(probe_url,hold)
+    page.evaluate("""({probe,refresh})=>{
+     window.delayedOutcome=null;window.parallelListOutcome=null;
+     void fetch(refresh).then(r=>r.json()).then(()=>window.parallelListOutcome={completed:true}).catch(e=>window.parallelListOutcome={cancelled:!!e.cancelled});
+     void fetch(probe).then(r=>r.json()).then(x=>window.delayedOutcome={data:x}).catch(e=>window.delayedOutcome={cancelled:!!e.cancelled});
+    }""",{'probe':probe_url,'refresh':base+'/facilities?offset=0&limit=50&sort_by=name&sort_dir=asc'})
+    # A normal list response must complete while the separate probe stays held.
+    page.wait_for_function('window.parallelListOutcome?.completed===true')
     for _ in range(100):
      if pending:break
      page.wait_for_timeout(10)
-    assert pending,'actual private request did not reach native route'
-    return pending,hold
+    assert len(pending)==1,'the explicit private probe must be the only held request'
+    assert pending[0].request.url==probe_url
+    return pending,hold,probe_url
    login();page.locator('.facilityItem').click();expect(page.locator('#detailView')).to_contain_text('Synthetic cached private facility')
-   pending,hold=delay()
+   pending,hold,probe_url=delay()
    # Remove a right without revoking this session: the common context must detect it.
    revoke="""
 from sqlalchemy import select
@@ -56,7 +66,7 @@ with SessionLocal() as db:
    page.locator('#detailView').get_by_role('button',name='編集',exact=True).click();expect(page.locator('#loginView')).to_be_visible();expect(page.locator('#editModal')).to_be_hidden();expect(page.locator('#loginPass')).to_have_value('');expect(page.locator('#detailView')).not_to_contain_text('Synthetic cached private facility')
    pending[0].fulfill(status=200,content_type='application/json',body='{"private":"synthetic old response"}')
    page.wait_for_function('window.delayedOutcome?.cancelled===true');assert page.evaluate('state.detail') is None
-   page.unroute('**/facilities?*',hold)
+   page.unroute(probe_url,hold)
    # Restore only the synthetic policy; bootstrap correctly rejects existing accounts.
    restore="""
 from app.db import SessionLocal
@@ -65,11 +75,12 @@ with SessionLocal() as db:
  seed_rbac(db);db.commit()
 """
    subprocess.run([sys.executable,'-c',restore],cwd=root,env=env,check=True,capture_output=True)
-   login();pending,hold=delay();before=page.request.get(base+'/auth/context').json()
+   login();pending,hold,probe_url=delay();before=page.request.get(base+'/auth/context').json()
    assert page.request.post(base+'/auth/login',data={'username':'shared-ui','password':'synthetic-shared-password'}).status==200
    after=page.request.get(base+'/auth/context').json();assert before['user_id']==after['user_id'] and before['session_id']!=after['session_id']
    pending[0].fulfill(status=200,content_type='application/json',body='{"private":"synthetic old session"}')
    page.wait_for_function('window.delayedOutcome?.cancelled===true');expect(page.locator('#loginView')).to_be_visible();assert page.evaluate('state.detail') is None
+   page.unroute(probe_url,hold)
    assert not errors,errors
    artifact=Path(os.environ.get('FIRE_AI_BROWSER_ARTIFACTS',str(tmp_path/'artifacts')));artifact.mkdir(parents=True,exist_ok=True);page.screenshot(path=str(artifact/'shared-session-authority-cleared.png'),full_page=True);browser.close()
  finally:server.terminate();server.wait(timeout=10);logs.close()
