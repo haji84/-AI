@@ -222,21 +222,34 @@ def _ocr(image, result, language, deadline, budget):
         raise ReaderError('OCR_ENGINE_UNAVAILABLE')
     if not set(language.split('+')) <= available:
         raise ReaderError('OCR_LANGUAGE_UNAVAILABLE')
-    remaining = deadline - time.monotonic()
-    if remaining <= 0:
-        raise ReaderError('TOTAL_TIMEOUT')
-    try:
-        raw = pytesseract.image_to_data(image, lang=language, output_type=pytesseract.Output.DICT,
-                                       timeout=min(OCR_TIMEOUT_SECONDS, remaining))
-    except pytesseract.TesseractNotFoundError:
-        raise ReaderError('OCR_ENGINE_UNAVAILABLE') from None
-    except pytesseract.TesseractError:
-        raise ReaderError('OCR_FAILED') from None
-    except RuntimeError:
-        raise ReaderError('OCR_TIMEOUT') from None
-    except Exception:
-        raise ReaderError('OCR_FAILED') from None
-    _deadline(deadline)
+    page_deadline = time.monotonic() + OCR_TIMEOUT_SECONDS
+    # Automatic page segmentation can return no text for a compact printed
+    # line. Retry sparse text once only for that empty result, with the same
+    # requested language and the REMAINING page budget, never another 15s.
+    for config in (None, '--psm 11'):
+        _deadline(deadline)
+        remaining = min(deadline, page_deadline) - time.monotonic()
+        if remaining <= 0:
+            raise ReaderError('OCR_TIMEOUT')
+        try:
+            raw = pytesseract.image_to_data(image, lang=language, output_type=pytesseract.Output.DICT,
+                                           timeout=remaining, **({'config': config} if config else {}))
+        except pytesseract.TesseractNotFoundError:
+            raise ReaderError('OCR_ENGINE_UNAVAILABLE') from None
+        except pytesseract.TesseractError:
+            raise ReaderError('OCR_FAILED') from None
+        except RuntimeError:
+            raise ReaderError('OCR_TIMEOUT') from None
+        except Exception:
+            raise ReaderError('OCR_FAILED') from None
+        _deadline(deadline)
+        if time.monotonic() >= page_deadline:
+            raise ReaderError('OCR_TIMEOUT')
+        if (not isinstance(raw, dict) or not isinstance(raw.get('text'), list)
+                or any(not isinstance(value, str) for value in raw['text'])):
+            raise ReaderError('OCR_FAILED')
+        if any(value.strip() for value in raw['text']):
+            break
     def words():
         for index, text in enumerate(raw['text']):
             if not isinstance(text, str) or not text.strip():

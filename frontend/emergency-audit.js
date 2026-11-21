@@ -15,7 +15,7 @@
     generation: 0, intent: 0, previewIntent: 0, configPreviewIntent: 0, listIntent: 0, configIntent: 0, truthIntent: 0,
     catalogIntent: 0, uploadIntent: 0, permissions: new Set(), userId: null, capabilities: null,
     report: null, reports: [], offset: 0, profiles: [], ruleSets: [], reviewers: [], sources: [],
-    busy: false, uploadBusy: false, configBusy: false, stale: false, activeTab: 'reports',
+    busy: false, uploadBusy: false, configBusy: false, configPreflight: null, stale: false, activeTab: 'reports',
     page: 1, previewUrl: null, configPreviewUrl: null, transientUrls: new Set(), pollTimer: null,
     queue: [], revisionUpload: null, fieldDrafts: new Map(), fieldDirty: false,
     profileRecord: null, profileDirty: false, mappingFields: [], editingField: null,
@@ -106,6 +106,9 @@
     $('runVision').disabled = !edit || reportPending() || !aiConfigured() || !state.previewUrl || state.report?.measurement?.cohort === 'baseline';
     for (const item of state.decisionControls) { item.choice.disabled = !canRecordDecision() || state.report?.last_run?.stale; item.reason.disabled = item.choice.disabled; item.save.disabled = item.choice.disabled; }
     const configEdit = canConfigure() && !state.configBusy;
+    $('configurationView').setAttribute('aria-busy', String(state.configBusy));
+    for (const id of ['profileList', 'ruleList']) for (const control of $(id).querySelectorAll('button')) control.disabled = !ready || state.configBusy;
+    for (const control of $('mappedFieldList').querySelectorAll('button')) control.disabled = !configEdit;
     for (const id of ['newProfile', 'profileName', 'profileCode', 'profileValidFrom', 'profileValidTo', 'profilePageCount', 'profileImport', 'configurationImportKind', 'configSourceFile', 'newRule', 'ruleCode', 'ruleSetLabel', 'ruleTitle', 'ruleField', 'ruleOperator', 'ruleValue', 'ruleOtherField', 'ruleMinimum', 'ruleMaximum', 'ruleSourceTitle', 'ruleSourceVersion', 'ruleSourcePage', 'ruleEvidence', 'saveRule', 'addMappedField', 'mappedFieldId', 'mappedFieldLabel', 'mappedFieldType', 'mappedFieldPage', 'regionX0', 'regionY0', 'regionX1', 'regionY1', 'saveMappedField', 'cancelMappedField']) $(id).disabled = !configEdit;
     const regionEntered = ['regionX0', 'regionY0', 'regionX1', 'regionY1'].some(id => $(id).value.trim() !== '');
     $('saveMappedField').disabled = !configEdit || (regionEntered && !mappingPageVisible());
@@ -180,7 +183,7 @@
   function reset() {
     state.generation++; state.listIntent++; state.configIntent++; state.catalogIntent++; state.uploadIntent++;
     state.permissions = new Set(); state.userId = null; state.capabilities = null;
-    state.uploadBusy = false; state.configBusy = false; state.queue = []; state.reports = []; state.profiles = []; state.ruleSets = []; state.reviewers = []; state.sources = [];
+    state.uploadBusy = false; state.configBusy = false; state.configPreflight = null; state.queue = []; state.reports = []; state.profiles = []; state.ruleSets = []; state.reviewers = []; state.sources = [];
     state.offset = 0; state.profileRecord = null; state.mappingFields = []; state.ruleSetRecord = null; state.ruleDrafts = [];
     state.profileDirty = false; state.configRequest = null; state.ruleRequest = null; state.sourceId = null; state.sourceMetadata = null; state.sourceUpload = null; state.mappingStart = null; state.mappingPreview = null;
     state.configPreviewIntent++; revoke(state.configPreviewUrl); state.configPreviewUrl = null;
@@ -195,6 +198,17 @@
     message('reportListMessage', 'ログインと権限を確認してから再読込してください。');
     message('auditMessage', 'セッションまたは権限が変わりました。ホームから再ログインしてください。', true); controls();
   }
+  // Lock before the shared session check, then unlock immediately before its
+  // authorized click replay. Otherwise a delayed reset can erase fresh input.
+  window.emergencyAuditSessionPreflight = (target, eventType) => {
+    if (eventType !== 'click' || !canRead() || state.configBusy || (!['newProfile', 'newRule', 'addMappedField', 'cancelMappedField'].includes(target.id) && target.dataset.auditConfigReset !== 'true')) return;
+    const operation = {generation: state.generation}; state.configPreflight = operation;
+    state.configBusy = true; state.mappingStart = null; controls();
+    return () => {
+      if (state.configPreflight !== operation || operation.generation !== state.generation) return;
+      state.configPreflight = null; state.configBusy = false; controls();
+    };
+  };
   window.FireAISession.install({reset});
 
   async function responseFor(path, options = {}) {
@@ -649,7 +663,8 @@
       const row = element('div', undefined, 'mapped-field-item'), text = element('div');
       text.append(element('strong', field.label), element('div', field.field_id + ' / ' + field.page + 'ページ / ' + ({region: '範囲を指定', manual: '手動確認', not_printed: '印刷されない欄'}[field.extraction] ?? '未設定'), 'small muted'));
       const tools = element('div', undefined, 'toolbar');
-      tools.append(button('編集', () => editMappedField(field.field_id), 'text-button'), button('削除', () => { if (!canConfigure() || state.configBusy) return; state.mappingFields = state.mappingFields.filter(x => x.field_id !== field.field_id); configChanged(); renderMappedFields(); }, 'text-button'));
+      const edit = button('編集', () => editMappedField(field.field_id), 'text-button'); edit.dataset.auditConfigReset = 'true';
+      tools.append(edit, button('削除', () => { if (!canConfigure() || state.configBusy) return; state.mappingFields = state.mappingFields.filter(x => x.field_id !== field.field_id); configChanged(); renderMappedFields(); }, 'text-button'));
       for (const control of tools.children) control.disabled = !canConfigure();
       row.append(text, tools); $('mappedFieldList').append(row);
     }
@@ -786,11 +801,11 @@
   }
   function renderConfigLists() {
     $('profileList').replaceChildren();
-    for (const config of state.profiles) { const item = button('', () => selectProfile(config), 'profile-item'); item.append(element('strong', config.label), element('span', configLabel(config))); $('profileList').append(item); }
+    for (const config of state.profiles) { const item = button('', () => selectProfile(config), 'profile-item'); item.dataset.auditConfigReset = 'true'; item.append(element('strong', config.label), element('span', configLabel(config))); $('profileList').append(item); }
     $('ruleList').replaceChildren();
     for (const config of state.ruleSets) {
       const card = element('article', undefined, 'rule-card'); card.append(badge(config.status === 'approved' ? '承認済み' : config.status === 'retired' ? '利用停止' : '下書き'), element('h4', config.label), element('p', list(config.definition?.rules).length + '件のルール / ' + config.form_key, 'muted'));
-      card.append(button('この設定を開く', () => openRuleSet(config), 'text-button'));
+      const open = button('この設定を開く', () => openRuleSet(config), 'text-button'); open.dataset.auditConfigReset = 'true'; card.append(open);
       $('ruleList').append(card);
     }
   }

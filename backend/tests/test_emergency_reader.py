@@ -151,7 +151,9 @@ def test_image_dimensions_checked_before_decode_and_exif_rotation_is_preserved()
 
 def test_ocr_timeout_is_unreadable_without_exception_text(monkeypatch):
     r = reader(); monkeypatch.setattr(r, '_available_languages', lambda: {'jpn', 'eng'})
+    calls = []
     def timeout(*args, **kwargs):
+        calls.append(kwargs)
         assert 0 < kwargs['timeout'] <= 15
         raise RuntimeError('Tesseract process timeout synthetic-private-sentinel')
     monkeypatch.setattr(r.pytesseract, 'image_to_data', timeout)
@@ -160,6 +162,70 @@ def test_ocr_timeout_is_unreadable_without_exception_text(monkeypatch):
     assert result['pages'][0]['status'] == 'UNREADABLE'
     assert result['pages'][0]['issues'] == ['OCR_TIMEOUT']
     assert 'synthetic-private-sentinel' not in repr(result)
+    assert len(calls) == 1
+
+
+def test_empty_automatic_segmentation_retries_sparse_text_with_same_language_and_remaining_budget(monkeypatch):
+    from types import SimpleNamespace
+    r = reader(); now = [100.0]; calls = []
+    monkeypatch.setattr(r, '_available_languages', lambda: {'jpn', 'eng'})
+    monkeypatch.setattr(r, 'time', SimpleNamespace(monotonic=lambda: now[0]))
+    def recognize(*args, **kwargs):
+        calls.append(kwargs)
+        if len(calls) == 1:
+            now[0] += 9
+            return {'text': ['', '  ']}
+        return {'text': ['救急'], 'left': [10], 'top': [20], 'width': [60], 'height': [40], 'conf': [95]}
+    monkeypatch.setattr(r.pytesseract, 'image_to_data', recognize)
+    page = r.extract_source(png())['pages'][0]
+    assert page['status'] == 'OCR_CANDIDATE' and page['text'] == '救急'
+    assert page['issues'] == [] and page['method'] == 'tesseract'
+    assert page['words'][0]['confidence'] == .95
+    assert page['words'][0]['bbox'] == pytest.approx([10/300, 20/160, 70/300, 60/160])
+    assert len(calls) == 2 and [call['lang'] for call in calls] == ['jpn+eng', 'jpn+eng']
+    assert calls[0].get('config', '') == '' and calls[1]['config'] == '--psm 11'
+    assert [call['timeout'] for call in calls] == pytest.approx([15, 6])
+
+
+def test_usable_automatic_segmentation_is_not_replaced_by_an_extra_ocr_attempt(monkeypatch):
+    r = reader(); calls = []
+    monkeypatch.setattr(r, '_available_languages', lambda: {'jpn', 'eng'})
+    def recognize(*args, **kwargs):
+        calls.append(kwargs)
+        return {'text': ['Synthetic'], 'left': [10], 'top': [20], 'width': [60], 'height': [40], 'conf': [95]}
+    monkeypatch.setattr(r.pytesseract, 'image_to_data', recognize)
+    page = r.extract_source(png())['pages'][0]
+    assert page['status'] == 'OCR_CANDIDATE' and page['text'] == 'Synthetic'
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize('elapsed,issue', [(15, 'OCR_TIMEOUT'), (95, 'TOTAL_TIMEOUT')])
+def test_empty_ocr_cannot_start_a_retry_after_its_existing_deadline(monkeypatch, elapsed, issue):
+    from types import SimpleNamespace
+    r = reader(); now = [100.0]; calls = []
+    monkeypatch.setattr(r, '_available_languages', lambda: {'jpn', 'eng'})
+    monkeypatch.setattr(r, 'time', SimpleNamespace(monotonic=lambda: now[0]))
+    def recognize(*args, **kwargs):
+        calls.append(kwargs); now[0] += elapsed
+        return {'text': []}
+    monkeypatch.setattr(r.pytesseract, 'image_to_data', recognize)
+    result = r.extract_source(png()); page = result['pages'][0]
+    assert result['complete'] is False and page['status'] == 'UNREADABLE'
+    assert page['issues'] == [issue] and page['words'] == []
+    assert len(calls) == 1
+
+
+def test_two_empty_segmentation_attempts_remain_unreadable_without_more_retries(monkeypatch):
+    r = reader(); calls = []
+    monkeypatch.setattr(r, '_available_languages', lambda: {'jpn', 'eng'})
+    def recognize(*args, **kwargs):
+        calls.append(kwargs)
+        return {'text': ['']}
+    monkeypatch.setattr(r.pytesseract, 'image_to_data', recognize)
+    result = r.extract_source(png()); page = result['pages'][0]
+    assert result['complete'] is False and page['status'] == 'UNREADABLE'
+    assert page['issues'] == ['NO_TEXT_FOUND'] and page['words'] == []
+    assert len(calls) == 2
 
 
 def test_total_deadline_marks_remaining_pages_unreadable(monkeypatch):
@@ -267,13 +333,18 @@ def test_png_original_is_not_modified_and_preview_discards_metadata():
 
 
 def test_malformed_ocr_coordinates_cannot_become_valid_evidence(monkeypatch):
-    r = reader(); monkeypatch.setattr(r, '_available_languages', lambda: {'jpn', 'eng'})
+    r = reader(); calls = []
+    monkeypatch.setattr(r, '_available_languages', lambda: {'jpn', 'eng'})
     raw = {'text': ['synthetic'], 'left': [-15], 'top': [20], 'width': [40], 'height': [30], 'conf': ['92']}
-    monkeypatch.setattr(r.pytesseract, 'image_to_data', lambda *args, **kwargs: raw)
+    def recognize(*args, **kwargs):
+        calls.append(kwargs)
+        return raw
+    monkeypatch.setattr(r.pytesseract, 'image_to_data', recognize)
     result = r.extract_source(png())
     assert result['complete'] is False and result['pages'][0]['status'] == 'UNREADABLE'
     assert result['pages'][0]['words'] == []
     assert 'WORD_GEOMETRY_INVALID' in result['pages'][0]['issues']
+    assert len(calls) == 1
 
 
 def test_native_japanese_printed_image_has_real_readable_candidates():
@@ -289,6 +360,11 @@ def test_native_japanese_printed_image_has_real_readable_candidates():
         page.insert_text((25, 65), '救急報告書', fontsize=36, fontname='japan')
         picture = page.get_pixmap(matrix=fitz.Matrix(2, 2), alpha=False).tobytes('png')
     result = r.extract_source(picture)
-    assert result['pages'][0]['status'] == 'OCR_CANDIDATE'
+    page_result = result['pages'][0]
+    # Fixed status/issue codes and counts only: enough native-CI diagnostics
+    # without dumping an original, OCR text, path or native exception message.
+    diagnostic = {'status': page_result['status'], 'method': page_result['method'],
+                  'issues': page_result['issues'], 'word_count': len(page_result['words'])}
+    assert page_result['status'] == 'OCR_CANDIDATE', diagnostic
     assert '救急' in result['pages'][0]['text'].replace(' ', '')
     assert result['pages'][0]['words']

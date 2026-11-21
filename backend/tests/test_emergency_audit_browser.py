@@ -125,6 +125,58 @@ assert(old.every(url=>revokedUrls.includes(url)));
 """)
 
 
+@pytest.mark.parametrize('action', ['new_profile', 'existing_profile', 'existing_rules', 'new_rule', 'add_mapped_field', 'cancel_mapped_field', 'existing_mapped_field'])
+def test_audit_configuration_reset_locks_inputs_until_authorized_replay(action):
+    run_audit_js('const action=' + json.dumps(action) + r""";
+if(action==='existing_mapped_field')await selectReport();
+await nodes.profileList.children[0].fire('click');await settled();
+nodes.profileName.value='Previous draft';nodes.ruleSetLabel.value='Previous rule draft';
+nodes.ruleCode.value='previous-code';nodes.ruleTitle.value='Previous rule title';
+nodes.mappedFieldId.value='previous-field';nodes.mappedFieldLabel.value='Previous field draft';
+const target={new_profile:nodes.newProfile,existing_profile:nodes.profileList.children[0],existing_rules:nodes.ruleList.children[0].children.at(-1),new_rule:nodes.newRule,add_mapped_field:nodes.addMappedField,cancel_mapped_field:nodes.cancelMappedField,existing_mapped_field:nodes.mappedFieldList.children[0].children[1].children[0]}[action];
+target.closest=selector=>selector==='#loginView'?null:target;
+holdAuthority=true;
+const pending=handlers.click({type:'click',target,preventDefault(){},stopImmediatePropagation(){}});
+for(const id of ['profileName','profileCode','profileValidFrom','configSourceFile','mappedFieldId','regionX0','ruleSetLabel','ruleCode'])assert.equal(nodes[id].disabled,true,id+' stays locked during authorization');
+assert.equal(target.disabled,true);assert.equal(nodes.profileName.value,'Previous draft');
+await settled();assert.equal(typeof releaseAuthority,'function');
+holdAuthority=false;releaseAuthority(new Response(JSON.stringify(authority)));await pending;await settled();
+assert.equal(nodes.profileName.disabled,false);assert.equal(nodes.ruleSetLabel.disabled,false);assert.equal(target.disabled,false);
+if(action==='new_profile'){assert.equal(nodes.profileName.value,'');assert.equal(nodes.profileCode.value,'');assert.match(nodes.profileStatus.textContent,/新しい対応表の下書き/)}
+else if(action==='existing_profile'){assert.equal(nodes.profileName.value,profile.definition.label);assert.equal(nodes.profileCode.value,profile.form_key)}
+else if(action==='existing_rules')assert.equal(nodes.ruleSetLabel.value,'Saved synthetic rule');
+else if(action==='new_rule'){assert.equal(nodes.ruleCode.value,'');assert.equal(nodes.ruleTitle.value,'')}
+else if(action==='existing_mapped_field'){assert.equal(nodes.mappedFieldId.value,'temperature');assert.equal(nodes.mappedFieldLabel.value,'合成の数値欄')}
+else{assert.equal(nodes.mappedFieldId.value,'');assert.equal(nodes.mappedFieldLabel.value,'')}
+nodes.profileName.value='Edited after reset';await invoke('profileName','input');await settled();assert.equal(nodes.profileName.value,'Edited after reset');
+nodes.ruleCode.value='new-code-after-reset';nodes.mappedFieldLabel.value='New field after reset';await settled();assert.equal(nodes.ruleCode.value,'new-code-after-reset');assert.equal(nodes.mappedFieldLabel.value,'New field after reset');
+assert(!requests.some(request=>request.method==='POST'));
+""", before_start=r"""
+ruleRows=[{config_id:'00000000-0000-4000-8000-000000000077',kind:'rules',status:'draft',label:'Saved synthetic rule',form_key:'synthetic-form',source_id:null,definition:{label:'Saved synthetic rule',form_key:'synthetic-form',valid_from:'2026-01-01',valid_to:null,rules:[]}}];
+let holdAuthority=false,releaseAuthority;
+const originalAuthorityFetch=window.fetch;
+window.fetch=(path,options)=>path==='/auth/context'&&holdAuthority?new Promise(resolve=>releaseAuthority=resolve):originalAuthorityFetch(path,options);
+""")
+
+
+@pytest.mark.parametrize('rejection', ['forbidden', 'session_changed'])
+def test_audit_configuration_reset_does_not_reenable_inputs_after_authority_loss(rejection):
+    run_audit_js('const rejection=' + json.dumps(rejection) + r""";
+await nodes.profileList.children[0].fire('click');await settled();nodes.profileName.value='DO_NOT_KEEP_PRIVATE_VALUE';
+const target=nodes.newProfile;target.closest=selector=>selector==='#loginView'?null:target;holdAuthority=true;
+const pending=handlers.click({type:'click',target,preventDefault(){},stopImmediatePropagation(){}});
+assert.equal(nodes.profileName.disabled,true);await settled();assert.equal(typeof releaseAuthority,'function');holdAuthority=false;
+releaseAuthority(rejection==='forbidden'?new Response('{"detail":"DO_NOT_REFLECT_PRIVATE_VALUE"}',{status:403}):new Response(JSON.stringify({...authority,session_id:'another-session'})));
+await pending;await settled();assert.equal(nodes.profileName.value,'');assert.equal(nodes.profileName.disabled,true);assert.equal(nodes.newProfile.disabled,true);
+assert.equal(nodes.profileList.children.length,0);assert.equal(nodes.profileStatus.textContent,'');
+assert(!allNodes.some(node=>node.textContent.includes('DO_NOT_REFLECT_PRIVATE_VALUE')));assert(!requests.some(request=>request.method==='POST'));
+""", before_start=r"""
+let holdAuthority=false,releaseAuthority;
+const originalAuthorityFetch=window.fetch;
+window.fetch=(path,options)=>path==='/auth/context'&&holdAuthority?new Promise(resolve=>releaseAuthority=resolve):originalAuthorityFetch(path,options);
+""")
+
+
 def test_audit_forbidden_response_is_not_reflected_or_kept_on_screen():
     run_audit_js(r"""
 await selectReport();const regular=endpoint;endpoint=(path,options)=>path.endsWith('/reports/'+RID)?new Response('{"detail":"DO_NOT_ECHO_PRIVATE_VALUE"}',{status:403}):regular(path,options);
@@ -769,7 +821,20 @@ def test_browser_visual_field_mapping_and_rule_builder_save_drafts(audit_server)
         page.goto(audit_server + '/ui/emergency-audit.html')
         expect(page.locator('#configurationTab')).to_be_enabled()
         page.locator('#configurationTab').click()
-        page.locator('#newProfile').click()
+        expect(page.locator('#configurationView')).to_be_visible()
+        pending_authority = []
+        page.route('**/auth/context', lambda route: pending_authority.append(route))
+        with page.expect_request('**/auth/context'):
+            page.locator('#newProfile').click()
+        expect(page.locator('#profileName')).to_be_disabled()
+        expect(page.locator('#profileCode')).to_be_disabled()
+        expect(page.locator('#newProfile')).to_be_disabled()
+        assert pending_authority
+        page.unroute('**/auth/context')
+        for route in pending_authority:
+            route.continue_()
+        expect(page.locator('#profileStatus')).to_contain_text('新しい対応表の下書き')
+        expect(page.locator('#profileName')).to_be_enabled()
         page.locator('#profileName').fill('Synthetic visual form')
         page.locator('#profileCode').fill('synthetic-visual')
         page.locator('#profileValidFrom').fill('2026-01-01')
@@ -786,6 +851,9 @@ def test_browser_visual_field_mapping_and_rule_builder_save_drafts(audit_server)
             page.locator('#' + identity).fill(value)
         page.locator('#saveMappedField').click()
         expect(page.locator('#mappedFieldList')).to_contain_text('合成の数値欄')
+        expect(page.locator('#profileName')).to_have_value('Synthetic visual form')
+        expect(page.locator('#profileCode')).to_have_value('synthetic-visual')
+        expect(page.locator('#profileValidFrom')).to_have_value('2026-01-01')
         page.locator('#saveProfile').click()
         expect(page.locator('#profileMessage')).to_contain_text('下書きとして保存')
         page.locator('#ruleSetLabel').fill('Synthetic required rule')
