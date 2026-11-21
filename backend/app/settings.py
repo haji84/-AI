@@ -17,6 +17,16 @@ class Settings(BaseSettings):
     tenant_id: str | None = None
     trusted_hosts: list[str] = []
     statistics_business_timezone: str = "Asia/Tokyo"
+    # Enable only after the headquarters approves its internal measurement environment.
+    # This switch is not evidence of privacy, OCR accuracy or production readiness.
+    emergency_acceptance_internal_enabled: bool = False
+    emergency_audit_enabled: bool = False
+    emergency_audit_internal_enabled: bool = False
+    emergency_audit_key_file: str | None = None
+    emergency_audit_ocr_language: str = 'jpn+eng'
+    emergency_audit_ai_model: str | None = None
+    emergency_audit_ai_port: int = Field(default=11434, ge=1024, le=65535)
+    emergency_audit_worker_timeout: int = Field(default=600, ge=10, le=900)
 
     @field_validator("statistics_business_timezone")
     @classmethod

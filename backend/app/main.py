@@ -12,6 +12,7 @@ from .db import get_db, engine
 from .tenant import TenantBoundaryMiddleware, validate_runtime_binding
 from .settings import settings
 from .routers import emergency_reports, emergency, operations, assets, workforce, administration, learning, finance, inquiries, violations, work_queue, hazardous, hazardous_evaluations, statistics, personnel_intake
+from .routers import emergency_acceptance, emergency_audit
 from .routers import auth, facilities, documents, extensions, templates, contracts, inspections, submissions, intake, legal_rules, legal_sources, legal_rule_drafts, legal_review_queue, equipment, equipment_regression, equipment_placement_regression, drawings, drawing_annotations, drawing_consultations, drawing_benchmarks, fire_investigations, occupancy_regression, fire_report_exports, fire_photos, audio_benchmarks, evidence_benchmarks, search as unified_search
 
 @asynccontextmanager
@@ -46,6 +47,8 @@ app.include_router(personnel_intake.router)
 app.include_router(learning.router)
 app.include_router(emergency_reports.router)
 app.include_router(emergency.router)
+app.include_router(emergency_acceptance.router)
+app.include_router(emergency_audit.router)
 app.include_router(operations.router)
 app.include_router(assets.router)
 app.include_router(workforce.router)

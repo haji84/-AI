@@ -9,7 +9,7 @@ async function openEmergency(isCurrent=()=>true){
   if(!isCurrent())return;await initEmergency(isCurrent);if(!isCurrent())return;
   if(!$('emergencyModal')){
     const modal=document.createElement('div');modal.id='emergencyModal';modal.className='modalWrap';
-    modal.innerHTML=`<div class="modal"><div class="modalHead"><b>救急業務</b><span class="grow"></span><button class="btn" id="emergencyClose">閉じる</button></div><div class="modalBody"><div id="emergencyMessage" class="dangerText" role="alert"></div><div class="toolbar"><button class="btn" id="emergencyListButton">事案</button><button class="btn" id="emergencySummaryButton">月次・年次集計</button><button class="btn" id="emergencyCreateButton">事案登録</button><label>旧台帳取込<input type="file" id="emergencyImportFile" accept=".xlsx,.xlsm"></label></div><div id="emergencyContent"></div></div></div>`;
+    modal.innerHTML=`<div class="modal"><div class="modalHead"><b>救急業務</b><span class="grow"></span><button class="btn" id="emergencyClose">閉じる</button></div><div class="modalBody"><div id="emergencyMessage" class="dangerText" role="alert"></div><div class="toolbar"><button class="btn" id="emergencyListButton">事案</button><button class="btn" id="emergencySummaryButton">月次・年次集計</button><button class="btn" id="emergencyCreateButton">事案登録</button><a class="btn" id="emergencyAuditLink" href="/ui/emergency-audit.html" hidden>報告書をチェック</a><a class="btn" id="emergencyAcceptanceLink" href="/ui/emergency-acceptance.html" hidden>チェックの完成評価</a><label>旧台帳取込<input type="file" id="emergencyImportFile" accept=".xlsx,.xlsm"></label></div><div id="emergencyContent"></div></div></div>`;
     document.body.append(modal);
     $('emergencyClose').onclick=()=>modal.classList.add('hidden');
     $('emergencyListButton').onclick=()=>emergencyAction(()=>emergencyList(0));
@@ -22,6 +22,8 @@ async function openEmergency(isCurrent=()=>true){
   $('emergencyImportFile').parentElement.hidden=!emergencyCan('emergency.import');
   $('emergencyListButton').hidden=!emergencyCan('emergency.case.read');
   $('emergencySummaryButton').hidden=!emergencyCan('emergency.report.read');
+  $('emergencyAcceptanceLink').hidden=!['emergency.case.read','emergency.patient.read','emergency.report.read'].every(emergencyCan);
+  $('emergencyAuditLink').hidden=!['emergency.case.read','emergency.patient.read','emergency.report.read'].every(emergencyCan);
   const modal=$('emergencyModal'),owned=()=>isCurrent()&&modal?.isConnected&&$('emergencyModal')===modal&&!modal.classList.contains('hidden');
   await emergencyAction(()=>emergencyCan('emergency.case.read')?emergencyList(0,owned):owned()?emergencySummaryForm():undefined);
 }

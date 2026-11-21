@@ -1,8 +1,18 @@
 # PROJECT_STATE
 
-更新日: 2026-10-10
+更新日: 2026-11-21
 
-## 最新監査（main `46865f4` 基準）
+## 救急報告書監査の開発状態（2026-11-21）
+
+この追記は救急報告書チェックの範囲であり、AIOS全57章を完成へ変更するものではない。作業開始時に確認したmainは `034cd44978705f0272e466e0f63d879d2fc2fe06`、Draft PR #142の開始headは `d4bf06434952e672908dad5b642d97a5388217d5`。以下の旧main・件数・未接続記述はそれぞれの時点の履歴である。
+
+今回の作業ブランチは、暗号化した専用原本/派生物、migration060、Linux読取ワーカー、様式とルールの承認・影響検証、原本確認画面、ルール/ローカルAI候補、訂正前後の原本履歴・再チェック、独立確認、訂正傾向と5指標への記録出力を実装する。資料台帳433件を正式ルールへ自動採用せず、既存OAを書き換えない。新しい詳細権限を既存役割へ自動付与しない。
+
+実装契約は [AUDIT_API_V1](docs/emergency/AUDIT_API_V1.md)、導入と操作は [AUDIT_OPERATIONS](docs/emergency/AUDIT_OPERATIONS.md)、完成判定は [REPORT_CHECK_GOAL](docs/emergency/REPORT_CHECK_GOAL.md)。CI結果は [PR #142のChecks](https://github.com/haji84/-AI/pull/142/checks) の対象commitを照合する。Draftの公開とmain統合、本部配備は別の状態であり、この追記から本番導入済みとは判断しない。
+
+実帳票、正式様式/資料、本部のルール承認、ローカルモデルの実精度、対象サーバーの通信/権限/復旧、実運用の訂正削減率は未実証。コードと合成試験をその代わりに数えない。
+
+## 過去の監査（main `46865f4` 基準）
 
 正本main `46865f438ab7a7482678c0ed720c15f00f113a65` / tree `ccfe26ae18b34235cae81c6adf1804a38111c8bb`。PR102の秘密検査CLI・hook・専用CIを独立レビュー後に統合済み。exact project CI38064104706はbackend1486passed/101skipped/289warnings/840.88s、browser76passed/794.40s、exact secret CI38064104737は検出0で成功。独立 [main project CI38065202562](https://github.com/haji84/-AI/actions/runs/38065202562) はbackend1486passed/101skipped/289warnings/808.27s、browser76passed/787.34s、parser/JS成功。独立 [main secret CI38065202530](https://github.com/haji84/-AI/actions/runs/38065202530) も検出0で成功。ログを直接確認し、main artifact11674113645のSHA256 `0010e560d4f1cc358c7c59d8a9af82aefd154846521bd28b43e596eb64eb7a60` を取得・照合した。保存前競合の拒否、3種の根拠配列保存とHuman操作の回帰も確認。skipは未検証。
 
