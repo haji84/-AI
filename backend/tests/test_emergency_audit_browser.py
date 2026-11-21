@@ -830,9 +830,9 @@ def test_browser_visual_field_mapping_and_rule_builder_save_drafts(audit_server)
         expect(page.locator('#profileCode')).to_be_disabled()
         expect(page.locator('#newProfile')).to_be_disabled()
         assert pending_authority
-        page.unroute('**/auth/context')
-        for route in pending_authority:
+        for route in tuple(pending_authority):
             route.continue_()
+        page.unroute('**/auth/context')
         expect(page.locator('#profileStatus')).to_contain_text('新しい対応表の下書き')
         expect(page.locator('#profileName')).to_be_enabled()
         page.locator('#profileName').fill('Synthetic visual form')
