@@ -53,6 +53,17 @@
 
 本番は本部専用PostgreSQL・UUID・原本保存先・通常/移行DB roleを使用します。SQLiteはlocalhostでの開発・合成テスト専用です。通常職員のPCはサーバーURLをブラウザで開くだけです。実運用XLSM/PDF/写真/録音、DB、資格情報をGitや配布物へ入れないでください。
 
+## 救急報告書の提出前チェック
+
+「救急業務」から「報告書をチェック」(`/ui/emergency-audit.html`) を開きます。専用サーバー設定と権限が必要で、初期状態では無効です。PDF・画像の一括取込、原本表示、読取候補の確認、根拠付きチェック、訂正版・再チェック、独立確認、訂正傾向、5指標への測定記録出力を接続しています。
+
+- [構築・操作・更新・復旧](docs/emergency/AUDIT_OPERATIONS.md)
+- [APIと保存・権限の契約](docs/emergency/AUDIT_API_V1.md)
+- [5指標の測定範囲と判定](docs/emergency/ACCEPTANCE_MEASUREMENT.md)
+- [実装状態と未検証の受入条件](docs/emergency/REPORT_CHECK_GOAL.md)
+
+Linuxサーバーで読取処理を行い、利用者PCにはOCRやVBAを要求しません。AIは任意のローカルモデルを接続します。正式な様式・ルール・モデルは本部内で検証して設定し、候補や読取不能を「問題なし」に変換しません。実データでの訂正率低下や本番導入済みを宣言する機能ではありません。
+
 ## Phase 1 verification
 
 PII-safe legacy import verification:

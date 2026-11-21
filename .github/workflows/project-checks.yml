@@ -25,6 +25,7 @@ jobs:
           --health-interval 5s --health-timeout 5s --health-retries 10
     env:
       FIRE_AI_TEST_POSTGRES_URL: postgresql+psycopg://fire_ai_test:ci-only-disposable@localhost:5432/fire_ai_test
+      FIRE_AI_REQUIRE_JAPANESE_OCR: '1'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -60,6 +61,12 @@ jobs:
             "SELECT current_setting('server_version_num')::int / 10000" | grep -qx '16'
       - name: Install
         run: python -m pip install -e "backend[test]"
+      - name: Native Japanese OCR for synthetic reader tests
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y tesseract-ocr tesseract-ocr-jpn
+          tesseract --version
+          tesseract --list-langs
       - uses: ./.github/actions/setup-secret-scanner
       - name: Test
         run: python -m pytest backend/tests -q
@@ -104,7 +111,7 @@ jobs:
           python -m pip install -e 'backend[test]' 'playwright>=1.55,<2'
           python -m playwright install --with-deps chromium
       - name: Human administration browser test
-        run: python -m pytest backend/tests/test_hazardous_browser.py backend/tests/test_hazardous_evaluation_browser.py backend/tests/test_admin_browser.py backend/tests/test_assets_browser.py backend/tests/test_learning_browser.py backend/tests/test_password_browser.py backend/tests/test_authorization_browser.py backend/tests/test_finance_browser.py backend/tests/test_workforce_browser.py backend/tests/test_workforce_teams_browser.py backend/tests/test_violation_browser.py backend/tests/test_inquiries_browser.py backend/tests/test_shared_session_browser.py backend/tests/test_work_queue_browser.py backend/tests/test_intake_browser.py backend/tests/test_facility_dashboard_browser.py backend/tests/test_vehicle_assignment_browser.py backend/tests/test_statistics_browser.py backend/tests/test_personnel_intake_browser.py backend/tests/test_emergency_acceptance_browser.py -x -q
+        run: python -m pytest backend/tests/test_hazardous_browser.py backend/tests/test_hazardous_evaluation_browser.py backend/tests/test_admin_browser.py backend/tests/test_assets_browser.py backend/tests/test_learning_browser.py backend/tests/test_password_browser.py backend/tests/test_authorization_browser.py backend/tests/test_finance_browser.py backend/tests/test_workforce_browser.py backend/tests/test_workforce_teams_browser.py backend/tests/test_violation_browser.py backend/tests/test_inquiries_browser.py backend/tests/test_shared_session_browser.py backend/tests/test_work_queue_browser.py backend/tests/test_intake_browser.py backend/tests/test_facility_dashboard_browser.py backend/tests/test_vehicle_assignment_browser.py backend/tests/test_statistics_browser.py backend/tests/test_personnel_intake_browser.py backend/tests/test_emergency_acceptance_browser.py backend/tests/test_emergency_audit_browser.py -x -q
       - uses: actions/upload-artifact@v4
         if: always()
         with:
