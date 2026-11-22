@@ -197,13 +197,14 @@ def test_hazardous_sources_upload_human_confirmation_revision_deadline_and_histo
             def hold_upload(route):
                 held_upload.append(route)
             page.route('**/documents/upload', hold_upload)
-            page.locator('#hazardousUpload').click()
+            # Authorization precedes the POST; wait for its HTTP boundary, not
+            # an assumed one-second budget for the chained authority checks.
+            with page.expect_request(lambda request: request.url == base + '/documents/upload' and request.method == 'POST'):
+                page.locator('#hazardousUpload').click()
+            # Keep these protocol-backed assertions after the request event so
+            # its following route callback is dispatched before inspecting it.
             expect(page.locator('#hazardousFormStatus')).to_contain_text('登録中')
             expect(page.locator('#hazardousSave')).to_be_disabled()
-            for _ in range(100):
-                if held_upload:
-                    break
-                page.wait_for_timeout(10)
             assert held_upload, 'the synthetic original upload must reach the HTTP boundary'
             # Native implicit submission cannot save a draft before upload finishes.
             page.locator('#hazardousField_title').press('Enter')

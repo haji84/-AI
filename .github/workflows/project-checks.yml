@@ -9,6 +9,32 @@ permissions:
   contents: read
 
 jobs:
+  workstation-diagnostic-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Read-only Windows diagnostic without application dependencies
+        shell: pwsh
+        run: |
+          python -W error -B scripts/check_emergency_workstation.py --context cloud > diagnostic.json
+          if ($LASTEXITCODE -ne 0) { throw 'Diagnostic failed' }
+          $result = Get-Content diagnostic.json -Raw | ConvertFrom-Json
+          $safeStatus = @('OK', 'NOT_AVAILABLE', 'ACCESS_DENIED', 'TIMEOUT', 'OUTPUT_LIMIT', 'PROBE_FAILED', 'INVALID_DATA', 'NOT_APPLICABLE', 'HTTP_ERROR', 'REDIRECT_BLOCKED')
+          foreach ($probe in @('os', 'cpu', 'ram', 'storage', 'gpu', 'native_ocr', 'local_model', 'hyperv')) {
+            $status = $result.$probe.status
+            if ($status -notin $safeStatus) { $status = 'INVALID_DATA' }
+            Write-Output ("Diagnostic status {0}: {1}" -f $probe, $status)
+          }
+          if ($result.diagnostic_status -ne 'COMPLETED' -or $result.execution_context -ne 'CLOUD') { throw 'Invalid diagnostic result' }
+          if ($result.os.family -ne 'WINDOWS' -or $result.os.status -ne 'OK') { throw 'Windows query failed' }
+          if ($result.cpu.status -ne 'OK' -or $result.ram.status -ne 'OK' -or $result.storage.status -ne 'OK') { throw 'Resource query failed' }
+          if ($result.reader_platform_supported -ne $false) { throw 'Windows reader support incorrectly claimed' }
+          if ($result.acceptance.workstation_verified -ne $false -or $result.acceptance.accuracy_measured -ne $false -or $result.acceptance.production_accepted -ne $false) { throw 'Unmeasured acceptance incorrectly claimed' }
+          Write-Output 'Anonymous Windows query completed. ZBook and report accuracy remain untested.'
+
   backend-tests:
     runs-on: ubuntu-latest
     services:
@@ -25,6 +51,7 @@ jobs:
           --health-interval 5s --health-timeout 5s --health-retries 10
     env:
       FIRE_AI_TEST_POSTGRES_URL: postgresql+psycopg://fire_ai_test:ci-only-disposable@localhost:5432/fire_ai_test
+      FIRE_AI_REQUIRE_JAPANESE_OCR: '1'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -60,6 +87,12 @@ jobs:
             "SELECT current_setting('server_version_num')::int / 10000" | grep -qx '16'
       - name: Install
         run: python -m pip install -e "backend[test]"
+      - name: Native Japanese OCR for synthetic reader tests
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y tesseract-ocr tesseract-ocr-jpn
+          tesseract --version
+          tesseract --list-langs
       - uses: ./.github/actions/setup-secret-scanner
       - name: Test
         run: python -m pytest backend/tests -q
@@ -103,8 +136,10 @@ jobs:
         run: |
           python -m pip install -e 'backend[test]' 'playwright>=1.55,<2'
           python -m playwright install --with-deps chromium
+      - name: Emergency report audit browser test
+        run: python -m pytest backend/tests/test_emergency_audit_browser.py -x -q
       - name: Human administration browser test
-        run: python -m pytest backend/tests/test_hazardous_browser.py backend/tests/test_hazardous_evaluation_browser.py backend/tests/test_admin_browser.py backend/tests/test_assets_browser.py backend/tests/test_learning_browser.py backend/tests/test_password_browser.py backend/tests/test_authorization_browser.py backend/tests/test_finance_browser.py backend/tests/test_workforce_browser.py backend/tests/test_workforce_teams_browser.py backend/tests/test_violation_browser.py backend/tests/test_inquiries_browser.py backend/tests/test_shared_session_browser.py backend/tests/test_work_queue_browser.py backend/tests/test_intake_browser.py backend/tests/test_facility_dashboard_browser.py backend/tests/test_vehicle_assignment_browser.py backend/tests/test_statistics_browser.py backend/tests/test_personnel_intake_browser.py -x -q
+        run: python -m pytest backend/tests/test_hazardous_browser.py backend/tests/test_hazardous_evaluation_browser.py backend/tests/test_admin_browser.py backend/tests/test_assets_browser.py backend/tests/test_learning_browser.py backend/tests/test_password_browser.py backend/tests/test_authorization_browser.py backend/tests/test_finance_browser.py backend/tests/test_workforce_browser.py backend/tests/test_workforce_teams_browser.py backend/tests/test_violation_browser.py backend/tests/test_inquiries_browser.py backend/tests/test_shared_session_browser.py backend/tests/test_work_queue_browser.py backend/tests/test_intake_browser.py backend/tests/test_facility_dashboard_browser.py backend/tests/test_vehicle_assignment_browser.py backend/tests/test_statistics_browser.py backend/tests/test_personnel_intake_browser.py backend/tests/test_emergency_acceptance_browser.py -x -q
       - uses: actions/upload-artifact@v4
         if: always()
         with:

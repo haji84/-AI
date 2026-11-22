@@ -1,0 +1,4378 @@
+{
+  "schema_version": "emergency-rule-candidate-index-v1",
+  "candidate_count": 433,
+  "first_pass_only": true,
+  "approval_status": "PROVISIONAL_NOT_APPROVED",
+  "executable": false,
+  "candidates": [
+    {
+      "candidate_id": "ER-001",
+      "source_reference": "N03",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "半角英数字・最大28桁は本文にある。適用する識別番号は本部独自。",
+      "ledger_path": "docs/emergency/P01_ER001_067_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-002",
+      "source_reference": "N03",
+      "source_class": "SOURCE_CANDIDATE",
+      "summary": "出場した救急隊の名称を記載する規定。",
+      "ledger_path": "docs/emergency/P01_ER001_067_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-003",
+      "source_reference": "N03",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "事故種別は報告要領の分類に従う。症状名からの推定を禁じる独立規定は本文にはない。",
+      "ledger_path": "docs/emergency/P01_ER001_067_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-004",
+      "source_reference": "N03",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "発生年月日入力に加え、祝祭日のチェック条件がある。",
+      "ledger_path": "docs/emergency/P01_ER001_067_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-005",
+      "source_reference": "N04",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "1会場1,000人以上、累計人数を含む条件。はい選択時にイベント名等。すべての行事ではない。",
+      "ledger_path": "docs/emergency/P01_ER001_067_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-006",
+      "source_reference": "N04",
+      "source_class": "SOURCE_CANDIDATE",
+      "summary": "通信回線等が接続した時刻。回線不使用なら受付開始時刻。",
+      "ledger_path": "docs/emergency/P01_ER001_067_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-007",
+      "source_reference": "N04",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "指令時刻は救急隊への出場指令、編成完了時刻で記録しているシステムの場合はその時刻を採用。",
+      "ledger_path": "docs/emergency/P01_ER001_067_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-008",
+      "source_reference": "N04",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "現場到着時刻の定義に、途中引揚げ時は引揚げ時分とする特例がある。",
+      "ledger_path": "docs/emergency/P01_ER001_067_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-009",
+      "source_reference": "N04",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "救急隊員の最初の1人が傷病者に接触して観察開始した時刻。不搬送では入力しない。",
+      "ledger_path": "docs/emergency/P01_ER001_067_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-010",
+      "source_reference": "N04",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "傷病者を車内収容した時刻。不搬送では入力しない。",
+      "ledger_path": "docs/emergency/P01_ER001_067_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-011",
+      "source_reference": "N04",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "医療機関等へ搬送するため現場を出発した時刻。不搬送では入力しない。",
+      "ledger_path": "docs/emergency/P01_ER001_067_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-012",
+      "source_reference": "N04",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "医療機関等の敷地に到着した時刻。医師への引継ぎ時刻とは違う。不搬送では入力しない。",
+      "ledger_path": "docs/emergency/P01_ER001_067_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-013",
+      "source_reference": "N04/N05",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "医師への引継ぎを原則とする。N05の個別の医師管理下への移行特例も参照し、全事案への拡張をしない。",
+      "ledger_path": "docs/emergency/P01_ER001_067_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-014",
+      "source_reference": "N04",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "入電から病院収容までの活動時間が日付を越えるとチェック。帰署のみが翌日とは違う。",
+      "ledger_path": "docs/emergency/P01_ER001_067_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-015",
+      "source_reference": "N05",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "入電・出場の大きな時間差の注意はN04末尾からN05へ連続。119に限定しない。",
+      "ledger_path": "docs/emergency/P01_ER001_067_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-016",
+      "source_reference": "N05",
+      "source_class": "HOLD_SOURCE",
+      "summary": "医師接触時刻が一般則。医師管理下への移行特例は本文で列挙された場面に限定し、一律救急車内医師管理=病院収容としない。",
+      "ledger_path": "docs/emergency/P01_ER001_067_DIRECT_RECHECK_20261120.md",
+      "flags": [
+        "HOLD_SOURCE"
+      ],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-017",
+      "source_reference": "N05",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "出場から現場の走行距離を記録。途中引揚げは引揚時点の距離を入力する。",
+      "ledger_path": "docs/emergency/P01_ER001_067_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-018",
+      "source_reference": "N05",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "不搬送の場合は現場→病院・病院→帰署は記載しない。出場→現場まで省略しない。",
+      "ledger_path": "docs/emergency/P01_ER001_067_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-019",
+      "source_reference": "N05",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "不搬送理由は該当の主理由を1事案1件のみ選択する。",
+      "ledger_path": "docs/emergency/P01_ER001_067_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-020",
+      "source_reference": "N06",
+      "source_class": "SOURCE_CANDIDATE",
+      "summary": "他の消防機関の車・隊が傷病者を医療機関に搬送した場合の不搬送理由。",
+      "ledger_path": "docs/emergency/P01_ER001_067_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-021",
+      "source_reference": "N06",
+      "source_class": "SOURCE_CANDIDATE",
+      "summary": "事故の事実はあるが傷病者が発生しなかったケース。",
+      "ledger_path": "docs/emergency/P01_ER001_067_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-022",
+      "source_reference": "N06",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "事故等の事実がないと判断した誤報・悪戯。虚報の単なる推測で確定しない。",
+      "ledger_path": "docs/emergency/P01_ER001_067_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-023",
+      "source_reference": "N06",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "医師等の要請は現場到着後なら現場要請、出動同時又は現着前なら初動要請。",
+      "ledger_path": "docs/emergency/P01_ER001_067_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-024",
+      "source_reference": "N06/N07",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "協働の実態に応じて連携メイン項目を選択。要請・同時出場だけでは成立しない。",
+      "ledger_path": "docs/emergency/P01_ER001_067_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-025",
+      "source_reference": "N06/N07",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "メイン1〜3に該当し、さらにドクターヘリ・消防防災ヘリ・ドクターカーと連携した場合にサブ項目を選択。",
+      "ledger_path": "docs/emergency/P01_ER001_067_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-026",
+      "source_reference": "N07",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "傷病者対応の協働又は搬送引継ぎ・受継ぎがある連携のみ。出場しただけなら連携なし。",
+      "ledger_path": "docs/emergency/P01_ER001_067_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-027",
+      "source_reference": "N07",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "准救急隊員ありなら1以上の人数。なしは人数要求対象外。",
+      "ledger_path": "docs/emergency/P01_ER001_067_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-028",
+      "source_reference": "N07",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "救急救命士搭乗ありなら1以上の人数と認定資格。複数認定の構造をP04で保持。",
+      "ledger_path": "docs/emergency/P01_ER001_067_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-029",
+      "source_reference": "N08",
+      "source_class": "SOURCE_CANDIDATE",
+      "summary": "医師が救急車へ搭乗した場合に選択する。",
+      "ledger_path": "docs/emergency/P01_ER001_067_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-030",
+      "source_reference": "N08",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "口頭指導の有無。ウツタインで「あり」を選んだ場合には必ず選ぶという注記がある。",
+      "ledger_path": "docs/emergency/P01_ER001_067_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-031",
+      "source_reference": "N08",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "医師現場出場は本部からの要請等に関する件数。医師の同行や初動要請と単純同一視しない。",
+      "ledger_path": "docs/emergency/P01_ER001_067_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-032",
+      "source_reference": "N08",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "心肺蘇生希望なしは本人の意思表明と現着時の状態に関する2条件が必要、外因性除外あり。CPRして搬送した例はウツタイン対象との別条件。",
+      "ledger_path": "docs/emergency/P01_ER001_067_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-033",
+      "source_reference": "N09",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "不搬送は傷病者情報を入力しないという最優先例外。",
+      "ledger_path": "docs/emergency/P01_ER001_067_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-034",
+      "source_reference": "N09",
+      "source_class": "SOURCE_CANDIDATE",
+      "summary": "消防本部内の固有傷病者番号を記録。事案番号と混ぜない。",
+      "ledger_path": "docs/emergency/P01_ER001_067_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-035",
+      "source_reference": "N09",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "傷病者事故種別は原則出場情報1の事故種別による。他ページに異なり得るQ&Aがあり横断一律一致強制は保留。",
+      "ledger_path": "docs/emergency/P01_ER001_067_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-036",
+      "source_reference": "N09",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "同一事案で2台以上の救急車が傷病者を搬送した場合、搬送した全隊が選択。複数隊同時出場だけではない。",
+      "ledger_path": "docs/emergency/P01_ER001_067_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-037",
+      "source_reference": "N09",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "新生児28日未満、乳幼児28日以上7歳未満、少年7〜18未満、成人18〜65未満、高齢者65以上。年齢確認不能は隊長推定。",
+      "ledger_path": "docs/emergency/P01_ER001_067_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-038",
+      "source_reference": "N09",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "実年齢に加え、0歳かつ日齢6日以内では別の「新生児」チェック。年齢区分の新生児28日未満と混同しない。",
+      "ledger_path": "docs/emergency/P01_ER001_067_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-039",
+      "source_reference": "N09",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "管内・管外は救急隊所属本部の管轄に基づく。その他区分の適用は前後ページと合わせて確認。",
+      "ledger_path": "docs/emergency/P01_ER001_067_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-040",
+      "source_reference": "N10",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "介護情報は65歳以上のみ。はい/いいえ/不明の3択で不明を空欄や否と扱わない。",
+      "ledger_path": "docs/emergency/P01_ER001_067_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-041",
+      "source_reference": "N10",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "訪日・在留外国人だと判明した場合は「はい」、その場合国・地域も選択する。",
+      "ledger_path": "docs/emergency/P01_ER001_067_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-042",
+      "source_reference": "N10",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "住宅のみ小分類まで、その他の大分類は中分類まで。場所名称だけで住宅判定しない。",
+      "ledger_path": "docs/emergency/P01_ER001_067_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-043",
+      "source_reference": "N10",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "発生階層は住宅だけで入力する。他分類の正しい空欄を欠損扱いしない。",
+      "ledger_path": "docs/emergency/P01_ER001_067_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-044",
+      "source_reference": "N10",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "搬送した事案では原因器物を選択し、該当なしは原因器物なしとする。事故全件への一律適用にしない。",
+      "ledger_path": "docs/emergency/P01_ER001_067_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-045",
+      "source_reference": "N10",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "応急処置内容は実施して成功したもののみ選択。処置手技ごとの定義はN11〜N12を併読。",
+      "ledger_path": "docs/emergency/P01_ER001_067_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-046",
+      "source_reference": "N11",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "酸素吸入器を使用する酸素吸入。投与量・方法は資料では任意項目。",
+      "ledger_path": "docs/emergency/P01_ER001_067_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-047",
+      "source_reference": "N11",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "気道確保は経鼻、異物除去、ラリンゲアルマスク等、気管挿管等を分ける。経口エアウェイ等は一律含めず注記に従う。",
+      "ledger_path": "docs/emergency/P01_ER001_067_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-048",
+      "source_reference": "N11",
+      "source_class": "SOURCE_CANDIDATE",
+      "summary": "ショックパンツ使用の血圧保持の扱いを確認。骨折肢固定を含む。",
+      "ledger_path": "docs/emergency/P01_ER001_067_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-049",
+      "source_reference": "N11",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "静脈路確保はブドウ糖投与、CPA前、CPA後の目的別。いずれかを選択。",
+      "ledger_path": "docs/emergency/P01_ER001_067_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-050",
+      "source_reference": "N11",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "心臓マッサージ・心肺蘇生で自動マッサージ器使用時は自動の選択が必要。",
+      "ledger_path": "docs/emergency/P01_ER001_067_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-051",
+      "source_reference": "N11",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "薬剤投与の説明は救急救命士のアドレナリン投与に限定。すべての薬剤一般を同義にしない。",
+      "ledger_path": "docs/emergency/P01_ER001_067_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-052",
+      "source_reference": "N11",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "ブドウ糖投与は低血糖発作傷病者へのブドウ糖溶液投与の項目。",
+      "ledger_path": "docs/emergency/P01_ER001_067_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-053",
+      "source_reference": "N12",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "保温と聴診器による聴診は別項目。それぞれ該当する処置を選ぶ。",
+      "ledger_path": "docs/emergency/P01_ER001_067_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-054",
+      "source_reference": "N12",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "止血・固定・被覆は具体的な処置内容で分類。創傷処置の有無だけでは種類を断定しない。",
+      "ledger_path": "docs/emergency/P01_ER001_067_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-055",
+      "source_reference": "N12",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "在宅医療継続中の必要な処置は点滴・外瘻・その他に分類。新規処置と継続処置の意味を区別。",
+      "ledger_path": "docs/emergency/P01_ER001_067_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-056",
+      "source_reference": "N12",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "医療機関への受入照会開始から決定までの分数。1分未満は1分と記録。",
+      "ledger_path": "docs/emergency/P01_ER001_067_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-057",
+      "source_reference": "N12/N13",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "受入照会回数は救急隊と指令センター等の合算。1以上で、実照会0の場合にも記録上1とする別例外あり。",
+      "ledger_path": "docs/emergency/P01_ER001_067_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-058",
+      "source_reference": "N13",
+      "source_class": "SOURCE_CANDIDATE",
+      "summary": "3回目の照会で搬送先が決まれば3を記録する。",
+      "ledger_path": "docs/emergency/P01_ER001_067_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-059",
+      "source_reference": "N13",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "家族による事前手配・転院で照会0でも記録上1とする例外、指令センター等の合算を含む。",
+      "ledger_path": "docs/emergency/P01_ER001_067_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-060",
+      "source_reference": "N13",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "選定結果は照会回数1なら円滑、2以上なら支障。候補の円滑一律は不適切。",
+      "ledger_path": "docs/emergency/P01_ER001_067_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-061",
+      "source_reference": "N13",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "受入照会2回以上の場合に受入不可理由と連絡回数の入力が求められる。",
+      "ledger_path": "docs/emergency/P01_ER001_067_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-062",
+      "source_reference": "N13",
+      "source_class": "SOURCE_CANDIDATE",
+      "summary": "救急告示病院の有無の選択。正式な医療機関コードとの対応はP04。",
+      "ledger_path": "docs/emergency/P01_ER001_067_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-063",
+      "source_reference": "N13/N14",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "医療機関の設立者等の区分は収容時点で判定。医療機関以外の搬送区分を混ぜない。",
+      "ledger_path": "docs/emergency/P01_ER001_067_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-064",
+      "source_reference": "N14",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "2以上の医療機関へ転送した場合、最後に収容された医療機関の情報を記録する。",
+      "ledger_path": "docs/emergency/P01_ER001_067_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-065",
+      "source_reference": "N14",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "搬送先の管内/管外は該当する市町村の区域に基づく。所在地名から推定しない。",
+      "ledger_path": "docs/emergency/P01_ER001_067_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-066",
+      "source_reference": "N14",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "二次・三次医療機関の県コードと医療機関コードを選択する。県外施設の県コードも必要。",
+      "ledger_path": "docs/emergency/P01_ER001_067_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-067",
+      "source_reference": "N14",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "救急隊判断緊急度は別紙2を参照し、転院搬送は全て準緊急（黄）。現行正式採用はP03待ち。",
+      "ledger_path": "docs/emergency/P01_ER001_067_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-068",
+      "source_reference": "N15",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "初診時の医師診断に基づく5分類。その他は診断なし／医療機関以外への搬送等。入院日数の解釈を保持。",
+      "ledger_path": "docs/emergency/P01_ER068_087_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-069",
+      "source_reference": "N15",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "救急搬送必要性が低いかの入力は別紙フローに従う。傷病程度が軽症でも無条件にはいとしない。",
+      "ledger_path": "docs/emergency/P01_ER068_087_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-070",
+      "source_reference": "N15/N16",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "事故種別急病の疾病分類は大分類など適切な病名分類。確定診断がなければ要領の不明分類を参照。",
+      "ledger_path": "docs/emergency/P01_ER068_087_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-071",
+      "source_reference": "N15/N16",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "急病以外は症状・徴候及び診断名不明確等から選択しうる。急病と同一の分類を一律に強制しない。",
+      "ledger_path": "docs/emergency/P01_ER068_087_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-072",
+      "source_reference": "N16",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "熱中症またはその疑いがある傷病者を搬送した場合にチェック。確定診断のみを条件にしない。",
+      "ledger_path": "docs/emergency/P01_ER068_087_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-073",
+      "source_reference": "N16",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "転送は一施設で収容されず別医療機関へ搬送したこと。最初に収容されたら0、次に収容された場合は1。",
+      "ledger_path": "docs/emergency/P01_ER068_087_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-074",
+      "source_reference": "N17",
+      "source_class": "SOURCE_CANDIDATE",
+      "summary": "転送元は救急医療機関／その他医療機関／その他場所の区分から選択。",
+      "ledger_path": "docs/emergency/P01_ER068_087_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-075",
+      "source_reference": "N17",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "転送理由は事故種別・医療機関ごとに選択し、複数先ならそれぞれ入力。複数理由なら主な理由。",
+      "ledger_path": "docs/emergency/P01_ER068_087_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-076",
+      "source_reference": "N16/N17",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "応急処置目的の医療機関立寄りも転送に含む。その場合の理由は応急処置目的の立寄り。",
+      "ledger_path": "docs/emergency/P01_ER068_087_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-077",
+      "source_reference": "N17",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "ウツタイン登録は事案データ内入力と別の直接入力／コンバータ方式があり、別経路を使う場合は重複入力不要。",
+      "ledger_path": "docs/emergency/P01_ER068_087_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-078",
+      "source_reference": "N27",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "脈拍触知不能・無反応・無呼吸または死戦期呼吸で心肺機能停止を定義。呼吸停止だけは対象にしない。",
+      "ledger_path": "docs/emergency/P01_ER068_087_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-079",
+      "source_reference": "N27",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "バイスタンダーCPRは救急医療体制構成員以外による救命手当。制度構成員と非参加の職員の例外説明を保持。",
+      "ledger_path": "docs/emergency/P01_ER068_087_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-080",
+      "source_reference": "N27",
+      "source_class": "SOURCE_CANDIDATE",
+      "summary": "一次救命処置は胸骨圧迫・人工呼吸による蘇生処置。電気除細動や気道異物除去に関する本文注記もある。",
+      "ledger_path": "docs/emergency/P01_ER068_087_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-081",
+      "source_reference": "N28",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "ウツタイン対象は区分ア／イ／ウ。搬送したCPR実施事案等の条件を満たす場合。",
+      "ledger_path": "docs/emergency/P01_ER068_087_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-082",
+      "source_reference": "N28",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "救急隊到着時心肺再開等を含む区分ウは別の対象。到着時CPAのみを対象としない。",
+      "ledger_path": "docs/emergency/P01_ER068_087_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-083",
+      "source_reference": "N28",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "除外は区分ア／イについてCPRせず搬送、転院等で救急隊非CPR等。ウにも同じ除外を一律適用しない。",
+      "ledger_path": "docs/emergency/P01_ER068_087_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-084",
+      "source_reference": "N28",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "ウツタインの記録者は原則最終的に医療機関へ搬送した救急隊。先着隊と必ず同一ではない。",
+      "ledger_path": "docs/emergency/P01_ER068_087_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-085",
+      "source_reference": "N29",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "ウツタイン登録の該当救急隊は最終搬送隊、ドクターヘリ等医師に引継ぎをした隊という条件もある。",
+      "ledger_path": "docs/emergency/P01_ER068_087_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-086",
+      "source_reference": "N29",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "救命士搭乗ありの判定と出場隊の救命士・准救急隊員・その他隊員の総人数の入力。バイスタンダーと数えない。",
+      "ledger_path": "docs/emergency/P01_ER068_087_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-087",
+      "source_reference": "N29",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "資格認定状況は各救急救命士ごとのチェックで複数選択可能。代表資格1件に丸めない。",
+      "ledger_path": "docs/emergency/P01_ER068_087_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-088",
+      "source_reference": "N30",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "ウツタイン共通項目の事例番号、発生日、性別、年齢等。発生日と入電日の時間差、重複登録、推定年齢を確認。",
+      "ledger_path": "docs/emergency/P01_ER088_099_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-089",
+      "source_reference": "N31",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "心停止目撃／音を聞いた／既に停止の分類で、目撃時刻は目撃/音を聞いた場合に入力する。",
+      "ledger_path": "docs/emergency/P01_ER088_099_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-090",
+      "source_reference": "N31",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "目撃者分類は家族・その他バイスタンダー・消防隊・救急隊・救命士を区分。直接目撃がない人を目撃者としない。",
+      "ledger_path": "docs/emergency/P01_ER088_099_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-091",
+      "source_reference": "N32",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "バイスタンダーCPRは目撃の有無に関わらず、救急隊等以外の胸骨圧迫・人工呼吸・除細動を確認。１つでも実施があれば「あり」。",
+      "ledger_path": "docs/emergency/P01_ER088_099_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-092",
+      "source_reference": "N32",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "CPR実施内容は実施確認できた胸骨圧迫・人工呼吸・AED除細動を別々に記録。バイスタンダーとしての定義条件あり。",
+      "ledger_path": "docs/emergency/P01_ER088_099_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-093",
+      "source_reference": "N32",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "胸骨圧迫ありなら開始時刻を入力。伝聞・推定の扱いを区別。",
+      "ledger_path": "docs/emergency/P01_ER088_099_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-094",
+      "source_reference": "N33",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "人工呼吸ありなら開始時刻を入力。",
+      "ledger_path": "docs/emergency/P01_ER088_099_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-095",
+      "source_reference": "N33",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "AEDの存在・装着・除細動適応・実施を別々に選択する。AEDあり＝除細動実施ではない。",
+      "ledger_path": "docs/emergency/P01_ER088_099_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-096",
+      "source_reference": "N33",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "装着を選択した場合に除細動適応を選ぶ。適応（実施）の場合に回数と初回開始時刻を入力。",
+      "ledger_path": "docs/emergency/P01_ER088_099_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-097",
+      "source_reference": "N33",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "不明を選択した場合は不明理由を記入する。",
+      "ledger_path": "docs/emergency/P01_ER088_099_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-098",
+      "source_reference": "N33",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "救急隊等が最初に確認した心電図波形。漏斗等の波形について所見記載の扱いがある。",
+      "ledger_path": "docs/emergency/P01_ER088_099_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-099",
+      "source_reference": "N34",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "ウツタインの発生場所は住宅なら小分類、それ以外なら中分類で選択。通常の傷病者情報との二重入力を無条件必須とはしない。",
+      "ledger_path": "docs/emergency/P01_ER088_099_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-100",
+      "source_reference": "N35",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "ウツタイン入力の発生階層は発生場所が住宅なら必須。通常の傷病者欄と義務の強さを区別。",
+      "ledger_path": "docs/emergency/P01_ER100_126_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-101",
+      "source_reference": "N36",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "除細動実施なら波形・単相/二相・初回時刻・施行回数・実施者の区分を入力。機器設置だけでは該当しない。",
+      "ledger_path": "docs/emergency/P01_ER100_126_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-102",
+      "source_reference": "N36",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "特定行為器具を用いない気道確保のみなら気道確保を選択し、器具種類と挿入時刻は入力しない。",
+      "ledger_path": "docs/emergency/P01_ER100_126_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-103",
+      "source_reference": "N37",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "特定行為器具使用の気道確保は実際の換気確認時刻。途中で器具交換・抜去した場合も本文の適用条件を保持。",
+      "ledger_path": "docs/emergency/P01_ER100_126_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-104",
+      "source_reference": "N37",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "静脈路確保は少なくとも1度確実に滴下確認した場合。穿刺のみ成功せず滴下未確認なら選択しない。",
+      "ledger_path": "docs/emergency/P01_ER100_126_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-105",
+      "source_reference": "N37",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "アドレナリンの初回投与時刻と投与回数を記載。予定投与・準備のみは該当しない。",
+      "ledger_path": "docs/emergency/P01_ER100_126_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-106",
+      "source_reference": "N38",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "一般には119接続時刻等。複数隊連携のウツタイン記録では先行する対応隊への入電時間を採用する注記。",
+      "ledger_path": "docs/emergency/P01_ER100_126_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-107",
+      "source_reference": "N38",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "現着時刻は救急隊等が指令された位置に到着・停車した時刻。複数隊同時出場では先着隊を採る注記。",
+      "ledger_path": "docs/emergency/P01_ER100_126_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-108",
+      "source_reference": "N38",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "傷病者へ最初の対応者が接触し観察を開始した時刻。消防隊等が先行しているならその隊の接触時刻。",
+      "ledger_path": "docs/emergency/P01_ER100_126_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-109",
+      "source_reference": "N38/N39",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "CPR開始は救急隊等が最初に実施した時刻。繰り返し開始したら最初の時刻、複数隊の先行時刻も考慮。",
+      "ledger_path": "docs/emergency/P01_ER100_126_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-110",
+      "source_reference": "N39",
+      "source_class": "SOURCE_CANDIDATE",
+      "summary": "傷病者の車内収容へ向け搬出を開始した時刻。",
+      "ledger_path": "docs/emergency/P01_ER100_126_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-111",
+      "source_reference": "N39",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "病院到着は敷地到着、病院収容は医師への引継ぎ（医師の管理下）。ヘリ・ドクターカーの特例あり。",
+      "ledger_path": "docs/emergency/P01_ER100_126_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-112",
+      "source_reference": "N40/N41",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "心停止の推定原因を心原性/非心原性で選び、原則医師の判断、困難時は別規定。AIが確定診断しない。",
+      "ledger_path": "docs/emergency/P01_ER100_126_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-113",
+      "source_reference": "N41",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "医療機関収容前の心拍再開の有無と、ありなら初回心拍再開時刻。繰り返しでも初回。",
+      "ledger_path": "docs/emergency/P01_ER100_126_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-114",
+      "source_reference": "N41",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "1か月後予後の回答有無。1か月以内に転退院した場合などの補足条件あり。",
+      "ledger_path": "docs/emergency/P01_ER100_126_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-115",
+      "source_reference": "N41/N42",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "回答のある事案のみ1か月後生存を入力。1か月以内生存退院/転院の場合の扱いは本文に規定。",
+      "ledger_path": "docs/emergency/P01_ER100_126_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-116",
+      "source_reference": "N42",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "生存例のCPC/OPCは転退院時または1か月後回答時点。両区分を区別する。",
+      "ledger_path": "docs/emergency/P01_ER100_126_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-117",
+      "source_reference": "N42",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "1か月後生存なしならCPC/OPCとも5。植物状態では両方4とする例がある。",
+      "ledger_path": "docs/emergency/P01_ER100_126_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-118",
+      "source_reference": "N43",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "心肺蘇生希望なしは意思表明と現着時状態の両方を満たし、外因性を除外する。",
+      "ledger_path": "docs/emergency/P01_ER100_126_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-119",
+      "source_reference": "N43",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "死体兆候は全6条件。単一所見だけで死体兆候と判定してはならない。",
+      "ledger_path": "docs/emergency/P01_ER100_126_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-120",
+      "source_reference": "N44",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "メモ欄は100文字まで。カンマ・ハイフン・飾り文字・空白・改行等への注意がある。自由欄の条件とは別。",
+      "ledger_path": "docs/emergency/P01_ER100_126_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-121",
+      "source_reference": "N44",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "自由入力欄は改行・半角文字・カンマ・飾り文字等を避け、他職員との相互確認が望ましいとある。望ましいを強制要件へ変えない。",
+      "ledger_path": "docs/emergency/P01_ER100_126_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-122",
+      "source_reference": "N44",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "時刻に空欄がないか・前後項目との矛盾がないか注意。日跨ぎ・不搬送等の別規定より優先する一律入力義務にしない。",
+      "ledger_path": "docs/emergency/P01_ER100_126_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-123",
+      "source_reference": "N44",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "複数救急隊/重複した統計システム入力による同一事案二重登録を避ける。単純な重複フィールドではない。",
+      "ledger_path": "docs/emergency/P01_ER100_126_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-124",
+      "source_reference": "N47",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "ウツタイン時間項目は先着消防機関等の現着・接触・CPR時刻を使用するFAQ。自隊の通常時刻とは別。",
+      "ledger_path": "docs/emergency/P01_ER100_126_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-125",
+      "source_reference": "N47",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "開業医等の診療中CPAが転院となる場合、医師の一次救命処置のみで救急隊がCPRし搬送した条件で対象。転院全件が対象ではない。",
+      "ledger_path": "docs/emergency/P01_ER100_126_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-126",
+      "source_reference": "N47",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "早産・流産の児でも心停止で救急隊がCPR実施し医療機関搬送した場合はウツタイン対象となるFAQ。単なる出生事案全般へ拡張しない。",
+      "ledger_path": "docs/emergency/P01_ER100_126_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-127",
+      "source_reference": "L02",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "出場番号は各本部独自の識別番号。事案番号と年度・本部の設定を混同しない。",
+      "ledger_path": "docs/emergency/P01_ER127_146_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-128",
+      "source_reference": "L02",
+      "source_class": "SOURCE_CANDIDATE",
+      "summary": "出場した救急隊の実名称を入力。見本の画面に出る部隊名は規則の固定値ではない。",
+      "ledger_path": "docs/emergency/P01_ER127_146_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-129",
+      "source_reference": "L02",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "中継搬送は901管内へ中継、902他救急隊へ中継、903中継受け後に中継。通常活動種別とは区別。",
+      "ledger_path": "docs/emergency/P01_ER127_146_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-130",
+      "source_reference": "L03",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "本人等が現着前に要請取消し、途中引揚げした辞退（到着前）。",
+      "ledger_path": "docs/emergency/P01_ER127_146_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-131",
+      "source_reference": "L03",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "現着後に搬送希望を取り下げ、救急隊が搬送不要と判断した辞退（到着後）。",
+      "ledger_path": "docs/emergency/P01_ER127_146_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-132",
+      "source_reference": "L03",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "救急隊は搬送必要と判断したが本人等が拒否したケース。到着後辞退と混同しない。",
+      "ledger_path": "docs/emergency/P01_ER127_146_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-133",
+      "source_reference": "L03",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "救急隊到着時、明らかに死亡し搬送しなかった場合。不搬送の個別区分、AIが死亡判断を行わない。",
+      "ledger_path": "docs/emergency/P01_ER127_146_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-134",
+      "source_reference": "L03",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "その他の不搬送は挙げられた類型以外。単なる文章不足として機械的に確定しない。",
+      "ledger_path": "docs/emergency/P01_ER127_146_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-135",
+      "source_reference": "L04",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "事故種別は実態に応じて分類。地域の選択補足例は本文の正式定義とは区別。",
+      "ledger_path": "docs/emergency/P01_ER127_146_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-136",
+      "source_reference": "L04",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "交通事故は交通機関の衝突・接触等が条件。車を避けて転倒等の例は一般負傷との区別。",
+      "ledger_path": "docs/emergency/P01_ER127_146_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-137",
+      "source_reference": "L04",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "労働災害は就業中の工場・事業所・作業所等における事故。職業人かどうかだけでは判断しない。",
+      "ledger_path": "docs/emergency/P01_ER127_146_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-138",
+      "source_reference": "L04",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "運動競技は競技の実施中という条件。観覧者や娯楽・単なる遊びを一律に含めない。",
+      "ledger_path": "docs/emergency/P01_ER127_146_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-139",
+      "source_reference": "L05",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "故意に自分に傷害を加えた事故。精神疾患による搬送を無条件に自損行為としない。",
+      "ledger_path": "docs/emergency/P01_ER127_146_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-140",
+      "source_reference": "L05",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "転院搬送は医療機関に収容された傷病者を、理由により他の医療機関へ搬送。院外患者の初回搬送と区別。",
+      "ledger_path": "docs/emergency/P01_ER127_146_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-141",
+      "source_reference": "L06",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "最初の隊員1名が接触（そばに到着）し観察開始した時刻。不搬送時には入力不要。",
+      "ledger_path": "docs/emergency/P01_ER127_146_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-142",
+      "source_reference": "L06",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "救急車の車内収容時刻と、医師へ引き継いだ病院収容時刻を区別。不搬送時入力不要。",
+      "ledger_path": "docs/emergency/P01_ER127_146_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-143",
+      "source_reference": "L06",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "途中引揚げ時は引揚げ時分を現場到着時分として扱う例外が明示。単純に矛盾扱いしない。",
+      "ledger_path": "docs/emergency/P01_ER127_146_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-144",
+      "source_reference": "L07",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "准救急隊員の搭乗ありなら人数1人以上、なしなら人数を要求しない。",
+      "ledger_path": "docs/emergency/P01_ER127_146_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-145",
+      "source_reference": "L07",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "救急救命士ありなら1人以上の人数と認定資格を入力。複数資格を考慮する。",
+      "ledger_path": "docs/emergency/P01_ER127_146_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-146",
+      "source_reference": "L08",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "ドクターヘリ／ドクターカーの要請は現着後の現場要請と、出動時または現着前の初動要請に分ける。",
+      "ledger_path": "docs/emergency/P01_ER127_146_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-147",
+      "source_reference": "L09",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "連携メインとサブは別の選択項目。協働がある場合のみ、メイン1〜3に追加して特定の連携先のサブを選択。",
+      "ledger_path": "docs/emergency/P01_ER147_186_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-148",
+      "source_reference": "L10",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "転院搬送時の転院元入力に関する注意。全出場で転院元を無条件必須としない。",
+      "ledger_path": "docs/emergency/P01_ER147_186_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-149",
+      "source_reference": "L10",
+      "source_class": "HOLD_SOURCE",
+      "summary": "作成者・隊員階級・資格を確認する注意書きはあるが、自動で全欄絶対必須とする規定には読み替えない。",
+      "ledger_path": "docs/emergency/P01_ER147_186_DIRECT_RECHECK_20261120.md",
+      "flags": [
+        "HOLD_SOURCE"
+      ],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-150",
+      "source_reference": "L11",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "事故概要は活動の流れが伝わる文章。単純な詳細さや文章量だけで訂正必須と断定できない。",
+      "ledger_path": "docs/emergency/P01_ER147_186_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-151",
+      "source_reference": "L11",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "特記事項は他欄で記載できない情報や活動理解を助ける補足。全件の必須入力とは断定できない。",
+      "ledger_path": "docs/emergency/P01_ER147_186_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-152",
+      "source_reference": "L11",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "特定行為の経過や処置開始時点は活動状況が分かるよう記載。例示文章そのものを固定必須文字列にしない。",
+      "ledger_path": "docs/emergency/P01_ER147_186_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-153",
+      "source_reference": "L12",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "事後検証IDや救急処置記録IDの指定欄を示す。数字の例は特定事案の固定値ではない。",
+      "ledger_path": "docs/emergency/P01_ER147_186_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-154",
+      "source_reference": "L13",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "接触なしのときの入力不要という注記あり。ただし不搬送・接触なし・救護者台帳の全欄を一律同義化しない。",
+      "ledger_path": "docs/emergency/P01_ER147_186_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-155",
+      "source_reference": "L13",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "事案台帳の事故種別と救護台帳の事故種別が異なり得る。新様式内の指定2欄一致とは比較スコープを分ける。",
+      "ledger_path": "docs/emergency/P01_ER147_186_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-156",
+      "source_reference": "L13",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "氏名・ふりがななどの入力欄を説明。プライバシー制約の下、AI確認結果に実氏名を出力・Git公開しない。",
+      "ledger_path": "docs/emergency/P01_ER147_186_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-157",
+      "source_reference": "L13",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "年齢区分、新生児の生後6日以内チェック、生年月日・実年齢は別項目。年数のみから日齢を推測しない。",
+      "ledger_path": "docs/emergency/P01_ER147_186_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-158",
+      "source_reference": "L13",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "居住地区分は管内/管外/その他で、消防本部区域に基づく。住所の一部が不明なら勝手に管内としない。",
+      "ledger_path": "docs/emergency/P01_ER147_186_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-159",
+      "source_reference": "L14",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "発生場所は事故の現場または傷病者のいた場所を客観的に分類。住宅以外は中分類まで、住宅のみ小分類/階層を用いる。",
+      "ledger_path": "docs/emergency/P01_ER147_186_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-160",
+      "source_reference": "L15",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "不搬送は現場→病院、病院→帰署の距離を入力しない。途中引揚げは出場→現場に引揚時の距離。",
+      "ledger_path": "docs/emergency/P01_ER147_186_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-161",
+      "source_reference": "L16",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "収容病院は通信指令等から反映される入力値も確認し、複数転送後は最終収容病院を登録する。",
+      "ledger_path": "docs/emergency/P01_ER147_186_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-162",
+      "source_reference": "L17",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "緊急（赤）/準緊急（黄）の二択。年齢・脈拍・呼吸・意識等の赤トリガーとは別に総合判断があり、転院は黄。",
+      "ledger_path": "docs/emergency/P01_ER147_186_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-163",
+      "source_reference": "L18",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "傷病名分類は事故種別に応じて選択し、その他を選ぶ場合の中分類の注意がある。医師診断をAI確定しない。",
+      "ledger_path": "docs/emergency/P01_ER147_186_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-164",
+      "source_reference": "L18",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "熱中症は疑いも含む本文の対象定義。確定診断のみに限定しない。",
+      "ledger_path": "docs/emergency/P01_ER147_186_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-165",
+      "source_reference": "L19",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "介護情報は65歳以上対象で、はい/いいえ/不明を区別。生活状態の別区分を無理に同義化しない。",
+      "ledger_path": "docs/emergency/P01_ER147_186_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-166",
+      "source_reference": "L19",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "同乗者の連絡・報告に必要な範囲で入力する地域の参考注意。氏名は外部監査へ出さない。",
+      "ledger_path": "docs/emergency/P01_ER147_186_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-167",
+      "source_reference": "L20",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "主訴・病歴は活動根拠として入力可能だが、資料は統計/報告書と直接関係がない場合もあると説明。全件必須は導けない。",
+      "ledger_path": "docs/emergency/P01_ER147_186_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-168",
+      "source_reference": "L20",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "事故原因器物は該当選択、なければ「原因器物なし」。症例で実際に特定された器物と分類が異なる場合に要確認。",
+      "ledger_path": "docs/emergency/P01_ER147_186_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-169",
+      "source_reference": "L21",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "救急出場、救命出場、支援出場、PA等の隊長判断は実態に応じた選択。呼び名の類似で一律に判定しない。",
+      "ledger_path": "docs/emergency/P01_ER147_186_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-170",
+      "source_reference": "L21",
+      "source_class": "HOLD_FIELD",
+      "summary": "「選定者」「選定理由」の異なる意味が混在し得る。適応・家族希望・かかりつけ・医師などは現行欄コード確認まで保留。",
+      "ledger_path": "docs/emergency/P01_ER147_186_DIRECT_RECHECK_20261120.md",
+      "flags": [
+        "HOLD_FIELD"
+      ],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-171",
+      "source_reference": "L22",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "照会開始から医療機関決定までの分を入力し、1分未満も1分として記録。",
+      "ledger_path": "docs/emergency/P01_ER147_186_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-172",
+      "source_reference": "L22",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "照会数1以上、救急隊+指令センター等の合算。搬送先が事前手配で実照会0でも記録上1にする例外。",
+      "ledger_path": "docs/emergency/P01_ER147_186_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-173",
+      "source_reference": "L22",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "1回なら円滑、2回以上なら支障。2回以上では受入不可理由と連絡回数の記録を要求。",
+      "ledger_path": "docs/emergency/P01_ER147_186_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-174",
+      "source_reference": "L23",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "実施して成功した応急処置のみ登録。器具の準備や不成功を処置成功と扱わない。",
+      "ledger_path": "docs/emergency/P01_ER147_186_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-175",
+      "source_reference": "L23",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "経鼻・マギール・ラリンゲアルマスク・気管挿管と経口/吸引等の分類差を残す。",
+      "ledger_path": "docs/emergency/P01_ER147_186_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-176",
+      "source_reference": "L24",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "静脈路確保はブドウ糖投与、CPA前、CPA後の目的別。静脈路を穿刺しただけの失敗と成功を区別。",
+      "ledger_path": "docs/emergency/P01_ER147_186_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-177",
+      "source_reference": "L24",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "胸骨圧迫/心肺蘇生を実施し、自動心マッサージ器使用なら「自動」。CPR記録だけで装置使用を推定しない。",
+      "ledger_path": "docs/emergency/P01_ER147_186_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-178",
+      "source_reference": "L25",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "在宅医療継続処置は点滴/外瘻/その他に分ける。単なる器材存在では実施としない。",
+      "ledger_path": "docs/emergency/P01_ER147_186_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-179",
+      "source_reference": "L26",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "脈拍100以上と正常等の組合せはよくあるミスの例示で、医学的正常範囲を全年齢に一律適用する根拠ではない。",
+      "ledger_path": "docs/emergency/P01_ER147_186_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-180",
+      "source_reference": "L26",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "明らかな死亡では脈拍等を0としても報告書に印刷されない場合あり。観察・特記事項の根拠を確認するがAIが死亡確定しない。",
+      "ledger_path": "docs/emergency/P01_ER147_186_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-181",
+      "source_reference": "L27",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "現場状況主訴は簡潔明瞭に記載。任意の文章量や語句一致ではエラー扱いにしない。",
+      "ledger_path": "docs/emergency/P01_ER147_186_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-182",
+      "source_reference": "L27",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "特定行為の指示要請・静脈路確保等の実施時刻と処置経過の関係を記載する例。順序矛盾を要確認。",
+      "ledger_path": "docs/emergency/P01_ER147_186_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-183",
+      "source_reference": "L27",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "なぜ特定行為を行ったかという指示要請根拠を記載。例文を必須の固定用語へ変換しない。",
+      "ledger_path": "docs/emergency/P01_ER147_186_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-184",
+      "source_reference": "L28",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "脳卒中/ACS等の疑いに対応する判断項目。疑いの根拠なしに自動チェックしない。",
+      "ledger_path": "docs/emergency/P01_ER147_186_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-185",
+      "source_reference": "L28",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "CPA前静脈路確保や指示要請医師/医療機関、時間経過を別欄で記録。CPA後処置と混ぜない。",
+      "ledger_path": "docs/emergency/P01_ER147_186_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-186",
+      "source_reference": "L28",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "血糖を測定した場合は実測値を記入。測定しなかった場合の値を推測で生成しない。",
+      "ledger_path": "docs/emergency/P01_ER147_186_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-187",
+      "source_reference": "N22",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "管轄外応援の出動件数は活動した応援側救急隊が計上。緊急消防援助隊の受援側と混同しない。",
+      "ledger_path": "docs/emergency/P01_ER187_202_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-188",
+      "source_reference": "N22",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "火災発生時に傷病者の救護目的で出動した場合は救急出動件数に含む。単なる火災隊出動とは異なる。",
+      "ledger_path": "docs/emergency/P01_ER187_202_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-189",
+      "source_reference": "N22",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "複数車両が傷病者の救護・搬送目的で出動した場合の出動件数は活動の目的と管理状況次第。搬送人員との集計単位を分ける。",
+      "ledger_path": "docs/emergency/P01_ER187_202_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-190",
+      "source_reference": "N22",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "医師の搬送目的と患者救護目的を区別。消防隊指揮車が火災活動目的なら件数計上しない例がある。",
+      "ledger_path": "docs/emergency/P01_ER187_202_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-191",
+      "source_reference": "N22",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "管轄外救急隊との中継では医療機関へ未収容でも搬送人員に含める扱いがあり、同一管内中継は不搬送とする例がある。",
+      "ledger_path": "docs/emergency/P01_ER187_202_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-192",
+      "source_reference": "N22",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "現場出発前にドクターカーへ引き継いだ例では搬送人員として扱う回答。場所や相手が違う場合まで一般化しない。",
+      "ledger_path": "docs/emergency/P01_ER187_202_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-193",
+      "source_reference": "N23",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "医師を現場へ搬送し、患者を搬送した場合は医師搬送不搬送事案＋傷病者搬送事案で計2件の例。出典はN23。",
+      "ledger_path": "docs/emergency/P01_ER187_202_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-194",
+      "source_reference": "N23",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "入電後に継続して活動していない空白があった場合の時間差の扱い。無線通話や資器材準備に時間がかかった通常活動は対象にしない。",
+      "ledger_path": "docs/emergency/P01_ER187_202_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-195",
+      "source_reference": "N23",
+      "source_class": "SOURCE_CANDIDATE",
+      "summary": "増隊要請を受けた時点を、後発隊の入電時刻として入力する例。",
+      "ledger_path": "docs/emergency/P01_ER187_202_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-196",
+      "source_reference": "N23",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "PA連携で消防車が先着しても、通常出場票の救急隊現着時刻は救急隊が現場に到着した時刻。ウツタインの先着時刻と別。",
+      "ledger_path": "docs/emergency/P01_ER187_202_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-197",
+      "source_reference": "N23",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "ドクターヘリ・ドクターカー等の医師へ引き継ぎ搬送した事例の収容時刻は、医師管理下へ入った時刻の特例を読む。自動で搬送先到着時と同義にしない。",
+      "ledger_path": "docs/emergency/P01_ER187_202_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-198",
+      "source_reference": "N24",
+      "source_class": "SOURCE_REF_CORRECTED",
+      "summary": "帰署途中の次事案出動時、「病院→帰署」距離は病院から出動指令のあった地点まで。旧候補のN05出典はN24に修正。",
+      "ledger_path": "docs/emergency/P01_ER187_202_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-199",
+      "source_reference": "N24",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "出動情報の事故種別は出動時点の情報、搬送者情報の事故種別は搬送結果で分類。相違自体は誤りでない。",
+      "ledger_path": "docs/emergency/P01_ER187_202_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-200",
+      "source_reference": "N24",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "傷病名は初診時の医師診断名に基づく。複数病名は症状の重い方を選択する。",
+      "ledger_path": "docs/emergency/P01_ER187_202_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-201",
+      "source_reference": "N24",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "熱中症で明らかな外的因子を特定できなければ急病。運動競技中／就業中等の外因が明らかなら別事故種別。",
+      "ledger_path": "docs/emergency/P01_ER187_202_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "ER-202",
+      "source_reference": "N24",
+      "source_class": "SOURCE_CANDIDATE",
+      "summary": "静脈路確保とブドウ糖投与を行った事例では2項目にチェック。CPA前静脈路等3項目とする一般則ではない。",
+      "ledger_path": "docs/emergency/P01_ER187_202_DIRECT_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "CR-001",
+      "source_reference": "USER",
+      "source_class": "USER_OPERATION/HOLD_FIELD",
+      "summary": "新様式指定2欄の事故種別は一致。正式2欄ID・位置未確定。別台帳間とは異なる。",
+      "ledger_path": "docs/emergency/P01_CR001_064_PROVENANCE_RECHECK_20261120.md",
+      "flags": [
+        "HOLD_FIELD",
+        "USER_OPERATION"
+      ],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "CR-002",
+      "source_reference": "N24/L13",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "別台帳の事故種別は出動時と搬送結果で異なり得る。横断一致強制は禁止。",
+      "ledger_path": "docs/emergency/P01_CR001_064_PROVENANCE_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "CR-003",
+      "source_reference": "N14/L05/L17",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "転院搬送の種別・緊急度の適用。現行UIの具体的分類コードは未確定。",
+      "ledger_path": "docs/emergency/P01_CR001_064_PROVENANCE_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "CR-004",
+      "source_reference": "N03/L05",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "転院搬送の定義は医療機関から他医療機関への搬送。",
+      "ledger_path": "docs/emergency/P01_CR001_064_PROVENANCE_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "CR-005",
+      "source_reference": "N14/L17",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "転院搬送では緊急度黄を選択する。通常の数値赤トリガーと優先順位が違う。",
+      "ledger_path": "docs/emergency/P01_CR001_064_PROVENANCE_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "CR-006",
+      "source_reference": "N09",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "不搬送は傷病者情報自体を入力しない。",
+      "ledger_path": "docs/emergency/P01_CR001_064_PROVENANCE_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "CR-007",
+      "source_reference": "USER/N09",
+      "source_class": "USER_OPERATION",
+      "summary": "不搬送の緊急度欄は空欄とする本人提示の運用、N09の傷病者情報非入力と併読。",
+      "ledger_path": "docs/emergency/P01_CR001_064_PROVENANCE_RECHECK_20261120.md",
+      "flags": [
+        "USER_OPERATION"
+      ],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "CR-008",
+      "source_reference": "N04/L06",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "不搬送で接触時刻は入力しない。実接触があったかとは別の入力規則。",
+      "ledger_path": "docs/emergency/P01_CR001_064_PROVENANCE_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "CR-009",
+      "source_reference": "N04/L06",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "不搬送時の車内収容時刻は入力しない。",
+      "ledger_path": "docs/emergency/P01_CR001_064_PROVENANCE_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "CR-010",
+      "source_reference": "N04/L06",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "不搬送時の現場出発時刻は入力しない。引揚げと区別。",
+      "ledger_path": "docs/emergency/P01_CR001_064_PROVENANCE_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "CR-011",
+      "source_reference": "N04/L06",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "不搬送時の病院到着時刻は入力しない。",
+      "ledger_path": "docs/emergency/P01_CR001_064_PROVENANCE_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "CR-012",
+      "source_reference": "N04/L06",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "不搬送時の病院収容時刻は入力しない。",
+      "ledger_path": "docs/emergency/P01_CR001_064_PROVENANCE_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "CR-013",
+      "source_reference": "N05/L15",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "不搬送時の現場→病院/病院→帰署の走行距離は不要、出場→現場まで省略しない。",
+      "ledger_path": "docs/emergency/P01_CR001_064_PROVENANCE_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "CR-014",
+      "source_reference": "N05/L03",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "不搬送理由は複数のうち主な1理由。未確定なら勝手に理由を選ばない。",
+      "ledger_path": "docs/emergency/P01_CR001_064_PROVENANCE_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "CR-015",
+      "source_reference": "N05/L03",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "辞退（到着前/後）と拒否は隊の搬送必要判断を含む条件で区別。",
+      "ledger_path": "docs/emergency/P01_CR001_064_PROVENANCE_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "CR-016",
+      "source_reference": "N04/L06",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "途中引揚げは引揚時刻を現着時刻として入力する例外。",
+      "ledger_path": "docs/emergency/P01_CR001_064_PROVENANCE_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "CR-017",
+      "source_reference": "N05",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "途中引揚げ時は出場→現場の距離欄に引揚時点の距離。",
+      "ledger_path": "docs/emergency/P01_CR001_064_PROVENANCE_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "CR-018",
+      "source_reference": "DESIGN",
+      "source_class": "DESIGN_GUARD",
+      "summary": "印字0とシステム空欄の区別。PDF印字だけで実入力値と同一視しない。",
+      "ledger_path": "docs/emergency/P01_CR001_064_PROVENANCE_RECHECK_20261120.md",
+      "flags": [
+        "DESIGN_GUARD"
+      ],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "CR-019",
+      "source_reference": "N09/L13",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "乳幼児等の年齢区分と別の新生児チェックを分ける。",
+      "ledger_path": "docs/emergency/P01_CR001_064_PROVENANCE_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "CR-020",
+      "source_reference": "N09",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "0歳・日齢6日以内のチェックと生後28日未満の区分は異なる。",
+      "ledger_path": "docs/emergency/P01_CR001_064_PROVENANCE_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "CR-021",
+      "source_reference": "N09/L13",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "年齢不明は隊長推定の説明あり。入力されない日齢を勝手に生成しない。",
+      "ledger_path": "docs/emergency/P01_CR001_064_PROVENANCE_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "CR-022",
+      "source_reference": "N14/N19/L17",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "搬送時の緊急度、転院黄、不搬送対象外を別条件にする。",
+      "ledger_path": "docs/emergency/P01_CR001_064_PROVENANCE_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "CR-023",
+      "source_reference": "N19/L17",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "原文の選択肢は赤/黄。重症度と救急隊判断緊急度を同義化しない。",
+      "ledger_path": "docs/emergency/P01_CR001_064_PROVENANCE_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "CR-024",
+      "source_reference": "N19/L17",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "JCS100以上の赤トリガー、値不明は判定不能。",
+      "ledger_path": "docs/emergency/P01_CR001_064_PROVENANCE_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "CR-025",
+      "source_reference": "N19/L17",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "新生児の呼吸数は30未満または50以上の赤基準。",
+      "ledger_path": "docs/emergency/P01_CR001_064_PROVENANCE_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "CR-026",
+      "source_reference": "N19/L17",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "乳幼児の呼吸数は20未満または30以上。年齢帯を確定。",
+      "ledger_path": "docs/emergency/P01_CR001_064_PROVENANCE_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "CR-027",
+      "source_reference": "N19/L17",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "7歳以上の呼吸数は10未満または30以上。",
+      "ledger_path": "docs/emergency/P01_CR001_064_PROVENANCE_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "CR-028",
+      "source_reference": "N19/L17",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "新生児の脈拍100未満または150以上。",
+      "ledger_path": "docs/emergency/P01_CR001_064_PROVENANCE_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "CR-029",
+      "source_reference": "N19/L17",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "乳児の脈拍80未満または120以上。",
+      "ledger_path": "docs/emergency/P01_CR001_064_PROVENANCE_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "CR-030",
+      "source_reference": "N19/L17",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "幼児の脈拍60未満または110以上。",
+      "ledger_path": "docs/emergency/P01_CR001_064_PROVENANCE_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "CR-031",
+      "source_reference": "N19/L17",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "7歳以上の脈拍50未満または120以上。",
+      "ledger_path": "docs/emergency/P01_CR001_064_PROVENANCE_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "CR-032",
+      "source_reference": "N19/L17",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "新生児の収縮期血圧70未満。",
+      "ledger_path": "docs/emergency/P01_CR001_064_PROVENANCE_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "CR-033",
+      "source_reference": "N19/L17",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "乳児・幼児の収縮期血圧80未満。",
+      "ledger_path": "docs/emergency/P01_CR001_064_PROVENANCE_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "CR-034",
+      "source_reference": "N19/L17",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "7歳以上の収縮期血圧90未満または200以上。",
+      "ledger_path": "docs/emergency/P01_CR001_064_PROVENANCE_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "CR-035",
+      "source_reference": "N19/L17",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "SpO2 90%未満を赤トリガー、90%ちょうどは該当しない。",
+      "ledger_path": "docs/emergency/P01_CR001_064_PROVENANCE_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "CR-036",
+      "source_reference": "N19/L17",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "呼吸音の左右差と異常呼吸は数値以外の赤トリガー。",
+      "ledger_path": "docs/emergency/P01_CR001_064_PROVENANCE_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "CR-037",
+      "source_reference": "N19/L17",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "ショック症状も赤トリガー。特記事項の単語のみから確定しない。",
+      "ledger_path": "docs/emergency/P01_CR001_064_PROVENANCE_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "CR-038",
+      "source_reference": "N19/L17",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "赤条件の数値と黄選択の整合候補。測定時点や転院例外を確認。",
+      "ledger_path": "docs/emergency/P01_CR001_064_PROVENANCE_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "CR-039",
+      "source_reference": "N19/L17",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "数値で赤非該当でも生命危機が切迫なら総合判断による赤が許容。",
+      "ledger_path": "docs/emergency/P01_CR001_064_PROVENANCE_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "CR-040",
+      "source_reference": "DESIGN/N19",
+      "source_class": "DESIGN_GUARD",
+      "summary": "赤閾値を医学的な全年齢正常範囲と呼ばない安全設計。",
+      "ledger_path": "docs/emergency/P01_CR001_064_PROVENANCE_RECHECK_20261120.md",
+      "flags": [
+        "DESIGN_GUARD"
+      ],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "CR-041",
+      "source_reference": "N20",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "初診医評価が軽症の事案にのみ低搬送必要性フローを使用。",
+      "ledger_path": "docs/emergency/P01_CR001_064_PROVENANCE_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "CR-042",
+      "source_reference": "N20",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "軽症以外にはフロー適用しない。現場での搬送の要否を直接判定するものではない。",
+      "ledger_path": "docs/emergency/P01_CR001_064_PROVENANCE_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "CR-043",
+      "source_reference": "N10/L14",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "住宅のみ発生場所小分類まで選択。",
+      "ledger_path": "docs/emergency/P01_CR001_064_PROVENANCE_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "CR-044",
+      "source_reference": "N10/L14",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "非住宅は中分類まで。小分類を要求しない。",
+      "ledger_path": "docs/emergency/P01_CR001_064_PROVENANCE_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "CR-045",
+      "source_reference": "N10/L14",
+      "source_class": "HOLD_SOURCE",
+      "summary": "住宅で階層を入力する規定はあるが、通常帳票の空欄を必ず違反とする明文は不足。ウツタインN35では別途必須。",
+      "ledger_path": "docs/emergency/P01_CR001_064_PROVENANCE_RECHECK_20261120.md",
+      "flags": [
+        "HOLD_SOURCE"
+      ],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "CR-046",
+      "source_reference": "N10/L14/USER",
+      "source_class": "SOURCE+USER",
+      "summary": "住宅以外は階層入力しないという原文と利用者提示条件が合致。",
+      "ledger_path": "docs/emergency/P01_CR001_064_PROVENANCE_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "CR-047",
+      "source_reference": "N10/L14",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "事故発生場所と傷病者所在場所の客観的分類を優先し居住地だけで分類しない。",
+      "ledger_path": "docs/emergency/P01_CR001_064_PROVENANCE_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "CR-048",
+      "source_reference": "L14",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "老人ホームのような居住施設も建物分類を優先し一律住宅とみなさない。",
+      "ledger_path": "docs/emergency/P01_CR001_064_PROVENANCE_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "CR-049",
+      "source_reference": "DESIGN",
+      "source_class": "DESIGN_GUARD",
+      "summary": "分類不明を住宅以外と推定しない。未読なら未検査。",
+      "ledger_path": "docs/emergency/P01_CR001_064_PROVENANCE_RECHECK_20261120.md",
+      "flags": [
+        "DESIGN_GUARD"
+      ],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "CR-050",
+      "source_reference": "N12/L22",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "照会開始から決定まで1分未満でも1分と記録。",
+      "ledger_path": "docs/emergency/P01_CR001_064_PROVENANCE_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "CR-051",
+      "source_reference": "N13/L22",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "照会実績0でも事前手配等の明示例外で記録上1となる。",
+      "ledger_path": "docs/emergency/P01_CR001_064_PROVENANCE_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "CR-052",
+      "source_reference": "N13/L22",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "連絡回数は救急隊以外の指令センター等の照会も合算。",
+      "ledger_path": "docs/emergency/P01_CR001_064_PROVENANCE_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "CR-053",
+      "source_reference": "N13/L22",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "1回は選定結果「円滑」。",
+      "ledger_path": "docs/emergency/P01_CR001_064_PROVENANCE_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "CR-054",
+      "source_reference": "N13/L22",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "2回以上は選定結果「支障」。",
+      "ledger_path": "docs/emergency/P01_CR001_064_PROVENANCE_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "CR-055",
+      "source_reference": "N13/L22",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "2回以上は受入不可理由・連絡回数を入力する。",
+      "ledger_path": "docs/emergency/P01_CR001_064_PROVENANCE_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "CR-056",
+      "source_reference": "N14/L16",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "転送時は最後に収容された医療機関を記録。",
+      "ledger_path": "docs/emergency/P01_CR001_064_PROVENANCE_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "CR-057",
+      "source_reference": "L26",
+      "source_class": "EXAMPLE_ONLY",
+      "summary": "脈拍100以上と正常はよくあるミスの例示。全年齢の異常確定には使わない。",
+      "ledger_path": "docs/emergency/P01_CR001_064_PROVENANCE_RECHECK_20261120.md",
+      "flags": [
+        "EXAMPLE_ONLY"
+      ],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "CR-058",
+      "source_reference": "L26",
+      "source_class": "EXAMPLE_ONLY",
+      "summary": "心電図Afと脈拍正常の矛盾例。単語だけで自動確定しない。",
+      "ledger_path": "docs/emergency/P01_CR001_064_PROVENANCE_RECHECK_20261120.md",
+      "flags": [
+        "EXAMPLE_ONLY"
+      ],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "CR-059",
+      "source_reference": "L26",
+      "source_class": "EXAMPLE_ONLY",
+      "summary": "認知症や酩酊と正常意識の矛盾例。意識の観察事実確認が必要。",
+      "ledger_path": "docs/emergency/P01_CR001_064_PROVENANCE_RECHECK_20261120.md",
+      "flags": [
+        "EXAMPLE_ONLY"
+      ],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "CR-060",
+      "source_reference": "L26",
+      "source_class": "EXAMPLE_ONLY",
+      "summary": "明らかな死亡時、0値でも印刷非表示あり。正式死亡判断はAIが行わない。",
+      "ledger_path": "docs/emergency/P01_CR001_064_PROVENANCE_RECHECK_20261120.md",
+      "flags": [
+        "EXAMPLE_ONLY"
+      ],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "CR-061",
+      "source_reference": "L27",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "特定行為の指示・実施時刻・理由の記載を促す参考。",
+      "ledger_path": "docs/emergency/P01_CR001_064_PROVENANCE_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "CR-062",
+      "source_reference": "L28",
+      "source_class": "SOURCE_SCOPED",
+      "summary": "CPA前のIV確保とCPA後の処置は別欄。",
+      "ledger_path": "docs/emergency/P01_CR001_064_PROVENANCE_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "CR-063",
+      "source_reference": "DESIGN",
+      "source_class": "DESIGN_GUARD",
+      "summary": "PDF非印刷を空欄/正常と推測しない。",
+      "ledger_path": "docs/emergency/P01_CR001_064_PROVENANCE_RECHECK_20261120.md",
+      "flags": [
+        "DESIGN_GUARD"
+      ],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "CR-064",
+      "source_reference": "DESIGN/L26/N19",
+      "source_class": "DESIGN_GUARD",
+      "summary": "複数時点の値があれば処置後の正常値で初回異常を消さない。",
+      "ledger_path": "docs/emergency/P01_CR001_064_PROVENANCE_RECHECK_20261120.md",
+      "flags": [
+        "DESIGN_GUARD"
+      ],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-001",
+      "source_reference": "N03",
+      "source_class": "S",
+      "summary": "分類定義を確認。症状名から事故種別を推定禁止という文言は原文独立規則ではない",
+      "ledger_path": "docs/emergency/P01_EX001_067_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-002",
+      "source_reference": "N04",
+      "source_class": "S",
+      "summary": "日跨ぎフラグは入電から病院収容までの活動時間について判断。翌日帰署のみで立てない",
+      "ledger_path": "docs/emergency/P01_EX001_067_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-003",
+      "source_reference": "N04",
+      "source_class": "S",
+      "summary": "入電は119のみでなく通信回線等接続を含む。限定しすぎた候補を訂正",
+      "ledger_path": "docs/emergency/P01_EX001_067_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-004",
+      "source_reference": "N04",
+      "source_class": "S",
+      "summary": "出場指令は救急隊への通知時刻。編成完了を記録するシステムの例外を保持",
+      "ledger_path": "docs/emergency/P01_EX001_067_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-005",
+      "source_reference": "N04",
+      "source_class": "S",
+      "summary": "現着は現場停車等の時刻。途中引揚げ時は引揚時分という例外を保持",
+      "ledger_path": "docs/emergency/P01_EX001_067_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-006",
+      "source_reference": "N04",
+      "source_class": "S",
+      "summary": "接触は最初の隊員が傷病者へ接触して観察を開始する時点。相互確認は注意であって独立必須ではない",
+      "ledger_path": "docs/emergency/P01_EX001_067_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-007",
+      "source_reference": "N04/N05",
+      "source_class": "S",
+      "summary": "病院到着と医師への引継ぎ・病院収容は別。医師管理下移行の特例を別検査",
+      "ledger_path": "docs/emergency/P01_EX001_067_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-008",
+      "source_reference": "N05",
+      "source_class": "S",
+      "summary": "転院搬送での入電時刻は単純に要請時分そのままでなく、原文に時間逆算の扱いあり",
+      "ledger_path": "docs/emergency/P01_EX001_067_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-009",
+      "source_reference": "N05",
+      "source_class": "H",
+      "summary": "救急車内で医師管理に入れば常に病院収容という一般特例は根拠不足。個別例に限定",
+      "ledger_path": "docs/emergency/P01_EX001_067_RECHECK_20261120.md",
+      "flags": [
+        "HOLD_SOURCE"
+      ],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-010",
+      "source_reference": "N24",
+      "source_class": "C",
+      "summary": "帰署途中の次出場の距離取扱いはN05でなくN24。EX-063と候補重複",
+      "ledger_path": "docs/emergency/P01_EX001_067_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-011",
+      "source_reference": "N05",
+      "source_class": "S",
+      "summary": "到着前辞退と到着後辞退は実際の引揚げ時点で区分",
+      "ledger_path": "docs/emergency/P01_EX001_067_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-012",
+      "source_reference": "N05",
+      "source_class": "S",
+      "summary": "隊が搬送必要と判断したが本人等が拒否した場合と辞退を区分",
+      "ledger_path": "docs/emergency/P01_EX001_067_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-013",
+      "source_reference": "N06",
+      "source_class": "S",
+      "summary": "傷病者が発生しなかった場合と誤報・悪戯の区分を分ける",
+      "ledger_path": "docs/emergency/P01_EX001_067_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-014",
+      "source_reference": "N06",
+      "source_class": "S",
+      "summary": "事故事実がない誤報・悪戯と事故あり傷病者なしを分離",
+      "ledger_path": "docs/emergency/P01_EX001_067_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-015",
+      "source_reference": "N06",
+      "source_class": "S",
+      "summary": "他車・他隊による搬送という不搬送理由の適用条件を限定",
+      "ledger_path": "docs/emergency/P01_EX001_067_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-016",
+      "source_reference": "N06/N07",
+      "source_class": "S",
+      "summary": "連携ありは実際に協働や受渡し等が成立したとき。単に出場しただけではない",
+      "ledger_path": "docs/emergency/P01_EX001_067_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-017",
+      "source_reference": "N07",
+      "source_class": "S",
+      "summary": "連携の主項目とサブ項目の選択条件を分ける",
+      "ledger_path": "docs/emergency/P01_EX001_067_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-018",
+      "source_reference": "N07",
+      "source_class": "S",
+      "summary": "複数救急隊の計数・重複防止は実際の搬送や連携状況による",
+      "ledger_path": "docs/emergency/P01_EX001_067_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-019",
+      "source_reference": "N07",
+      "source_class": "S",
+      "summary": "准救急隊員ありでは人数は1人以上",
+      "ledger_path": "docs/emergency/P01_EX001_067_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-020",
+      "source_reference": "N07",
+      "source_class": "S",
+      "summary": "救急救命士ありは人数と認定資格を登録。認定は複数選択可能",
+      "ledger_path": "docs/emergency/P01_EX001_067_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-021",
+      "source_reference": "N08",
+      "source_class": "S",
+      "summary": "医師搭乗と医師の現場出場は異なる入力概念",
+      "ledger_path": "docs/emergency/P01_EX001_067_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-022",
+      "source_reference": "N08",
+      "source_class": "S",
+      "summary": "口頭指導はウツタイン側のあり選択との対応条件を確認",
+      "ledger_path": "docs/emergency/P01_EX001_067_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-023",
+      "source_reference": "N08/N43",
+      "source_class": "S",
+      "summary": "心肺蘇生希望なしは複数条件と外因性除外を満たす場合のみ",
+      "ledger_path": "docs/emergency/P01_EX001_067_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-024",
+      "source_reference": "N08/N09",
+      "source_class": "S",
+      "summary": "不搬送時は傷病者情報不要という例外に従う",
+      "ledger_path": "docs/emergency/P01_EX001_067_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-025",
+      "source_reference": "N09",
+      "source_class": "S",
+      "summary": "複数傷病者事案は同一事案に複数の救急車が傷病者を搬送した条件",
+      "ledger_path": "docs/emergency/P01_EX001_067_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-026",
+      "source_reference": "N09",
+      "source_class": "S",
+      "summary": "日齢6日以内のチェックと年齢区分の新生児28日未満は別",
+      "ledger_path": "docs/emergency/P01_EX001_067_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-027",
+      "source_reference": "N09",
+      "source_class": "S",
+      "summary": "年齢不詳は隊長による推定。実年齢と推定の区別を失わない",
+      "ledger_path": "docs/emergency/P01_EX001_067_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-028",
+      "source_reference": "N10",
+      "source_class": "S",
+      "summary": "65歳以上の介護情報で不明・はい・いいえを区別",
+      "ledger_path": "docs/emergency/P01_EX001_067_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-029",
+      "source_reference": "N10",
+      "source_class": "S",
+      "summary": "訪日・在留外国人と判明した場合の国・地域の選択条件",
+      "ledger_path": "docs/emergency/P01_EX001_067_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-030",
+      "source_reference": "N10",
+      "source_class": "S",
+      "summary": "原因器物に該当がなければ原因器物なしを選択",
+      "ledger_path": "docs/emergency/P01_EX001_067_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-031",
+      "source_reference": "N11",
+      "source_class": "S",
+      "summary": "酸素吸入は実際の処置の条件で確認。器具準備だけという原文外の特例は採用しない",
+      "ledger_path": "docs/emergency/P01_EX001_067_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-032",
+      "source_reference": "N11",
+      "source_class": "S",
+      "summary": "気道確保の手法区分と器具による除外規定を保持",
+      "ledger_path": "docs/emergency/P01_EX001_067_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-033",
+      "source_reference": "N11/N33",
+      "source_class": "S",
+      "summary": "AED装着・除細動適応・通電実施は別状態",
+      "ledger_path": "docs/emergency/P01_EX001_067_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-034",
+      "source_reference": "N11",
+      "source_class": "S",
+      "summary": "自動胸骨圧迫器使用では自動区分を選択",
+      "ledger_path": "docs/emergency/P01_EX001_067_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-035",
+      "source_reference": "N12",
+      "source_class": "S",
+      "summary": "在宅医療継続中の処置を点滴・外瘻・その他で区分",
+      "ledger_path": "docs/emergency/P01_EX001_067_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-036",
+      "source_reference": "N12",
+      "source_class": "S",
+      "summary": "医療機関選定の1分未満は1分記録",
+      "ledger_path": "docs/emergency/P01_EX001_067_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-037",
+      "source_reference": "N13",
+      "source_class": "S",
+      "summary": "3回目で受入決定なら3回、隊と指令センター等の照会を合算",
+      "ledger_path": "docs/emergency/P01_EX001_067_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-038",
+      "source_reference": "N13",
+      "source_class": "S",
+      "summary": "家族事前手配、転院など実照会0でも記録上1とする例外",
+      "ledger_path": "docs/emergency/P01_EX001_067_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-039",
+      "source_reference": "N13",
+      "source_class": "S",
+      "summary": "照会2回以上では受入不可理由と連絡回数を入力",
+      "ledger_path": "docs/emergency/P01_EX001_067_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-040",
+      "source_reference": "N14",
+      "source_class": "S",
+      "summary": "医療機関区分は実際の収容時点で確認",
+      "ledger_path": "docs/emergency/P01_EX001_067_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-041",
+      "source_reference": "N14",
+      "source_class": "S",
+      "summary": "転送が2施設以上なら最後に収容した医療機関情報を記録",
+      "ledger_path": "docs/emergency/P01_EX001_067_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-042",
+      "source_reference": "N15",
+      "source_class": "S",
+      "summary": "傷病程度は初診医の評価に基づく。AIが臨床的に確定しない",
+      "ledger_path": "docs/emergency/P01_EX001_067_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-043",
+      "source_reference": "N15",
+      "source_class": "S",
+      "summary": "初診医診断のない事例の分類と軽症との誤混同を防ぐ",
+      "ledger_path": "docs/emergency/P01_EX001_067_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-044",
+      "source_reference": "N15/N20",
+      "source_class": "S",
+      "summary": "搬送必要性低の抽出は初診軽症かつ別紙フロー適用",
+      "ledger_path": "docs/emergency/P01_EX001_067_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-045",
+      "source_reference": "N15",
+      "source_class": "S",
+      "summary": "急病と急病以外では傷病名選択範囲が異なる",
+      "ledger_path": "docs/emergency/P01_EX001_067_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-046",
+      "source_reference": "N16",
+      "source_class": "S",
+      "summary": "傷病名分類は初診時の医師診断を基準とする",
+      "ledger_path": "docs/emergency/P01_EX001_067_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-047",
+      "source_reference": "N16",
+      "source_class": "S",
+      "summary": "熱中症は疑いも選択対象。暑熱環境だけから確定しない",
+      "ledger_path": "docs/emergency/P01_EX001_067_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-048",
+      "source_reference": "N16",
+      "source_class": "S",
+      "summary": "最初に収容されたなら転送0、次施設で収容なら転送1",
+      "ledger_path": "docs/emergency/P01_EX001_067_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-049",
+      "source_reference": "N17",
+      "source_class": "S",
+      "summary": "処置目的の医療機関立寄りは転送区分とその理由を分けて判断",
+      "ledger_path": "docs/emergency/P01_EX001_067_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-050",
+      "source_reference": "N17",
+      "source_class": "S",
+      "summary": "医療機関ごとに記録するのは転送理由。受入不能理由だけに狭めない",
+      "ledger_path": "docs/emergency/P01_EX001_067_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-051",
+      "source_reference": "N17",
+      "source_class": "S",
+      "summary": "複数転送理由から主たる理由を選択する",
+      "ledger_path": "docs/emergency/P01_EX001_067_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-052",
+      "source_reference": "N19/N14",
+      "source_class": "S",
+      "summary": "年齢別緊急赤と総合判断。転院黄の上位例外はN14の別根拠",
+      "ledger_path": "docs/emergency/P01_EX001_067_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-053",
+      "source_reference": "N20",
+      "source_class": "S",
+      "summary": "初診軽症に限定した4段階の必要性低抽出フロー",
+      "ledger_path": "docs/emergency/P01_EX001_067_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-054",
+      "source_reference": "N22",
+      "source_class": "S",
+      "summary": "応援側/受援側の件数区分と緊急消防援助隊の例外",
+      "ledger_path": "docs/emergency/P01_EX001_067_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-055",
+      "source_reference": "N22",
+      "source_class": "S",
+      "summary": "救急隊以外の搬送時の搬送人員は計上者が異なる可能性",
+      "ledger_path": "docs/emergency/P01_EX001_067_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-056",
+      "source_reference": "N23",
+      "source_class": "C",
+      "summary": "医師搬送+傷病者搬送の複合件数はN22ではなくN23問9",
+      "ledger_path": "docs/emergency/P01_EX001_067_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-057",
+      "source_reference": "N22",
+      "source_class": "S",
+      "summary": "ドクターカー等に引き継いで搬送した人数の個別Q&A",
+      "ledger_path": "docs/emergency/P01_EX001_067_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-058",
+      "source_reference": "N23",
+      "source_class": "S",
+      "summary": "PA先着でも通常の救急隊現着は救急隊到着時。Utsteinとは別",
+      "ledger_path": "docs/emergency/P01_EX001_067_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-059",
+      "source_reference": "N23",
+      "source_class": "S",
+      "summary": "増隊時の後発隊入電は追加要請を受けた時点、先発隊を複製しない",
+      "ledger_path": "docs/emergency/P01_EX001_067_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-060",
+      "source_reference": "N23",
+      "source_class": "S",
+      "summary": "現着と最初の傷病者接触は違う",
+      "ledger_path": "docs/emergency/P01_EX001_067_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-061",
+      "source_reference": "N23",
+      "source_class": "S",
+      "summary": "医師車両への引継ぎ時刻は特例を扱い、病院到着と同一視しない",
+      "ledger_path": "docs/emergency/P01_EX001_067_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-062",
+      "source_reference": "N23",
+      "source_class": "S",
+      "summary": "防災ヘリなど別車両への中継は実際の搬送開始時刻の規定を別に読む",
+      "ledger_path": "docs/emergency/P01_EX001_067_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-063",
+      "source_reference": "N24",
+      "source_class": "S",
+      "summary": "帰署途中の次事案で距離に関するQ&A。EX-010と重複候補",
+      "ledger_path": "docs/emergency/P01_EX001_067_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-064",
+      "source_reference": "N24",
+      "source_class": "S",
+      "summary": "出動情報と搬送結果で事故種別が異なってもよい場合あり。新様式指定2欄一致と区別",
+      "ledger_path": "docs/emergency/P01_EX001_067_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-065",
+      "source_reference": "N24",
+      "source_class": "S",
+      "summary": "傷病名/内因外因の分類は診断や状況に基づき機械的に確定しない",
+      "ledger_path": "docs/emergency/P01_EX001_067_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-066",
+      "source_reference": "N24",
+      "source_class": "S",
+      "summary": "就業中の外因的負傷・疾患などが労働災害分類の条件。単なる業務との関連へ狭めない",
+      "ledger_path": "docs/emergency/P01_EX001_067_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-067",
+      "source_reference": "N24",
+      "source_class": "S",
+      "summary": "静脈路確保＋ブドウ糖投与の実施なら2選択肢。無条件3選択にしない",
+      "ledger_path": "docs/emergency/P01_EX001_067_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-068",
+      "source_reference": "N27",
+      "source_class": "S",
+      "summary": "CPAは脈拍触知不能・無反応・呼吸停止又は死戦期呼吸の条件。呼吸停止のみで同義化しない",
+      "ledger_path": "docs/emergency/P01_EX068_125_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-069",
+      "source_reference": "N28",
+      "source_class": "S",
+      "summary": "ウツタイン対象（ア）（イ）（ウ）を分け、各区分の除外を保持",
+      "ledger_path": "docs/emergency/P01_EX068_125_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-070",
+      "source_reference": "N28",
+      "source_class": "S",
+      "summary": "救急隊到着時心肺再開等も対象となる区分がある",
+      "ledger_path": "docs/emergency/P01_EX068_125_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-071",
+      "source_reference": "N28",
+      "source_class": "S",
+      "summary": "CPR不実施などの除外は（ア）（イ）の対象であり全区分一律除外しない",
+      "ledger_path": "docs/emergency/P01_EX068_125_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-072",
+      "source_reference": "N28",
+      "source_class": "S",
+      "summary": "先行医師による二次救命処置は対象区分や救急隊の処置実績で条件が分かれる",
+      "ledger_path": "docs/emergency/P01_EX068_125_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-073",
+      "source_reference": "N28",
+      "source_class": "S",
+      "summary": "記録者は原則最終的に搬送した救急隊。複数隊での重複記録防止",
+      "ledger_path": "docs/emergency/P01_EX068_125_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-074",
+      "source_reference": "N29",
+      "source_class": "S",
+      "summary": "消防機関構成員による行為とバイスタンダーの行為を区別",
+      "ledger_path": "docs/emergency/P01_EX068_125_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-075",
+      "source_reference": "N29",
+      "source_class": "S",
+      "summary": "救急救命士の資格認定は複数選択を認める",
+      "ledger_path": "docs/emergency/P01_EX068_125_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-076",
+      "source_reference": "N30",
+      "source_class": "S",
+      "summary": "事例番号の入力禁止文字を確認する。ただし現行項目コードは未照合",
+      "ledger_path": "docs/emergency/P01_EX068_125_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-077",
+      "source_reference": "N30",
+      "source_class": "S",
+      "summary": "発生年月日と入電年月日が違うことのみで違反確定しない",
+      "ledger_path": "docs/emergency/P01_EX068_125_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-078",
+      "source_reference": "N30",
+      "source_class": "S",
+      "summary": "年齢が分からない場合の推定入力を区別する",
+      "ledger_path": "docs/emergency/P01_EX068_125_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-079",
+      "source_reference": "N31",
+      "source_class": "S",
+      "summary": "心停止目撃区分と音を聞いた場合などを区別",
+      "ledger_path": "docs/emergency/P01_EX068_125_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-080",
+      "source_reference": "N31",
+      "source_class": "S",
+      "summary": "目撃時刻は目撃・音など条件が成立した場合に記録",
+      "ledger_path": "docs/emergency/P01_EX068_125_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-081",
+      "source_reference": "N31",
+      "source_class": "S",
+      "summary": "目撃者の家族・バイスタンダー・先着隊等の分類を分ける",
+      "ledger_path": "docs/emergency/P01_EX068_125_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-082",
+      "source_reference": "N32",
+      "source_class": "S",
+      "summary": "バイスタンダーCPRは胸骨圧迫/人工呼吸/除細動の実際の実施に基づく",
+      "ledger_path": "docs/emergency/P01_EX068_125_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-083",
+      "source_reference": "N32",
+      "source_class": "S",
+      "summary": "CPRなしで実施処置あり等の矛盾は実施履歴を確認する疑義候補",
+      "ledger_path": "docs/emergency/P01_EX068_125_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-084",
+      "source_reference": "N32",
+      "source_class": "S",
+      "summary": "胸骨圧迫ありはその開始時刻を入力。行為がないなら要求しない",
+      "ledger_path": "docs/emergency/P01_EX068_125_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-085",
+      "source_reference": "N33",
+      "source_class": "S",
+      "summary": "人工呼吸ありの開始時刻を入力",
+      "ledger_path": "docs/emergency/P01_EX068_125_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-086",
+      "source_reference": "N33",
+      "source_class": "S",
+      "summary": "AEDありと使用・装着の有無を区別",
+      "ledger_path": "docs/emergency/P01_EX068_125_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-087",
+      "source_reference": "N33",
+      "source_class": "S",
+      "summary": "AED装着/通電適応/除細動実施は別判定",
+      "ledger_path": "docs/emergency/P01_EX068_125_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-088",
+      "source_reference": "N33",
+      "source_class": "S",
+      "summary": "除細動を実施した時のみ回数/初回時刻等を要する",
+      "ledger_path": "docs/emergency/P01_EX068_125_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-089",
+      "source_reference": "N33",
+      "source_class": "S",
+      "summary": "AEDの状態不明には理由欄がある",
+      "ledger_path": "docs/emergency/P01_EX068_125_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-090",
+      "source_reference": "N33",
+      "source_class": "S",
+      "summary": "救急隊等の初期心電図波形の定義を利用。画面の正式選択肢は未確定",
+      "ledger_path": "docs/emergency/P01_EX068_125_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-091",
+      "source_reference": "N34",
+      "source_class": "S",
+      "summary": "CPAの発生場所は住宅だけ小分類まで。非住宅の中分類限度を保持",
+      "ledger_path": "docs/emergency/P01_EX068_125_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-092",
+      "source_reference": "N35",
+      "source_class": "S",
+      "summary": "Utstein登録の住宅発生階層は必須。通常帳票N10より強い規定",
+      "ledger_path": "docs/emergency/P01_EX068_125_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-093",
+      "source_reference": "N36",
+      "source_class": "S",
+      "summary": "実施成功した救命処置を登録する。準備のみは計上しない",
+      "ledger_path": "docs/emergency/P01_EX068_125_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-094",
+      "source_reference": "N36",
+      "source_class": "S",
+      "summary": "除細動の実施者/波形/初回時刻/回数/単相二相を別項目として照合",
+      "ledger_path": "docs/emergency/P01_EX068_125_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-095",
+      "source_reference": "N36",
+      "source_class": "S",
+      "summary": "器具なし気道確保では特定器具や挿入時刻を求めない",
+      "ledger_path": "docs/emergency/P01_EX068_125_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-096",
+      "source_reference": "N37",
+      "source_class": "S",
+      "summary": "特定器具気道確保は実際に換気等を確認した時点",
+      "ledger_path": "docs/emergency/P01_EX068_125_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-097",
+      "source_reference": "N37",
+      "source_class": "S",
+      "summary": "途中で器具を交換・抜去した場合の時刻は条件により記録し直す",
+      "ledger_path": "docs/emergency/P01_EX068_125_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-098",
+      "source_reference": "N37",
+      "source_class": "S",
+      "summary": "静脈路確保の成功は滴下確認など条件を要する",
+      "ledger_path": "docs/emergency/P01_EX068_125_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-099",
+      "source_reference": "N37",
+      "source_class": "S",
+      "summary": "後に静脈路を抜去しても既に成功した記録が消えるわけではない",
+      "ledger_path": "docs/emergency/P01_EX068_125_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-100",
+      "source_reference": "N37",
+      "source_class": "S",
+      "summary": "アドレナリンの初回投与時刻と施行回数を別々に記録",
+      "ledger_path": "docs/emergency/P01_EX068_125_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-101",
+      "source_reference": "N38",
+      "source_class": "S",
+      "summary": "Utsteinの先着隊入電・現着時刻。通常票自隊時刻に一律移さない",
+      "ledger_path": "docs/emergency/P01_EX068_125_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-102",
+      "source_reference": "N38",
+      "source_class": "S",
+      "summary": "Utsteinの接触時刻は実際に最初に接触した先行隊を含む",
+      "ledger_path": "docs/emergency/P01_EX068_125_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-103",
+      "source_reference": "N38",
+      "source_class": "S",
+      "summary": "CPR開始は一連の活動で最初に実施した時刻を採る",
+      "ledger_path": "docs/emergency/P01_EX068_125_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-104",
+      "source_reference": "N39",
+      "source_class": "S",
+      "summary": "病院到着は敷地到着、病院収容は医師への引継ぎ・管理移行。別時点",
+      "ledger_path": "docs/emergency/P01_EX068_125_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-105",
+      "source_reference": "N39",
+      "source_class": "S",
+      "summary": "医師管理下へ病院前に移行する例外は本文で列挙された場合に限る",
+      "ledger_path": "docs/emergency/P01_EX068_125_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-106",
+      "source_reference": "N40",
+      "source_class": "S",
+      "summary": "心停止原因の心原性/非心原性区分は医師の判断に基づく。AIが確定しない",
+      "ledger_path": "docs/emergency/P01_EX068_125_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-107",
+      "source_reference": "N40",
+      "source_class": "S",
+      "summary": "原因は1か月後に再確認して訂正できる場合がある",
+      "ledger_path": "docs/emergency/P01_EX068_125_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-108",
+      "source_reference": "N41",
+      "source_class": "S",
+      "summary": "非心原性原因は定められた分類表に基づく",
+      "ledger_path": "docs/emergency/P01_EX068_125_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-109",
+      "source_reference": "N41",
+      "source_class": "S",
+      "summary": "収容前心拍再開が複数なら初回時刻。心拍再開の定義を満たす",
+      "ledger_path": "docs/emergency/P01_EX068_125_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-110",
+      "source_reference": "N41",
+      "source_class": "S",
+      "summary": "1か月後回答の有無と転退院時の記録条件を区別",
+      "ledger_path": "docs/emergency/P01_EX068_125_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-111",
+      "source_reference": "N42",
+      "source_class": "S",
+      "summary": "1か月後の生存と脳/全身の機能分類は時点・回答に応じて選択",
+      "ledger_path": "docs/emergency/P01_EX068_125_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-112",
+      "source_reference": "N42",
+      "source_class": "S",
+      "summary": "CPC/OPC等の5の例は特定条件。自動で医療結果を確定しない",
+      "ledger_path": "docs/emergency/P01_EX068_125_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-113",
+      "source_reference": "N43",
+      "source_class": "S",
+      "summary": "心肺蘇生希望なしは事前意思+現着時状態の両条件で、外因性を除外",
+      "ledger_path": "docs/emergency/P01_EX068_125_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-114",
+      "source_reference": "N43",
+      "source_class": "S",
+      "summary": "死体兆候の6条件をすべて確認する文脈。医学判断の自動確定はしない",
+      "ledger_path": "docs/emergency/P01_EX068_125_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-115",
+      "source_reference": "N44",
+      "source_class": "S",
+      "summary": "メモ欄は100文字・使用禁止文字等の制約",
+      "ledger_path": "docs/emergency/P01_EX068_125_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-116",
+      "source_reference": "N44",
+      "source_class": "S",
+      "summary": "複数隊の同一事案二重登録を防ぐ",
+      "ledger_path": "docs/emergency/P01_EX068_125_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-117",
+      "source_reference": "N44",
+      "source_class": "S",
+      "summary": "時間前後の注意はあるが、未使用欄や目撃なし例外に一律入力強制しない",
+      "ledger_path": "docs/emergency/P01_EX068_125_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-118",
+      "source_reference": "N44",
+      "source_class": "S",
+      "summary": "入力画面と統計反映の関係を確認し重複登録を防ぐ。画面版未確定",
+      "ledger_path": "docs/emergency/P01_EX068_125_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-119",
+      "source_reference": "N45",
+      "source_class": "S",
+      "summary": "住宅の小分類辞書A〜J、住宅の中分類区分を使う",
+      "ledger_path": "docs/emergency/P01_EX068_125_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-120",
+      "source_reference": "N45/N46",
+      "source_class": "S",
+      "summary": "公衆出入場所の中分類辞書A〜Z・A'等。発生階層を入力する住宅とは別",
+      "ledger_path": "docs/emergency/P01_EX068_125_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-121",
+      "source_reference": "N46",
+      "source_class": "S",
+      "summary": "仕事場・道路・その他の中分類辞書。文字コードは現行UIで確認",
+      "ledger_path": "docs/emergency/P01_EX068_125_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-122",
+      "source_reference": "N47",
+      "source_class": "S",
+      "summary": "Utsteinの先着消防機関時刻と通常出場票の自隊時刻を区別",
+      "ledger_path": "docs/emergency/P01_EX068_125_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-123",
+      "source_reference": "N47",
+      "source_class": "S",
+      "summary": "心拍再開・脈拍触知の定義を基準に判定",
+      "ledger_path": "docs/emergency/P01_EX068_125_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-124",
+      "source_reference": "N47",
+      "source_class": "S",
+      "summary": "転院先で初めてCPRという解釈を棄却し、救急隊がCPRを行い搬送した条件を維持",
+      "ledger_path": "docs/emergency/P01_EX068_125_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-125",
+      "source_reference": "N47",
+      "source_class": "S",
+      "summary": "医師がバイスタンダーに該当するかは居合わせ方・医療体制との関係で異なる",
+      "ledger_path": "docs/emergency/P01_EX068_125_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-126",
+      "source_reference": "L02",
+      "source_class": "S",
+      "summary": "通常救急の活動種類・中継類型を区別。選択の固定表示コードは現行画面で確認",
+      "ledger_path": "docs/emergency/P01_EX126_167_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-127",
+      "source_reference": "L03",
+      "source_class": "S",
+      "summary": "到着後に本人等が搬送辞退し、隊が搬送不要と判断した場合と拒否を区別",
+      "ledger_path": "docs/emergency/P01_EX126_167_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-128",
+      "source_reference": "L03",
+      "source_class": "S",
+      "summary": "傷病者が現場からいなくなった事例の分類。未到着辞退等との違いを確認",
+      "ledger_path": "docs/emergency/P01_EX126_167_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-129",
+      "source_reference": "L04",
+      "source_class": "S",
+      "summary": "水難・運動競技・一般負傷は事故状況により区分。行為名から即断しない",
+      "ledger_path": "docs/emergency/P01_EX126_167_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-130",
+      "source_reference": "L04",
+      "source_class": "S",
+      "summary": "交通事故と一般負傷の境界は交通機関との接触等の条件",
+      "ledger_path": "docs/emergency/P01_EX126_167_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-131",
+      "source_reference": "L04",
+      "source_class": "S",
+      "summary": "労働災害は就業中の外因性事故・疾患という条件。仕事場全事案に拡張しない",
+      "ledger_path": "docs/emergency/P01_EX126_167_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-132",
+      "source_reference": "L04",
+      "source_class": "S",
+      "summary": "運動競技の実施中と観覧中・娯楽でのけがを区別",
+      "ledger_path": "docs/emergency/P01_EX126_167_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-133",
+      "source_reference": "L05",
+      "source_class": "S",
+      "summary": "自損行為は故意に自己へ傷害を加えた場合。単なる転倒・精神疾患だけで確定しない",
+      "ledger_path": "docs/emergency/P01_EX126_167_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-134",
+      "source_reference": "L05",
+      "source_class": "S",
+      "summary": "切断指等の身体の一部だけの搬送は患者同乗の有無で取扱いを確認",
+      "ledger_path": "docs/emergency/P01_EX126_167_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-135",
+      "source_reference": "L07",
+      "source_class": "S",
+      "summary": "准救急隊員ありは人数1以上。資格に関する補足文だけを強制ルールにしない",
+      "ledger_path": "docs/emergency/P01_EX126_167_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-136",
+      "source_reference": "L08",
+      "source_class": "S",
+      "summary": "医師ヘリ等の初動要請と現場要請は時点で区別",
+      "ledger_path": "docs/emergency/P01_EX126_167_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-137",
+      "source_reference": "L09",
+      "source_class": "S",
+      "summary": "ドクターヘリ引継ぎのメイン/サブ項目は連携が成立した場合に選ぶ",
+      "ledger_path": "docs/emergency/P01_EX126_167_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-138",
+      "source_reference": "L10",
+      "source_class": "S",
+      "summary": "行事の大規模該当は累積1,000人以上、ありなら名称等の欄を確認",
+      "ledger_path": "docs/emergency/P01_EX126_167_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-139",
+      "source_reference": "L10",
+      "source_class": "H",
+      "summary": "作成者・階級・資格の注意はあるが全欄絶対必須を支持しない。P04現行コード待ち",
+      "ledger_path": "docs/emergency/P01_EX126_167_RECHECK_20261120.md",
+      "flags": [
+        "HOLD_SOURCE"
+      ],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-140",
+      "source_reference": "L11",
+      "source_class": "S",
+      "summary": "通報内容は通信指令で入力される場合あり。空欄がシステム未入力と同義ではない",
+      "ledger_path": "docs/emergency/P01_EX126_167_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-141",
+      "source_reference": "L11",
+      "source_class": "S",
+      "summary": "事故概要は活動経過を説明する文章。要約の多寡でハードエラーにしない",
+      "ledger_path": "docs/emergency/P01_EX126_167_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-142",
+      "source_reference": "L11",
+      "source_class": "S",
+      "summary": "特記事項は追加事情の補足。他欄との重複や必須性を一律推定しない",
+      "ledger_path": "docs/emergency/P01_EX126_167_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-143",
+      "source_reference": "L12",
+      "source_class": "S",
+      "summary": "事後検証番号・救命処置録番号の実画面項目は正式コード確認が必要",
+      "ledger_path": "docs/emergency/P01_EX126_167_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-144",
+      "source_reference": "L13",
+      "source_class": "S",
+      "summary": "接触なし等の記録方法と不搬送を混同しない。傷病者情報不要の別規定と併読",
+      "ledger_path": "docs/emergency/P01_EX126_167_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-145",
+      "source_reference": "L14",
+      "source_class": "S",
+      "summary": "発生場所は実際の発生地点を客観的に分類する。居住地ではない",
+      "ledger_path": "docs/emergency/P01_EX126_167_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-146",
+      "source_reference": "L14",
+      "source_class": "S",
+      "summary": "老人ホーム等も公衆出入場所に該当する場合は発生階層を入力しない",
+      "ledger_path": "docs/emergency/P01_EX126_167_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-147",
+      "source_reference": "L15",
+      "source_class": "S",
+      "summary": "不搬送の病院向け距離は入力せず、出場→現場の距離は別扱い",
+      "ledger_path": "docs/emergency/P01_EX126_167_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-148",
+      "source_reference": "L16",
+      "source_class": "S",
+      "summary": "転送後は最終収容先を登録。最初の立寄先ではない",
+      "ledger_path": "docs/emergency/P01_EX126_167_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-149",
+      "source_reference": "L17",
+      "source_class": "S",
+      "summary": "転院搬送なら救急隊判断緊急度は準緊急（黄）。不搬送は別条件",
+      "ledger_path": "docs/emergency/P01_EX126_167_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-150",
+      "source_reference": "L18",
+      "source_class": "S",
+      "summary": "医師初診の診断に基づく傷病名。急病/急病以外の分類が異なる",
+      "ledger_path": "docs/emergency/P01_EX126_167_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-151",
+      "source_reference": "L19",
+      "source_class": "S",
+      "summary": "転院搬送での医師や看護師の同乗は実態に応じて扱う",
+      "ledger_path": "docs/emergency/P01_EX126_167_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-152",
+      "source_reference": "L19",
+      "source_class": "S",
+      "summary": "介護情報と生活状況は別概念。65歳以上の条件を確認",
+      "ledger_path": "docs/emergency/P01_EX126_167_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-153",
+      "source_reference": "L20",
+      "source_class": "S",
+      "summary": "主訴等は可能な限り記載を促す説明。推奨を無条件の義務に変換しない",
+      "ledger_path": "docs/emergency/P01_EX126_167_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-154",
+      "source_reference": "L20",
+      "source_class": "S",
+      "summary": "周産期・新生児の特記事項は事案による補足。全件の医学的必須判断にしない",
+      "ledger_path": "docs/emergency/P01_EX126_167_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-155",
+      "source_reference": "L21",
+      "source_class": "F",
+      "summary": "医療機関の選定者区分と選定理由の候補が混在。現行入力欄ID/正式コードを確認するまで保留",
+      "ledger_path": "docs/emergency/P01_EX126_167_RECHECK_20261120.md",
+      "flags": [
+        "HOLD_FIELD"
+      ],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-156",
+      "source_reference": "L21",
+      "source_class": "S",
+      "summary": "隊長判断の出場区分は選択肢の意味を確認。名称の部分一致で自動確定しない",
+      "ledger_path": "docs/emergency/P01_EX126_167_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-157",
+      "source_reference": "L22",
+      "source_class": "S",
+      "summary": "家族事前手配・転院時の照会0→記録上1の例外、回数は記録定義優先",
+      "ledger_path": "docs/emergency/P01_EX126_167_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-158",
+      "source_reference": "L23",
+      "source_class": "S",
+      "summary": "実施・成功処置と試みたが不成功の処置を区別",
+      "ledger_path": "docs/emergency/P01_EX126_167_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-159",
+      "source_reference": "L23",
+      "source_class": "S",
+      "summary": "気道確保の器具/方法の分類表に従う",
+      "ledger_path": "docs/emergency/P01_EX126_167_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-160",
+      "source_reference": "L24",
+      "source_class": "S",
+      "summary": "静脈路確保はブドウ糖/CPA前/CPA後の目的別欄",
+      "ledger_path": "docs/emergency/P01_EX126_167_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-161",
+      "source_reference": "L24",
+      "source_class": "S",
+      "summary": "AED装着のみと実際の除細動を区別",
+      "ledger_path": "docs/emergency/P01_EX126_167_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-162",
+      "source_reference": "L24",
+      "source_class": "S",
+      "summary": "自動心臓マッサージ器使用時は自動の処置区分",
+      "ledger_path": "docs/emergency/P01_EX126_167_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-163",
+      "source_reference": "L25",
+      "source_class": "S",
+      "summary": "在宅医療継続の点滴・外瘻・その他を区分",
+      "ledger_path": "docs/emergency/P01_EX126_167_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-164",
+      "source_reference": "L26",
+      "source_class": "E",
+      "summary": "脈拍100以上等の矛盾はよくあるミスの例であり全年齢の正常上限ではない",
+      "ledger_path": "docs/emergency/P01_EX126_167_RECHECK_20261120.md",
+      "flags": [
+        "EXAMPLE_ONLY"
+      ],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-165",
+      "source_reference": "L26",
+      "source_class": "S",
+      "summary": "明らかな死亡の事案では0値でも印刷されない場合。印字なしを空欄と推定しない",
+      "ledger_path": "docs/emergency/P01_EX126_167_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-166",
+      "source_reference": "L27",
+      "source_class": "S",
+      "summary": "特定行為の要請時刻・理由と実施時刻の関連を確認",
+      "ledger_path": "docs/emergency/P01_EX126_167_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    },
+    {
+      "candidate_id": "EX-167",
+      "source_reference": "L28",
+      "source_class": "S",
+      "summary": "CPA前後の静脈路や投薬等の処置と時刻・穿刺針の記録を分ける",
+      "ledger_path": "docs/emergency/P01_EX126_167_RECHECK_20261120.md",
+      "flags": [],
+      "approval_status": "PROVISIONAL_NOT_APPROVED",
+      "executable": false
+    }
+  ]
+}

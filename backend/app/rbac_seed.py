@@ -80,6 +80,9 @@ PERMISSIONS.update({
     "emergency.clinical.review": "臨床分類候補Human確認",
     "emergency.report.create": "救急報告・事後検証・救命処置録Draft作成",
     "emergency.report.review": "救急帳票DraftHuman確認",
+    "emergency.audit.configure": "救急監査の様式・条件の作成と影響検証",
+    "emergency.audit.approve": "救急監査の様式・条件の独立承認と使用終了",
+    "emergency.audit.read_all": "本部内の救急監査原本・結果を横断参照",
 })
 
 # Additive operational permissions; reporting does not imply sensitive crew access.
@@ -92,7 +95,8 @@ ROLE_POLICY: dict[str, dict] = {
     "system_admin": {
         "name": "システム管理者",
         "system_role": True,
-        "permissions": set(PERMISSIONS),
+        # These new sensitive audit rights require explicit local assignment.
+        "permissions": set(PERMISSIONS) - {"emergency.audit.configure", "emergency.audit.approve", "emergency.audit.read_all"},
     },
     "prevention_editor": {
         "name": "予防業務担当",

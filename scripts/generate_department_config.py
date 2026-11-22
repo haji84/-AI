@@ -13,6 +13,8 @@ def main():
     parser.add_argument('--host', required=True)
     parser.add_argument('--port', type=int, required=True)
     parser.add_argument('--release-id', required=True)
+    parser.add_argument('--emergency-audit', action='store_true',
+                        help='Generate optional Linux audit worker and backup registration; real-data use remains disabled')
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
     values = vars(args).copy();output = values.pop('output')
