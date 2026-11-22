@@ -187,6 +187,55 @@ def test_subprocess_output_limit_stops_the_writer_without_retaining_output():
     assert time.monotonic() - started < 2
 
 
+def test_windows_probes_allow_cold_powershell_startup_without_extending_native_budgets(monkeypatch):
+    module = load_script()
+    windows_fixture(monkeypatch, module)
+    original = module._run_command
+    native_budgets = []
+
+    def slow_powershell(command, *, timeout=5.0, **kwargs):
+        if Path(command[0]).name == 'powershell.exe':
+            # A cold, successful PowerShell/CIM probe can exceed the native
+            # tools' five-second budget. It still needs a finite upper bound.
+            assert 0 < timeout <= 30
+            if timeout < 6:
+                return module.Probe('TIMEOUT', SECRET.encode())
+        else:
+            native_budgets.append(timeout)
+        return original(command, timeout=timeout, **kwargs)
+
+    monkeypatch.setattr(module, '_run_command', slow_powershell)
+    report = module.inspect_workstation()
+    assert report['os']['status'] == 'OK'
+    assert report['cpu']['logical_count'] == 16
+    assert report['ram']['total_bytes'] == 34359738368
+    assert report['storage']['status'] == 'OK'
+    assert report['hyperv']['status'] == 'OK'
+    assert report['ports']['8787'] == {'status': 'OK', 'listening': True}
+    assert native_budgets == [5.0, 5.0, 5.0]
+    assert SECRET not in json.dumps(report)
+
+
+def test_powershell_deadline_still_terminates_child_and_discards_partial_output(monkeypatch):
+    module = load_script()
+    original = module._run_command
+    monkeypatch.setattr(module, 'POWERSHELL_TIMEOUT', 0.05, raising=False)
+
+    def stalled_powershell(command, *, timeout=5.0, **kwargs):
+        assert Path(command[0]).name == 'powershell.exe'
+        return original([sys.executable, '-c',
+                         'import time; print("PRIVATE_PARTIAL_OUTPUT", flush=True); time.sleep(30)'],
+                        timeout=timeout, **kwargs)
+
+    monkeypatch.setattr(module, '_run_command', stalled_powershell)
+    started = time.monotonic()
+    report = module._windows_system()
+    assert report['os'] == {'family': 'WINDOWS', 'version': None, 'status': 'TIMEOUT'}
+    assert report['cpu'] == {'status': 'TIMEOUT', 'logical_count': None}
+    assert 'PRIVATE_PARTIAL_OUTPUT' not in json.dumps(report)
+    assert time.monotonic() - started < 1
+
+
 @pytest.mark.parametrize('tags', [
     {'models': SECRET}, {'models': [SECRET]}, {'models': [{'name': True}]},
     {'models': [{'name': 'x' * 10000}]}, {'models': [] , 'unused': SECRET},

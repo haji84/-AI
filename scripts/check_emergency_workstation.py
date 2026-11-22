@@ -30,6 +30,9 @@ from typing import NamedTuple
 
 
 COMMAND_TIMEOUT = 5.0
+# Windows PowerShell startup and CIM/module initialization need their own
+# bounded budget. Native tools retain the shorter five-second deadline.
+POWERSHELL_TIMEOUT = 30.0
 COMMAND_OUTPUT_LIMIT = 65536
 MODEL_OUTPUT_LIMIT = 131072
 PORTS = (8787, 8796, 8797, 11434)
@@ -159,9 +162,9 @@ def _safe_probe(probe, *, limit=COMMAND_OUTPUT_LIMIT):
     return probe
 
 
-def _command(command):
+def _command(command, *, timeout=COMMAND_TIMEOUT):
     try:
-        return _safe_probe(_run_command(command))
+        return _safe_probe(_run_command(command, timeout=timeout))
     except PermissionError:
         return Probe('ACCESS_DENIED')
     except Exception:
@@ -212,7 +215,10 @@ def _powershell(body):
         "$_.Exception.HResult -eq -2147024891) {$s='ACCESS_DENIED'};"
         '@{status=$s}|ConvertTo-Json -Compress}'
     )
-    status, value = _decode_json(_command(['powershell.exe', '-NoProfile', '-NonInteractive', '-Command', wrapper]))
+    status, value = _decode_json(_command(
+        ['powershell.exe', '-NoProfile', '-NonInteractive', '-Command', wrapper],
+        timeout=POWERSHELL_TIMEOUT,
+    ))
     if status != 'OK':
         return status, None
     code = value.get('status')
