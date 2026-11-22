@@ -18,6 +18,10 @@ class VersionInput(StrictInput):
     expected_version: Annotated[StrictInt, Field(ge=1)]
 
 
+class AnnotatedPDF(VersionInput):
+    run_id: UUID
+
+
 class FieldValue(StrictInput):
     field_id: FieldIdentifier
     state: ReadState

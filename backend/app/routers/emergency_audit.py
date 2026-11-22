@@ -23,7 +23,7 @@ from ..authz import current_user, permission_codes, require_mutation_permission,
 from ..db import get_db
 from ..department_maintenance import MaintenanceUnavailable
 from ..emergency_audit_models import AuditConfiguration, AuditJob, AuditReport, AuditRevision, AuditRun, AuditSource, AuditWorkerHeartbeat
-from ..emergency_audit_schemas import (ApproveConfiguration, AssignReviewer, CheckRevision, ConfirmFields,
+from ..emergency_audit_schemas import (AnnotatedPDF, ApproveConfiguration, AssignReviewer, CheckRevision, ConfirmFields,
     ImpactInput, MapRevision, MeasurementExport, PatternInput, SaveConfiguration, SaveDispositions, SaveEvent, VersionInput, VisionInput)
 from ..models import Employee, User, now_utc
 from ..personnel import employee_available
@@ -133,7 +133,13 @@ def _isolated(mode, data, **kwargs):
     from ..emergency_audit_worker import WorkerError, run_isolated
     try:
         return run_isolated(mode, data, **kwargs)
-    except WorkerError:
+    except WorkerError as error:
+        if mode == 'review_pdf':
+            if error.code in {'PDF_OUTPUT_LIMIT', 'PDF_APPENDIX_LIMIT', 'PROCESS_OUTPUT_LIMIT'}:
+                raise HTTPException(413, '訂正確認用PDFの出力上限を超えました。途中を省略したPDFは返していません。') from None
+            if error.code in {'PROCESS_TIMEOUT', 'TOTAL_TIMEOUT', 'PDF_FONT_UNAVAILABLE', 'PROCESS_PLATFORM_UNSUPPORTED'}:
+                raise HTTPException(503, '訂正確認用PDFの生成期限または実行環境を確認できません。PDFは返していません。') from None
+            raise HTTPException(422, '訂正確認用PDFを全件出力できません。原本の形式・ページ数・検査結果を確認してください。') from None
         raise HTTPException(422, 'この原本を安全に処理できません。形式・ページ数・保護設定を確認してください。') from None
 
 
@@ -215,6 +221,26 @@ def report_detail(identity: UUID, db: Session = Depends(get_db), user: User = De
     row = svc.report(db, user, identity)
     svc.audit(db, user, 'read', row.report_id); db.commit()
     return svc.output(db, row, user)
+
+
+@router.post('/reports/{identity}/annotated-pdf')
+async def annotated_pdf(identity: UUID, payload: AnnotatedPDF,
+    db: Session = Depends(get_db), user: User = Depends(read_access)):
+    from ..emergency_audit_export import capture_export
+    before, _, revision, _ = capture_export(db, user.user_id, identity, payload)
+    value = svc.verified_original(revision)
+    # Native work holds no database transaction, account lock or private file.
+    db.rollback()
+    rendered = await run_in_threadpool(_isolated, 'review_pdf', value, export_plan=before.plan)
+    after, parent, _, actor = capture_export(db, before.user_id, identity, payload,
+                                           expected_employee_id=before.employee_id)
+    if before.guard != after.guard:
+        svc.failure(409, '生成中に検査・確認結果・設定が変わりました。再読込してください。')
+    svc.audit(db, actor, 'pdf_export', parent.report_id, version=parent.version,
+              count=len(before.plan['findings']), kind=before.plan['mode'])
+    db.commit()
+    return Response(rendered, media_type='application/pdf',
+                    headers={'Content-Disposition': 'attachment; filename="emergency-review.pdf"'})
 
 
 @router.post('/reports/{identity}/revisions', status_code=201)

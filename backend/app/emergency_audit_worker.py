@@ -26,6 +26,7 @@ from .audit import write_audit
 from .authz import permission_codes
 from .db import SessionLocal
 from .emergency_audit_models import AuditConfiguration, AuditJob, AuditReport, AuditRevision, AuditWorkerHeartbeat
+from .emergency_audit_pdf import ERROR_CODES as PDF_CODES, MAX_PDF_BYTES, MAX_PLAN_BYTES, validate_plan
 from .emergency_mapping import ProfileDefinition, _pages, map_fields
 from .emergency_reader import ERROR_CODES as READER_CODES, MAX_RENDER_PIXELS, MAX_SOURCE_BYTES, ReaderError
 from .models import User, now_utc
@@ -33,8 +34,9 @@ from .personnel import account_change_lock, employee_available
 from .settings import settings
 
 
-MODE_TIMEOUTS = {'inspect': 10, 'render': 20}
-OUTPUT_LIMITS = {'inspect': 4096, 'render': 52 * 1024 * 1024, 'read': 8 * 1024 * 1024, 'ai': 1024 * 1024, 'vision': 1024 * 1024}
+MODE_TIMEOUTS = {'inspect': 10, 'render': 20, 'review_pdf': 120}
+OUTPUT_LIMITS = {'inspect': 4096, 'render': 52 * 1024 * 1024, 'read': 8 * 1024 * 1024,
+                 'ai': 1024 * 1024, 'vision': 1024 * 1024, 'review_pdf': ((MAX_PDF_BYTES+2)//3)*4+256}
 MAX_INPUT_BYTES = 36 * 1024 * 1024
 REQUIRED_RIGHTS = {'emergency.case.read', 'emergency.patient.read', 'emergency.report.read', 'emergency.report.create'}
 DEFAULT_WORKER_ID = str(uuid4())
@@ -49,7 +51,7 @@ WORKER_CODES = frozenset({
     'PRIVATE_STORAGE_UNAVAILABLE', 'PRIVATE_CONTENT_INTEGRITY', 'PRIVATE_CONTENT_INVALID',
     'PRIVATE_CONTENT_TOO_LARGE', 'KEY_NOT_CONFIGURED', 'KEY_LOCATION_INVALID', 'KEY_INVALID',
     'KEY_PERMISSIONS_INVALID',
-}) | READER_CODES
+}) | READER_CODES | PDF_CODES
 RETRYABLE = {'PROCESS_TIMEOUT', 'PROCESS_FAILED', 'OCR_TIMEOUT', 'OCR_FAILED'}
 
 
@@ -186,19 +188,19 @@ def _vision_result(value, page):
         raise WorkerError('PROCESS_RESPONSE_INVALID') from None
 
 
-def run_isolated(mode, data, *, page=None, pages=None):
+def run_isolated(mode, data, *, page=None, pages=None, export_plan=None):
     """Public safe-error boundary, supported on Linux servers in this release."""
     if not NATIVE_PLATFORM_SUPPORTED:
         raise WorkerError('PROCESS_PLATFORM_UNSUPPORTED')
     try:
-        return _run_isolated(mode, data, page=page, pages=pages)
+        return _run_isolated(mode, data, page=page, pages=pages, export_plan=export_plan)
     except WorkerError:
         raise
     except Exception:
         raise WorkerError('PROCESS_FAILED') from None
 
 
-def _run_isolated(mode, data, *, page=None, pages=None):
+def _run_isolated(mode, data, *, page=None, pages=None, export_plan=None):
     """Fixed pipe protocol; bound stdout, kill descendants, discard native stderr.
 
     OCR's unavoidable temporary images/TSV are confined to a mode0700 folder,
@@ -209,8 +211,18 @@ def _run_isolated(mode, data, *, page=None, pages=None):
         raise WorkerError('PROCESS_INPUT_INVALID')
     if mode in {'render', 'vision'} and (type(page) is not int or not 1 <= page <= 50):
         raise WorkerError('PAGE_OUT_OF_RANGE')
+    if mode == 'review_pdf':
+        try:
+            export_plan = validate_plan(export_plan).model_dump(mode='json')
+            if len(json.dumps(export_plan, ensure_ascii=False, allow_nan=False).encode('utf-8')) > MAX_PLAN_BYTES:
+                raise ValueError()
+        except (ValueError, TypeError, RecursionError):
+            raise WorkerError('PDF_PLAN_INVALID') from None
+    elif export_plan is not None:
+        raise WorkerError('PROCESS_INPUT_INVALID')
     timeout = MODE_TIMEOUTS.get(mode, settings.emergency_audit_worker_timeout)
     payload = {'mode': mode, 'data': b64encode(data).decode('ascii'), 'page': page, 'pages': pages,
+               'export_plan': export_plan,
                'language': settings.emergency_audit_ocr_language, 'model': settings.emergency_audit_ai_model,
                'port': settings.emergency_audit_ai_port, 'timeout': max(1, math.ceil(timeout))}
     try:
@@ -285,6 +297,12 @@ def _run_isolated(mode, data, *, page=None, pages=None):
                 raise ValueError()
             return png
         if mode == 'read': return _read_result(result)
+        if mode == 'review_pdf':
+            if not isinstance(result, str): raise ValueError()
+            pdf = b64decode(result, validate=True)
+            if len(pdf) > MAX_PDF_BYTES: raise WorkerError('PDF_OUTPUT_LIMIT')
+            if not pdf.startswith(b'%PDF-') or not pdf.rstrip().endswith(b'%%EOF'): raise ValueError()
+            return pdf
         return _ai_result(result, pages) if mode == 'ai' else _vision_result(result, page)
     except WorkerError:
         raise

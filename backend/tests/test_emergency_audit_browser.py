@@ -570,6 +570,70 @@ await invoke('openTruthSource');assert.equal(nodes.wholeReportChecked.disabled,f
 """)
 
 
+def test_audit_correction_pdf_download_uses_current_run_and_cleans_up_private_blob():
+    run_audit_js(r"""
+detail.last_run=run;await selectReport();
+assert.equal(nodes.exportCorrectionPdf.disabled,false);
+const regular=endpoint;endpoint=(path,options)=>path.endsWith('/annotated-pdf')
+ ?new Response('%PDF-1.7 synthetic correction copy',{headers:{'Content-Type':'application/pdf'}}):regular(path,options);
+await invoke('exportCorrectionPdf');
+const sent=requests.filter(r=>r.path.endsWith('/annotated-pdf'));
+assert.equal(sent.length,1);assert.equal(sent[0].method,'POST');
+assert.deepEqual(sent[0].body,{run_id:RUN,expected_version:1});
+const pdfs=createdBlobs.filter(b=>b.type==='application/pdf');assert.equal(pdfs.length,1);
+assert.equal(await pdfs[0].text(),'%PDF-1.7 synthetic correction copy');
+assert(allNodes.some(n=>n.tagName==='A'&&n.download==='emergency-review.pdf'));
+assert(nodes.pdfExportMessage.textContent.includes('保存しました'));
+const urls=[...createdUrls];window.FireAISession.invalidate();await settled();
+assert(urls.every(u=>revokedUrls.includes(u)));assert.equal(nodes.pdfExportMessage.textContent,'');
+""", before_start="authority.permissions.push('emergency.report.export');")
+
+
+@pytest.mark.parametrize('blocked', ['no_permission', 'no_run', 'stale', 'old_revision', 'dirty'])
+def test_audit_correction_pdf_does_not_export_uninspected_stale_or_unauthorized_data(blocked):
+    run_audit_js('const blocked=' + json.dumps(blocked) + r""";
+detail.last_run=blocked==='no_run'?null:{...run,stale:blocked==='stale'};
+if(blocked==='old_revision')detail.current_revision_id='00000000-0000-4000-8000-000000000088';
+await selectReport();
+if(blocked==='dirty'){nodes['field-state-temperature'].value='confirmed';await invoke('field-state-temperature','change');}
+assert.equal(nodes.exportCorrectionPdf.disabled,true);await invoke('exportCorrectionPdf');
+assert.equal(requests.filter(r=>r.path.endsWith('/annotated-pdf')).length,0);
+""", before_start="" if blocked == 'no_permission' else "authority.permissions.push('emergency.report.export');")
+
+
+@pytest.mark.parametrize('change', ['selection', 'authority', 'version', 'run', 'retired_config'])
+def test_audit_correction_pdf_discards_response_after_context_or_authority_change(change):
+    run_audit_js('const change=' + json.dumps(change) + r""";
+detail.last_run=run;await selectReport();
+let release;const regular=endpoint;endpoint=(path,options)=>path.endsWith('/annotated-pdf')
+ ?new Promise(resolve=>{release=resolve}):regular(path,options);
+const pending=nodes.exportCorrectionPdf.fire('click');await settled();
+assert.equal(nodes.exportCorrectionPdf.disabled,true);await invoke('exportCorrectionPdf');
+assert.equal(requests.filter(r=>r.path.endsWith('/annotated-pdf')).length,1);
+if(change==='selection')await selectReport();
+if(change==='authority')authority.permissions=authority.permissions.filter(p=>p!=='emergency.report.export');
+if(change==='version')detail={...detail,version:2};
+if(change==='run')detail={...detail,last_run:{...run,run_id:'00000000-0000-4000-8000-000000000099'}};
+if(change==='retired_config')detail={...detail,last_run:{...run,stale:true}};
+release(new Response('%PDF-1.7 discarded',{headers:{'Content-Type':'application/pdf'}}));await pending;await settled();
+assert.equal(createdBlobs.filter(b=>b.type==='application/pdf').length,0);
+assert(!allNodes.some(n=>n.download==='emergency-review.pdf'));
+if(['version','run','retired_config'].includes(change))assert(nodes.pdfExportMessage.textContent.includes('再読込'));
+""", before_start="authority.permissions.push('emergency.report.export');")
+
+
+def test_audit_correction_pdf_rejects_unexpected_content_without_saving():
+    run_audit_js(r"""
+detail.last_run=run;await selectReport();const regular=endpoint;
+endpoint=(path,options)=>path.endsWith('/annotated-pdf')
+ ?new Response('<html>PRIVATE_SENTINEL</html>',{headers:{'Content-Type':'text/html'}}):regular(path,options);
+await invoke('exportCorrectionPdf');
+assert(!allNodes.some(n=>n.download==='emergency-review.pdf'));
+assert(nodes.pdfExportMessage.textContent.includes('応答形式'));
+assert(!nodes.pdfExportMessage.textContent.includes('PRIVATE_SENTINEL'));
+""", before_start="authority.permissions.push('emergency.report.export');")
+
+
 SEED_BROWSER_DATABASE = r"""
 from sqlalchemy import select
 from app.main import app
@@ -579,7 +643,7 @@ from app.security import hash_password
 Base.metadata.create_all(engine)
 details={'emergency.case.read','emergency.patient.read','emergency.report.read'}
 roles={
- 'owner':details|{'emergency.report.create','emergency.audit.configure'},
+ 'owner':details|{'emergency.report.create','emergency.report.export','emergency.audit.configure'},
  'reviewer':details|{'emergency.report.create','emergency.report.review','emergency.audit.configure','emergency.audit.approve','emergency.audit.read_all'},
  'denied':{'document.read'},
 }
@@ -739,6 +803,24 @@ def test_browser_private_source_confirmation_check_revision_and_responsive(audit
         page.locator('.decision-controls .decision-choice').select_option('correction_needed')
         page.locator('.decision-controls button').click()
         expect(page.locator('#findingMessage')).to_contain_text('確認結果を記録')
+        with page.expect_download() as downloaded:
+            with page.expect_response('**/annotated-pdf') as exported:
+                page.locator('#exportCorrectionPdf').click()
+        assert exported.value.status == 200
+        assert exported.value.headers['content-type'].startswith('application/pdf')
+        assert 'no-store' in exported.value.headers['cache-control']
+        review_copy = downloaded.value
+        assert review_copy.suggested_filename == 'emergency-review.pdf'
+        review_path = tmp_path / 'synthetic-correction-review.pdf'
+        review_copy.save_as(review_path)
+        import pymupdf
+        with pymupdf.open(review_path) as review_pdf:
+            assert review_pdf.page_count >= 2
+            review_text = '\n'.join(p.get_text() for p in review_pdf)
+        assert '訂正確認用' in review_text
+        assert '合成の値を原本で確認してください。' in review_text
+        assert '要修正' in review_text
+        expect(page.locator('#pdfExportMessage')).to_contain_text('保存しました')
         page.locator('#revisionFile').set_input_files({'name': 'synthetic-corrected.pdf', 'mimeType': 'application/pdf', 'buffer': synthetic_pdf('36.5')})
         page.locator('#uploadRevision').click()
         expect(page.locator('#reportHeading')).to_contain_text('版 2')

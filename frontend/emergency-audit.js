@@ -39,6 +39,7 @@
   const canTruthReview = () => canRead() && state.permissions.has('emergency.report.review') && state.report && !isOwner(state.report) && (state.report.reviewer_id === state.userId || state.permissions.has('emergency.audit.read_all'));
   const canRecordWork = () => canWrite() || canTruthReview();
   const canRecordDecision = () => (canWrite() || canTruthReview()) && headSelected() && !state.busy && !state.uploadBusy && !state.stale;
+  const canExportCorrection = () => canRead() && state.permissions.has('emergency.report.export') && headSelected() && !state.busy && !state.uploadBusy && !state.stale && !state.fieldDirty && !reportPending() && !!state.report?.last_run && !state.report.last_run.stale && state.report.last_run.revision_id === state.report.current_revision_id;
   const aiConfigured = () => state.capabilities?.ai?.configured === true || state.capabilities?.ai?.available === true;
   const scalarText = value => ['string', 'number', 'boolean'].includes(typeof value) ? String(value) : '';
   const list = value => Array.isArray(value) ? value : [];
@@ -89,6 +90,7 @@
     $('nextPage').disabled = !state.report || state.page >= pages;
     $('previewZoom').disabled = !state.previewUrl;
     $('downloadOriginal').disabled = !state.report || !ready;
+    $('exportCorrectionPdf').disabled = !canExportCorrection();
     const edit = writable(), fieldsEditable = edit && !reportPending() && originalVisibleFor(revision?.revision_id);
     for (const id of ['revisionFile', 'revisionProfile', 'applyMapping', 'retryJob', 'checkRules', 'checkMode', 'checkDate']) $(id).disabled = !edit;
     $('uploadRevision').disabled = !edit || !$('revisionFile').files?.length;
@@ -173,7 +175,7 @@
     for (const id of ['fieldList', 'findingList', 'findingSummary', 'revisionHistory', 'eventHistory', 'revisionDifference', 'measurementHistory', 'truthReviewList', 'missedErrorList', 'aiCandidates', 'truthRunSelect']) $(id).replaceChildren();
     for (const id of ['revisionFile', 'submittedAt', 'workStartedAt', 'workEndedAt']) $(id).value = '';
     for (const id of ['confirmOriginal', 'submissionConfirmed', 'wholeReportChecked', 'truthReviewComplete', 'followupComplete', 'workComplete']) $(id).checked = false;
-    for (const id of ['fieldMessage', 'findingMessage', 'revisionMessage', 'measurementMessage', 'reviewerMessage', 'truthMessage', 'truthRunContext', 'reportMeta', 'reportMode', 'aiStatus']) message(id, '');
+    for (const id of ['fieldMessage', 'findingMessage', 'pdfExportMessage', 'revisionMessage', 'measurementMessage', 'reviewerMessage', 'truthMessage', 'truthRunContext', 'reportMeta', 'reportMode', 'aiStatus']) message(id, '');
     $('reportHeading').textContent = '報告書'; $('measurementReport').textContent = '報告書を選択してください。';
     $('workTimerStatus').textContent = '計測していません。'; $('afterSubmission').value = '';
     $('recordWork').textContent = 'この時間を記録'; $('recordSubmission').textContent = '提出を記録';
@@ -607,6 +609,31 @@
       await downloadBlob(blob, 'report-original-' + revision.number + '.' + ext, t.generation);
     } catch (error) { fail('sourceMessage', error, t); }
   }
+  async function exportCorrectionPdf() {
+    if (!canExportCorrection()) return;
+    const t = ticket(), report = state.report;
+    const snapshot = {id: report.report_id, version: report.version, revision: report.current_revision_id, run: report.last_run.run_id};
+    const sameReport = value => value?.report_id === snapshot.id && value.version === snapshot.version && value.current_revision_id === snapshot.revision && value.revision?.revision_id === snapshot.revision && value.last_run?.run_id === snapshot.run && value.last_run.revision_id === snapshot.revision && !value.last_run.stale;
+    state.busy = true; controls(); message('pdfExportMessage', '訂正確認用PDFを作成しています。');
+    try {
+      const response = await responseFor('/reports/' + snapshot.id + '/annotated-pdf', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({run_id: snapshot.run, expected_version: snapshot.version})});
+      const blob = await response.blob();
+      if (!current(t) || !sameReport(state.report)) return;
+      if (blob.type.split(';')[0] !== 'application/pdf' || !blob.size || blob.size > 32 * 1024 * 1024) throw safeError('PDFの応答形式または容量を確認できませんでした。');
+      // Recheck the saved snapshot after reading the private response body.
+      // The shared session guard also checks authority after both responses.
+      const latest = await request('/reports/' + snapshot.id);
+      if (!current(t) || !sameReport(state.report)) return;
+      if (!sameReport(latest)) throw safeError('記録の版や検査の条件が変わりました。再読込して確認してください。', 409);
+      await downloadBlob(blob, 'emergency-review.pdf', t.generation);
+      message('pdfExportMessage', '訂正確認用PDFを保存しました。表示中の検査の範囲を出力しています。');
+    } catch (error) {
+      if (error.status === 413) error = safeError('PDFの容量または指摘一覧のページ数が上限を超えています。一部だけのPDFは保存していません。', 413);
+      if (error.status === 503) error = safeError('現在PDFを作成できません。時間を置いて再試行し、続く場合は管理担当者に確認してください。', 503);
+      fail('pdfExportMessage', error, t);
+    }
+    finally { if (current(t)) { state.busy = false; controls(); } }
+  }
   function switchTab(name) {
     if (!canRead()) return;
     if (state.fieldDirty && name !== 'reports') { message('auditMessage', '読み取りの変更を保存してから画面を切り替えてください。', true); return; }
@@ -1021,6 +1048,7 @@
   $('runAI').onclick = () => writable() && aiConfigured() && mutate('/revisions/' + state.report.revision.revision_id + '/ai', {expected_version: state.report.version}, 'findingMessage', '記載の整合性候補の確認を開始しました。');
   $('runVision').onclick = () => writable() && aiConfigured() && mutate('/revisions/' + state.report.revision.revision_id + '/vision', {expected_version: state.report.version, page: state.page}, 'findingMessage', '表示ページの画像・手書きの候補読取を開始しました。候補は未確認として扱います。');
   $('downloadOriginal').onclick = downloadOriginal;
+  $('exportCorrectionPdf').onclick = exportCorrectionPdf;
   $('newProfile').onclick = newProfile; $('saveProfile').onclick = saveProfile;
   $('addMappedField').onclick = $('cancelMappedField').onclick = () => { clearFieldEditor(); if (!state.mappingPreview) return loadMappingPage(Number($('mappedFieldPage').value)); }; $('saveMappedField').onclick = saveMappedField;
   for (const id of ['profileName', 'profileCode', 'profileValidFrom', 'profileValidTo']) $(id).addEventListener('input', configChanged);

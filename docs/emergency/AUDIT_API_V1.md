@@ -1,6 +1,6 @@
 # Emergency audit API v1 — implementation contract
 
-Status: implementation, 2026-11-21. All examples/fixtures are synthetic. These
+Status: implementation, 2026-11-22. All examples/fixtures are synthetic. These
 interfaces implement the accepted report-audit scope. They do not certify
 unapproved source rules, actual report accuracy, or target-machine readiness.
 
@@ -66,6 +66,27 @@ submission permit; a no-issue result applies only to its tested scope.
 * `GET /revisions/{revision_id}`: private revision detail and its latest run.
 * `GET /revisions/{revision_id}/pages/{page}.png`: bounded PNG; no active PDF.
 * `GET /revisions/{revision_id}/original`: attachment-only exact original.
+* `POST /reports/{report_id}/annotated-pdf`: `{run_id,expected_version}`.
+  Requires the three detail permissions, `emergency.report.export`, and the
+  existing report scope. Accepts only the current original revision's latest
+  non-stale inspection; mismatched version, old run, or invalidated approval
+  is a conflict. Returns `application/pdf`, attachment `emergency-review.pdf`,
+  with the private response headers. After isolated rendering, the server
+  rechecks session, linked employee, permissions, report scope/version,
+  current revision, latest run, and configuration validity before release.
+  The UI also rejects changed selection/authority/version before saving.
+  A new rasterized copy has numbered regions and a Japanese review appendix.
+  It preserves unreadable, untested, and unknown-location states and current
+  same-run human dispositions. It does not merge old inspections or invent
+  corrected values. The mode and limited inspection scope remain explicit.
+  Frozen same-run input fields/findings supply an allowlisted render plan;
+  full report histories and unrelated AI payloads are not sent to rendering.
+  Original bytes/hash stay unchanged; original active objects, attachments,
+  links, and hidden text are not copied. The review copy is not a replacement
+  signed original or a submission permit. Native generation stays in the
+  bounded Linux child: source <=50 pages, <=12M pixels per rendered page,
+  <=120 seconds, output <=32MiB, appendix <=50 pages. Exceeding a limit fails
+  the export rather than silently omitting pages/findings.
 * `POST /revisions/{revision_id}/retry`: `{expected_version}`; failed/current
   reading only, retained attempts, no concurrent double execution.
 * `POST /revisions/{revision_id}/mapping`:

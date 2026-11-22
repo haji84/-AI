@@ -43,7 +43,7 @@ def main():
         raw = sys.stdin.buffer.read(MAX_INPUT_BYTES+1)
         if len(raw) > MAX_INPUT_BYTES: raise ValueError()
         request = json.loads(raw, object_pairs_hook=_unique, parse_constant=_invalid_number)
-        if not isinstance(request, dict) or set(request) != {'mode', 'data', 'page', 'pages', 'language', 'model', 'port', 'timeout'}:
+        if not isinstance(request, dict) or set(request) != {'mode', 'data', 'page', 'pages', 'language', 'model', 'port', 'timeout', 'export_plan'}:
             raise ValueError()
         timeout = request['timeout']
         if type(timeout) is not int or not 1 <= timeout <= 900: raise ValueError()
@@ -53,6 +53,9 @@ def main():
         if request['mode'] == 'inspect': result = inspect_source(data)
         elif request['mode'] == 'render': result = b64encode(render_page(data, request['page'])).decode('ascii')
         elif request['mode'] == 'read': result = extract_source(data, language=request['language'])
+        elif request['mode'] == 'review_pdf':
+            from .emergency_audit_pdf import render_review_pdf
+            result = b64encode(render_review_pdf(data, request['export_plan'])).decode('ascii')
         elif request['mode'] == 'ai':
             from .emergency_local_ai import review_text
             pages = request['pages']
@@ -70,7 +73,8 @@ def main():
         # ReaderError is imported only after input validation. Never serialize
         # an arbitrary exception's message or a supposedly safe arbitrary code.
         from .emergency_reader import ReaderError
-        response = {'ok': False, 'code': failure.code if isinstance(failure, ReaderError) else 'PROCESS_FAILED'}
+        from .emergency_audit_pdf import PDFExportError
+        response = {'ok': False, 'code': failure.code if isinstance(failure, (ReaderError, PDFExportError)) else 'PROCESS_FAILED'}
     try:
         protocol.write(json.dumps(response, ensure_ascii=False, allow_nan=False, separators=(',', ':')).encode('utf-8'))
         protocol.flush()

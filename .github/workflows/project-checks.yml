@@ -9,6 +9,26 @@ permissions:
   contents: read
 
 jobs:
+  workstation-diagnostic-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Read-only Windows diagnostic without application dependencies
+        shell: pwsh
+        run: |
+          python -W error -B scripts/check_emergency_workstation.py --context cloud > diagnostic.json
+          if ($LASTEXITCODE -ne 0) { throw 'Diagnostic failed' }
+          $result = Get-Content diagnostic.json -Raw | ConvertFrom-Json
+          if ($result.diagnostic_status -ne 'COMPLETED' -or $result.execution_context -ne 'CLOUD') { throw 'Invalid diagnostic result' }
+          if ($result.os.family -ne 'WINDOWS' -or $result.os.status -ne 'OK') { throw 'Windows query failed' }
+          if ($result.cpu.status -ne 'OK' -or $result.ram.status -ne 'OK' -or $result.storage.status -ne 'OK') { throw 'Resource query failed' }
+          if ($result.reader_platform_supported -ne $false) { throw 'Windows reader support incorrectly claimed' }
+          if ($result.acceptance.workstation_verified -ne $false -or $result.acceptance.accuracy_measured -ne $false -or $result.acceptance.production_accepted -ne $false) { throw 'Unmeasured acceptance incorrectly claimed' }
+          Write-Output 'Anonymous Windows query completed. ZBook and report accuracy remain untested.'
+
   backend-tests:
     runs-on: ubuntu-latest
     services:
