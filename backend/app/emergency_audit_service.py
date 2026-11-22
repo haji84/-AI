@@ -177,6 +177,8 @@ def create_report(db, user, data, metadata, request_id, dataset_kind, profile_id
         parent = report(db, user, report_id)
         if parent.dataset_kind != dataset_kind:
             failure(422)
+        from .emergency_training_service import validate_family_original
+        validate_family_original(db, parent.report_id, source_hash)
         claim_report(db, parent, expected_version)
         parent.revision_number += 1
         # Existing active jobs cannot overwrite a replacement revision.

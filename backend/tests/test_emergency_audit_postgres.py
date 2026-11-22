@@ -170,6 +170,11 @@ def test_audit_native_upgrade_private_approval_workers_and_competing_writes(tmp_
             assert db.execute(text('SELECT count(*) FROM schema_migrations WHERE version=:version'),
                 {'version': MIGRATION}).scalar_one() == 1
 
+        # The assertions above pin the historical 059 -> 060 upgrade. The
+        # remaining journey executes today's API, whose enrolled-original guard
+        # also uses the additive training registry; install current migrations.
+        apply_migrations(target_url, root / 'db' / 'migrations')
+
         factory = sessionmaker(bind=target, class_=BoundSession, expire_on_commit=False, autoflush=False)
         def sessions():
             with factory() as db:

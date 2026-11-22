@@ -14,7 +14,7 @@ from .settings import settings
 
 MAGIC = b'FREA1'
 MAX_ENVELOPE = 32 * 1024 * 1024
-KINDS = {'revision', 'source', 'reading', 'fields', 'ai', 'run', 'config'}
+KINDS = {'revision', 'source', 'reading', 'fields', 'ai', 'run', 'config', 'training_truth', 'training_dataset'}
 
 
 class VaultError(RuntimeError):
