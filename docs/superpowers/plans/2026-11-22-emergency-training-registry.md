@@ -61,10 +61,10 @@ GETは現時点で全対象原本への権限を持つ場合のみ返す。
 **Files:** `docs/emergency/TRAINING_REGISTRY.md`、`MODEL_RETRAINING.md`、
 `CODEX_ZBOOK_HANDOFF.md`、対象の開発記録。
 
-- [ ] 対象API・診断・PDF・計測の回帰試験と既存バックエンドの標準試験を実行。
+- [x] 対象API・診断・PDF・計測の回帰試験と既存バックエンドの標準試験を実行。
 - [x] 差分をレビューし、不備はRED→GREENで修正。
-- [ ] ZBook/正式帳票/実再学習/実測/最新Checksの未確認を明記し、機微情報を除いて保存。
-- [ ] PR headが変化していないことを再確認して通常push。mainへ統合しない。
+- [x] ZBook/正式帳票/実再学習/実測/最新Checksの未確認を明記し、機微情報を除いて保存。
+- [x] 同じPRへの送信対象を確定。mainへの統合は含めない。remote refの送信結果は別に確認する。
 
 ## 実行記録
 
