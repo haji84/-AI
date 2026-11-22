@@ -28,6 +28,10 @@ py -3 .\scripts\check_emergency_workstation.py
 
 結果にはマシン名、ユーザー名、実パス、VM名、IP、トークン、原本を含めない。実際の報告書を診断結果と一緒に公開リポジトリやCIへ送らない。
 
+WindowsのOS・CPU・RAM・固定領域は、時間と出力を制限したPython子プロセスから標準APIで取得する。OSの `version_basis` は `WINDOWS_KERNEL32_VERSION` で、識別用の値であり機能の互換性を保証しない。容量の `capacity_basis` は `CALLER_ACCESSIBLE_BYTES` で、実行したアカウントが利用できる容量を示す。利用者ごとの割当制限がある場合、ディスク全体の公称容量とは異なる。
+
+WindowsのRAM空き値は直ちに再利用できる物理メモリ、現行LinuxのRAM空き値は `MemFree` である。Linuxのページキャッシュ等を含む利用可能量とは区別し、この数値だけで学習・推論の可否を確定しない。WindowsのAPI定義は [MEMORYSTATUSEX](https://learn.microsoft.com/en-us/windows/win32/api/sysinfoapi/ns-sysinfoapi-memorystatusex) と [GetDiskFreeSpaceExW](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getdiskfreespaceexw) を参照。
+
 ## 2. Windows本体と実行環境を別々に確認する
 
 現行の原本読取・PDF生成はLinuxの制限付き子プロセスで動作する。Windows直接実行を有効化するために、この制限を外さない。

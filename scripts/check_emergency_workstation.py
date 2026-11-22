@@ -57,6 +57,84 @@ GPU_NAME = re.compile(
 )
 MODULES = ('fitz', 'PIL', 'pytesseract', 'fastapi', 'sqlalchemy', 'cryptography')
 
+# Fixed source for an isolated standard-library-only child. It never imports
+# site/user customization, receives no user input and emits no drive names.
+WINDOWS_SYSTEM_CODE = r'''
+import ctypes
+import json
+import os
+import sys
+
+class MemoryStatus(ctypes.Structure):
+    _fields_ = [('dwLength', ctypes.c_uint32), ('dwMemoryLoad', ctypes.c_uint32),
+                ('ullTotalPhys', ctypes.c_ulonglong), ('ullAvailPhys', ctypes.c_ulonglong),
+                ('ullTotalPageFile', ctypes.c_ulonglong), ('ullAvailPageFile', ctypes.c_ulonglong),
+                ('ullTotalVirtual', ctypes.c_ulonglong), ('ullAvailVirtual', ctypes.c_ulonglong),
+                ('ullAvailExtendedVirtual', ctypes.c_ulonglong)]
+
+def failed():
+    return {'status': 'ACCESS_DENIED' if ctypes.get_last_error() == 5 else 'PROBE_FAILED'}
+
+def inspect_native():
+    api = ctypes.WinDLL('kernel32', use_last_error=True)
+    api.GlobalMemoryStatusEx.argtypes = [ctypes.POINTER(MemoryStatus)]
+    api.GlobalMemoryStatusEx.restype = ctypes.c_int
+    api.GetLogicalDrives.argtypes = []
+    api.GetLogicalDrives.restype = ctypes.c_uint32
+    api.GetDriveTypeW.argtypes = [ctypes.c_wchar_p]
+    api.GetDriveTypeW.restype = ctypes.c_uint32
+    pointer = ctypes.POINTER(ctypes.c_ulonglong)
+    api.GetDiskFreeSpaceExW.argtypes = [ctypes.c_wchar_p, pointer, pointer, pointer]
+    api.GetDiskFreeSpaceExW.restype = ctypes.c_int
+
+    version = sys.getwindowsversion().platform_version
+    cpu = os.cpu_count()
+    if (type(version) is not tuple or len(version) != 3
+            or any(type(part) is not int or not 0 <= part <= 99999 for part in version)
+            or type(cpu) is not int or not 1 <= cpu <= 4096):
+        return {'status': 'INVALID_DATA'}
+    memory = MemoryStatus()
+    memory.dwLength = ctypes.sizeof(memory)
+    if not api.GlobalMemoryStatusEx(ctypes.byref(memory)):
+        return failed()
+    mask = api.GetLogicalDrives()
+    if not mask:
+        return failed()
+    if mask < 0 or mask >= (1 << 26):
+        return {'status': 'INVALID_DATA'}
+    volumes = []
+    for index in range(26):
+        if not mask & (1 << index):
+            continue
+        root = chr(65 + index) + ':' + chr(92)
+        kind = api.GetDriveTypeW(root)
+        if kind in (0, 1):
+            return {'status': 'PROBE_FAILED'}
+        if kind not in (2, 3, 4, 5, 6):
+            return {'status': 'INVALID_DATA'}
+        if kind != 3:
+            continue
+        available = ctypes.c_ulonglong()
+        total = ctypes.c_ulonglong()
+        total_free = ctypes.c_ulonglong()
+        if not api.GetDiskFreeSpaceExW(root, ctypes.byref(available), ctypes.byref(total), ctypes.byref(total_free)):
+            return failed()
+        # Both selected values use the caller's accessible capacity, including
+        # any quota. The volume-wide free count can exceed a caller's quota.
+        volumes.append({'total_bytes': total.value, 'free_bytes': available.value})
+    return {'status': 'OK', 'os_version': '.'.join(str(part) for part in version),
+            'cpu_count': cpu, 'ram_total_bytes': memory.ullTotalPhys,
+            'ram_free_bytes': memory.ullAvailPhys, 'fixed_disks': volumes}
+
+try:
+    result = inspect_native()
+except PermissionError:
+    result = {'status': 'ACCESS_DENIED'}
+except Exception:
+    result = {'status': 'PROBE_FAILED'}
+print(json.dumps(result, ensure_ascii=True, allow_nan=False))
+'''
+
 
 class Probe(NamedTuple):
     status: str
@@ -230,26 +308,28 @@ def _powershell(body):
 
 
 def _empty_system(family, status, scope):
-    return {
+    result = {
         'os': {'family': family, 'version': None, 'status': status},
         'cpu': {'status': status, 'logical_count': None},
         'ram': {'status': status, 'total_bytes': None, 'free_bytes': None},
         'storage': {'status': status, 'scope': scope, 'volumes': []},
     }
+    if family == 'WINDOWS':
+        result['os']['version_basis'] = 'WINDOWS_KERNEL32_VERSION'
+        result['storage']['capacity_basis'] = 'CALLER_ACCESSIBLE_BYTES'
+    return result
 
 
 def _windows_system():
-    status, value = _powershell(
-        '$o=Get-CimInstance Win32_OperatingSystem;'
-        '$c=Get-CimInstance Win32_ComputerSystem;'
-        '$d=@(Get-CimInstance Win32_LogicalDisk -Filter "DriveType=3"|'
-        'Where-Object {$_.Size -gt 0}|ForEach-Object {'
-        '@{total_bytes=[long]$_.Size;free_bytes=[long]$_.FreeSpace}});'
-        "@{status='OK';os_version=[string]$o.Version;cpu_count=[int]$c.NumberOfLogicalProcessors;"
-        'ram_total_bytes=([long]$o.TotalVisibleMemorySize*1024);'
-        'ram_free_bytes=([long]$o.FreePhysicalMemory*1024);fixed_disks=$d}'
-        '|ConvertTo-Json -Depth 4 -Compress'
-    )
+    status, value = _decode_json(_command(
+        [sys.executable, '-I', '-S', '-B', '-c', WINDOWS_SYSTEM_CODE],
+    ))
+    if status == 'OK':
+        code = value.get('status')
+        if type(code) is not str:
+            status = 'INVALID_DATA'
+        elif code != 'OK':
+            status = code if code in ERROR_CODES else 'PROBE_FAILED'
     result = _empty_system('WINDOWS', status if status != 'OK' else 'INVALID_DATA', 'FIXED_VOLUMES')
     if status != 'OK':
         return result
@@ -602,7 +682,9 @@ def inspect_workstation(*, context='unconfirmed', requested_model=None):
     if (type(context) is not str or context not in CONTEXTS
             or requested_model is not None and (type(requested_model) is not str or not MODEL_NAME.fullmatch(requested_model))):
         return {'schema_version': 1, 'diagnostic_status': 'INVALID_ARGUMENT'}
-    system = platform.system()
+    # Avoid version-discovery fallbacks in platform on Windows; resource facts
+    # come from the bounded native child, and its version is only for logging.
+    system = 'Windows' if sys.platform == 'win32' else platform.system()
     family = {'Windows': 'WINDOWS', 'Linux': 'LINUX'}.get(system, 'UNSUPPORTED')
     resources = (_windows_system() if family == 'WINDOWS' else _linux_system() if family == 'LINUX'
                  else _empty_system(family, 'NOT_APPLICABLE', 'NOT_ASSESSED'))

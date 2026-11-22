@@ -4,6 +4,7 @@ Windows is simulated at its process boundary. Child-process limits and the
 fixed-loopback HTTP client are exercised with real processes/sockets.
 """
 import importlib.util
+import ctypes
 import json
 from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -11,6 +12,7 @@ from pathlib import Path
 import sys
 import threading
 import time
+from types import SimpleNamespace
 
 import pytest
 
@@ -46,12 +48,14 @@ def windows_fixture(monkeypatch, module, *, system=None, vm=None, gpu=None, tags
 
     def run(command, **_):
         executable = Path(command[0]).name
+        if command[0] == sys.executable:
+            assert command[1:5] == ['-I', '-S', '-B', '-c']
+            assert len(command) == 6
+            return module.Probe('OK', json.dumps(system).encode())
         if executable == 'powershell.exe':
             assert command[1:3] == ['-NoProfile', '-NonInteractive']
             assert command[3] == '-Command'
             statement = command[4]
-            if 'Get-CimInstance' in statement:
-                return module.Probe('OK', json.dumps(system).encode())
             if 'Get-VM' in statement:
                 return module.Probe('OK', json.dumps(vm).encode())
             if 'Get-NetTCPConnection' in statement:
@@ -76,7 +80,8 @@ def test_windows_results_are_anonymous_and_do_not_claim_device_acceptance(monkey
     module = load_script()
     windows_fixture(monkeypatch, module)
     report = module.inspect_workstation(requested_model='local-model:7b')
-    assert report['os'] == {'family': 'WINDOWS', 'version': '10.0.26100', 'status': 'OK'}
+    assert report['os'] == {'family': 'WINDOWS', 'version': '10.0.26100', 'status': 'OK',
+                            'version_basis': 'WINDOWS_KERNEL32_VERSION'}
     assert report['cpu']['logical_count'] == 16
     assert report['ram'] == {'status': 'OK', 'total_bytes': 34359738368, 'free_bytes': 17179869184}
     assert report['storage']['volumes'] == [{'total_bytes': 1000000000000, 'free_bytes': 300000000000}]
@@ -212,7 +217,7 @@ def test_windows_probes_allow_cold_powershell_startup_without_extending_native_b
     assert report['storage']['status'] == 'OK'
     assert report['hyperv']['status'] == 'OK'
     assert report['ports']['8787'] == {'status': 'OK', 'listening': True}
-    assert native_budgets == [5.0, 5.0, 5.0]
+    assert native_budgets == [5.0, 5.0, 5.0, 5.0]
     assert SECRET not in json.dumps(report)
 
 
@@ -229,10 +234,8 @@ def test_powershell_deadline_still_terminates_child_and_discards_partial_output(
 
     monkeypatch.setattr(module, '_run_command', stalled_powershell)
     started = time.monotonic()
-    report = module._windows_system()
-    assert report['os'] == {'family': 'WINDOWS', 'version': None, 'status': 'TIMEOUT'}
-    assert report['cpu'] == {'status': 'TIMEOUT', 'logical_count': None}
-    assert 'PRIVATE_PARTIAL_OUTPUT' not in json.dumps(report)
+    status, value = module._powershell("@{status='OK'}|ConvertTo-Json -Compress")
+    assert (status, value) == ('TIMEOUT', None)
     assert time.monotonic() - started < 1
 
 
@@ -443,3 +446,83 @@ def test_malformed_hyperv_guest_does_not_leak_or_become_absence(monkeypatch, gue
     module = load_script()
     windows_fixture(monkeypatch, module, vm={'status': 'OK', 'guests': [guest]})
     assert module.inspect_workstation()['hyperv'] == {'status': 'INVALID_DATA', 'guests': None}
+
+
+def native_windows_payload(module, monkeypatch, capsys, *, failure=None, error=5):
+    """Execute the exact child source with only Win32 API boundaries replaced."""
+    def memory(pointer):
+        assert ctypes.sizeof(pointer._obj) == 64
+        assert pointer._obj.dwLength == 64
+        if failure == 'memory':
+            return 0
+        pointer._obj.ullTotalPhys = 34359738368
+        pointer._obj.ullAvailPhys = 17179869184
+        return 1
+
+    def drives():
+        return 0 if failure == 'drives' else (1 << 2) | (1 << 3) | (1 << 25)
+
+    def drive_type(root):
+        return {'C:\\': 3, 'D:\\': 5, 'Z:\\': 4}[root]
+
+    def disk(root, available, total, total_free):
+        # Never query a remote or removable volume's capacity.
+        assert root == 'C:\\'
+        if failure == 'disk':
+            return 0
+        available._obj.value = 17179869184
+        total._obj.value = 42949672960
+        total_free._obj.value = 80000000000
+        return 1
+
+    api = SimpleNamespace(GlobalMemoryStatusEx=memory, GetLogicalDrives=drives,
+                          GetDriveTypeW=drive_type, GetDiskFreeSpaceExW=disk)
+    monkeypatch.setattr(ctypes, 'WinDLL', lambda name, **kwargs: api, raising=False)
+    monkeypatch.setattr(ctypes, 'get_last_error', lambda: error, raising=False)
+    monkeypatch.setattr(sys, 'getwindowsversion', lambda: SimpleNamespace(platform_version=(10, 0, 26100)), raising=False)
+    monkeypatch.setattr(module.os, 'cpu_count', lambda: 16)
+    source = getattr(module, 'WINDOWS_SYSTEM_CODE', None)
+    assert source is not None, 'The native Windows child is not implemented'
+    exec(compile(source, '<fixed-native-probe>', 'exec'), {})
+    output = capsys.readouterr()
+    assert output.err == ''
+    return json.loads(output.out)
+
+
+def test_native_windows_child_uses_64bit_anonymous_caller_capacity(monkeypatch, capsys):
+    module = load_script()
+    payload = native_windows_payload(module, monkeypatch, capsys)
+    assert payload == {'status': 'OK', 'os_version': '10.0.26100', 'cpu_count': 16,
+                       'ram_total_bytes': 34359738368, 'ram_free_bytes': 17179869184,
+                       'fixed_disks': [{'total_bytes': 42949672960, 'free_bytes': 17179869184}]}
+    for forbidden in ('C:', 'D:', 'Z:', SECRET):
+        assert forbidden not in json.dumps(payload)
+
+
+@pytest.mark.parametrize('failure', ['memory', 'drives', 'disk'])
+@pytest.mark.parametrize('error, expected', [(5, 'ACCESS_DENIED'), (87, 'PROBE_FAILED')])
+def test_native_windows_api_failure_remains_unknown(monkeypatch, capsys, failure, error, expected):
+    module = load_script()
+    payload = native_windows_payload(module, monkeypatch, capsys, failure=failure, error=error)
+    assert payload == {'status': expected}
+
+
+def test_native_windows_child_deadline_discards_partial_output(monkeypatch):
+    module = load_script()
+    original = module._run_command
+
+    def stalled_child(command, *, timeout=5.0, **kwargs):
+        assert command[:5] == [sys.executable, '-I', '-S', '-B', '-c']
+        assert 0 < timeout <= 5
+        return original([sys.executable, '-I', '-S', '-B', '-c',
+                         'import time; print("PRIVATE_PARTIAL_OUTPUT", flush=True); time.sleep(30)'],
+                        timeout=0.05, **kwargs)
+
+    monkeypatch.setattr(module, '_run_command', stalled_child)
+    started = time.monotonic()
+    report = module._windows_system()
+    assert report['os']['status'] == 'TIMEOUT'
+    assert report['os']['version'] is None
+    assert report['storage']['volumes'] == []
+    assert 'PRIVATE_PARTIAL_OUTPUT' not in json.dumps(report)
+    assert time.monotonic() - started < 1
