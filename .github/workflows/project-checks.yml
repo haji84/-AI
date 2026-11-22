@@ -22,6 +22,12 @@ jobs:
           python -W error -B scripts/check_emergency_workstation.py --context cloud > diagnostic.json
           if ($LASTEXITCODE -ne 0) { throw 'Diagnostic failed' }
           $result = Get-Content diagnostic.json -Raw | ConvertFrom-Json
+          $safeStatus = @('OK', 'NOT_AVAILABLE', 'ACCESS_DENIED', 'TIMEOUT', 'OUTPUT_LIMIT', 'PROBE_FAILED', 'INVALID_DATA', 'NOT_APPLICABLE', 'HTTP_ERROR', 'REDIRECT_BLOCKED')
+          foreach ($probe in @('os', 'cpu', 'ram', 'storage', 'gpu', 'native_ocr', 'local_model', 'hyperv')) {
+            $status = $result.$probe.status
+            if ($status -notin $safeStatus) { $status = 'INVALID_DATA' }
+            Write-Output ("Diagnostic status {0}: {1}" -f $probe, $status)
+          }
           if ($result.diagnostic_status -ne 'COMPLETED' -or $result.execution_context -ne 'CLOUD') { throw 'Invalid diagnostic result' }
           if ($result.os.family -ne 'WINDOWS' -or $result.os.status -ne 'OK') { throw 'Windows query failed' }
           if ($result.cpu.status -ne 'OK' -or $result.ram.status -ne 'OK' -or $result.storage.status -ne 'OK') { throw 'Resource query failed' }
